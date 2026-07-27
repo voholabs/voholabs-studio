@@ -12,7 +12,7 @@ export default function TermsPage() {
   return (
     <LegalPage
       title="Voholabs Studio Terms of Service"
-      updated="19 July 2026"
+      updated="27 July 2026"
       intro={
         <>
           These terms govern your use of Voholabs Studio, the social media
@@ -45,10 +45,22 @@ export default function TermsPage() {
       <LegalSection id="eligibility" title="3. Eligibility and accounts">
         <LegalList
           items={[
-            <>You must be at least 18 years old, or the minimum age required by the platforms you connect, whichever is higher.</>,
-            <>You are responsible for keeping your credentials secure and for all activity under your account.</>,
-            <>You must give accurate registration details and keep them up to date.</>,
-            <>If you add team members, you are responsible for their use of the service.</>,
+            <>
+              You must be at least 18 years old, or the minimum age required by
+              the platforms you connect, whichever is higher.
+            </>,
+            <>
+              You are responsible for keeping your credentials secure and for
+              all activity under your account.
+            </>,
+            <>
+              You must give accurate registration details and keep them up to
+              date.
+            </>,
+            <>
+              If you add team members, you are responsible for their use of the
+              service.
+            </>,
           ]}
         />
       </LegalSection>
@@ -62,14 +74,71 @@ export default function TermsPage() {
         </p>
         <p>
           Your use of each connected platform remains subject to that
-          platform&apos;s own terms and policies — including, where you connect a
-          TikTok account, TikTok&apos;s Terms of Service, Community Guidelines
-          and Privacy Policy. Voholabs Studio is an independent product and is
-          not endorsed by, affiliated with, or sponsored by TikTok or any other
-          platform. Platforms may change, rate-limit, suspend or withdraw their
-          APIs at any time, and we are not liable for a failed or delayed
-          publication caused by a platform outage, policy change or account
-          restriction outside our control.
+          platform&apos;s own terms and policies. In particular:
+        </p>
+        <LegalList
+          items={[
+            <>
+              Where you connect a <strong>TikTok</strong> account, TikTok&apos;s
+              Terms of Service, Community Guidelines and Privacy Policy apply.
+            </>,
+            <>
+              Where you connect a <strong>YouTube</strong> channel, you are
+              additionally bound by the{' '}
+              <a
+                className="underline"
+                href="https://www.youtube.com/t/terms"
+                target="_blank"
+                rel="noreferrer"
+              >
+                YouTube Terms of Service
+              </a>
+              . Voholabs Studio uses the YouTube API Services, and Google&apos;s
+              handling of your data is described in the{' '}
+              <a
+                className="underline"
+                href="https://policies.google.com/privacy"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Google Privacy Policy
+              </a>
+              . You can revoke our access to your Google data at any time from{' '}
+              <a
+                className="underline"
+                href="https://myaccount.google.com/permissions"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Google account permissions
+              </a>
+              .
+            </>,
+            <>
+              Where you connect a <strong>Facebook</strong> Page,{' '}
+              <strong>Instagram</strong> professional account or{' '}
+              <strong>Threads</strong> profile, Meta&apos;s Terms of Service,
+              Community Standards and{' '}
+              <a
+                className="underline"
+                href="https://www.facebook.com/privacy/policy/"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Privacy Policy
+              </a>{' '}
+              apply.
+            </>,
+          ]}
+        />
+        <p>
+          Voholabs Studio is an independent product. It is not endorsed by,
+          affiliated with, or sponsored by TikTok, Google, YouTube, Meta
+          Platforms, Inc. or any other platform, and platform names and logos
+          are the trademarks of their respective owners. Platforms may change,
+          rate-limit, suspend or withdraw their APIs at any time, and we are not
+          liable for a failed or delayed publication caused by a platform
+          outage, policy change or account restriction outside our control.
         </p>
       </LegalSection>
 
@@ -87,10 +156,23 @@ export default function TermsPage() {
         <p>You must not use Voholabs Studio to:</p>
         <LegalList
           items={[
-            <>Publish unlawful, infringing, deceptive, harassing or hateful content, or content that breaches a connected platform&apos;s community guidelines.</>,
-            <>Send spam, operate inauthentic or coordinated networks of accounts, or artificially inflate engagement.</>,
-            <>Access accounts you are not authorised to manage, or resell platform data obtained through the service.</>,
-            <>Circumvent rate limits, reverse engineer the service, or interfere with its security or availability.</>,
+            <>
+              Publish unlawful, infringing, deceptive, harassing or hateful
+              content, or content that breaches a connected platform&apos;s
+              community guidelines.
+            </>,
+            <>
+              Send spam, operate inauthentic or coordinated networks of
+              accounts, or artificially inflate engagement.
+            </>,
+            <>
+              Access accounts you are not authorised to manage, or resell
+              platform data obtained through the service.
+            </>,
+            <>
+              Circumvent rate limits, reverse engineer the service, or interfere
+              with its security or availability.
+            </>,
           ]}
         />
         <p>
@@ -138,6 +220,11 @@ export default function TermsPage() {
           On termination we delete your data in line with the{' '}
           <a className="underline" href="/privacy">
             Voholabs Studio Privacy Policy
+          </a>
+          . You can delete your account, disconnect an individual channel, or
+          ask us to erase your data at any time — the steps are set out in{' '}
+          <a className="underline" href="/privacy#data-deletion">
+            section 10 of the Privacy Policy
           </a>
           .
         </p>

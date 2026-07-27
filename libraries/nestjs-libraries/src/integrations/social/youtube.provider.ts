@@ -56,14 +56,15 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
   name = 'YouTube';
   isBetweenSteps = true;
   dto = YoutubeSettingsDto;
+  // Minimum scopes required by the calls this provider actually makes:
+  // userinfo.profile -> oauth2.userinfo.get (account id / name / avatar)
+  // youtube.readonly -> channels.list, videos.list (statistics)
+  // youtube.upload   -> videos.insert, thumbnails.set
+  // yt-analytics.readonly -> youtubeAnalytics.reports.query
   scopes = [
     'https://www.googleapis.com/auth/userinfo.profile',
-    'https://www.googleapis.com/auth/userinfo.email',
-    'https://www.googleapis.com/auth/youtube',
-    'https://www.googleapis.com/auth/youtube.force-ssl',
     'https://www.googleapis.com/auth/youtube.readonly',
     'https://www.googleapis.com/auth/youtube.upload',
-    'https://www.googleapis.com/auth/youtubepartner',
     'https://www.googleapis.com/auth/yt-analytics.readonly',
   ];
 

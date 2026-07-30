@@ -62,8 +62,9 @@ export class LoadToolsService {
         - List groups (customers) and filter the channels by a group
         - List the posts already on the calendar, and delete (unschedule) a post
         - Find the next free slot in the schedule
-        - List the media library, upload media from a URL, and delete media
+        - List the media library, upload media, and delete media
 
+      - To attach a file the user has locally, get it into the media library first and use the returned "path" as the attachment. Pick the route by size: uploadFromUrlTool when it is reachable by URL, uploadMediaTool for a small file you can base64 inline, and createUploadLinkTool for anything bigger (a photo or a video) — then POST the file to the link it returns.
       - Deleting is permanent: before calling deletePostTool or deleteMediaTool, show the user exactly what will be removed and get a clear confirmation.
       - Deleting a post removes its whole group (the post plus its thread items and comments). If the post was already published, it only disappears from the calendar — it stays live on the social network, so say that to the user.
 

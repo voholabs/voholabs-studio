@@ -13,6 +13,8 @@ import { PostsDeleteTool } from '@gitroom/nestjs-libraries/chat/tools/posts.dele
 import { FindSlotTool } from '@gitroom/nestjs-libraries/chat/tools/find.slot.tool';
 import { MediaListTool } from '@gitroom/nestjs-libraries/chat/tools/media.list.tool';
 import { MediaDeleteTool } from '@gitroom/nestjs-libraries/chat/tools/media.delete.tool';
+import { MediaUploadTool } from '@gitroom/nestjs-libraries/chat/tools/media.upload.tool';
+import { MediaUploadLinkTool } from '@gitroom/nestjs-libraries/chat/tools/media.upload.link.tool';
 
 export const toolList = [
   IntegrationListTool,
@@ -25,6 +27,8 @@ export const toolList = [
   FindSlotTool,
   MediaListTool,
   MediaDeleteTool,
+  MediaUploadTool,
+  MediaUploadLinkTool,
   GenerateVideoOptionsTool,
   VideoFunctionTool,
   GenerateVideoTool,

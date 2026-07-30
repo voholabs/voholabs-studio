@@ -7,21 +7,7 @@ import { UploadFactory } from '@gitroom/nestjs-libraries/upload/upload.factory';
 import { getMaxSize } from '@gitroom/nestjs-libraries/upload/custom.upload.validation';
 import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
 import { ssrfSafeDispatcher } from '@gitroom/nestjs-libraries/dtos/webhooks/ssrf.safe.dispatcher';
-import { Readable } from 'stream';
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { fromBuffer } = require('file-type');
-
-// Same allow-list as the public API /upload-from-url route.
-const ALLOWED_MIME = new Set<string>([
-  'image/jpeg',
-  'image/png',
-  'image/gif',
-  'image/webp',
-  'image/avif',
-  'image/bmp',
-  'image/tiff',
-  'video/mp4',
-]);
+import { storeBufferAsMedia } from '@gitroom/nestjs-libraries/chat/tools/media.upload.helper';
 
 @Injectable()
 export class UploadFromUrlTool implements AgentToolInterface {
@@ -90,36 +76,15 @@ so the attachment passes the upload-domain validation. Returns the hosted media 
           }
 
           const buffer = Buffer.from(await response.arrayBuffer());
-          const detected = await fromBuffer(buffer);
-          if (!detected || !ALLOWED_MIME.has(detected.mime)) {
-            return { error: 'Unsupported file type.' };
-          }
 
-          const maxSize = getMaxSize(detected.mime);
-          if (buffer.length > maxSize) {
-            return {
-              error: `File is too large: ${buffer.length} bytes (max ${maxSize} bytes).`,
-            };
-          }
-
-          const getFile = await this.storage.uploadFile({
+          // Sniffing, size limits and storage are shared with uploadMediaTool
+          // and are keyed off the bytes, not the URL or the declared type.
+          return await storeBufferAsMedia({
+            storage: this.storage,
+            mediaService: this._mediaService,
+            organizationId: org.id,
             buffer,
-            mimetype: detected.mime,
-            size: buffer.length,
-            path: '',
-            fieldname: '',
-            destination: '',
-            stream: new Readable(),
-            filename: '',
-            originalname: `upload.${detected.ext}`,
-            encoding: '',
           });
-
-          return await this._mediaService.saveFile(
-            org.id,
-            getFile.originalname,
-            getFile.path
-          );
         } catch (err) {
           // undici's fetch rejects with a generic TypeError('fetch failed')
           // and hides the real reason (DNS, TLS, SSRF block, ...) in

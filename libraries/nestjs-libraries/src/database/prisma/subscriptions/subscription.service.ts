@@ -208,6 +208,23 @@ export class SubscriptionService {
     );
   }
 
+  // `days: null` whitelists forever, a number gives access for that many days.
+  whitelistOrganization(orgId: string, days: number | null) {
+    return this._subscriptionRepository.setWhitelist(
+      orgId,
+      days ? dayjs().add(days, 'day').toDate() : null,
+      makeId(5)
+    );
+  }
+
+  removeWhitelistFromOrganization(orgId: string) {
+    return this._subscriptionRepository.removeWhitelist(orgId);
+  }
+
+  getAllOrganizationIds() {
+    return this._subscriptionRepository.getAllOrganizationIds();
+  }
+
   getSubscriptionByIdentifier(identifier: string) {
     return this._subscriptionRepository.getSubscriptionByIdentifier(identifier);
   }

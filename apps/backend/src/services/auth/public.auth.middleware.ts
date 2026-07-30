@@ -3,6 +3,11 @@ import { Request, Response, NextFunction } from 'express';
 import { OrganizationService } from '@gitroom/nestjs-libraries/database/prisma/organizations/organization.service';
 import { OAuthService } from '@gitroom/nestjs-libraries/database/prisma/oauth/oauth.service';
 import { HttpForbiddenException } from '@gitroom/nestjs-libraries/services/exception.filter';
+import {
+  hasAccess,
+  paywallUrl,
+  trialExpiredMessage,
+} from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 
 @Injectable()
 export class PublicAuthMiddleware implements NestMiddleware {
@@ -28,10 +33,11 @@ export class PublicAuthMiddleware implements NestMiddleware {
         }
 
         const org = authorization.organization;
-        if (!!process.env.STRIPE_SECRET_KEY && !org.subscription) {
-          res
-            .status(HttpStatus.UNAUTHORIZED)
-            .json({ msg: 'No subscription found' });
+        if (!hasAccess(org)) {
+          res.status(HttpStatus.PAYMENT_REQUIRED).json({
+            msg: trialExpiredMessage(),
+            url: paywallUrl(),
+          });
           return;
         }
 
@@ -46,10 +52,11 @@ export class PublicAuthMiddleware implements NestMiddleware {
           return;
         }
 
-        if (!!process.env.STRIPE_SECRET_KEY && !org.subscription) {
-          res
-            .status(HttpStatus.UNAUTHORIZED)
-            .json({ msg: 'No subscription found' });
+        if (!hasAccess(org)) {
+          res.status(HttpStatus.PAYMENT_REQUIRED).json({
+            msg: trialExpiredMessage(),
+            url: paywallUrl(),
+          });
           return;
         }
 

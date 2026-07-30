@@ -7,6 +7,12 @@ import { UsersService } from '@gitroom/nestjs-libraries/database/prisma/users/us
 import { getCookieUrlFromDomain } from '@gitroom/helpers/subdomain/subdomain.management';
 import { HttpForbiddenException } from '@gitroom/nestjs-libraries/services/exception.filter';
 import { MastraService } from '@gitroom/nestjs-libraries/chat/mastra.service';
+import { hasAccess } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
+import {
+  AuthorizationActions,
+  Sections,
+  SubscriptionException,
+} from '@gitroom/backend/services/auth/permissions/permission.exception.class';
 
 export const removeAuth = (res: Response) => {
   res.cookie('auth', '', {
@@ -109,6 +115,18 @@ export class AuthMiddleware implements NestMiddleware {
     } catch (err) {
       throw new HttpForbiddenException();
     }
+
+    // Trial over and not whitelisted: block the whole app, the frontend moves
+    // the browser to the paywall. Super admins are never locked out.
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-expect-error
+    if (!req.user?.isSuperAdmin && !hasAccess(req.org)) {
+      throw new SubscriptionException({
+        section: Sections.TRIAL,
+        action: AuthorizationActions.Read,
+      });
+    }
+
     next();
   }
 }

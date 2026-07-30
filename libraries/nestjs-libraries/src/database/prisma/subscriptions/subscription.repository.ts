@@ -47,6 +47,60 @@ export class SubscriptionRepository {
     });
   }
 
+  // Whitelist an organization: the same Subscription row a paying customer
+  // has. `cancelAt: null` is forever, a date is a time limited whitelist (this
+  // is also what the free trial writes at signup).
+  async setWhitelist(
+    organizationId: string,
+    cancelAt: Date | null,
+    identifier: string
+  ) {
+    return this._subscription.model.subscription.upsert({
+      where: {
+        organizationId,
+      },
+      update: {
+        subscriptionTier: 'ULTIMATE',
+        totalChannels: 1000000,
+        period: 'MONTHLY',
+        cancelAt,
+        deletedAt: null,
+      },
+      create: {
+        organizationId,
+        subscriptionTier: 'ULTIMATE',
+        totalChannels: 1000000,
+        period: 'MONTHLY',
+        identifier,
+        cancelAt,
+      },
+    });
+  }
+
+  // Expire rather than soft delete: the queries that read a subscription
+  // filter on `deletedAt`, so a deleted row reads as "no subscription", which
+  // means unlimited on installs without billing. An expired `cancelAt` is the
+  // one state every access check agrees on.
+  async removeWhitelist(organizationId: string) {
+    return this._subscription.model.subscription.updateMany({
+      where: {
+        organizationId,
+        deletedAt: null,
+      },
+      data: {
+        cancelAt: new Date(),
+      },
+    });
+  }
+
+  getAllOrganizationIds() {
+    return this._organization.model.organization.findMany({
+      select: {
+        id: true,
+      },
+    });
+  }
+
   getSubscriptionByOrganizationId(organizationId: string) {
     return this._subscription.model.subscription.findFirst({
       where: {

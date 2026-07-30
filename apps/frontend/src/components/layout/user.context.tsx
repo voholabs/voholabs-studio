@@ -18,6 +18,8 @@ export const UserContext = createContext<
       impersonate: boolean;
       allowTrial: boolean;
       isTrailing: boolean;
+      // End of the free trial, `null` when whitelisted forever
+      trialEndsAt: string | null;
       streakSince: string | null;
     })
 >(undefined);

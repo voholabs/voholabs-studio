@@ -34,6 +34,11 @@ import {
   AuthorizationActions,
   Sections,
 } from '@gitroom/backend/services/auth/permissions/permission.exception.class';
+import {
+  hasAccess,
+  isActiveSubscription,
+  trialEndsAt,
+} from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 
 @ApiTags('User')
 @Controller('/user')
@@ -106,6 +111,15 @@ export class UsersController {
     }
 
     const impersonate = req.cookies.impersonate || req.headers.impersonate;
+    // The middleware loads the organization with its subscription, which the
+    // bare Prisma type does not carry.
+    const org = organization as Organization & {
+      subscription?: {
+        subscriptionTier?: string;
+        cancelAt?: Date | null;
+        deletedAt?: Date | null;
+      } | null;
+    };
     // @ts-ignore
     return {
       ...user,
@@ -115,9 +129,16 @@ export class UsersController {
         : // @ts-ignore
           organization?.subscription?.totalChannels || pricing.FREE.channel,
       tier:
-        // @ts-ignore
-        organization?.subscription?.subscriptionTier ||
-        (!process.env.STRIPE_PUBLISHABLE_KEY ? 'ULTIMATE' : 'FREE'),
+        // An expired trial grants nothing, so it reports FREE - that is what
+        // paints the app as locked if the user ever gets past the redirect.
+        (isActiveSubscription(org?.subscription) &&
+          org?.subscription?.subscriptionTier) ||
+        (hasAccess(org) && !process.env.STRIPE_PUBLISHABLE_KEY
+          ? 'ULTIMATE'
+          : 'FREE'),
+      // When the free trial (or a time limited whitelist) ends. `null` when the
+      // organization is whitelisted forever.
+      trialEndsAt: trialEndsAt(org),
       // @ts-ignore
       role: organization?.users[0]?.role,
       // @ts-ignore

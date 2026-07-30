@@ -7,6 +7,10 @@ import { IntegrationService } from '@gitroom/nestjs-libraries/database/prisma/in
 import dayjs from 'dayjs';
 import { WebhooksService } from '@gitroom/nestjs-libraries/database/prisma/webhooks/webhooks.service';
 import { AuthorizationActions, Sections } from './permission.exception.class';
+import {
+  hasAccess,
+  isActiveSubscription,
+} from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 
 export type AppAbility = Ability<[AuthorizationActions, Sections]>;
 
@@ -19,15 +23,23 @@ export class PermissionsService {
     private _webhooksService: WebhooksService
   ) {}
   async getPackageOptions(orgId: string) {
-    const subscription =
+    const loadSubscription =
       await this._subscriptionService.getSubscriptionByOrganizationId(orgId);
+
+    // An expired subscription (the free trial ran out) grants nothing: the tier
+    // falls back to FREE and every quota below clamps to zero.
+    const access = hasAccess({ subscription: loadSubscription });
+    const subscription = isActiveSubscription(loadSubscription)
+      ? loadSubscription
+      : null;
 
     const tier =
       subscription?.subscriptionTier ||
-      (!process.env.STRIPE_PUBLISHABLE_KEY ? 'PRO' : 'FREE');
+      (access && !process.env.STRIPE_PUBLISHABLE_KEY ? 'PRO' : 'FREE');
 
     const { channel, ...all } = pricing[tier];
     return {
+      access,
       subscription,
       options: {
         ...all,
@@ -47,9 +59,16 @@ export class PermissionsService {
       Ability<[AuthorizationActions, Sections]>
     >(Ability as AbilityClass<AppAbility>);
 
+    const { access, subscription, options } = await this.getPackageOptions(
+      orgId
+    );
+
+    // Without Stripe there is nothing to bill, so everything is allowed - but
+    // only while the organization still has access (whitelisted, or inside its
+    // free trial). Expired ones fall through to the FREE quotas below.
     if (
       requestedPermission.length === 0 ||
-      !process.env.STRIPE_PUBLISHABLE_KEY
+      (!process.env.STRIPE_PUBLISHABLE_KEY && access)
     ) {
       for (const [action, section] of requestedPermission) {
         can(action, section);
@@ -62,7 +81,6 @@ export class PermissionsService {
       });
     }
 
-    const { subscription, options } = await this.getPackageOptions(orgId);
     for (const [action, section] of requestedPermission) {
       // check for the amount of channels
       if (section === Sections.CHANNEL) {

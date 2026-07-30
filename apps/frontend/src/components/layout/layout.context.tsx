@@ -104,14 +104,19 @@ function LayoutContextInner(params: { children: ReactNode }) {
       }
 
       if (response.status === 402) {
+        const body = await response.json();
+
+        // Trial over: there is nothing to upgrade inside the app, so move the
+        // browser to the paywall instead of opening the billing dialog.
+        if (body?.redirect) {
+          if (!window.location.pathname.startsWith('/trial-ended')) {
+            window.location.href = body.url;
+          }
+          return false;
+        }
+
         if (
-          await deleteDialog(
-            (
-              await response.json()
-            ).message,
-            'Move to billing',
-            'Payment Required'
-          )
+          await deleteDialog(body.message, 'Move to billing', 'Payment Required')
         ) {
           window.open('/billing', '_blank');
           return false;

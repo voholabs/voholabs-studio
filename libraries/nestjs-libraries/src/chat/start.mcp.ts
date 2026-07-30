@@ -7,6 +7,11 @@ import { OrganizationService } from '@gitroom/nestjs-libraries/database/prisma/o
 import { OAuthService } from '@gitroom/nestjs-libraries/database/prisma/oauth/oauth.service';
 import { runWithContext } from './async.storage';
 import { createOAuthMiddleware } from './oauth-middleware';
+import {
+  hasAccess,
+  paywallUrl,
+  trialExpiredMessage,
+} from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 const fixAcceptHeader = (req: Request) => {
   const value = 'application/json, text/event-stream';
   req.headers.accept = value;
@@ -30,6 +35,22 @@ export const startMcp = async (app: INestApplication) => {
       return authorization.organization;
     }
     return organizationService.getOrgByApiKey(token);
+  };
+
+  // Trial over and not whitelisted: the MCP surface is a posting surface, so it
+  // is blocked exactly like the app and the public API.
+  const blockedByPaywall = (org: any, res: Response) => {
+    if (hasAccess(org)) {
+      return false;
+    }
+
+    res.status(402).json({
+      error: 'payment_required',
+      error_description: trialExpiredMessage(),
+      url: paywallUrl(),
+    });
+
+    return true;
   };
 
   const mastra = await mastraService.mastra();
@@ -113,6 +134,10 @@ export const startMcp = async (app: INestApplication) => {
       return;
     }
 
+    if (blockedByPaywall(auth, res)) {
+      return;
+    }
+
     fixAcceptHeader(req);
     await runWithContext({ requestId: token!, auth }, async () => {
       await server.startHTTP({
@@ -162,6 +187,11 @@ export const startMcp = async (app: INestApplication) => {
       return;
     }
 
+    // @ts-ignore
+    if (blockedByPaywall(req.auth, res)) {
+      return;
+    }
+
     const url = new URL('/mcp', process.env.NEXT_PUBLIC_BACKEND_URL);
 
     fixAcceptHeader(req);
@@ -199,6 +229,11 @@ export const startMcp = async (app: INestApplication) => {
     // @ts-ignore
     if (!req.auth) {
       res.status(400).send('Invalid API Key');
+      return;
+    }
+
+    // @ts-ignore
+    if (blockedByPaywall(req.auth, res)) {
       return;
     }
 
@@ -245,6 +280,11 @@ export const startMcp = async (app: INestApplication) => {
     // @ts-ignore
     if (!req.auth) {
       res.status(400).send('Invalid API Key');
+      return;
+    }
+
+    // @ts-ignore
+    if (blockedByPaywall(req.auth, res)) {
       return;
     }
 

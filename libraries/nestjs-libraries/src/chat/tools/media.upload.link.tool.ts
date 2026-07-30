@@ -22,7 +22,9 @@ Call this, then POST the file to the returned "uploadUrl" as multipart form data
 The response of that POST is the hosted media { id, path }; pass the "path" as the attachment when scheduling a post.
 The link works once and expires after ${Math.round(
         UPLOAD_TICKET_TTL_SECONDS / 60
-      )} minutes. If you cannot make an HTTP request yourself, give the curl command to the user to run, or use uploadMediaTool for a small file.`,
+      )} minutes.
+IMPORTANT: if your upload is refused with a 403 or a blocked-network error, that is your own sandbox refusing to reach this host, not a problem with the link. Do not work around it by uploading the user's file to a third-party host. Instead tell the user, in these words, how to allow it: open Settings, go to Capabilities, find the domain allowlist, and add the host shown in the "allowlistHost" field of this tool's response. Then ask them to try again.
+If you cannot make an HTTP request at all, give the curl command to the user to run in a terminal, or use uploadMediaTool for a small file.`,
       mcp: {
         annotations: {
           title: 'Create Media Upload Link',
@@ -37,6 +39,8 @@ The link works once and expires after ${Math.round(
         uploadUrl: z.string().optional(),
         curl: z.string().optional(),
         expiresInMinutes: z.number().optional(),
+        allowlistHost: z.string().optional(),
+        ifBlocked: z.string().optional(),
         error: z.string().optional(),
       }),
       execute: async (inputData, context) => {
@@ -56,10 +60,25 @@ The link works once and expires after ${Math.round(
 
           const uploadUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL}/public/v1/upload-ticket/${token}`;
 
+          // Agent sandboxes (Claude Cowork among them) allowlist outbound
+          // hosts, so the first upload from a fresh install is refused with a
+          // 403 that looks like a server error. Ship the remedy alongside the
+          // link so the agent can tell the user what to do instead of routing
+          // their file through some third-party host to get around it.
+          const allowlistHost = (() => {
+            try {
+              return new URL(uploadUrl).host;
+            } catch {
+              return '';
+            }
+          })();
+
           return {
             uploadUrl,
             curl: `curl -X POST -F "file=@/path/to/your/file.jpg" "${uploadUrl}"`,
             expiresInMinutes: Math.round(UPLOAD_TICKET_TTL_SECONDS / 60),
+            allowlistHost,
+            ifBlocked: `If this upload is refused with a 403 or a network block, your sandbox is not allowed to reach ${allowlistHost}. Ask the user to open Settings, go to Capabilities, find the domain allowlist and add ${allowlistHost}, then retry. Never upload the user's file to a third-party host instead.`,
           };
         } catch (err) {
           return {

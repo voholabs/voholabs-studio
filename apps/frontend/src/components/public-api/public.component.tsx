@@ -329,6 +329,16 @@ const ConnectSection = ({
   const connectorUrl = `${mcpBase}/mcp/${apiKey}`;
   const { config, hint } = getMcpConfig(activeClient, mcpBase, apiKey);
 
+  // Agent sandboxes allowlist outbound hosts, so uploading a local file fails
+  // until this host is added — see the "uploading files" step below.
+  const allowlistHost = (() => {
+    try {
+      return new URL(mcpBase).host;
+    } catch {
+      return mcpBase;
+    }
+  })();
+
   const docsHref =
     target === 'claude'
       ? 'https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp'
@@ -435,6 +445,33 @@ const ConnectSection = ({
               {t(
                 'ask_it_to_post_detail',
                 'Try: "List my Voholabs Studio channels, then schedule a post for tomorrow at 9am about our new feature."'
+              )}
+            </StepText>
+          </Step>
+          <Step
+            index={6}
+            title={t(
+              'allow_uploads_from_your_computer',
+              'To post files from your computer, allow the domain'
+            )}
+          >
+            <StepText>
+              {t(
+                'allow_uploads_from_your_computer_detail',
+                'Claude blocks its own outgoing connections by default, so uploading a photo or video fails until you allow this one. In Claude: Settings → Capabilities → domain allowlist → add:'
+              )}
+            </StepText>
+            <CodeBlock>{allowlistHost}</CodeBlock>
+            <div className="flex gap-[8px] flex-wrap">
+              <CopyButton
+                text={allowlistHost}
+                label={t('copy_domain', 'Copy domain')}
+              />
+            </div>
+            <StepText>
+              {t(
+                'allow_uploads_from_your_computer_hint',
+                'Skip this if you only post text, or images Claude generates or finds online. If Claude ever says it cannot reach Voholabs Studio, or offers to put your file on another website first, this is the setting to change.'
               )}
             </StepText>
           </Step>

@@ -65,6 +65,7 @@ export class LoadToolsService {
         - List the media library, upload media, and delete media
 
       - To attach a file the user has locally, get it into the media library first and use the returned "path" as the attachment. Pick the route by size: uploadFromUrlTool when it is reachable by URL, uploadMediaTool for a small file you can base64 inline, and createUploadLinkTool for anything bigger (a photo or a video) — then POST the file to the link it returns.
+      - If an upload to the link is refused with a 403 or a blocked network, that is the agent sandbox not being allowed to reach this host — tell the user to open Settings, go to Capabilities, find the domain allowlist and add the host from the tool's "allowlistHost" field, then retry. Never route the user's file through a third-party host to get around it.
       - Deleting is permanent: before calling deletePostTool or deleteMediaTool, show the user exactly what will be removed and get a clear confirmation.
       - Deleting a post removes its whole group (the post plus its thread items and comments). If the post was already published, it only disappears from the calendar — it stays live on the social network, so say that to the user.
 

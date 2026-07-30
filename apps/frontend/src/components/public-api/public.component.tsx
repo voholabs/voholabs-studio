@@ -346,6 +346,29 @@ const ConnectSection = ({
       ? 'https://platform.openai.com/docs/mcp'
       : 'https://docs.postiz.com/mcp/introduction';
 
+  // Uploading a local file is the one flow where the assistant itself has to
+  // reach us over the network, and both Claude and ChatGPT block that until the
+  // domain is permitted — so it gets its own step rather than a footnote.
+  const allowlistStep = (index: number, detail: string, hint: string) => (
+    <Step
+      index={index}
+      title={t(
+        'allow_uploads_from_your_computer',
+        'To post files from your computer, allow the domain'
+      )}
+    >
+      <StepText>{detail}</StepText>
+      <CodeBlock>{allowlistHost}</CodeBlock>
+      <div className="flex gap-[8px] flex-wrap">
+        <CopyButton
+          text={allowlistHost}
+          label={t('copy_domain', 'Copy domain')}
+        />
+      </div>
+      <StepText>{hint}</StepText>
+    </Step>
+  );
+
   const linkStep = (index: number) => (
     <Step
       index={index}
@@ -448,33 +471,17 @@ const ConnectSection = ({
               )}
             </StepText>
           </Step>
-          <Step
-            index={6}
-            title={t(
-              'allow_uploads_from_your_computer',
-              'To post files from your computer, allow the domain'
-            )}
-          >
-            <StepText>
-              {t(
-                'allow_uploads_from_your_computer_detail',
-                'Claude blocks its own outgoing connections by default, so uploading a photo or video fails until you allow this one. In Claude: Settings → Capabilities → domain allowlist → add:'
-              )}
-            </StepText>
-            <CodeBlock>{allowlistHost}</CodeBlock>
-            <div className="flex gap-[8px] flex-wrap">
-              <CopyButton
-                text={allowlistHost}
-                label={t('copy_domain', 'Copy domain')}
-              />
-            </div>
-            <StepText>
-              {t(
-                'allow_uploads_from_your_computer_hint',
-                'Skip this if you only post text, or images Claude generates or finds online. If Claude ever says it cannot reach Voholabs Studio, or offers to put your file on another website first, this is the setting to change.'
-              )}
-            </StepText>
-          </Step>
+          {allowlistStep(
+            6,
+            t(
+              'allow_uploads_from_your_computer_detail',
+              'Claude blocks its own outgoing connections by default, so uploading a photo or video fails until you allow this one. In Claude: Settings → Capabilities → domain allowlist → add:'
+            ),
+            t(
+              'allow_uploads_from_your_computer_hint',
+              'Skip this if you only post text, or images Claude generates or finds online. If Claude ever says it cannot reach Voholabs Studio, or offers to put your file on another website first, this is the setting to change.'
+            )
+          )}
         </div>
       )}
 
@@ -526,6 +533,17 @@ const ConnectSection = ({
               )}
             </StepText>
           </Step>
+          {allowlistStep(
+            5,
+            t(
+              'allow_uploads_chatgpt_detail',
+              'Posting text and online images needs nothing extra. Uploading a file from your computer does: ChatGPT has to reach us directly, and its tools are not allowed to by default. If an upload is refused, allow this domain in your workspace network access settings — on Business and Enterprise plans an admin controls this:'
+            ),
+            t(
+              'allow_uploads_chatgpt_hint',
+              'On plans where you cannot change that setting, ChatGPT will print an upload command instead — run it in your own terminal and paste back what it returns. Either way, never let it put your file on another website first.'
+            )
+          )}
         </div>
       )}
 

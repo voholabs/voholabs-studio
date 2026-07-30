@@ -23,7 +23,7 @@ The response of that POST is the hosted media { id, path }; pass the "path" as t
 The link works once and expires after ${Math.round(
         UPLOAD_TICKET_TTL_SECONDS / 60
       )} minutes.
-IMPORTANT: if your upload is refused with a 403 or a blocked-network error, that is your own sandbox refusing to reach this host, not a problem with the link. Do not work around it by uploading the user's file to a third-party host. Instead tell the user, in these words, how to allow it: open Settings, go to Capabilities, find the domain allowlist, and add the host shown in the "allowlistHost" field of this tool's response. Then ask them to try again.
+IMPORTANT: if your upload is refused with a 403 or a blocked-network error, that is your own sandbox refusing to reach this host, not a problem with the link. Do not work around it by uploading the user's file to a third-party host. Instead ask the user to allow the host shown in the "allowlistHost" field in their assistant's network settings — in Claude that is Settings, then Capabilities, then the domain allowlist — and try again. If they cannot change that setting, give them the curl command to run themselves.
 If you cannot make an HTTP request at all, give the curl command to the user to run in a terminal, or use uploadMediaTool for a small file.`,
       mcp: {
         annotations: {
@@ -78,7 +78,7 @@ If you cannot make an HTTP request at all, give the curl command to the user to 
             curl: `curl -X POST -F "file=@/path/to/your/file.jpg" "${uploadUrl}"`,
             expiresInMinutes: Math.round(UPLOAD_TICKET_TTL_SECONDS / 60),
             allowlistHost,
-            ifBlocked: `If this upload is refused with a 403 or a network block, your sandbox is not allowed to reach ${allowlistHost}. Ask the user to open Settings, go to Capabilities, find the domain allowlist and add ${allowlistHost}, then retry. Never upload the user's file to a third-party host instead.`,
+            ifBlocked: `If this upload is refused with a 403 or a network block, your sandbox is not allowed to reach ${allowlistHost}. Ask the user to allow that domain in their assistant's network settings — in Claude: Settings, then Capabilities, then the domain allowlist — and retry. If they cannot, give them the curl command to run themselves. Never upload the user's file to a third-party host instead.`,
           };
         } catch (err) {
           return {

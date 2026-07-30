@@ -4,6 +4,7 @@ import { Injectable } from '@nestjs/common';
 import { AuthService } from '@gitroom/helpers/auth/auth.service';
 import { CreateOrgUserDto } from '@gitroom/nestjs-libraries/dtos/auth/create.org.user.dto';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
+import { newTrialCancelAt } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 
 @Injectable()
 export class OrganizationRepository {
@@ -63,6 +64,8 @@ export class OrganizationRepository {
             subscriptionTier: true,
             totalChannels: true,
             isLifetime: true,
+            cancelAt: true,
+            deletedAt: true,
           },
         },
       },
@@ -95,6 +98,8 @@ export class OrganizationRepository {
                 subscriptionTier: true,
                 totalChannels: true,
                 isLifetime: true,
+                cancelAt: true,
+                deletedAt: true,
               },
             },
           },
@@ -188,6 +193,8 @@ export class OrganizationRepository {
             subscriptionTier: true,
             totalChannels: true,
             isLifetime: true,
+            cancelAt: true,
+            deletedAt: true,
             createdAt: true,
           },
         },
@@ -269,6 +276,17 @@ export class OrganizationRepository {
         apiKey: AuthService.fixedEncryption(makeId(20)),
         allowTrial: true,
         isTrailing: true,
+        // Free trial: a whitelist entry that expires. Whitelisting an
+        // organization later is the same row with `cancelAt: null`.
+        subscription: {
+          create: {
+            subscriptionTier: 'ULTIMATE',
+            totalChannels: 1000000,
+            period: 'MONTHLY',
+            identifier: makeId(5),
+            cancelAt: newTrialCancelAt(),
+          },
+        },
         users: {
           create: {
             role: Role.SUPERADMIN,

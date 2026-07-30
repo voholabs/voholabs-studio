@@ -60,6 +60,12 @@ export class LoadToolsService {
         - Show global analytics about socials
         - List integrations (channels)
         - List groups (customers) and filter the channels by a group
+        - List the posts already on the calendar, and delete (unschedule) a post
+        - Find the next free slot in the schedule
+        - List the media library, upload media from a URL, and delete media
+
+      - Deleting is permanent: before calling deletePostTool or deleteMediaTool, show the user exactly what will be removed and get a clear confirmation.
+      - Deleting a post removes its whole group (the post plus its thread items and comments). If the post was already published, it only disappears from the calendar — it stays live on the social network, so say that to the user.
 
       - We schedule posts to different integration like facebook, instagram, etc. but to the user we don't say integrations we say channels as integration is the technical name
       - When scheduling a post, you must follow the social media rules and best practices.

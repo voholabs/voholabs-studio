@@ -39,6 +39,22 @@ export async function proxy(request: NextRequest) {
     topResponse.headers.set(cookieName, lng);
   }
 
+  // OAuth discovery probes must answer 404, not redirect to the login page.
+  // MCP clients (Claude/Cowork connectors, ChatGPT) probe these paths before
+  // connecting; the catch-all redirect below answered every probe with a 307
+  // to /auth that resolves to a 200 HTML page, which reads as "a sign-in
+  // service lives here" and pushes the client into an OAuth + dynamic client
+  // registration flow this server does not implement ("Couldn't register with
+  // the sign-in service"). No route serves these paths — the backend exposes
+  // its own copies under /api — so the honest answer is "no authorization
+  // server", which lets the client fall back to the API key in the MCP URL.
+  if (
+    nextUrl.pathname.startsWith('/.well-known/') ||
+    nextUrl.pathname === '/register'
+  ) {
+    return new NextResponse(null, { status: 404 });
+  }
+
   if (nextUrl.pathname.startsWith('/modal/') && !authCookie) {
     return NextResponse.redirect(new URL(`/auth/login-required`, nextUrl.href));
   }

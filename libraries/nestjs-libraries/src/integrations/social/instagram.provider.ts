@@ -952,17 +952,28 @@ export class InstagramProvider
       })) || [])
     );
 
+    if (!data2) {
+      // Meta answers with { error } and no data key when one of the total_value
+      // metrics is not available for this account (common on accounts with no
+      // history yet). Log the cause and keep the follower/reach series above
+      // rather than throwing away the whole page.
+      console.error(
+        `Instagram analytics: total_value metrics unavailable for ${id}`,
+        all2
+      );
+    }
+
     analytics.push(
-      ...data2.map((d: any) => ({
+      ...(data2?.map((d: any) => ({
         label: this.setTitle(d.name),
         percentageChange: 5,
         data: [
           {
-            total: d.total_value.value,
+            total: d?.total_value?.value,
             date: dayjs().format('YYYY-MM-DD'),
           },
         ],
-      }))
+      })) || [])
     );
 
     return analytics;

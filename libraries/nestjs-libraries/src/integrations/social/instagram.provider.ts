@@ -580,6 +580,22 @@ export class InstagramProvider
       )
     ).json();
 
+    if (!access_token) {
+      // Every later Instagram call splits on '___' and uses this half. Without
+      // it we would concatenate the string "undefined" into the stored token
+      // and the channel would connect successfully but fail every API call
+      // afterwards with OAuth 190 "Cannot parse access token". Fail the connect
+      // here instead of persisting a credential that is already broken.
+      console.error(
+        `Instagram: no Page access token returned for page ${data.pageId}`,
+        all
+      );
+
+      throw new Error(
+        'Could not get an access token for the Facebook Page this Instagram account is linked to. Make sure you have a role on that Page, then try connecting again.'
+      );
+    }
+
     const { id, name, profile_picture_url, username } = await (
       await fetch(
         `https://graph.facebook.com/v20.0/${data.id}?fields=username,name,profile_picture_url&access_token=${accessToken}`

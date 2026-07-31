@@ -29,7 +29,7 @@ export class InstagramProvider
   name = 'Instagram\n(Facebook Business)';
   isBetweenSteps = true;
   toolTip =
-    'Connect through Facebook. Your Instagram account must be a Business account linked to a Facebook Page, and you sign in with Facebook. Choose this one if you want to add music or original audio to Reels - that is only available on this connection.';
+    'Sign in with Facebook. Needs a Business account linked to a Facebook Page. The only connection that can add music or original audio to Reels.';
   scopes = [
     'instagram_basic',
     'pages_show_list',

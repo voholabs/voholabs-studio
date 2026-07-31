@@ -29,6 +29,13 @@ body * {
 }
 #tooltip {
   z-index: 10000;
+  // Short tooltips still shrink to a single line; long ones wrap instead of
+  // stretching off screen. Never wider than the viewport on small screens.
+  max-width: min(320px, calc(100vw - 32px));
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: start;
+  line-height: 1.45;
 }
 .box:after {
   border-radius: 50px;

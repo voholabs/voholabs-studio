@@ -28,6 +28,8 @@ export class InstagramStandaloneProvider
   name = 'Instagram\n(Standalone)';
   isBetweenSteps = false;
   refreshCron = true;
+  toolTip =
+    'Connect straight from Instagram. Works with Business and Creator accounts and needs no Facebook Page. Posts, Reels, Stories, first comments and analytics are all supported - but Instagram does not allow adding music or original audio to Reels on this connection.';
   scopes = [
     'instagram_business_basic',
     'instagram_business_content_publish',

@@ -328,10 +328,27 @@ export class IntegrationService {
       );
     }
 
-    const getIntegrationInformation = await provider.fetchPageInformation(
-      getIntegration.token,
-      data
-    );
+    let getIntegrationInformation: Awaited<
+      ReturnType<NonNullable<typeof provider.fetchPageInformation>>
+    >;
+
+    try {
+      getIntegrationInformation = await provider.fetchPageInformation(
+        getIntegration.token,
+        data
+      );
+    } catch (err) {
+      // Providers throw plain errors carrying a user-facing explanation, for
+      // example a missing role on the Facebook Page behind an Instagram
+      // account. Without this the message is lost and the connect dialog only
+      // sees an opaque 500, so the user is told nothing about how to fix it.
+      throw new HttpException(
+        err instanceof Error && err.message
+          ? err.message
+          : 'Could not connect this channel, please try again.',
+        HttpStatus.BAD_REQUEST
+      );
+    }
 
     await this.checkForDeletedOnceAndUpdate(
       org,

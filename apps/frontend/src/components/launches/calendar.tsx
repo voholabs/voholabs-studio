@@ -511,8 +511,12 @@ export const ListView = () => {
       }
       groups[dateKey].push(post);
     });
-    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
-  }, [listPosts]);
+    // Published posts come back newest-first from the API, so the days have to
+    // read the same way; everything else is upcoming and reads oldest-first.
+    return Object.entries(groups).sort(([a], [b]) =>
+      listState === 'published' ? b.localeCompare(a) : a.localeCompare(b)
+    );
+  }, [listPosts, listState]);
 
   if (loading) {
     return (

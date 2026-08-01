@@ -880,6 +880,36 @@ export class PostsService {
           errors = err?.message || 'Invalid media';
         }
 
+        // Settings that pass the DTO but would still fail at publish time, such
+        // as a Discord channel the bot cannot post in. Reported as a settings
+        // error so every surface (dashboard, public API, MCP) shows it while
+        // the post is being scheduled rather than after it silently fails.
+        if (valid && provider.validateSettings) {
+          try {
+            const settingsValidity = await provider.validateSettings(
+              integration,
+              settings,
+              {
+                hasMedia: media.some((m) => (m || []).length > 0),
+                // Plain text of the main post: a provider may need it to check
+                // a setting, such as deriving a Discord forum thread title.
+                content: stripHtmlValidation(
+                  'none',
+                  (post.value || [])[0]?.content || '',
+                  true
+                ),
+              }
+            );
+
+            if (settingsValidity !== true) {
+              valid = false;
+              settingsError = settingsValidity;
+            }
+          } catch (err) {
+            // Never block scheduling on a platform hiccup.
+          }
+        }
+
         const maximumCharacters = provider.maxLength(additionalSettings);
         const isX = integration.providerIdentifier === 'x';
 

@@ -816,6 +816,12 @@ async function uploadFile(args) {
     ).example(
       `$0 posts:create -c "Tweet content" -s "2024-12-31T12:00:00Z" --settings '{"who_can_reply_post":"everyone"}' -i "twitter-123"`,
       "X (Twitter) post with reply settings"
+    ).example(
+      `$0 posts:create -c "Hello" -s "2024-12-31T12:00:00Z" --settings '{"channel":"1077120150710530079"}' -i "discord-123"`,
+      "Discord post to a text channel (use integrations:settings for the channel ids)"
+    ).example(
+      `$0 posts:create -c "Hello" -s "2024-12-31T12:00:00Z" --settings '{"channel":"1077122344545435720","title":"Release notes"}' -i "discord-123"`,
+      "Discord forum post; title names the thread, and defaults to the first line"
     );
   },
   createPost

@@ -101,6 +101,18 @@ export interface ISocialMediaIntegration {
     integration: Integration
   ): Promise<PostResponse[]>; // Schedules a new post
 
+  // Catches settings that are structurally valid but would fail at publish
+  // time — a Discord channel the bot cannot post in, for example. Runs while
+  // the post is being scheduled, so the user hears about it when they can
+  // still fix it rather than from a failed post hours later. Returns true when
+  // fine, or the message to show. Optional; best-effort, so it must not throw
+  // for transient platform problems.
+  validateSettings?(
+    integration: Integration,
+    settings: any,
+    post: { hasMedia: boolean; content: string }
+  ): Promise<string | true>;
+
   // Removes an already-published post from the platform itself. Deleting a post
   // in Postiz only clears our own calendar, so this is what actually takes the
   // message down. Optional: providers with no delete endpoint simply omit it.

@@ -135,6 +135,56 @@ export class DiscordProvider extends SocialAbstract implements SocialProvider {
       }));
   }
 
+  // Media is absolute on remote storage but relative on local storage, where
+  // fetch() would reject the bare path.
+  private mediaUrl(path: string) {
+    return path.indexOf('http') === 0
+      ? path
+      : `${process.env.FRONTEND_URL}/${path.replace(/^\//, '')}`;
+  }
+
+  // A signed URL carries a query string that must not end up in the filename
+  // Discord shows next to the attachment.
+  private mediaFilename(path: string) {
+    return path.split('?')[0].split('/').pop() || 'attachment';
+  }
+
+  // Images and videos both go up as plain multipart attachments; Discord picks
+  // the player or the preview from the file type itself. Links need nothing
+  // special — they travel in the message content and Discord unfurls them.
+  private async buildMessageForm(post: PostDetails) {
+    const media = post.media || [];
+    const form = new FormData();
+
+    form.append(
+      'payload_json',
+      JSON.stringify({
+        content: post.message.replace(/\[\[\[(@.*?)]]]/g, (match, p1) => {
+          return `<${p1}>`;
+        }),
+        attachments: media.map((p, index) => ({
+          id: index,
+          description: p.alt || this.mediaFilename(p.path),
+          filename: this.mediaFilename(p.path),
+        })),
+      })
+    );
+
+    let index = 0;
+    for (const item of media) {
+      const loaded = await fetch(this.mediaUrl(item.path));
+
+      form.append(
+        `files[${index}]`,
+        await loaded.blob(),
+        this.mediaFilename(item.path)
+      );
+      index++;
+    }
+
+    return form;
+  }
+
   async post(
     id: string,
     accessToken: string,
@@ -143,32 +193,7 @@ export class DiscordProvider extends SocialAbstract implements SocialProvider {
     const [firstPost] = postDetails;
     const channel = firstPost.settings.channel;
 
-    const form = new FormData();
-    form.append(
-      'payload_json',
-      JSON.stringify({
-        content: firstPost.message.replace(/\[\[\[(@.*?)]]]/g, (match, p1) => {
-          return `<${p1}>`;
-        }),
-        attachments: firstPost.media?.map((p, index) => ({
-          id: index,
-          description: `Picture ${index}`,
-          filename: p.path.split('/').pop(),
-        })),
-      })
-    );
-
-    let index = 0;
-    for (const media of firstPost.media || []) {
-      const loadMedia = await fetch(media.path);
-
-      form.append(
-        `files[${index}]`,
-        await loadMedia.blob(),
-        media.path.split('/').pop()
-      );
-      index++;
-    }
+    const form = await this.buildMessageForm(firstPost);
 
     const data = await (
       await this.fetch(`https://discord.com/api/channels/${channel}/messages`, {
@@ -188,6 +213,46 @@ export class DiscordProvider extends SocialAbstract implements SocialProvider {
         status: 'success',
       },
     ];
+  }
+
+  async deletePost(
+    id: string,
+    accessToken: string,
+    postId: string,
+    post: { settings: DiscordDto; releaseURL?: string | null }
+  ): Promise<boolean> {
+    // Comments are posted into a thread, so their channel is the thread id and
+    // not the one in settings. The release URL is the only record of it:
+    // https://discord.com/channels/<guild>/<channel>/<message>
+    const fromUrl = post?.releaseURL?.split('/channels/')[1]?.split('/')?.[1];
+    const channel = fromUrl || post?.settings?.channel;
+
+    if (!channel || !postId) {
+      return false;
+    }
+
+    // Deliberately not this.fetch: a successful Discord delete answers 204,
+    // and the shared helper only lets 200/201 through.
+    const response = await fetch(
+      `https://discord.com/api/channels/${channel}/messages/${postId}`,
+      {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN_ID}`,
+        },
+      }
+    );
+
+    // 404 means the message is already gone, which is the state we wanted.
+    if (response.ok || response.status === 404) {
+      return true;
+    }
+
+    const body = await response.text().catch(() => '');
+    throw new Error(
+      this.handleErrors(body)?.value ||
+        `Discord refused to delete the message (${response.status})`
+    );
   }
 
   async comment(
@@ -226,32 +291,7 @@ export class DiscordProvider extends SocialAbstract implements SocialProvider {
       threadChannel = threadId;
     }
 
-    const form = new FormData();
-    form.append(
-      'payload_json',
-      JSON.stringify({
-        content: commentPost.message.replace(/\[\[\[(@.*?)]]]/g, (match, p1) => {
-            return `<${p1}>`;
-        }),
-        attachments: commentPost.media?.map((p, index) => ({
-          id: index,
-          description: `Picture ${index}`,
-          filename: p.path.split('/').pop(),
-        })),
-      })
-    );
-
-    let index = 0;
-    for (const media of commentPost.media || []) {
-      const loadMedia = await fetch(media.path);
-
-      form.append(
-        `files[${index}]`,
-        await loadMedia.blob(),
-        media.path.split('/').pop()
-      );
-      index++;
-    }
+    const form = await this.buildMessageForm(commentPost);
 
     const data = await (
       await this.fetch(

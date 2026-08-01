@@ -90,8 +90,9 @@ var PostizAPI = class {
       method: "GET"
     });
   }
-  async deletePost(id) {
-    return this.request(`/public/v1/posts/${id}`, {
+  async deletePost(id, deleteFromPlatform = false) {
+    const query = deleteFromPlatform ? "?deleteFromPlatform=true" : "";
+    return this.request(`/public/v1/posts/${id}${query}`, {
       method: "DELETE"
     });
   }
@@ -580,8 +581,16 @@ async function deletePost(args) {
     process.exit(1);
   }
   try {
-    await api.deletePost(args.id);
+    const result = await api.deletePost(args.id, !!args.remote);
     console.log(`\u2705 Post ${args.id} deleted successfully!`);
+    if (args.remote) {
+      const removed = (result == null ? void 0 : result.deletedFromPlatform) || [];
+      const failures = (result == null ? void 0 : result.platformErrors) || [];
+      console.log(
+        removed.length ? `\u2705 Removed ${removed.length} published message(s) from the platform: ${removed.join(", ")}` : "\u2139\ufe0f  Nothing published to remove from the platform"
+      );
+      failures.forEach((f) => console.error(`\u26a0\ufe0f  ${f}`));
+    }
   } catch (error) {
     console.error("\u274C Failed to delete post:", error.message);
     process.exit(1);
@@ -839,7 +848,14 @@ async function uploadFile(args) {
     return yargs2.positional("id", {
       describe: "Post ID to delete",
       type: "string"
-    }).example("$0 posts:delete abc123", "Delete post with ID abc123");
+    }).option("remote", {
+      describe: "Also delete the published message on the social network itself (not just the calendar)",
+      type: "boolean",
+      default: false
+    }).example("$0 posts:delete abc123", "Delete post with ID abc123").example(
+      "$0 posts:delete abc123 --remote",
+      "Delete the post and take the published message down from the platform"
+    );
   },
   deletePost
 ).command(

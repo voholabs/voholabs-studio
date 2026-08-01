@@ -100,6 +100,21 @@ export interface ISocialMediaIntegration {
     postDetails: PostDetails[],
     integration: Integration
   ): Promise<PostResponse[]>; // Schedules a new post
+
+  // Removes an already-published post from the platform itself. Deleting a post
+  // in Postiz only clears our own calendar, so this is what actually takes the
+  // message down. Optional: providers with no delete endpoint simply omit it.
+  // `postId` is the platform id we stored as releaseId; `post` carries the
+  // saved settings and the release URL, which is where a provider can recover
+  // context the settings don't hold (a comment lives in a thread, not the
+  // channel the settings name).
+  deletePost?(
+    id: string,
+    accessToken: string,
+    postId: string,
+    post: { settings: any; releaseURL?: string | null },
+    integration: Integration
+  ): Promise<boolean>;
 }
 
 export type PostResponse = {

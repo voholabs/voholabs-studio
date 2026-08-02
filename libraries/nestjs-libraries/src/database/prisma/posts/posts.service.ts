@@ -652,6 +652,61 @@ export class PostsService {
       });
   }
 
+  /**
+   * Takes the already-published messages of a group down from the platform
+   * itself. deletePost only clears our calendar, so this is opt-in and separate:
+   * the caller has to ask for it. Must run *before* deletePost, since it reads
+   * the rows that deletePost soft-deletes.
+   *
+   * Best-effort per post: one channel refusing does not stop the others.
+   */
+  async deletePostsFromPlatform(orgId: string, group: string) {
+    const posts = await this._postRepository.getPostsByGroup(orgId, group);
+    const deleted: string[] = [];
+    const errors: string[] = [];
+
+    for (const post of posts) {
+      // Nothing to take down for a queued or draft post.
+      if (post.state !== State.PUBLISHED || !post.releaseId) {
+        continue;
+      }
+
+      const integration = post.integration;
+      const provider = this._integrationManager.getSocialIntegration(
+        integration.providerIdentifier
+      );
+
+      if (!provider?.deletePost) {
+        errors.push(
+          `${integration.providerIdentifier} does not support deleting a published post`
+        );
+        continue;
+      }
+
+      try {
+        await provider.deletePost(
+          integration.internalId,
+          integration.token,
+          post.releaseId,
+          {
+            settings: JSON.parse(post.settings || '{}'),
+            releaseURL: post.releaseURL,
+          },
+          integration
+        );
+        deleted.push(post.releaseId);
+      } catch (err) {
+        errors.push(
+          `${integration.providerIdentifier}: ${
+            err instanceof Error ? err.message : 'Unexpected error'
+          }`
+        );
+      }
+    }
+
+    return { deleted, errors };
+  }
+
   async deletePost(orgId: string, group: string) {
     const post = await this._postRepository.deletePost(orgId, group);
 
@@ -823,6 +878,36 @@ export class PostsService {
           );
         } catch (err: any) {
           errors = err?.message || 'Invalid media';
+        }
+
+        // Settings that pass the DTO but would still fail at publish time, such
+        // as a Discord channel the bot cannot post in. Reported as a settings
+        // error so every surface (dashboard, public API, MCP) shows it while
+        // the post is being scheduled rather than after it silently fails.
+        if (valid && provider.validateSettings) {
+          try {
+            const settingsValidity = await provider.validateSettings(
+              integration,
+              settings,
+              {
+                hasMedia: media.some((m) => (m || []).length > 0),
+                // Plain text of the main post: a provider may need it to check
+                // a setting, such as deriving a Discord forum thread title.
+                content: stripHtmlValidation(
+                  'none',
+                  (post.value || [])[0]?.content || '',
+                  true
+                ),
+              }
+            );
+
+            if (settingsValidity !== true) {
+              valid = false;
+              settingsError = settingsValidity;
+            }
+          } catch (err) {
+            // Never block scheduling on a platform hiccup.
+          }
         }
 
         const maximumCharacters = provider.maxLength(additionalSettings);

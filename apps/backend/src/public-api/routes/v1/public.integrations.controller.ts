@@ -266,20 +266,51 @@ export class PublicIntegrationsController {
   @Delete('/posts/:id')
   async deletePost(
     @GetOrgFromRequest() org: Organization,
-    @Param('id') id: string
+    @Param('id') id: string,
+    @Query('deleteFromPlatform') deleteFromPlatform?: string
   ) {
     Sentry.metrics.count('public_api-request', 1);
     const getPostById = await this._postsService.getPost(org.id, id);
-    return this._postsService.deletePost(org.id, getPostById.group);
+    return this.removeGroup(org, getPostById.group, deleteFromPlatform);
   }
 
   @Delete('/posts/group/:group')
   deletePostByGroup(
     @GetOrgFromRequest() org: Organization,
-    @Param('group') group: string
+    @Param('group') group: string,
+    @Query('deleteFromPlatform') deleteFromPlatform?: string
   ) {
     Sentry.metrics.count('public_api-request', 1);
-    return this._postsService.deletePost(org.id, group);
+    return this.removeGroup(org, group, deleteFromPlatform);
+  }
+
+  // By default a delete only clears the calendar; ?deleteFromPlatform=true also
+  // takes an already-published message down on the social network itself.
+  private async removeGroup(
+    org: Organization,
+    group: string,
+    deleteFromPlatform?: string
+  ) {
+    const platform =
+      deleteFromPlatform === 'true'
+        ? // Has to run first: it reads the rows deletePost soft-deletes.
+          await this._postsService.deletePostsFromPlatform(org.id, group)
+        : undefined;
+
+    // Keep deletePost's existing (legacy `{ error: true }`) payload in the
+    // response so callers that already read it are unaffected.
+    const result = await this._postsService.deletePost(org.id, group);
+
+    return {
+      ...result,
+      group,
+      ...(platform
+        ? {
+            deletedFromPlatform: platform.deleted,
+            platformErrors: platform.errors,
+          }
+        : {}),
+    };
   }
 
   @Get('/is-connected')

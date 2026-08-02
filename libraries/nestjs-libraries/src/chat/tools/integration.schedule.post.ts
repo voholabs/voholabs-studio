@@ -171,31 +171,36 @@ If the tools return errors, you would need to rerun it with the right parameters
             ]
           );
 
+          // outputSchema wraps everything in `output`, so a bare { errors }
+          // here fails tool-output validation and the agent is shown a schema
+          // error instead of the reason its post was rejected.
+          const rejected = (errors: string) => ({ output: { errors } });
+
           if (validation.emptyContent) {
-            return {
-              errors: `${validation.name}: Your post should have at least one character or one image.`,
-            };
+            return rejected(
+              `${validation.name}: Your post should have at least one character or one image.`
+            );
           }
 
           if (platform.type !== 'draft') {
             if (!validation.valid) {
-              return {
-                errors: `${validation.name}: ${
+              return rejected(
+                `${validation.name}: ${
                   validation.settingsError || 'Please fix your settings'
-                }, please fix it, and try integrationSchedulePostTool again.`,
-              };
+                }, please fix it, and try integrationSchedulePostTool again.`
+              );
             }
 
             if (validation.errors !== true) {
-              return {
-                errors: `${validation.name}: ${validation.errors}, please fix it, and try integrationSchedulePostTool again.`,
-              };
+              return rejected(
+                `${validation.name}: ${validation.errors}, please fix it, and try integrationSchedulePostTool again.`
+              );
             }
 
             if (validation.tooLong) {
-              return {
-                errors: `${validation.name}: The maximum characters is ${validation.maximumCharacters}, please fix it, and try integrationSchedulePostTool again.`,
-              };
+              return rejected(
+                `${validation.name}: The maximum characters is ${validation.maximumCharacters}, please fix it, and try integrationSchedulePostTool again.`
+              );
             }
           }
         }

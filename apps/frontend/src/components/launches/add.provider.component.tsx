@@ -33,6 +33,7 @@ const ENABLED_PROVIDERS = [
   'x',
   'threads',
   'tiktok',
+  'discord',
 ];
 
 export const useAddProvider = (update?: () => void, invite?: boolean) => {

@@ -15,8 +15,9 @@ export class PostsDeleteTool implements AgentToolInterface {
       id: 'deletePostTool',
       description: `Delete (unschedule) a post that is on the calendar. Use postsList first to find the post.
 Pass either the post "id" or its "group" — both delete the whole group, meaning the post together with its thread items and comments on that channel.
-A queued post is removed from the schedule and will not be published. A post that was already published is removed from the calendar only — it stays live on the social network.
-This cannot be undone, so always confirm with the user before calling it.`,
+A queued post is removed from the schedule and will not be published. A post that was already published is removed from the calendar only and stays live on the social network, unless you also pass deleteFromPlatform.
+Set deleteFromPlatform to true to additionally delete the published message on the social network itself. Only some platforms support this (Discord does); the rest report back that they cannot.
+This cannot be undone, so always confirm with the user before calling it — especially with deleteFromPlatform, which destroys the live post and any reactions or replies on it.`,
       mcp: {
         annotations: {
           title: 'Delete Scheduled Post',
@@ -37,10 +38,26 @@ This cannot be undone, so always confirm with the user before calling it.`,
           .describe(
             'The group id of the post to delete (from postsList) — used when the id is not known'
           ),
+        deleteFromPlatform: z
+          .boolean()
+          .optional()
+          .describe(
+            'Also delete the already-published message on the social network itself, not just the calendar entry. Defaults to false.'
+          ),
       }),
       outputSchema: z.object({
         success: z.boolean().optional(),
         group: z.string().optional(),
+        deletedFromPlatform: z
+          .array(z.string())
+          .optional()
+          .describe('Platform message ids that were taken down'),
+        platformErrors: z
+          .array(z.string())
+          .optional()
+          .describe(
+            'Published posts that could not be removed from the platform; the calendar entry was still deleted'
+          ),
         error: z.string().optional(),
       }),
       execute: async (inputData, context) => {
@@ -68,12 +85,31 @@ This cannot be undone, so always confirm with the user before calling it.`,
             }
           }
 
+          // Has to run first: it reads the rows deletePost soft-deletes.
+          const platform = inputData.deleteFromPlatform
+            ? await this._postsService.deletePostsFromPlatform(
+                organizationId,
+                group
+              )
+            : undefined;
+
           // deletePost soft-deletes every post of the group and terminates the
           // publishing workflow. Its return value is a legacy { error: true }
           // shape, so report the outcome from here instead.
           await this._postsService.deletePost(organizationId, group);
 
-          return { success: true, group };
+          return {
+            success: true,
+            group,
+            ...(platform
+              ? {
+                  deletedFromPlatform: platform.deleted,
+                  ...(platform.errors.length
+                    ? { platformErrors: platform.errors }
+                    : {}),
+                }
+              : {}),
+          };
         } catch (err) {
           return {
             error: `Failed to delete the post: ${

@@ -125,14 +125,24 @@ export class DiscordProvider extends SocialAbstract implements SocialProvider {
       })
     ).json();
 
+    // One connection is one server, and the same bot is installed in every
+    // customer's server, so naming the channel after the app would show the
+    // same name and avatar for all of them. Identify it by the server instead.
+    const serverName = guild?.name || application.name;
+    const serverIcon = guild?.icon
+      ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png`
+      : // A server with no icon falls back to the bot's avatar rather than
+        // showing nothing at all.
+        `https://cdn.discordapp.com/avatars/${application.bot.id}/${application.bot.avatar}.png`;
+
     return {
       id: guild.id,
-      name: application.name,
+      name: serverName,
       accessToken: access_token,
       refreshToken: refresh_token,
       expiresIn: expires_in,
-      picture: `https://cdn.discordapp.com/avatars/${application.bot.id}/${application.bot.avatar}.png`,
-      username: application.bot.username,
+      picture: serverIcon,
+      username: serverName,
     };
   }
 

@@ -53,21 +53,26 @@ export class PublicController {
 
   @Get(`/posts/:id`)
   async getPreview(@Param('id') id: string) {
-    return (await this._postsService.getPostsRecursively(id, true)).map(
-      ({ childrenPost, ...p }) => ({
-        ...p,
-        ...(p.integration
-          ? {
-              integration: {
-                id: p.integration.id,
-                name: p.integration.name,
-                picture: p.integration.picture,
-                providerIdentifier: p.integration.providerIdentifier,
-                profile: p.integration.profile,
-              },
-            }
-          : {}),
-      })
+    return Promise.all(
+      (await this._postsService.getPostsRecursively(id, true)).map(
+        async ({ childrenPost, ...p }) => ({
+          ...p,
+          // The account alone does not say where the post lands: a Discord
+          // connection is a whole server, and this is the channel within it.
+          target: await this._postsService.describeTarget(p.integration, p.settings),
+          ...(p.integration
+            ? {
+                integration: {
+                  id: p.integration.id,
+                  name: p.integration.name,
+                  picture: p.integration.picture,
+                  providerIdentifier: p.integration.providerIdentifier,
+                  profile: p.integration.profile,
+                },
+              }
+            : {}),
+        })
+      )
     );
   }
 

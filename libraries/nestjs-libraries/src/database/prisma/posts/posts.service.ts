@@ -660,6 +660,37 @@ export class PostsService {
    *
    * Best-effort per post: one channel refusing does not stop the others.
    */
+  /**
+   * Where a post lands inside the connected account, when the provider can say
+   * — a Discord channel, for instance. Best-effort: a surface asking for a
+   * label must never fail because the platform was slow.
+   */
+  async describeTarget(
+    integration: { providerIdentifier: string } | null | undefined,
+    settings: string | null | undefined
+  ): Promise<string | undefined> {
+    if (!integration) {
+      return undefined;
+    }
+
+    try {
+      const provider = this._integrationManager.getSocialIntegration(
+        integration.providerIdentifier
+      );
+
+      if (!provider?.describeTarget) {
+        return undefined;
+      }
+
+      return await provider.describeTarget(
+        integration as Integration,
+        JSON.parse(settings || '{}')
+      );
+    } catch (err) {
+      return undefined;
+    }
+  }
+
   async deletePostsFromPlatform(orgId: string, group: string) {
     const posts = await this._postRepository.getPostsByGroup(orgId, group);
     const deleted: string[] = [];

@@ -112,6 +112,13 @@ export default async function Auth(
                       <span className="text-sm text-gray-500">
                         @{post[0].integration.profile}
                       </span>
+                      {/* One connection can cover a whole server, so say which
+                          channel inside it this post goes to. */}
+                      {!!p.target && (
+                        <span className="text-sm text-gray-400 rounded-[4px] bg-newTableBorder px-[6px] py-[1px]">
+                          {p.target}
+                        </span>
+                      )}
                       {index === 0 && (
                         <CreationMethodBadge
                           creationMethod={p.creationMethod}

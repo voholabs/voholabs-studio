@@ -113,6 +113,16 @@ export interface ISocialMediaIntegration {
     post: { hasMedia: boolean; content: string }
   ): Promise<string | true>;
 
+  // Where inside the connected account this post lands — a Discord channel,
+  // for one. A channel's name alone does not say it, and surfaces that show a
+  // post without its settings form have no other way to tell one target from
+  // another. Resolved when the post is read so it stays right even if the
+  // target is renamed on the platform.
+  describeTarget?(
+    integration: Integration,
+    settings: any
+  ): Promise<string | undefined>;
+
   // Removes an already-published post from the platform itself. Deleting a post
   // in Postiz only clears our own calendar, so this is what actually takes the
   // message down. Optional: providers with no delete endpoint simply omit it.

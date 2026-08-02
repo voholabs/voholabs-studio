@@ -146,6 +146,7 @@ export class DiscordProvider extends SocialAbstract implements SocialProvider {
   }
 
   private _botUserId = '';
+  private _channelNameCache = new Map<string, { at: number; name: string }>();
   private _roleContextCache = new Map<
     string,
     {
@@ -396,6 +397,43 @@ export class DiscordProvider extends SocialAbstract implements SocialProvider {
         headers: this.botHeaders(),
       })
     ).json();
+  }
+
+  /**
+   * The channel a post goes to. Read on demand rather than saved with the
+   * post, so renaming the channel in Discord is reflected everywhere, and a
+   * post scheduled by an agent — which only ever passes a channel id — reads
+   * the same as one scheduled from the dashboard.
+   */
+  async describeTarget(
+    integration: Integration,
+    settings: DiscordDto
+  ): Promise<string | undefined> {
+    const channelId = settings?.channel;
+
+    if (!channelId) {
+      return undefined;
+    }
+
+    const cached = this._channelNameCache.get(channelId);
+    if (cached && Date.now() - cached.at < 300_000) {
+      return cached.name;
+    }
+
+    try {
+      const channel = await this.getChannel(channelId);
+      if (!channel?.name) {
+        return undefined;
+      }
+
+      const name = `#${channel.name}`;
+      this._channelNameCache.set(channelId, { at: Date.now(), name });
+
+      return name;
+    } catch (err) {
+      // Never let a Discord hiccup break a page that only wanted a label.
+      return undefined;
+    }
   }
 
   // Media is absolute on remote storage but relative on local storage, where

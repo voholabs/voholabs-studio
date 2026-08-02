@@ -281,6 +281,12 @@ export class IntegrationRepository {
             }
           : {}),
         ...(picture ? { picture } : {}),
+        // Reconnecting matches the row by internalId, so a channel connected
+        // before the platform reported a different name kept the old one
+        // forever while its picture and profile moved on. A token refresh
+        // passes the stored name straight back, so this only takes effect when
+        // someone actually reconnects the channel.
+        name,
         profile: username,
         providerIdentifier: provider,
         token,

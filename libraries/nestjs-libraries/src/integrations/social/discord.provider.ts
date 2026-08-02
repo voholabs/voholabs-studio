@@ -21,6 +21,9 @@ const DISCORD_CHANNEL_TYPES = {
 
 const DISCORD_THREAD_NAME_LIMIT = 100;
 
+// Discord serves six numbered default avatars for accounts with no picture.
+const DISCORD_DEFAULT_AVATARS = 6;
+
 const NO_PERMISSIONS = BigInt(0);
 const DISCORD_PERMISSIONS = {
   ADMINISTRATOR: BigInt(8), // 1 << 3
@@ -129,11 +132,7 @@ export class DiscordProvider extends SocialAbstract implements SocialProvider {
     // customer's server, so naming the channel after the app would show the
     // same name and avatar for all of them. Identify it by the server instead.
     const serverName = guild?.name || application.name;
-    const serverIcon = guild?.icon
-      ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png`
-      : // A server with no icon falls back to the bot's avatar rather than
-        // showing nothing at all.
-        `https://cdn.discordapp.com/avatars/${application.bot.id}/${application.bot.avatar}.png`;
+    const serverIcon = this.serverIcon(guild);
 
     return {
       id: guild.id,
@@ -158,6 +157,26 @@ export class DiscordProvider extends SocialAbstract implements SocialProvider {
       };
     }
   >();
+
+  /**
+   * The server's own icon, or one of Discord's default avatars when it has
+   * none. Deliberately never the bot's avatar: the same bot sits in every
+   * customer's server, so using it would make every server without an icon
+   * look identical — the very thing naming the channel after the server is
+   * meant to avoid. Picking the default by server id keeps it stable, and
+   * always returning something means a reconnect can correct a channel that
+   * was saved with the wrong picture.
+   */
+  private serverIcon(guild: { id: string; icon?: string | null }) {
+    if (guild?.icon) {
+      return `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png`;
+    }
+
+    const digits = (guild?.id || '0').replace(/\D/g, '').slice(-3) || '0';
+    return `https://cdn.discordapp.com/embed/avatars/${
+      Number(digits) % DISCORD_DEFAULT_AVATARS
+    }.png`;
+  }
 
   private botHeaders() {
     return {

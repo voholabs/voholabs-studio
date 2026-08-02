@@ -2,7 +2,6 @@ import { INestApplication } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { MastraService } from '@gitroom/nestjs-libraries/chat/mastra.service';
 import { MCPServer } from '@mastra/mcp';
-import { randomUUID } from 'crypto';
 import { OrganizationService } from '@gitroom/nestjs-libraries/database/prisma/organizations/organization.service';
 import { OAuthService } from '@gitroom/nestjs-libraries/database/prisma/oauth/oauth.service';
 import { runWithContext } from './async.storage';
@@ -144,9 +143,13 @@ export const startMcp = async (app: INestApplication) => {
         url: url,
         httpPath: url.pathname,
         options: {
-          sessionIdGenerator: () => {
-            return randomUUID();
-          },
+          // Stateless: sessions live only in the memory of one process, so a
+          // redeploy invalidates every client's session id. Mastra then answers
+          // an unknown session with 400, and the MCP spec only tells a client to
+          // re-initialise on 404 — so the client is stuck reporting an expired
+          // session until it is disconnected and reconnected by hand. Without a
+          // session there is nothing to expire and a restart goes unnoticed.
+          sessionIdGenerator: undefined,
           enableJsonResponse: true,
         },
         req,
@@ -201,9 +204,13 @@ export const startMcp = async (app: INestApplication) => {
         url,
         httpPath: url.pathname,
         options: {
-          sessionIdGenerator: () => {
-            return randomUUID();
-          },
+          // Stateless: sessions live only in the memory of one process, so a
+          // redeploy invalidates every client's session id. Mastra then answers
+          // an unknown session with 400, and the MCP spec only tells a client to
+          // re-initialise on 404 — so the client is stuck reporting an expired
+          // session until it is disconnected and reconnected by hand. Without a
+          // session there is nothing to expire and a restart goes unnoticed.
+          sessionIdGenerator: undefined,
           enableJsonResponse: true,
         },
         req,
@@ -251,9 +258,10 @@ export const startMcp = async (app: INestApplication) => {
           url,
           httpPath: url.pathname,
           options: {
-            sessionIdGenerator: () => {
-              return randomUUID();
-            },
+            // Stateless, for the same reason as the routes above: a session
+            // only exists in one process's memory, so a redeploy leaves every
+            // client holding an id the server no longer knows.
+            sessionIdGenerator: undefined,
             enableJsonResponse: true,
           },
           req,

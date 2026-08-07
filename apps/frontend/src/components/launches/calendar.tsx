@@ -352,6 +352,9 @@ export const WeekView = () => {
       days.push({
         name: day.format('dddd'),
         day: day.format('L'),
+        // The month and year are already in the range above the grid, so the
+        // column only needs the day. The full date stays available on hover.
+        short: day.format('D MMM'),
         date: day,
       });
     }
@@ -366,22 +369,26 @@ export const WeekView = () => {
           {localizedDays.map((day, index) => (
             <div
               key={day.name}
-              className="p-2 text-center bg-newTableHeader flex justify-center items-center flex-col h-[62px] rounded-[8px] sticky top-0 z-[20]"
+              title={`${day.name} ${day.day}`}
+              /* min-w-0 matters: without it a grid item refuses to shrink below
+                 its content, so a long date pushes out of its column instead of
+                 being cut to fit. */
+              className="px-[6px] py-2 text-center bg-newTableHeader flex justify-center items-center flex-col h-[62px] rounded-[8px] sticky top-0 z-[20] min-w-0 overflow-hidden"
             >
-              <div className="text-[14px] font-[500] text-newTableText">
+              <div className="text-[14px] font-[500] text-newTableText truncate max-w-full">
                 {day.name}
               </div>
               <div
                 className={clsx(
-                  'text-[14px] font-[600] flex items-center justify-center gap-[6px]',
+                  'text-[14px] font-[600] flex items-center justify-center gap-[6px] min-w-0 max-w-full',
                   day.day === newDayjs().format('L') &&
                     'text-newTableTextFocused'
                 )}
               >
                 {day.day === newDayjs().format('L') && (
-                  <div className="w-[6px] h-[6px] bg-newTableTextFocused rounded-full" />
+                  <div className="w-[6px] h-[6px] shrink-0 bg-newTableTextFocused rounded-full" />
                 )}
-                {day.day}
+                <span className="truncate">{day.short}</span>
               </div>
             </div>
           ))}
@@ -464,9 +471,10 @@ export const MonthView = () => {
           {localizedDays.map((day) => (
             <div
               key={day}
-              className="z-[20] p-2 bg-newTableHeader flex justify-center items-center flex-col h-[62px] rounded-[8px] sticky top-0"
+              title={day}
+              className="z-[20] px-[6px] py-2 bg-newTableHeader flex justify-center items-center flex-col h-[62px] rounded-[8px] sticky top-0 min-w-0 overflow-hidden"
             >
-              <div>{day}</div>
+              <div className="truncate max-w-full">{day}</div>
             </div>
           ))}
           {calendarDays.map((date, index) => (

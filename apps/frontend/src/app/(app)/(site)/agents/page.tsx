@@ -1,5 +1,6 @@
+export const dynamic = 'force-dynamic';
 import { Metadata } from 'next';
-import { redirect } from 'next/navigation';
+import { HermesChat } from '@gitroom/frontend/components/hermes/hermes.chat';
 
 export const metadata: Metadata = {
   title: 'Voholabs Studio - Agent',
@@ -7,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
-  return redirect('/agents/new');
+  return <HermesChat />;
 }

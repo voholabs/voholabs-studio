@@ -16,9 +16,19 @@ import { MediaListTool } from '@gitroom/nestjs-libraries/chat/tools/media.list.t
 import { MediaDeleteTool } from '@gitroom/nestjs-libraries/chat/tools/media.delete.tool';
 import { MediaUploadTool } from '@gitroom/nestjs-libraries/chat/tools/media.upload.tool';
 import { MediaUploadLinkTool } from '@gitroom/nestjs-libraries/chat/tools/media.upload.link.tool';
+import { BrainListTool } from '@gitroom/nestjs-libraries/chat/tools/brain.list.tool';
+import { BrainSaveTool } from '@gitroom/nestjs-libraries/chat/tools/brain.save.tool';
+import { BrainDeleteTool } from '@gitroom/nestjs-libraries/chat/tools/brain.delete.tool';
+import { BrainLearnTool } from '@gitroom/nestjs-libraries/chat/tools/brain.learn.tool';
+import { BrainAssetTool } from '@gitroom/nestjs-libraries/chat/tools/brain.asset.tool';
 
 export const toolList = [
   AccountInfoTool,
+  BrainListTool,
+  BrainSaveTool,
+  BrainDeleteTool,
+  BrainLearnTool,
+  BrainAssetTool,
   IntegrationListTool,
   GroupListTool,
   IntegrationValidationTool,

@@ -30,11 +30,13 @@ export class PoliciesGuard implements CanActivate {
       return true;
     }
 
+    // Read the class as well as the handler, so a controller can gate every
+    // route it owns in one place and a route added later cannot ship ungated.
     const policyHandlers =
-      this._reflector.get<AbilityPolicy[]>(
-        CHECK_POLICIES_KEY,
-        context.getHandler()
-      ) || [];
+      this._reflector.getAllAndOverride<AbilityPolicy[]>(CHECK_POLICIES_KEY, [
+        context.getHandler(),
+        context.getClass(),
+      ]) || [];
 
     if (!policyHandlers || !policyHandlers.length) {
       return true;

@@ -1,12 +1,7 @@
-import { Metadata } from 'next';
-import { Agent } from '@gitroom/frontend/components/agents/agent';
-import { AgentChat } from '@gitroom/frontend/components/agents/agent.chat';
-export const metadata: Metadata = {
-  title: 'Voholabs Studio - Agent',
-  description: '',
-};
+import { redirect } from 'next/navigation';
+
+// Thread ids belonged to the CopilotKit chat. That code is untouched in
+// components/agents, but this section is the per-client Hermes chat now.
 export default async function Page() {
-  return (
-    <AgentChat />
-  );
+  return redirect('/agents');
 }

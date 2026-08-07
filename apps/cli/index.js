@@ -90,9 +90,8 @@ var PostizAPI = class {
       method: "GET"
     });
   }
-  async deletePost(id, deleteFromPlatform = false) {
-    const query = deleteFromPlatform ? "?deleteFromPlatform=true" : "";
-    return this.request(`/public/v1/posts/${id}${query}`, {
+  async deletePost(id) {
+    return this.request(`/public/v1/posts/${id}`, {
       method: "DELETE"
     });
   }
@@ -212,20 +211,29 @@ var PostizAPI = class {
     });
   }
   async getBrainDocument(category, key) {
-    return this.request(`/public/v1/brain/${category}/${encodeURIComponent(key)}`, {
-      method: "GET"
-    });
+    return this.request(
+      `/public/v1/brain/${encodeURIComponent(category)}/${encodeURIComponent(key)}`,
+      {
+        method: "GET"
+      }
+    );
   }
   async saveBrainDocument(category, key, body) {
-    return this.request(`/public/v1/brain/${category}/${encodeURIComponent(key)}`, {
-      method: "PATCH",
-      body: JSON.stringify(body)
-    });
+    return this.request(
+      `/public/v1/brain/${encodeURIComponent(category)}/${encodeURIComponent(key)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(body)
+      }
+    );
   }
   async deleteBrainDocument(category, key) {
-    return this.request(`/public/v1/brain/${category}/${encodeURIComponent(key)}`, {
-      method: "DELETE"
-    });
+    return this.request(
+      `/public/v1/brain/${encodeURIComponent(category)}/${encodeURIComponent(key)}`,
+      {
+        method: "DELETE"
+      }
+    );
   }
 };
 
@@ -438,130 +446,6 @@ function getConfig() {
   };
 }
 
-// src/commands/brain.ts
-var import_readline_brain = require("readline");
-var import_fs_brain = require("fs");
-function brainRuleId() {
-  return Math.random().toString(36).slice(2, 12);
-}
-// Writing to the brain always needs a person to say yes. When nothing is
-// attached to the terminal there is nobody to ask, so the command refuses
-// rather than assuming consent.
-async function confirmHuman(summary) {
-  console.log("");
-  console.log(summary);
-  console.log("");
-  if (!process.stdin.isTTY) {
-    console.error("❌ This changes the agent brain and needs a human to approve it.");
-    console.error("   Run it in a terminal; it will not auto-approve.");
-    process.exit(1);
-  }
-  const rl = import_readline_brain.createInterface({ input: process.stdin, output: process.stdout });
-  const answer = await new Promise((resolve) => {
-    rl.question("Type 'yes' to apply this change: ", (a) => {
-      rl.close();
-      resolve(String(a || "").trim().toLowerCase());
-    });
-  });
-  if (answer !== "yes") {
-    console.log("⚠️  Cancelled, nothing was changed.");
-    process.exit(0);
-  }
-}
-async function brainSchema() {
-  const api = new PostizAPI(getConfig());
-  try {
-    console.log(JSON.stringify(await api.getBrainSchema(), null, 2));
-  } catch (error) {
-    console.error("❌ Failed to read the brain schema:", error.message);
-    process.exit(1);
-  }
-}
-async function brainList(args) {
-  const api = new PostizAPI(getConfig());
-  try {
-    const result = await api.getBrain();
-    const documents = args.category ? result.documents.filter((d) => d.category === args.category) : result.documents;
-    console.log(JSON.stringify({ ...result, documents }, null, 2));
-  } catch (error) {
-    console.error("❌ Failed to read the brain:", error.message);
-    process.exit(1);
-  }
-}
-async function brainGet(args) {
-  const api = new PostizAPI(getConfig());
-  try {
-    console.log(JSON.stringify(await api.getBrainDocument(args.category, args.key), null, 2));
-  } catch (error) {
-    console.error("❌ Failed to read the document:", error.message);
-    process.exit(1);
-  }
-}
-async function brainSet(args) {
-  const api = new PostizAPI(getConfig());
-  let payload;
-  try {
-    const raw = args.file ? import_fs_brain.readFileSync(args.file, "utf8") : args.rules;
-    if (!raw) {
-      console.error("❌ Pass --file <path> or --rules '<json>'");
-      process.exit(1);
-    }
-    payload = JSON.parse(raw);
-  } catch (error) {
-    console.error("❌ Could not read the rules:", error.message);
-    process.exit(1);
-  }
-  const rules = Array.isArray(payload) ? payload : payload.rules || [];
-  const body = {
-    blocks: rules.map((rule) => ({
-      id: brainRuleId(),
-      heading: String(rule.heading || ""),
-      body: String(rule.body || "")
-    }))
-  };
-  if (payload.title !== void 0) body.title = String(payload.title);
-  if (payload.links) {
-    body.links = payload.links.map((link) => ({
-      id: brainRuleId(),
-      url: String(link.url || ""),
-      note: String(link.note || "")
-    }));
-  }
-  const preview = body.blocks.map((b) => `  • ${b.heading || "(no heading)"}\n    ${b.body.replace(/\n/g, "\n    ")}`).join("\n");
-  await confirmHuman(
-    `About to REPLACE ${args.category}/${args.key} with ${body.blocks.length} rule(s).\nAnything currently in this document and not listed below will be lost.\n\n${preview || "  (no rules — this empties the document)"}`
-  );
-  try {
-    const result = await api.saveBrainDocument(args.category, args.key, body);
-    console.log("✅ Saved");
-    console.log(JSON.stringify(result, null, 2));
-  } catch (error) {
-    console.error("❌ Failed to save:", error.message);
-    process.exit(1);
-  }
-}
-async function brainDelete(args) {
-  const api = new PostizAPI(getConfig());
-  let existing;
-  try {
-    existing = await api.getBrainDocument(args.category, args.key);
-  } catch (error) {
-    console.error("❌ Could not find that document:", error.message);
-    process.exit(1);
-  }
-  const count = (existing.content && existing.content.blocks || []).length;
-  await confirmHuman(
-    `About to DELETE ${args.category}/${args.key} and its ${count} rule(s). This cannot be undone.`
-  );
-  try {
-    await api.deleteBrainDocument(args.category, args.key);
-    console.log("✅ Deleted");
-  } catch (error) {
-    console.error("❌ Failed to delete:", error.message);
-    process.exit(1);
-  }
-}
-
 // src/commands/posts.ts
 var import_fs2 = require("fs");
 async function getMissingContent(args) {
@@ -731,16 +615,8 @@ async function deletePost(args) {
     process.exit(1);
   }
   try {
-    const result = await api.deletePost(args.id, !!args.remote);
+    await api.deletePost(args.id);
     console.log(`\u2705 Post ${args.id} deleted successfully!`);
-    if (args.remote) {
-      const removed = (result == null ? void 0 : result.deletedFromPlatform) || [];
-      const failures = (result == null ? void 0 : result.platformErrors) || [];
-      console.log(
-        removed.length ? `\u2705 Removed ${removed.length} published message(s) from the platform: ${removed.join(", ")}` : "\u2139\ufe0f  Nothing published to remove from the platform"
-      );
-      failures.forEach((f) => console.error(`\u26a0\ufe0f  ${f}`));
-    }
   } catch (error) {
     console.error("\u274C Failed to delete post:", error.message);
     process.exit(1);
@@ -882,6 +758,154 @@ async function uploadFile(args) {
   }
 }
 
+// src/commands/brain.ts
+var import_readline = require("readline");
+var import_fs4 = require("fs");
+var ruleId = () => Math.random().toString(36).slice(2, 12);
+async function confirmHuman(summary) {
+  console.log("");
+  console.log(summary);
+  console.log("");
+  if (!process.stdin.isTTY) {
+    console.error("\u274C This changes the agent brain and needs a human to approve it.");
+    console.error("   Run it in a terminal; it will not auto-approve.");
+    process.exit(1);
+  }
+  const rl = (0, import_readline.createInterface)({ input: process.stdin, output: process.stdout });
+  const answer = await new Promise((resolve) => {
+    rl.question("Type 'yes' to apply this change: ", (a) => {
+      rl.close();
+      resolve(String(a || "").trim().toLowerCase());
+    });
+  });
+  if (answer !== "yes") {
+    console.log("\u26A0\uFE0F  Cancelled, nothing was changed.");
+    process.exit(0);
+  }
+}
+async function brainSchema() {
+  const api = new PostizAPI(getConfig());
+  try {
+    const result = await api.getBrainSchema();
+    console.log("\u{1F9E0} Brain structure:");
+    console.log(JSON.stringify(result, null, 2));
+    return result;
+  } catch (error) {
+    console.error("\u274C Failed to read the brain schema:", error.message);
+    process.exit(1);
+  }
+}
+async function brainList(args) {
+  const api = new PostizAPI(getConfig());
+  try {
+    const result = await api.getBrain();
+    const documents = (args == null ? void 0 : args.category) ? result.documents.filter((d) => d.category === args.category) : result.documents;
+    console.log("\u{1F9E0} Agent brain:");
+    console.log(JSON.stringify(__spreadProps(__spreadValues({}, result), { documents }), null, 2));
+    return documents;
+  } catch (error) {
+    console.error("\u274C Failed to read the brain:", error.message);
+    process.exit(1);
+  }
+}
+async function brainGet(args) {
+  const api = new PostizAPI(getConfig());
+  try {
+    const result = await api.getBrainDocument(args.category, args.key);
+    console.log(JSON.stringify(result, null, 2));
+    return result;
+  } catch (error) {
+    console.error("\u274C Failed to read the document:", error.message);
+    process.exit(1);
+  }
+}
+async function brainSet(args) {
+  const api = new PostizAPI(getConfig());
+  let payload;
+  try {
+    const raw = args.file ? (0, import_fs4.readFileSync)(args.file, "utf8") : args.rules;
+    if (!raw) {
+      console.error("\u274C Pass --file <path> or --rules '<json>'");
+      process.exit(1);
+    }
+    payload = JSON.parse(raw);
+  } catch (error) {
+    console.error("\u274C Could not read the rules:", error.message);
+    process.exit(1);
+  }
+  const rules = Array.isArray(payload) ? payload : payload.rules || [];
+  const body = {
+    blocks: rules.map((rule) => ({
+      id: ruleId(),
+      heading: String(rule.heading || ""),
+      body: String(rule.body || "")
+    }))
+  };
+  if (payload.title !== void 0) {
+    body.title = String(payload.title);
+  }
+  if (payload.links) {
+    body.links = payload.links.map((link) => ({
+      id: ruleId(),
+      url: String(link.url || ""),
+      note: String(link.note || "")
+    }));
+  }
+  if (payload.assets) {
+    body.assets = payload.assets.map((asset) => __spreadProps(__spreadValues({
+      id: ruleId(),
+      name: String(asset.name || ""),
+      url: String(asset.url || "")
+    }, asset.mime ? { mime: String(asset.mime) } : {}), {
+      note: String(asset.note || "")
+    }));
+  }
+  const blocks = body.blocks;
+  const preview = blocks.map((b) => `  \u2022 ${b.heading || "(no heading)"}
+    ${b.body.replace(/\n/g, "\n    ")}`).join("\n");
+  const attachments = [
+    body.links ? `${body.links.length} link(s)` : "",
+    body.assets ? `${body.assets.length} file(s)` : ""
+  ].filter(Boolean).join(" and ");
+  await confirmHuman(
+    `About to REPLACE ${args.category}/${args.key} with ${blocks.length} rule(s)${attachments ? `, ${attachments}` : ""}.
+Anything currently in this document and not listed below will be lost.
+${body.links ? "" : "Links are left as they are.\n"}${body.assets ? "" : "Files are left as they are.\n"}
+${preview || "  (no rules \u2014 this empties the document)"}`
+  );
+  try {
+    const result = await api.saveBrainDocument(args.category, args.key, body);
+    console.log("\u2705 Saved");
+    console.log(JSON.stringify(result, null, 2));
+    return result;
+  } catch (error) {
+    console.error("\u274C Failed to save:", error.message);
+    process.exit(1);
+  }
+}
+async function brainDelete(args) {
+  var _a;
+  const api = new PostizAPI(getConfig());
+  let existing;
+  try {
+    existing = await api.getBrainDocument(args.category, args.key);
+  } catch (error) {
+    console.error("\u274C Could not find that document:", error.message);
+    process.exit(1);
+  }
+  const count = (((_a = existing == null ? void 0 : existing.content) == null ? void 0 : _a.blocks) || []).length;
+  await confirmHuman(
+    `About to DELETE ${args.category}/${args.key} and its ${count} rule(s). This cannot be undone.`
+  );
+  try {
+    await api.deleteBrainDocument(args.category, args.key);
+    console.log("\u2705 Deleted");
+  } catch (error) {
+    console.error("\u274C Failed to delete:", error.message);
+    process.exit(1);
+  }
+}
+
 // src/index.ts
 (0, import_yargs.default)((0, import_helpers.hideBin)(process.argv)).scriptName("voholabs").usage("$0 <command> [options]").command(
   "posts:create",
@@ -966,12 +990,6 @@ async function uploadFile(args) {
     ).example(
       `$0 posts:create -c "Tweet content" -s "2024-12-31T12:00:00Z" --settings '{"who_can_reply_post":"everyone"}' -i "twitter-123"`,
       "X (Twitter) post with reply settings"
-    ).example(
-      `$0 posts:create -c "Hello" -s "2024-12-31T12:00:00Z" --settings '{"channel":"1077120150710530079"}' -i "discord-123"`,
-      "Discord post to a text channel (use integrations:settings for the channel ids)"
-    ).example(
-      `$0 posts:create -c "Hello" -s "2024-12-31T12:00:00Z" --settings '{"channel":"1077122344545435720","title":"Release notes"}' -i "discord-123"`,
-      "Discord forum post; title names the thread, and defaults to the first line"
     );
   },
   createPost
@@ -1004,14 +1022,7 @@ async function uploadFile(args) {
     return yargs2.positional("id", {
       describe: "Post ID to delete",
       type: "string"
-    }).option("remote", {
-      describe: "Also delete the published message on the social network itself (not just the calendar)",
-      type: "boolean",
-      default: false
-    }).example("$0 posts:delete abc123", "Delete post with ID abc123").example(
-      "$0 posts:delete abc123 --remote",
-      "Delete the post and take the published message down from the platform"
-    );
+    }).example("$0 posts:delete abc123", "Delete post with ID abc123");
   },
   deletePost
 ).command(
@@ -1188,25 +1199,40 @@ async function uploadFile(args) {
   "Read the agent brain",
   (yargs2) => {
     return yargs2.option("category", {
-      describe: "Only one category: foundation, sources or channels",
+      describe: "Only one category: foundation, sources, experience or channels",
       type: "string"
-    }).example("$0 brain:list --category foundation", "Read the Foundation documents");
+    }).example(
+      "$0 brain:list --category foundation",
+      "Read the Foundation documents"
+    );
   },
   brainList
 ).command(
   "brain:get <category> <key>",
   "Read one brain document",
   (yargs2) => {
-    return yargs2.positional("category", { describe: "foundation, sources or channels", type: "string" }).positional("key", { describe: "Document key", type: "string" }).example("$0 brain:get foundation icp", "Read the ICP document");
+    return yargs2.positional("category", {
+      describe: "foundation, sources, experience or channels",
+      type: "string"
+    }).positional("key", { describe: "Document key", type: "string" }).example("$0 brain:get foundation icp", "Read the ICP document");
   },
   brainGet
 ).command(
   "brain:set <category> <key>",
   "Replace a brain document (asks for approval)",
   (yargs2) => {
-    return yargs2.positional("category", { describe: "foundation, sources or channels", type: "string" }).positional("key", { describe: "Document key", type: "string" }).option("file", { describe: "Path to a JSON file of rules", type: "string" }).option("rules", { describe: "Inline JSON of rules", type: "string" }).example(
+    return yargs2.positional("category", {
+      describe: "foundation, sources or channels",
+      type: "string"
+    }).positional("key", { describe: "Document key", type: "string" }).option("file", {
+      describe: "Path to a JSON file of rules",
+      type: "string"
+    }).option("rules", { describe: "Inline JSON of rules", type: "string" }).example(
       "$0 brain:set foundation icp --file icp.json",
       "Replace the ICP document with the rules in icp.json"
+    ).example(
+      "$0 brain:set foundation branding-assets --file brand.json",
+      "Rules plus files, where each file url comes from `voholabs upload`"
     );
   },
   brainSet
@@ -1214,7 +1240,10 @@ async function uploadFile(args) {
   "brain:delete <category> <key>",
   "Delete a brain document (asks for approval)",
   (yargs2) => {
-    return yargs2.positional("category", { describe: "Category of the document", type: "string" }).positional("key", { describe: "Document key", type: "string" }).example("$0 brain:delete sources abc123", "Delete a source document");
+    return yargs2.positional("category", {
+      describe: "Category of the document",
+      type: "string"
+    }).positional("key", { describe: "Document key", type: "string" }).example("$0 brain:delete sources abc123", "Delete a source document");
   },
   brainDelete
 ).command(

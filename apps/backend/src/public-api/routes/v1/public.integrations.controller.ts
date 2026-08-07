@@ -161,6 +161,28 @@ export class PublicIntegrationsController {
     );
   }
 
+  // The media library over the public API. The agent tools already reach it;
+  // without these the CLI could upload a file but never see or remove one.
+  @Get('/media')
+  async listMedia(
+    @GetOrgFromRequest() org: Organization,
+    @Query('page') page?: string,
+    @Query('search') search?: string
+  ) {
+    Sentry.metrics.count('public_api-request', 1);
+    return this._mediaService.getMedia(org.id, +(page || 1), search);
+  }
+
+  @Delete('/media/:id')
+  async deleteMediaFile(
+    @GetOrgFromRequest() org: Organization,
+    @Param('id') id: string
+  ) {
+    Sentry.metrics.count('public_api-request', 1);
+    await this._mediaService.deleteMedia(org.id, id);
+    return { deleted: true };
+  }
+
   @Get('/find-slot/:id')
   async findSlotIntegration(
     @GetOrgFromRequest() org: Organization,

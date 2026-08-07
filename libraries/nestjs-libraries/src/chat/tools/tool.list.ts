@@ -21,6 +21,9 @@ import { BrainSaveTool } from '@gitroom/nestjs-libraries/chat/tools/brain.save.t
 import { BrainDeleteTool } from '@gitroom/nestjs-libraries/chat/tools/brain.delete.tool';
 import { BrainLearnTool } from '@gitroom/nestjs-libraries/chat/tools/brain.learn.tool';
 import { BrainAssetTool } from '@gitroom/nestjs-libraries/chat/tools/brain.asset.tool';
+import { AnalyticsChannelTool } from '@gitroom/nestjs-libraries/chat/tools/analytics.channel.tool';
+import { AnalyticsPostTool } from '@gitroom/nestjs-libraries/chat/tools/analytics.post.tool';
+import { PostsStatusTool } from '@gitroom/nestjs-libraries/chat/tools/posts.status.tool';
 
 export const toolList = [
   AccountInfoTool,
@@ -36,6 +39,9 @@ export const toolList = [
   IntegrationSchedulePostTool,
   PostsListTool,
   PostsDeleteTool,
+  PostsStatusTool,
+  AnalyticsChannelTool,
+  AnalyticsPostTool,
   FindSlotTool,
   MediaListTool,
   MediaDeleteTool,

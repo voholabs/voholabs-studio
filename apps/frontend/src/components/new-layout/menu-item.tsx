@@ -17,7 +17,7 @@ export const MenuItem: FC<{
   const className = clsx(
     'group w-full minCustom:h-[54px] custom:h-[44px] py-[8px] px-[6px] minCustom:gap-[4px] custom:gap-[2px] flex flex-col font-[600] items-center justify-center rounded-[12px] transition-colors',
     comingSoon
-      ? 'text-textItemBlur opacity-40 grayscale cursor-default pointer-events-none'
+      ? 'text-textItemBlur opacity-70 grayscale cursor-default pointer-events-none'
       : clsx(
           'hover:text-textItemFocused hover:bg-boxFocused',
           isActive ? 'text-textItemFocused bg-boxFocused' : 'text-textItemBlur'

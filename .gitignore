@@ -2,6 +2,13 @@
 
 # Claude local memory (deploy notes, credentials pointers — never commit)
 .claude-memory/
+.claude/
+
+# App Review screencasts - large media, and they show a logged-in account
+app-review-recordings/
+
+# Playwright MCP scratch output (page snapshots, console logs, screenshots)
+.playwright-mcp/
 
 # compiled output
 dist

@@ -20,6 +20,11 @@ model Organization {
   allowTrial          Boolean              @default(false)
   isTrailing          Boolean              @default(false)
   shortlink           ShortLinkPreference  @default(ASK)
+  // The team's Hermes agent: an OpenAI-compatible endpoint plus its key, shared
+  // by everyone in the organization. The key is stored encrypted and never
+  // leaves the backend.
+  hermesUrl           String?
+  hermesApiKey        String?
   autoPost            AutoPost[]
   Comments            Comments[]
   credits             Credits[]
@@ -43,6 +48,8 @@ model Organization {
   webhooks            Webhooks[]
   oauthApp            OAuthApp[]
   oauthAuthorizations OAuthAuthorization[]
+  agentBrain          AgentBrainDocument[]
+  hermesConversations HermesConversation[]
 
   @@index([apiKey])
   @@index([streakSince])
@@ -368,6 +375,40 @@ model Signatures {
   @@index([createdAt])
   @@index([organizationId])
   @@index([deletedAt])
+}
+
+// One document of the agent brain. `category` and `key` come from the brain
+// registry, so a document that was never edited simply has no row here and the
+// UI renders it empty from the registry instead. That also makes deleting a
+// document idempotent, which is why there is no deletedAt.
+model AgentBrainDocument {
+  id             String       @id @default(uuid())
+  organizationId String
+  category       String
+  key            String
+  content        String       @default("{}")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, category, key])
+  @@index([organizationId])
+  @@index([updatedAt])
+}
+
+// A saved conversation with the team's agent. Messages are kept as one JSON
+// blob rather than rows: they are always read and written as a whole thread.
+model HermesConversation {
+  id             String       @id @default(uuid())
+  organizationId String
+  title          String       @default("")
+  messages       String       @default("[]")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@index([updatedAt])
 }
 
 model Comments {

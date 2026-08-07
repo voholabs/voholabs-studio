@@ -201,6 +201,32 @@ var PostizAPI = class {
       body: JSON.stringify({ methodName, data })
     });
   }
+  async getBrainSchema() {
+    return this.request("/public/v1/brain/schema", {
+      method: "GET"
+    });
+  }
+  async getBrain() {
+    return this.request("/public/v1/brain", {
+      method: "GET"
+    });
+  }
+  async getBrainDocument(category, key) {
+    return this.request(`/public/v1/brain/${category}/${encodeURIComponent(key)}`, {
+      method: "GET"
+    });
+  }
+  async saveBrainDocument(category, key, body) {
+    return this.request(`/public/v1/brain/${category}/${encodeURIComponent(key)}`, {
+      method: "PATCH",
+      body: JSON.stringify(body)
+    });
+  }
+  async deleteBrainDocument(category, key) {
+    return this.request(`/public/v1/brain/${category}/${encodeURIComponent(key)}`, {
+      method: "DELETE"
+    });
+  }
 };
 
 // src/commands/auth.ts
@@ -410,6 +436,130 @@ function getConfig() {
     apiKey,
     apiUrl
   };
+}
+
+// src/commands/brain.ts
+var import_readline_brain = require("readline");
+var import_fs_brain = require("fs");
+function brainRuleId() {
+  return Math.random().toString(36).slice(2, 12);
+}
+// Writing to the brain always needs a person to say yes. When nothing is
+// attached to the terminal there is nobody to ask, so the command refuses
+// rather than assuming consent.
+async function confirmHuman(summary) {
+  console.log("");
+  console.log(summary);
+  console.log("");
+  if (!process.stdin.isTTY) {
+    console.error("❌ This changes the agent brain and needs a human to approve it.");
+    console.error("   Run it in a terminal; it will not auto-approve.");
+    process.exit(1);
+  }
+  const rl = import_readline_brain.createInterface({ input: process.stdin, output: process.stdout });
+  const answer = await new Promise((resolve) => {
+    rl.question("Type 'yes' to apply this change: ", (a) => {
+      rl.close();
+      resolve(String(a || "").trim().toLowerCase());
+    });
+  });
+  if (answer !== "yes") {
+    console.log("⚠️  Cancelled, nothing was changed.");
+    process.exit(0);
+  }
+}
+async function brainSchema() {
+  const api = new PostizAPI(getConfig());
+  try {
+    console.log(JSON.stringify(await api.getBrainSchema(), null, 2));
+  } catch (error) {
+    console.error("❌ Failed to read the brain schema:", error.message);
+    process.exit(1);
+  }
+}
+async function brainList(args) {
+  const api = new PostizAPI(getConfig());
+  try {
+    const result = await api.getBrain();
+    const documents = args.category ? result.documents.filter((d) => d.category === args.category) : result.documents;
+    console.log(JSON.stringify({ ...result, documents }, null, 2));
+  } catch (error) {
+    console.error("❌ Failed to read the brain:", error.message);
+    process.exit(1);
+  }
+}
+async function brainGet(args) {
+  const api = new PostizAPI(getConfig());
+  try {
+    console.log(JSON.stringify(await api.getBrainDocument(args.category, args.key), null, 2));
+  } catch (error) {
+    console.error("❌ Failed to read the document:", error.message);
+    process.exit(1);
+  }
+}
+async function brainSet(args) {
+  const api = new PostizAPI(getConfig());
+  let payload;
+  try {
+    const raw = args.file ? import_fs_brain.readFileSync(args.file, "utf8") : args.rules;
+    if (!raw) {
+      console.error("❌ Pass --file <path> or --rules '<json>'");
+      process.exit(1);
+    }
+    payload = JSON.parse(raw);
+  } catch (error) {
+    console.error("❌ Could not read the rules:", error.message);
+    process.exit(1);
+  }
+  const rules = Array.isArray(payload) ? payload : payload.rules || [];
+  const body = {
+    blocks: rules.map((rule) => ({
+      id: brainRuleId(),
+      heading: String(rule.heading || ""),
+      body: String(rule.body || "")
+    }))
+  };
+  if (payload.title !== void 0) body.title = String(payload.title);
+  if (payload.links) {
+    body.links = payload.links.map((link) => ({
+      id: brainRuleId(),
+      url: String(link.url || ""),
+      note: String(link.note || "")
+    }));
+  }
+  const preview = body.blocks.map((b) => `  • ${b.heading || "(no heading)"}\n    ${b.body.replace(/\n/g, "\n    ")}`).join("\n");
+  await confirmHuman(
+    `About to REPLACE ${args.category}/${args.key} with ${body.blocks.length} rule(s).\nAnything currently in this document and not listed below will be lost.\n\n${preview || "  (no rules — this empties the document)"}`
+  );
+  try {
+    const result = await api.saveBrainDocument(args.category, args.key, body);
+    console.log("✅ Saved");
+    console.log(JSON.stringify(result, null, 2));
+  } catch (error) {
+    console.error("❌ Failed to save:", error.message);
+    process.exit(1);
+  }
+}
+async function brainDelete(args) {
+  const api = new PostizAPI(getConfig());
+  let existing;
+  try {
+    existing = await api.getBrainDocument(args.category, args.key);
+  } catch (error) {
+    console.error("❌ Could not find that document:", error.message);
+    process.exit(1);
+  }
+  const count = (existing.content && existing.content.blocks || []).length;
+  await confirmHuman(
+    `About to DELETE ${args.category}/${args.key} and its ${count} rule(s). This cannot be undone.`
+  );
+  try {
+    await api.deleteBrainDocument(args.category, args.key);
+    console.log("✅ Deleted");
+  } catch (error) {
+    console.error("❌ Failed to delete:", error.message);
+    process.exit(1);
+  }
 }
 
 // src/commands/posts.ts
@@ -1028,6 +1178,45 @@ async function uploadFile(args) {
     }).example("$0 upload ./image.png", "Upload an image");
   },
   uploadFile
+).command(
+  "brain:schema",
+  "Show which brain categories and documents exist",
+  {},
+  brainSchema
+).command(
+  "brain:list",
+  "Read the agent brain",
+  (yargs2) => {
+    return yargs2.option("category", {
+      describe: "Only one category: foundation, sources or channels",
+      type: "string"
+    }).example("$0 brain:list --category foundation", "Read the Foundation documents");
+  },
+  brainList
+).command(
+  "brain:get <category> <key>",
+  "Read one brain document",
+  (yargs2) => {
+    return yargs2.positional("category", { describe: "foundation, sources or channels", type: "string" }).positional("key", { describe: "Document key", type: "string" }).example("$0 brain:get foundation icp", "Read the ICP document");
+  },
+  brainGet
+).command(
+  "brain:set <category> <key>",
+  "Replace a brain document (asks for approval)",
+  (yargs2) => {
+    return yargs2.positional("category", { describe: "foundation, sources or channels", type: "string" }).positional("key", { describe: "Document key", type: "string" }).option("file", { describe: "Path to a JSON file of rules", type: "string" }).option("rules", { describe: "Inline JSON of rules", type: "string" }).example(
+      "$0 brain:set foundation icp --file icp.json",
+      "Replace the ICP document with the rules in icp.json"
+    );
+  },
+  brainSet
+).command(
+  "brain:delete <category> <key>",
+  "Delete a brain document (asks for approval)",
+  (yargs2) => {
+    return yargs2.positional("category", { describe: "Category of the document", type: "string" }).positional("key", { describe: "Document key", type: "string" }).example("$0 brain:delete sources abc123", "Delete a source document");
+  },
+  brainDelete
 ).command(
   "auth:login",
   "Authenticate using OAuth2 (device flow)",

@@ -235,6 +235,25 @@ var PostizAPI = class {
       }
     );
   }
+  async listMedia(page, search) {
+    const params = new URLSearchParams();
+    if (page) params.set("page", String(page));
+    if (search) params.set("search", search);
+    const query = params.toString() ? `?${params.toString()}` : "";
+    return this.request(`/public/v1/media${query}`, {
+      method: "GET"
+    });
+  }
+  async deleteMedia(id) {
+    return this.request(`/public/v1/media/${encodeURIComponent(id)}`, {
+      method: "DELETE"
+    });
+  }
+  async findSlot(integrationId) {
+    return this.request(`/public/v1/find-slot/${encodeURIComponent(integrationId)}`, {
+      method: "GET"
+    });
+  }
 };
 
 // src/commands/auth.ts
@@ -758,6 +777,42 @@ async function uploadFile(args) {
   }
 }
 
+// src/commands/media.ts
+async function listMedia(args) {
+  const api = new PostizAPI(getConfig());
+  try {
+    const result = await api.listMedia(args == null ? void 0 : args.page, args == null ? void 0 : args.search);
+    console.log("\u{1F5BC}\uFE0F  Media library:");
+    console.log(JSON.stringify(result, null, 2));
+    return result;
+  } catch (error) {
+    console.error("\u274C Failed to list media:", error.message);
+    process.exit(1);
+  }
+}
+async function deleteMedia(args) {
+  const api = new PostizAPI(getConfig());
+  try {
+    await api.deleteMedia(args.id);
+    console.log("\u2705 Deleted");
+  } catch (error) {
+    console.error("\u274C Failed to delete media:", error.message);
+    process.exit(1);
+  }
+}
+async function findSlot(args) {
+  const api = new PostizAPI(getConfig());
+  try {
+    const result = await api.findSlot(args.id);
+    console.log("\u{1F550} Next free slot:");
+    console.log(JSON.stringify(result, null, 2));
+    return result;
+  } catch (error) {
+    console.error("\u274C Failed to find a slot:", error.message);
+    process.exit(1);
+  }
+}
+
 // src/commands/brain.ts
 var import_readline = require("readline");
 var import_fs4 = require("fs");
@@ -1246,6 +1301,27 @@ async function brainDelete(args) {
     }).positional("key", { describe: "Document key", type: "string" }).example("$0 brain:delete sources abc123", "Delete a source document");
   },
   brainDelete
+).command(
+  "media:list",
+  "List the media library",
+  (yargs2) => {
+    return yargs2.option("page", { describe: "Page number", type: "number" }).option("search", { describe: "Filter by name", type: "string" }).example("$0 media:list --search logo", 'Find media named like "logo"');
+  },
+  listMedia
+).command(
+  "media:delete <id>",
+  "Delete a file from the media library",
+  (yargs2) => {
+    return yargs2.positional("id", { describe: "Media ID", type: "string" });
+  },
+  deleteMedia
+).command(
+  "slots:next <id>",
+  "Find the next free slot in a channel schedule",
+  (yargs2) => {
+    return yargs2.positional("id", { describe: "Integration ID", type: "string" }).example("$0 slots:next abc123", "Next free time for that channel");
+  },
+  findSlot
 ).command(
   "auth:login",
   "Authenticate using OAuth2 (device flow)",

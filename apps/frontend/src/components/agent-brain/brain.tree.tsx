@@ -4,6 +4,7 @@ import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import ImageWithFallback from '@gitroom/react/helpers/image.with.fallback';
+import SafeImage from '@gitroom/react/helpers/safe.image';
 import { BrainIcon } from '@gitroom/frontend/components/agent-brain/brain.icons';
 import {
   BrainTreeDocument,
@@ -50,16 +51,38 @@ const TreeRow: FC<{
         active ? 'opacity-100' : 'opacity-0'
       )}
     />
-    <span className={clsx('shrink-0', active ? 'text-warm' : 'text-textItemBlur')}>
+    {/* A fixed slot, so a 16px document icon and a 20px avatar start their
+        labels in the same place and the platform badge overhangs into the gap
+        instead of widening the row. */}
+    <span
+      className={clsx(
+        'relative shrink-0 w-[20px] h-[20px] flex items-center justify-center',
+        active ? 'text-warm' : 'text-textItemBlur'
+      )}
+    >
       {document.channel ? (
-        <ImageWithFallback
-          fallbackSrc={`/icons/platforms/${document.channel.identifier}.png`}
-          src={document.channel.picture}
-          className="rounded-[6px]"
-          alt={document.channel.identifier}
-          width={20}
-          height={20}
-        />
+        <>
+          <ImageWithFallback
+            fallbackSrc={`/icons/platforms/${document.channel.identifier}.png`}
+            src={document.channel.picture}
+            className="rounded-[6px]"
+            alt={document.channel.identifier}
+            width={20}
+            height={20}
+          />
+          {/* One person's page on two networks carries the same avatar and the
+              same name, so the network is the only thing telling the rows
+              apart. Always drawn: a channel with no avatar of its own gets the
+              generic placeholder from the API rather than this logo, so the
+              badge is the only network mark those rows will ever have. */}
+          <SafeImage
+            src={`/icons/platforms/${document.channel.identifier}.png`}
+            className="rounded-[4px] absolute -bottom-[3px] -end-[4px] border border-fifth bg-newBgColorInner"
+            alt={document.channel.identifier}
+            width={12}
+            height={12}
+          />
+        </>
       ) : (
         <BrainIcon name={document.icon} />
       )}

@@ -11,11 +11,11 @@ import { CodesService } from '@gitroom/nestjs-libraries/services/codes.service';
 import { PublicIntegrationsController } from '@gitroom/backend/public-api/routes/v1/public.integrations.controller';
 import { PublicAuthMiddleware } from '@gitroom/backend/services/auth/public.auth.middleware';
 import { PublicUploadTicketController } from '@gitroom/backend/public-api/routes/v1/public.upload.ticket.controller';
-import { PublicBrainController } from '@gitroom/backend/public-api/routes/v1/public.brain.controller';
+import { PublicBriefController } from '@gitroom/backend/public-api/routes/v1/public.brief.controller';
 
 const authenticatedController = [
   PublicIntegrationsController,
-  PublicBrainController,
+  PublicBriefController,
 ];
 // Authenticated by the single-use ticket in its own URL, so it must stay out of
 // the list above — PublicAuthMiddleware would reject it for having no API key.

@@ -3,25 +3,25 @@ import { createTool } from '@mastra/core/tools';
 import { Injectable } from '@nestjs/common';
 import z from 'zod';
 import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
-import { BrainService } from '@gitroom/nestjs-libraries/database/prisma/brain/brain.service';
+import { BriefService } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.service';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 
 @Injectable()
-export class BrainSaveTool implements AgentToolInterface {
-  constructor(private _brainService: BrainService) {}
-  name = 'brainSaveTool';
+export class BriefSaveTool implements AgentToolInterface {
+  constructor(private _briefService: BriefService) {}
+  name = 'briefSaveTool';
 
   run() {
     return createTool({
-      id: 'brainSaveTool',
-      description: `Write to the agent brain — the description of the business that steers everything published on its behalf.
-"rules" replaces the whole document, so always read the document with brainListTool first and send back the existing rules plus your changes — anything you leave out is deleted.
+      id: 'briefSaveTool',
+      description: `Write to the agent brief — the description of the business that steers everything published on its behalf.
+"rules" replaces the whole document, so always read the document with briefListTool first and send back the existing rules plus your changes — anything you leave out is deleted.
 Each rule is a heading and the plain text under it; do not send markup.
-Experience is not written here — use brainLearnTool, which revises one lesson at a time and needs no permission.
-Use brainListTool for the list of valid categories and keys. Only documents in a category marked canCreate may be created with a new key; everything else must use a key that already exists.`,
+Experience is not written here — use briefLearnTool, which revises one lesson at a time and needs no permission.
+Use briefListTool for the list of valid categories and keys. Only documents in a category marked canCreate may be created with a new key; everything else must use a key that already exists.`,
       mcp: {
         annotations: {
-          title: 'Write Agent Brain',
+          title: 'Write Agent Brief',
           readOnlyHint: false,
           // Replacing a document drops any rule left out of the call, so this
           // overwrites rather than accumulates.
@@ -33,7 +33,7 @@ Use brainListTool for the list of valid categories and keys. Only documents in a
       inputSchema: z.object({
         category: z
           .string()
-          .describe('foundation, sources or channels (from brainListTool)'),
+          .describe('foundation, sources or channels (from briefListTool)'),
         key: z
           .string()
           .describe(
@@ -80,7 +80,7 @@ Use brainListTool for the list of valid categories and keys. Only documents in a
             (context?.requestContext as any)?.get('organization') as string
           ).id;
 
-          const saved = await this._brainService.saveDocument(
+          const saved = await this._briefService.saveDocument(
             organizationId,
             inputData.category,
             inputData.key,
@@ -113,7 +113,7 @@ Use brainListTool for the list of valid categories and keys. Only documents in a
           };
         } catch (err) {
           return {
-            error: `Failed to write the brain: ${
+            error: `Failed to write the brief: ${
               err instanceof Error ? err.message : 'Unexpected error'
             }`,
           };

@@ -15,25 +15,25 @@ import {
   AuthorizationActions,
   Sections,
 } from '@gitroom/backend/services/auth/permissions/permission.exception.class';
-import { BrainService } from '@gitroom/nestjs-libraries/database/prisma/brain/brain.service';
-import { SaveBrainDocumentDto } from '@gitroom/nestjs-libraries/dtos/brain/brain.dto';
-import { BRAIN_REGISTRY } from '@gitroom/nestjs-libraries/agent-brain/brain.registry';
+import { BriefService } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.service';
+import { SaveBriefDocumentDto } from '@gitroom/nestjs-libraries/dtos/brief/brief.dto';
+import { BRIEF_REGISTRY } from '@gitroom/nestjs-libraries/agent-brief/brief.registry';
 
-// The agent brain over the public API, so the CLI and any external agent can
+// The agent brief over the public API, so the CLI and any external agent can
 // read and edit it with an API key. Gated on the AI capability, which the free
 // tier does not carry.
 @ApiTags('Public API')
 @Controller('/public/v1')
 @CheckPolicies([AuthorizationActions.Create, Sections.AI])
-export class PublicBrainController {
-  constructor(private _brainService: BrainService) {}
+export class PublicBriefController {
+  constructor(private _briefService: BriefService) {}
 
-  // The shape of the brain: which categories and documents exist, so a caller
+  // The shape of the brief: which categories and documents exist, so a caller
   // knows what keys it may write to without guessing.
-  @Get('/brain/schema')
+  @Get('/brief/schema')
   schema() {
     return {
-      categories: BRAIN_REGISTRY.map((category) => ({
+      categories: BRIEF_REGISTRY.map((category) => ({
         id: category.id,
         label: category.label,
         source: category.source,
@@ -57,18 +57,18 @@ export class PublicBrainController {
     };
   }
 
-  @Get('/brain')
+  @Get('/brief')
   getDocuments(@GetOrgFromRequest() org: Organization) {
-    return this._brainService.getDocuments(org.id);
+    return this._briefService.getDocuments(org.id);
   }
 
-  @Get('/brain/:category/:key')
+  @Get('/brief/:category/:key')
   async getDocument(
     @GetOrgFromRequest() org: Organization,
     @Param('category') category: string,
     @Param('key') key: string
   ) {
-    const { documents } = await this._brainService.getDocuments(org.id);
+    const { documents } = await this._briefService.getDocuments(org.id);
     const document = documents.find(
       (one) => one.category === category && one.key === key
     );
@@ -80,22 +80,22 @@ export class PublicBrainController {
     return document;
   }
 
-  @Patch('/brain/:category/:key')
+  @Patch('/brief/:category/:key')
   saveDocument(
     @GetOrgFromRequest() org: Organization,
     @Param('category') category: string,
     @Param('key') key: string,
-    @Body() body: SaveBrainDocumentDto
+    @Body() body: SaveBriefDocumentDto
   ) {
-    return this._brainService.saveDocument(org.id, category, key, body);
+    return this._briefService.saveDocument(org.id, category, key, body);
   }
 
-  @Delete('/brain/:category/:key')
+  @Delete('/brief/:category/:key')
   deleteDocument(
     @GetOrgFromRequest() org: Organization,
     @Param('category') category: string,
     @Param('key') key: string
   ) {
-    return this._brainService.deleteDocument(org.id, category, key);
+    return this._briefService.deleteDocument(org.id, category, key);
   }
 }

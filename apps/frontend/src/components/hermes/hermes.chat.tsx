@@ -59,7 +59,7 @@ const VoholabsMark = ({ size = 26 }: { size?: number }) => (
   </svg>
 );
 
-const BrainMark = ({ size = 20 }: { size?: number }) => (
+const BriefMark = ({ size = 20 }: { size?: number }) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     width={size}

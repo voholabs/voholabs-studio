@@ -3,22 +3,22 @@ import { createTool } from '@mastra/core/tools';
 import { Injectable } from '@nestjs/common';
 import z from 'zod';
 import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
-import { BrainService } from '@gitroom/nestjs-libraries/database/prisma/brain/brain.service';
+import { BriefService } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.service';
 
 @Injectable()
-export class BrainDeleteTool implements AgentToolInterface {
-  constructor(private _brainService: BrainService) {}
-  name = 'brainDeleteTool';
+export class BriefDeleteTool implements AgentToolInterface {
+  constructor(private _briefService: BriefService) {}
+  name = 'briefDeleteTool';
 
   run() {
     return createTool({
-      id: 'brainDeleteTool',
-      description: `Delete a document from the agent brain, with everything written in it. This cannot be undone, so say what you are removing.
-Only user-created documents and your own Experience can be deleted. The Foundation documents and the per-channel documents are part of the product and will be refused; to empty one of those, use brainSaveTool with an empty list of rules instead.
+      id: 'briefDeleteTool',
+      description: `Delete a document from the agent brief, with everything written in it. This cannot be undone, so say what you are removing.
+Only user-created documents and your own Experience can be deleted. The Foundation documents and the per-channel documents are part of the product and will be refused; to empty one of those, use briefSaveTool with an empty list of rules instead.
 Retire an Experience document when what is in it turned out to be wrong or no longer applies. A lesson you no longer stand behind is worse than no lesson.`,
       mcp: {
         annotations: {
-          title: 'Delete Agent Brain Document',
+          title: 'Delete Agent Brief Document',
           readOnlyHint: false,
           destructiveHint: true,
           idempotentHint: true,
@@ -40,7 +40,7 @@ Retire an Experience document when what is in it turned out to be wrong or no lo
             (context?.requestContext as any)?.get('organization') as string
           ).id;
 
-          await this._brainService.deleteDocument(
+          await this._briefService.deleteDocument(
             organizationId,
             inputData.category,
             inputData.key,

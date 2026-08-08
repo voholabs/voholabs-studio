@@ -200,36 +200,36 @@ var PostizAPI = class {
       body: JSON.stringify({ methodName, data })
     });
   }
-  async getBrainSchema() {
-    return this.request("/public/v1/brain/schema", {
+  async getBriefSchema() {
+    return this.request("/public/v1/brief/schema", {
       method: "GET"
     });
   }
-  async getBrain() {
-    return this.request("/public/v1/brain", {
+  async getBrief() {
+    return this.request("/public/v1/brief", {
       method: "GET"
     });
   }
-  async getBrainDocument(category, key) {
+  async getBriefDocument(category, key) {
     return this.request(
-      `/public/v1/brain/${encodeURIComponent(category)}/${encodeURIComponent(key)}`,
+      `/public/v1/brief/${encodeURIComponent(category)}/${encodeURIComponent(key)}`,
       {
         method: "GET"
       }
     );
   }
-  async saveBrainDocument(category, key, body) {
+  async saveBriefDocument(category, key, body) {
     return this.request(
-      `/public/v1/brain/${encodeURIComponent(category)}/${encodeURIComponent(key)}`,
+      `/public/v1/brief/${encodeURIComponent(category)}/${encodeURIComponent(key)}`,
       {
         method: "PATCH",
         body: JSON.stringify(body)
       }
     );
   }
-  async deleteBrainDocument(category, key) {
+  async deleteBriefDocument(category, key) {
     return this.request(
-      `/public/v1/brain/${encodeURIComponent(category)}/${encodeURIComponent(key)}`,
+      `/public/v1/brief/${encodeURIComponent(category)}/${encodeURIComponent(key)}`,
       {
         method: "DELETE"
       }
@@ -813,7 +813,7 @@ async function findSlot(args) {
   }
 }
 
-// src/commands/brain.ts
+// src/commands/brief.ts
 var import_readline = require("readline");
 var import_fs4 = require("fs");
 var ruleId = () => Math.random().toString(36).slice(2, 12);
@@ -822,7 +822,7 @@ async function confirmHuman(summary) {
   console.log(summary);
   console.log("");
   if (!process.stdin.isTTY) {
-    console.error("\u274C This changes the agent brain and needs a human to approve it.");
+    console.error("\u274C This changes the agent brief and needs a human to approve it.");
     console.error("   Run it in a terminal; it will not auto-approve.");
     process.exit(1);
   }
@@ -838,35 +838,35 @@ async function confirmHuman(summary) {
     process.exit(0);
   }
 }
-async function brainSchema() {
+async function briefSchema() {
   const api = new PostizAPI(getConfig());
   try {
-    const result = await api.getBrainSchema();
-    console.log("\u{1F9E0} Brain structure:");
+    const result = await api.getBriefSchema();
+    console.log("\u{1F9E0} Brief structure:");
     console.log(JSON.stringify(result, null, 2));
     return result;
   } catch (error) {
-    console.error("\u274C Failed to read the brain schema:", error.message);
+    console.error("\u274C Failed to read the brief schema:", error.message);
     process.exit(1);
   }
 }
-async function brainList(args) {
+async function briefList(args) {
   const api = new PostizAPI(getConfig());
   try {
-    const result = await api.getBrain();
+    const result = await api.getBrief();
     const documents = (args == null ? void 0 : args.category) ? result.documents.filter((d) => d.category === args.category) : result.documents;
-    console.log("\u{1F9E0} Agent brain:");
+    console.log("\u{1F9E0} Agent brief:");
     console.log(JSON.stringify(__spreadProps(__spreadValues({}, result), { documents }), null, 2));
     return documents;
   } catch (error) {
-    console.error("\u274C Failed to read the brain:", error.message);
+    console.error("\u274C Failed to read the brief:", error.message);
     process.exit(1);
   }
 }
-async function brainGet(args) {
+async function briefGet(args) {
   const api = new PostizAPI(getConfig());
   try {
-    const result = await api.getBrainDocument(args.category, args.key);
+    const result = await api.getBriefDocument(args.category, args.key);
     console.log(JSON.stringify(result, null, 2));
     return result;
   } catch (error) {
@@ -874,7 +874,7 @@ async function brainGet(args) {
     process.exit(1);
   }
 }
-async function brainSet(args) {
+async function briefSet(args) {
   const api = new PostizAPI(getConfig());
   let payload;
   try {
@@ -929,7 +929,7 @@ ${body.links ? "" : "Links are left as they are.\n"}${body.assets ? "" : "Files 
 ${preview || "  (no rules \u2014 this empties the document)"}`
   );
   try {
-    const result = await api.saveBrainDocument(args.category, args.key, body);
+    const result = await api.saveBriefDocument(args.category, args.key, body);
     console.log("\u2705 Saved");
     console.log(JSON.stringify(result, null, 2));
     return result;
@@ -938,12 +938,12 @@ ${preview || "  (no rules \u2014 this empties the document)"}`
     process.exit(1);
   }
 }
-async function brainDelete(args) {
+async function briefDelete(args) {
   var _a;
   const api = new PostizAPI(getConfig());
   let existing;
   try {
-    existing = await api.getBrainDocument(args.category, args.key);
+    existing = await api.getBriefDocument(args.category, args.key);
   } catch (error) {
     console.error("\u274C Could not find that document:", error.message);
     process.exit(1);
@@ -953,7 +953,7 @@ async function brainDelete(args) {
     `About to DELETE ${args.category}/${args.key} and its ${count} rule(s). This cannot be undone.`
   );
   try {
-    await api.deleteBrainDocument(args.category, args.key);
+    await api.deleteBriefDocument(args.category, args.key);
     console.log("\u2705 Deleted");
   } catch (error) {
     console.error("\u274C Failed to delete:", error.message);
@@ -1245,36 +1245,36 @@ async function brainDelete(args) {
   },
   uploadFile
 ).command(
-  "brain:schema",
-  "Show which brain categories and documents exist",
+  "brief:schema",
+  "Show which brief categories and documents exist",
   {},
-  brainSchema
+  briefSchema
 ).command(
-  "brain:list",
-  "Read the agent brain",
+  "brief:list",
+  "Read the agent brief",
   (yargs2) => {
     return yargs2.option("category", {
       describe: "Only one category: foundation, sources, experience or channels",
       type: "string"
     }).example(
-      "$0 brain:list --category foundation",
+      "$0 brief:list --category foundation",
       "Read the Foundation documents"
     );
   },
-  brainList
+  briefList
 ).command(
-  "brain:get <category> <key>",
-  "Read one brain document",
+  "brief:get <category> <key>",
+  "Read one brief document",
   (yargs2) => {
     return yargs2.positional("category", {
       describe: "foundation, sources, experience or channels",
       type: "string"
-    }).positional("key", { describe: "Document key", type: "string" }).example("$0 brain:get foundation icp", "Read the ICP document");
+    }).positional("key", { describe: "Document key", type: "string" }).example("$0 brief:get foundation icp", "Read the ICP document");
   },
-  brainGet
+  briefGet
 ).command(
-  "brain:set <category> <key>",
-  "Replace a brain document (asks for approval)",
+  "brief:set <category> <key>",
+  "Replace a brief document (asks for approval)",
   (yargs2) => {
     return yargs2.positional("category", {
       describe: "foundation, sources or channels",
@@ -1283,24 +1283,24 @@ async function brainDelete(args) {
       describe: "Path to a JSON file of rules",
       type: "string"
     }).option("rules", { describe: "Inline JSON of rules", type: "string" }).example(
-      "$0 brain:set foundation icp --file icp.json",
+      "$0 brief:set foundation icp --file icp.json",
       "Replace the ICP document with the rules in icp.json"
     ).example(
-      "$0 brain:set foundation branding-assets --file brand.json",
+      "$0 brief:set foundation branding-assets --file brand.json",
       "Rules plus files, where each file url comes from `voholabs upload`"
     );
   },
-  brainSet
+  briefSet
 ).command(
-  "brain:delete <category> <key>",
-  "Delete a brain document (asks for approval)",
+  "brief:delete <category> <key>",
+  "Delete a brief document (asks for approval)",
   (yargs2) => {
     return yargs2.positional("category", {
       describe: "Category of the document",
       type: "string"
-    }).positional("key", { describe: "Document key", type: "string" }).example("$0 brain:delete sources abc123", "Delete a source document");
+    }).positional("key", { describe: "Document key", type: "string" }).example("$0 brief:delete sources abc123", "Delete a source document");
   },
-  brainDelete
+  briefDelete
 ).command(
   "media:list",
   "List the media library",

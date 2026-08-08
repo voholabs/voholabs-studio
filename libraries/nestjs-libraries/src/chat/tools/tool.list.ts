@@ -16,22 +16,22 @@ import { MediaListTool } from '@gitroom/nestjs-libraries/chat/tools/media.list.t
 import { MediaDeleteTool } from '@gitroom/nestjs-libraries/chat/tools/media.delete.tool';
 import { MediaUploadTool } from '@gitroom/nestjs-libraries/chat/tools/media.upload.tool';
 import { MediaUploadLinkTool } from '@gitroom/nestjs-libraries/chat/tools/media.upload.link.tool';
-import { BrainListTool } from '@gitroom/nestjs-libraries/chat/tools/brain.list.tool';
-import { BrainSaveTool } from '@gitroom/nestjs-libraries/chat/tools/brain.save.tool';
-import { BrainDeleteTool } from '@gitroom/nestjs-libraries/chat/tools/brain.delete.tool';
-import { BrainLearnTool } from '@gitroom/nestjs-libraries/chat/tools/brain.learn.tool';
-import { BrainAssetTool } from '@gitroom/nestjs-libraries/chat/tools/brain.asset.tool';
+import { BriefListTool } from '@gitroom/nestjs-libraries/chat/tools/brief.list.tool';
+import { BriefSaveTool } from '@gitroom/nestjs-libraries/chat/tools/brief.save.tool';
+import { BriefDeleteTool } from '@gitroom/nestjs-libraries/chat/tools/brief.delete.tool';
+import { BriefLearnTool } from '@gitroom/nestjs-libraries/chat/tools/brief.learn.tool';
+import { BriefAssetTool } from '@gitroom/nestjs-libraries/chat/tools/brief.asset.tool';
 import { AnalyticsChannelTool } from '@gitroom/nestjs-libraries/chat/tools/analytics.channel.tool';
 import { AnalyticsPostTool } from '@gitroom/nestjs-libraries/chat/tools/analytics.post.tool';
 import { PostsStatusTool } from '@gitroom/nestjs-libraries/chat/tools/posts.status.tool';
 
 export const toolList = [
   AccountInfoTool,
-  BrainListTool,
-  BrainSaveTool,
-  BrainDeleteTool,
-  BrainLearnTool,
-  BrainAssetTool,
+  BriefListTool,
+  BriefSaveTool,
+  BriefDeleteTool,
+  BriefLearnTool,
+  BriefAssetTool,
   IntegrationListTool,
   GroupListTool,
   IntegrationValidationTool,

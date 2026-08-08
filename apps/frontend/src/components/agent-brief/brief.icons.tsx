@@ -82,7 +82,7 @@ const paths: Record<string, ReactNode> = {
   ),
 };
 
-export const BrainIcon: FC<{ name: string; size?: number }> = ({
+export const BriefIcon: FC<{ name: string; size?: number }> = ({
   name,
   size = 16,
 }) => (

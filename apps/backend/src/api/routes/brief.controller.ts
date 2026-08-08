@@ -7,18 +7,18 @@ import {
   AuthorizationActions,
   Sections,
 } from '@gitroom/backend/services/auth/permissions/permission.exception.class';
-import { BrainService } from '@gitroom/nestjs-libraries/database/prisma/brain/brain.service';
-import { SaveBrainDocumentDto } from '@gitroom/nestjs-libraries/dtos/brain/brain.dto';
+import { BriefService } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.service';
+import { SaveBriefDocumentDto } from '@gitroom/nestjs-libraries/dtos/brief/brief.dto';
 
-@ApiTags('Brain')
-@Controller('/brain')
+@ApiTags('Brief')
+@Controller('/brief')
 @CheckPolicies([AuthorizationActions.Create, Sections.AI])
-export class BrainController {
-  constructor(private _brainService: BrainService) {}
+export class BriefController {
+  constructor(private _briefService: BriefService) {}
 
   @Get('/')
   getDocuments(@GetOrgFromRequest() org: Organization) {
-    return this._brainService.getDocuments(org.id);
+    return this._briefService.getDocuments(org.id);
   }
 
   @Patch('/:category/:key')
@@ -26,9 +26,9 @@ export class BrainController {
     @GetOrgFromRequest() org: Organization,
     @Param('category') category: string,
     @Param('key') key: string,
-    @Body() body: SaveBrainDocumentDto
+    @Body() body: SaveBriefDocumentDto
   ) {
-    return this._brainService.saveDocument(org.id, category, key, body);
+    return this._briefService.saveDocument(org.id, category, key, body);
   }
 
   @Delete('/:category/:key')
@@ -37,6 +37,6 @@ export class BrainController {
     @Param('category') category: string,
     @Param('key') key: string
   ) {
-    return this._brainService.deleteDocument(org.id, category, key);
+    return this._briefService.deleteDocument(org.id, category, key);
   }
 }

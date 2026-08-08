@@ -3,36 +3,36 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { BrainRepository } from '@gitroom/nestjs-libraries/database/prisma/brain/brain.repository';
+import { BriefRepository } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.repository';
 import { IntegrationService } from '@gitroom/nestjs-libraries/database/prisma/integrations/integration.service';
-import { SaveBrainDocumentDto } from '@gitroom/nestjs-libraries/dtos/brain/brain.dto';
+import { SaveBriefDocumentDto } from '@gitroom/nestjs-libraries/dtos/brief/brief.dto';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 import {
-  BRAIN_REGISTRY_VERSION,
+  BRIEF_REGISTRY_VERSION,
   isAgentManaged,
-  BRAIN_ASSETS_MAX,
-  BRAIN_USER_DOCUMENTS_MAX,
+  BRIEF_ASSETS_MAX,
+  BRIEF_USER_DOCUMENTS_MAX,
   channelDocumentKey,
   documentHasFeature,
   emptyContent,
   findCategory,
   resolveDocumentDef,
-} from '@gitroom/nestjs-libraries/agent-brain/brain.registry';
+} from '@gitroom/nestjs-libraries/agent-brief/brief.registry';
 import {
-  BrainDocument,
-  BrainDocumentContent,
-} from '@gitroom/nestjs-libraries/agent-brain/brain.types';
+  BriefDocument,
+  BriefDocumentContent,
+} from '@gitroom/nestjs-libraries/agent-brief/brief.types';
 
 @Injectable()
-export class BrainService {
+export class BriefService {
   constructor(
-    private _brainRepository: BrainRepository,
+    private _briefRepository: BriefRepository,
     private _integrationService: IntegrationService
   ) {}
 
   async getDocuments(orgId: string) {
     const [rows, channelKeys] = await Promise.all([
-      this._brainRepository.getDocuments(orgId),
+      this._briefRepository.getDocuments(orgId),
       this.channelKeysToIds(orgId),
     ]);
 
@@ -63,16 +63,16 @@ export class BrainService {
       });
 
       return all;
-    }, [] as BrainDocument[]);
+    }, [] as BriefDocument[]);
 
-    return { registryVersion: BRAIN_REGISTRY_VERSION, documents };
+    return { registryVersion: BRIEF_REGISTRY_VERSION, documents };
   }
 
   async saveDocument(
     orgId: string,
     category: string,
     key: string,
-    body: SaveBrainDocumentDto
+    body: SaveBriefDocumentDto
   ) {
     const definition = findCategory(category);
     const document = resolveDocumentDef(category, key);
@@ -87,7 +87,7 @@ export class BrainService {
     }
 
     const storageKey = await this.toStorageKey(orgId, category, key);
-    const existing = await this._brainRepository.getDocument(
+    const existing = await this._briefRepository.getDocument(
       orgId,
       category,
       storageKey
@@ -117,7 +117,7 @@ export class BrainService {
       content.title = body.title;
     }
 
-    const saved = await this._brainRepository.saveDocument(
+    const saved = await this._briefRepository.saveDocument(
       orgId,
       category,
       storageKey,
@@ -160,7 +160,7 @@ export class BrainService {
     }
 
     const storageKey = await this.toStorageKey(orgId, category, key);
-    await this._brainRepository.deleteDocument(orgId, category, storageKey);
+    await this._briefRepository.deleteDocument(orgId, category, storageKey);
 
     return { deleted: true };
   }
@@ -179,7 +179,7 @@ export class BrainService {
       throw new BadRequestException('This category is not agent managed');
     }
 
-    const existing = await this._brainRepository.getDocument(
+    const existing = await this._briefRepository.getDocument(
       orgId,
       category,
       key
@@ -212,7 +212,7 @@ export class BrainService {
       content.title = title;
     }
 
-    const saved = await this._brainRepository.saveDocument(
+    const saved = await this._briefRepository.saveDocument(
       orgId,
       category,
       key,
@@ -242,7 +242,7 @@ export class BrainService {
       throw new BadRequestException('This document does not hold files');
     }
 
-    const existing = await this._brainRepository.getDocument(
+    const existing = await this._briefRepository.getDocument(
       orgId,
       category,
       key
@@ -251,7 +251,7 @@ export class BrainService {
     const content = this.parseContent(existing?.content);
     const assets = content.assets || [];
 
-    if (assets.length >= BRAIN_ASSETS_MAX) {
+    if (assets.length >= BRIEF_ASSETS_MAX) {
       throw new BadRequestException('Too many files in this document');
     }
 
@@ -266,7 +266,7 @@ export class BrainService {
       },
     ];
 
-    await this._brainRepository.saveDocument(
+    await this._briefRepository.saveDocument(
       orgId,
       category,
       key,
@@ -278,12 +278,12 @@ export class BrainService {
 
   // Everything the agent knows about the business, as one structure. Nothing
   // consumes this yet.
-  async getBrain(orgId: string) {
+  async getBrief(orgId: string) {
     const { documents } = await this.getDocuments(orgId);
     return documents;
   }
 
-  private parseContent(raw?: string): BrainDocumentContent {
+  private parseContent(raw?: string): BriefDocumentContent {
     try {
       const parsed = JSON.parse(raw || '{}');
       return {
@@ -299,12 +299,12 @@ export class BrainService {
   }
 
   private async assertRoomForAnother(orgId: string, category: string) {
-    const existing = await this._brainRepository.countDocuments(
+    const existing = await this._briefRepository.countDocuments(
       orgId,
       category
     );
 
-    if (existing >= BRAIN_USER_DOCUMENTS_MAX) {
+    if (existing >= BRIEF_USER_DOCUMENTS_MAX) {
       throw new BadRequestException('Too many documents in this section');
     }
   }

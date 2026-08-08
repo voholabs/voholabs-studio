@@ -2,9 +2,9 @@
 
 import { FC, useEffect, useRef } from 'react';
 
-// Plain text, growing with its content. The brain is read by the agent, so the
+// Plain text, growing with its content. The brief is read by the agent, so the
 // body of a block is text rather than markup and there is nothing to format.
-export const BrainTextarea: FC<{
+export const BriefTextarea: FC<{
   value: string;
   placeholder?: string;
   onChange: (value: string) => void;

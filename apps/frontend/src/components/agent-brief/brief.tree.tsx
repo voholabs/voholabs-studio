@@ -5,11 +5,11 @@ import clsx from 'clsx';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import ImageWithFallback from '@gitroom/react/helpers/image.with.fallback';
 import SafeImage from '@gitroom/react/helpers/safe.image';
-import { BrainIcon } from '@gitroom/frontend/components/agent-brain/brain.icons';
+import { BriefIcon } from '@gitroom/frontend/components/agent-brief/brief.icons';
 import {
-  BrainTreeDocument,
-  BrainTreeGroup,
-} from '@gitroom/frontend/components/agent-brain/use.brain.tree';
+  BriefTreeDocument,
+  BriefTreeGroup,
+} from '@gitroom/frontend/components/agent-brief/use.brief.tree';
 
 const Chevron: FC<{ open: boolean }> = ({ open }) => (
   <svg
@@ -30,11 +30,41 @@ const Chevron: FC<{ open: boolean }> = ({ open }) => (
   </svg>
 );
 
+// The names here are one word each, and one word cannot say what belongs in a
+// section. The explanation hangs off a hover rather than sitting on the page,
+// because it is read once and then in the way forever.
+const Hint: FC<{ content: string }> = ({ content }) => (
+  <span
+    data-tooltip-id="tooltip"
+    data-tooltip-content={content}
+    // Without a width the tooltip lays a paragraph out as a single line that
+    // runs off the screen.
+    data-tooltip-class-name="!max-w-[280px] !whitespace-normal !leading-[1.5]"
+    className="shrink-0 cursor-help text-textItemBlur hover:text-warm transition-colors"
+  >
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="8" cy="8" r="6.2" />
+      <path d="M8 7.4v3.4" />
+      <path d="M8 5.2v.1" />
+    </svg>
+  </span>
+);
+
 const TreeRow: FC<{
-  document: BrainTreeDocument;
+  document: BriefTreeDocument;
   active: boolean;
   filled: boolean;
-  onSelect: (document: BrainTreeDocument) => void;
+  onSelect: (document: BriefTreeDocument) => void;
 }> = ({ document, active, filled, onSelect }) => (
   <div
     onClick={() => onSelect(document)}
@@ -84,7 +114,7 @@ const TreeRow: FC<{
           />
         </>
       ) : (
-        <BrainIcon name={document.icon} />
+        <BriefIcon name={document.icon} />
       )}
     </span>
     <span
@@ -100,12 +130,12 @@ const TreeRow: FC<{
   </div>
 );
 
-export const BrainTree: FC<{
-  groups: BrainTreeGroup[];
-  active?: BrainTreeDocument;
-  isFilled: (document: BrainTreeDocument) => boolean;
-  onSelect: (document: BrainTreeDocument) => void;
-  onCreate: (group: BrainTreeGroup) => void;
+export const BriefTree: FC<{
+  groups: BriefTreeGroup[];
+  active?: BriefTreeDocument;
+  isFilled: (document: BriefTreeDocument) => boolean;
+  onSelect: (document: BriefTreeDocument) => void;
+  onCreate: (group: BriefTreeGroup) => void;
 }> = ({ groups, active, isFilled, onSelect, onCreate }) => {
   const t = useT();
   const [search, setSearch] = useState('');
@@ -152,11 +182,17 @@ export const BrainTree: FC<{
     <>
       <div className="flex items-center gap-[10px] mb-[16px]">
         <span className="text-warm">
-          <BrainIcon name="compass" size={22} />
+          <BriefIcon name="compass" size={22} />
         </span>
         <h2 className="text-[20px] font-[500]">
-          {t('brain_title', 'Agent Brain')}
+          {t('brief_title', 'Agent Brief')}
         </h2>
+        <Hint
+          content={t(
+            'brief_title_tooltip',
+            'Everything the agent knows about your business. It reads this before writing anything, so what is here decides what goes out. You can fill it in by hand, but it is faster to ask the agent to do it, or to point your own tools at the MCP — it reads and writes this section itself.'
+          )}
+        />
       </div>
 
       <div className="flex items-center gap-[8px] h-[38px] px-[12px] mb-[16px] rounded-[8px] border border-newTableBorder focus-within:border-warm transition-colors">
@@ -180,7 +216,7 @@ export const BrainTree: FC<{
           ref={searchRef}
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder={t('brain_search_placeholder', 'Search files...')}
+          placeholder={t('brief_search_placeholder', 'Search files...')}
           className="flex-1 bg-transparent outline-none text-[14px] placeholder:text-textItemBlur"
         />
       </div>
@@ -196,11 +232,19 @@ export const BrainTree: FC<{
                 <Chevron open={!collapsed[group.category.id]} />
                 {group.label}
               </div>
+              {!!group.category.tooltipKey && (
+                <Hint
+                  content={t(
+                    group.category.tooltipKey,
+                    group.category.tooltip!
+                  )}
+                />
+              )}
               {group.category.canCreate && (
                 <div
                   onClick={() => onCreate(group)}
                   data-tooltip-id="tooltip"
-                  data-tooltip-content={t('brain_add_document', 'Add document')}
+                  data-tooltip-content={t('brief_add_document', 'Add document')}
                   className="cursor-pointer select-none w-[20px] h-[20px] rounded-[6px] flex items-center justify-center text-textItemBlur hover:text-warm hover:bg-warmHover transition-colors"
                 >
                   <svg
@@ -247,7 +291,7 @@ export const BrainTree: FC<{
 
         {!filtered.length && (
           <div className="text-[13px] text-textItemBlur">
-            {t('brain_no_results', 'No matches')}
+            {t('brief_no_results', 'No matches')}
           </div>
         )}
       </div>

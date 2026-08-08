@@ -7,35 +7,35 @@ import { useToaster } from '@gitroom/react/toaster/toaster';
 import { useVariables } from '@gitroom/react/helpers/variable.context';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 import {
-  BRAIN_ASSET_NOTE_MAX,
-  BRAIN_ASSETS_MAX,
-} from '@gitroom/nestjs-libraries/agent-brain/brain.registry';
-import { BrainAsset } from '@gitroom/nestjs-libraries/agent-brain/brain.types';
+  BRIEF_ASSET_NOTE_MAX,
+  BRIEF_ASSETS_MAX,
+} from '@gitroom/nestjs-libraries/agent-brief/brief.registry';
+import { BriefAsset } from '@gitroom/nestjs-libraries/agent-brief/brief.types';
 
-const isImage = (asset: BrainAsset) =>
+const isImage = (asset: BriefAsset) =>
   (asset.mime || '').startsWith('image/') ||
   /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(asset.url);
 
-const isVideo = (asset: BrainAsset) =>
+const isVideo = (asset: BriefAsset) =>
   (asset.mime || '').startsWith('video/') || /\.(mp4|mov|webm)$/i.test(asset.url);
 
 // The brand's files. Uploads go through the app's normal media pipeline, so they
 // land wherever storage is configured — R2 in this deployment — rather than in a
 // second bucket of their own.
-export const BrainAssets: FC<{
-  assets: BrainAsset[];
-  onChange: (assets: BrainAsset[]) => void;
+export const BriefAssets: FC<{
+  assets: BriefAsset[];
+  onChange: (assets: BriefAsset[]) => void;
 }> = ({ assets, onChange }) => {
   const t = useT();
   const fetch = useFetch();
   const toaster = useToaster();
   const { backendUrl, uploadDirectory } = useVariables() as any;
   const picker = useRef<HTMLInputElement>(null);
-  const [current, setCurrent] = useState<BrainAsset[]>(assets);
+  const [current, setCurrent] = useState<BriefAsset[]>(assets);
   const [uploading, setUploading] = useState(false);
 
   const update = useCallback(
-    (next: BrainAsset[]) => {
+    (next: BriefAsset[]) => {
       setCurrent(next);
       onChange(next);
     },
@@ -61,7 +61,7 @@ export const BrainAssets: FC<{
       setUploading(true);
 
       try {
-        const added: BrainAsset[] = [];
+        const added: BriefAsset[] = [];
 
         for (const file of Array.from(files)) {
           const form = new FormData();
@@ -74,7 +74,7 @@ export const BrainAssets: FC<{
 
           if (!response.ok) {
             toaster.show(
-              `${file.name} ${t('brain_asset_failed', 'could not be uploaded')}`,
+              `${file.name} ${t('brief_asset_failed', 'could not be uploaded')}`,
               'warning'
             );
             continue;
@@ -91,7 +91,7 @@ export const BrainAssets: FC<{
         }
 
         if (added.length) {
-          update([...current, ...added].slice(0, BRAIN_ASSETS_MAX));
+          update([...current, ...added].slice(0, BRIEF_ASSETS_MAX));
         }
       } finally {
         setUploading(false);
@@ -144,7 +144,7 @@ export const BrainAssets: FC<{
                       update(current.filter((one) => one.id !== asset.id))
                     }
                     data-tooltip-id="tooltip"
-                    data-tooltip-content={t('brain_asset_remove', 'Remove')}
+                    data-tooltip-content={t('brief_asset_remove', 'Remove')}
                     className="cursor-pointer select-none text-textItemBlur hover:text-warm"
                   >
                     <svg
@@ -166,7 +166,7 @@ export const BrainAssets: FC<{
                 </div>
                 <textarea
                   value={asset.note || ''}
-                  maxLength={BRAIN_ASSET_NOTE_MAX}
+                  maxLength={BRIEF_ASSET_NOTE_MAX}
                   rows={2}
                   onChange={(event) =>
                     update(
@@ -178,7 +178,7 @@ export const BrainAssets: FC<{
                     )
                   }
                   placeholder={t(
-                    'brain_asset_note_placeholder',
+                    'brief_asset_note_placeholder',
                     'When should the agent use this, and when should it not?'
                   )}
                   className="w-full bg-transparent outline-none resize-none text-[13px] text-textItemBlur placeholder:text-textItemBlur"
@@ -189,7 +189,7 @@ export const BrainAssets: FC<{
         </div>
       )}
 
-      {current.length < BRAIN_ASSETS_MAX && (
+      {current.length < BRIEF_ASSETS_MAX && (
         <>
           <input
             ref={picker}
@@ -221,8 +221,8 @@ export const BrainAssets: FC<{
               />
             </svg>
             {uploading
-              ? t('brain_asset_uploading', 'Uploading...')
-              : t('brain_asset_add', 'Add a file')}
+              ? t('brief_asset_uploading', 'Uploading...')
+              : t('brief_asset_add', 'Add a file')}
           </div>
         </>
       )}

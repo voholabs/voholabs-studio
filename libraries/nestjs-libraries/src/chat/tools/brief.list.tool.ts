@@ -57,6 +57,11 @@ Each document is a list of rules: a heading and the text under it.`,
               label: category.label,
               canCreate: !!category.canCreate,
               canDelete: !!category.canDelete,
+              // Without this the schema reads as "everything is writable", and
+              // the agent finds out Experience is not by having a save
+              // rejected. It is the agent's own notebook: briefLearnTool
+              // writes it, briefSaveTool refuses.
+              readOnly: !!category.readOnly,
               documents: (category.documents || []).map((document) => ({
                 key: document.key,
                 label: document.label,

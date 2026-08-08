@@ -39,6 +39,9 @@ export class PublicBriefController {
         source: category.source,
         canCreate: !!category.canCreate,
         canDelete: !!category.canDelete,
+        // Experience is the agent's own notebook. Saying so here means a
+        // caller can see it before trying to write and getting turned away.
+        readOnly: !!category.readOnly,
         documents: (category.documents || []).map((document) => ({
           key: document.key,
           label: document.label,

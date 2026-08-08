@@ -3,10 +3,10 @@
 import { FC } from 'react';
 import clsx from 'clsx';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
-import { BrainSaveState } from '@gitroom/frontend/components/agent-brain/use.brain.autosave';
+import { BriefSaveState } from '@gitroom/frontend/components/agent-brief/use.brief.autosave';
 
-export const BrainSaveIndicator: FC<{
-  state: BrainSaveState;
+export const BriefSaveIndicator: FC<{
+  state: BriefSaveState;
   onRetry: () => void;
 }> = ({ state, onRetry }) => {
   const t = useT();
@@ -18,9 +18,9 @@ export const BrainSaveIndicator: FC<{
   if (state === 'error') {
     return (
       <div className="flex items-center gap-[8px] text-[12px] text-red-400">
-        <span>{t('brain_save_failed', 'Could not save')}</span>
+        <span>{t('brief_save_failed', 'Could not save')}</span>
         <span onClick={onRetry} className="underline cursor-pointer">
-          {t('brain_save_retry', 'Retry')}
+          {t('brief_save_retry', 'Retry')}
         </span>
       </div>
     );
@@ -33,7 +33,7 @@ export const BrainSaveIndicator: FC<{
       )}
     >
       {state === 'saving' ? (
-        t('brain_saving', 'Saving...')
+        t('brief_saving', 'Saving...')
       ) : (
         <>
           <svg
@@ -51,7 +51,7 @@ export const BrainSaveIndicator: FC<{
               strokeLinejoin="round"
             />
           </svg>
-          {t('brain_saved', 'Saved')}
+          {t('brief_saved', 'Saved')}
         </>
       )}
     </div>

@@ -9,42 +9,42 @@ import {
   ValidateNested,
 } from 'class-validator';
 import {
-  BRAIN_ASSET_NAME_MAX,
-  BRAIN_ASSET_NOTE_MAX,
-  BRAIN_ASSET_URL_MAX,
-  BRAIN_ASSETS_MAX,
-  BRAIN_BLOCK_ID_MAX,
-  BRAIN_BLOCKS_MAX,
-  BRAIN_BODY_MAX,
-  BRAIN_HEADING_MAX,
-  BRAIN_LINK_ID_MAX,
-  BRAIN_LINK_NOTE_MAX,
-  BRAIN_LINK_URL_MAX,
-  BRAIN_LINKS_MAX,
-  BRAIN_TITLE_MAX,
-} from '@gitroom/nestjs-libraries/agent-brain/brain.registry';
+  BRIEF_ASSET_NAME_MAX,
+  BRIEF_ASSET_NOTE_MAX,
+  BRIEF_ASSET_URL_MAX,
+  BRIEF_ASSETS_MAX,
+  BRIEF_BLOCK_ID_MAX,
+  BRIEF_BLOCKS_MAX,
+  BRIEF_BODY_MAX,
+  BRIEF_HEADING_MAX,
+  BRIEF_LINK_ID_MAX,
+  BRIEF_LINK_NOTE_MAX,
+  BRIEF_LINK_URL_MAX,
+  BRIEF_LINKS_MAX,
+  BRIEF_TITLE_MAX,
+} from '@gitroom/nestjs-libraries/agent-brief/brief.registry';
 
-export class BrainBlockDto {
+export class BriefBlockDto {
   @IsString()
   @IsDefined()
-  @MaxLength(BRAIN_BLOCK_ID_MAX)
+  @MaxLength(BRIEF_BLOCK_ID_MAX)
   id: string;
 
   @IsString()
   @IsDefined()
-  @MaxLength(BRAIN_HEADING_MAX)
+  @MaxLength(BRIEF_HEADING_MAX)
   heading: string;
 
   @IsString()
   @IsDefined()
-  @MaxLength(BRAIN_BODY_MAX)
+  @MaxLength(BRIEF_BODY_MAX)
   body: string;
 }
 
-export class BrainLinkDto {
+export class BriefLinkDto {
   @IsString()
   @IsDefined()
-  @MaxLength(BRAIN_LINK_ID_MAX)
+  @MaxLength(BRIEF_LINK_ID_MAX)
   id: string;
 
   // Length-capped but not format-checked: autosave fires while the user is
@@ -52,29 +52,29 @@ export class BrainLinkDto {
   // keystrokes. Nothing fetches these links, they are read as text.
   @IsString()
   @IsDefined()
-  @MaxLength(BRAIN_LINK_URL_MAX)
+  @MaxLength(BRIEF_LINK_URL_MAX)
   url: string;
 
   @IsOptional()
   @IsString()
-  @MaxLength(BRAIN_LINK_NOTE_MAX)
+  @MaxLength(BRIEF_LINK_NOTE_MAX)
   note?: string;
 }
 
-export class BrainAssetDto {
+export class BriefAssetDto {
   @IsString()
   @IsDefined()
-  @MaxLength(BRAIN_BLOCK_ID_MAX)
+  @MaxLength(BRIEF_BLOCK_ID_MAX)
   id: string;
 
   @IsString()
   @IsDefined()
-  @MaxLength(BRAIN_ASSET_NAME_MAX)
+  @MaxLength(BRIEF_ASSET_NAME_MAX)
   name: string;
 
   @IsString()
   @IsDefined()
-  @MaxLength(BRAIN_ASSET_URL_MAX)
+  @MaxLength(BRIEF_ASSET_URL_MAX)
   url: string;
 
   @IsOptional()
@@ -84,36 +84,36 @@ export class BrainAssetDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(BRAIN_ASSET_NOTE_MAX)
+  @MaxLength(BRIEF_ASSET_NOTE_MAX)
   note?: string;
 }
 
 // Blocks and links are ordered lists, so each is replaced whole rather than
 // merged; a field that is absent is left exactly as it was stored.
-export class SaveBrainDocumentDto {
+export class SaveBriefDocumentDto {
   @IsOptional()
   @IsString()
-  @MaxLength(BRAIN_TITLE_MAX)
+  @MaxLength(BRIEF_TITLE_MAX)
   title?: string;
 
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(BRAIN_BLOCKS_MAX)
+  @ArrayMaxSize(BRIEF_BLOCKS_MAX)
   @ValidateNested({ each: true })
-  @Type(() => BrainBlockDto)
-  blocks?: BrainBlockDto[];
+  @Type(() => BriefBlockDto)
+  blocks?: BriefBlockDto[];
 
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(BRAIN_LINKS_MAX)
+  @ArrayMaxSize(BRIEF_LINKS_MAX)
   @ValidateNested({ each: true })
-  @Type(() => BrainLinkDto)
-  links?: BrainLinkDto[];
+  @Type(() => BriefLinkDto)
+  links?: BriefLinkDto[];
 
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(BRAIN_ASSETS_MAX)
+  @ArrayMaxSize(BRIEF_ASSETS_MAX)
   @ValidateNested({ each: true })
-  @Type(() => BrainAssetDto)
-  assets?: BrainAssetDto[];
+  @Type(() => BriefAssetDto)
+  assets?: BriefAssetDto[];
 }

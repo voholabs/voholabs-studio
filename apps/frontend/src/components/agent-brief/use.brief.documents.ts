@@ -3,25 +3,25 @@
 import { useCallback } from 'react';
 import useSWR from 'swr';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
-import { BrainDocument } from '@gitroom/nestjs-libraries/agent-brain/brain.types';
+import { BriefDocument } from '@gitroom/nestjs-libraries/agent-brief/brief.types';
 
-export const BRAIN_DOCUMENTS_KEY = 'brain-documents';
+export const BRIEF_DOCUMENTS_KEY = 'brief-documents';
 
-export interface BrainDocumentsResponse {
+export interface BriefDocumentsResponse {
   registryVersion: number;
-  documents: BrainDocument[];
+  documents: BriefDocument[];
 }
 
 // Only documents that have been written to come back; everything else is
 // rendered empty from the registry.
-export const useBrainDocuments = () => {
+export const useBriefDocuments = () => {
   const fetch = useFetch();
 
   const load = useCallback(async () => {
-    return (await fetch('/brain')).json();
+    return (await fetch('/brief')).json();
   }, [fetch]);
 
-  return useSWR<BrainDocumentsResponse>(BRAIN_DOCUMENTS_KEY, load, {
+  return useSWR<BriefDocumentsResponse>(BRIEF_DOCUMENTS_KEY, load, {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
     revalidateIfStale: false,

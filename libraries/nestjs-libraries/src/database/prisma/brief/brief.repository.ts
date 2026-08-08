@@ -2,23 +2,23 @@ import { Injectable } from '@nestjs/common';
 import { PrismaRepository } from '@gitroom/nestjs-libraries/database/prisma/prisma.service';
 
 @Injectable()
-export class BrainRepository {
-  constructor(private _brain: PrismaRepository<'agentBrainDocument'>) {}
+export class BriefRepository {
+  constructor(private _brief: PrismaRepository<'agentBriefDocument'>) {}
 
   getDocuments(orgId: string) {
-    return this._brain.model.agentBrainDocument.findMany({
+    return this._brief.model.agentBriefDocument.findMany({
       where: { organizationId: orgId },
     });
   }
 
   countDocuments(orgId: string, category: string) {
-    return this._brain.model.agentBrainDocument.count({
+    return this._brief.model.agentBriefDocument.count({
       where: { organizationId: orgId, category },
     });
   }
 
   getDocument(orgId: string, category: string, key: string) {
-    return this._brain.model.agentBrainDocument.findUnique({
+    return this._brief.model.agentBriefDocument.findUnique({
       where: {
         organizationId_category_key: {
           organizationId: orgId,
@@ -44,7 +44,7 @@ export class BrainRepository {
     };
 
     try {
-      return await this._brain.model.agentBrainDocument.upsert({
+      return await this._brief.model.agentBriefDocument.upsert({
         where,
         update: { content },
         create: { organizationId: orgId, category, key, content },
@@ -56,7 +56,7 @@ export class BrainRepository {
         throw err;
       }
 
-      return this._brain.model.agentBrainDocument.update({
+      return this._brief.model.agentBriefDocument.update({
         where,
         data: { content },
       });
@@ -66,7 +66,7 @@ export class BrainRepository {
   // deleteMany rather than delete: clearing a document that was never saved is a
   // no-op, not an error.
   deleteDocument(orgId: string, category: string, key: string) {
-    return this._brain.model.agentBrainDocument.deleteMany({
+    return this._brief.model.agentBriefDocument.deleteMany({
       where: { organizationId: orgId, category, key },
     });
   }

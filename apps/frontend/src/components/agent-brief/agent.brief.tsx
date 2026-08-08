@@ -8,30 +8,29 @@ import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
-import { isDocumentEmpty } from '@gitroom/nestjs-libraries/agent-brain/brain.registry';
 import {
-  useBrainTree,
-  BrainTreeDocument,
-  BrainTreeGroup,
-} from '@gitroom/frontend/components/agent-brain/use.brain.tree';
+  useBriefTree,
+  BriefTreeDocument,
+  BriefTreeGroup,
+} from '@gitroom/frontend/components/agent-brief/use.brief.tree';
 import {
-  BRAIN_DOCUMENTS_KEY,
-  BrainDocumentsResponse,
-  useBrainDocuments,
-} from '@gitroom/frontend/components/agent-brain/use.brain.documents';
-import { BrainTree } from '@gitroom/frontend/components/agent-brain/brain.tree';
-import { BrainDocument } from '@gitroom/frontend/components/agent-brain/brain.document';
+  BRIEF_DOCUMENTS_KEY,
+  BriefDocumentsResponse,
+  useBriefDocuments,
+} from '@gitroom/frontend/components/agent-brief/use.brief.documents';
+import { BriefTree } from '@gitroom/frontend/components/agent-brief/brief.tree';
+import { BriefDocument } from '@gitroom/frontend/components/agent-brief/brief.document';
 
-// /brain, /brain/<category>, /brain/<category>/<document key>
-export const AgentBrain = () => {
+// /brief, /brief/<category>, /brief/<category>/<document key>
+export const AgentBrief = () => {
   const t = useT();
   const router = useRouter();
   const params = useParams();
   const fetch = useFetch();
   const toaster = useToaster();
   const { mutate } = useSWRConfig();
-  const { data, isLoading: documentsLoading } = useBrainDocuments();
-  const { groups, findDocument, firstDocument, isLoading } = useBrainTree(
+  const { data, isLoading: documentsLoading } = useBriefDocuments();
+  const { groups, findDocument, firstDocument, isLoading } = useBriefTree(
     data?.documents
   );
 
@@ -53,21 +52,10 @@ export const AgentBrain = () => {
     [data, active]
   );
 
-  const isFilled = useCallback(
-    (document: BrainTreeDocument) =>
-      !isDocumentEmpty(
-        data?.documents.find(
-          (one) =>
-            one.category === document.category.id && one.key === document.key
-        )?.content
-      ),
-    [data]
-  );
-
   const select = useCallback(
-    (document: BrainTreeDocument) =>
+    (document: BriefTreeDocument) =>
       router.push(
-        `/brain/${document.category.id}/${encodeURIComponent(document.key)}`
+        `/brief/${document.category.id}/${encodeURIComponent(document.key)}`
       ),
     [router]
   );
@@ -75,41 +63,40 @@ export const AgentBrain = () => {
   // A user-created document only exists once it is saved, so creating one is a
   // save of an empty document under a fresh key.
   const create = useCallback(
-    async (group: BrainTreeGroup) => {
+    async (group: BriefTreeGroup) => {
       const key = makeId(12);
       const response = await fetch(
-        `/brain/${encodeURIComponent(group.category.id)}/${key}`,
+        `/brief/${encodeURIComponent(group.category.id)}/${key}`,
         { method: 'PATCH', body: JSON.stringify({ title: '', blocks: [] }) }
       );
 
       if (!response.ok) {
-        toaster.show(t('brain_save_failed', 'Could not save'), 'warning');
+        toaster.show(t('brief_save_failed', 'Could not save'), 'warning');
         return;
       }
 
       const saved = await response.json();
-      mutate<BrainDocumentsResponse>(
-        BRAIN_DOCUMENTS_KEY,
+      mutate<BriefDocumentsResponse>(
+        BRIEF_DOCUMENTS_KEY,
         (current) =>
           current && { ...current, documents: [...current.documents, saved] },
         { revalidate: false }
       );
 
-      router.push(`/brain/${group.category.id}/${key}`);
+      router.push(`/brief/${group.category.id}/${key}`);
     },
     [fetch, mutate, router, t, toaster]
   );
 
-  const afterDelete = useCallback(() => router.push('/brain'), [router]);
+  const afterDelete = useCallback(() => router.push('/brief'), [router]);
 
   return (
     <>
       <div className="bg-newBgColorInner w-[300px] relative">
         <div className="absolute top-0 start-0 w-full h-full p-[20px] overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
-          <BrainTree
+          <BriefTree
             groups={groups}
             active={active}
-            isFilled={isFilled}
             onSelect={select}
             onCreate={create}
           />
@@ -120,7 +107,7 @@ export const AgentBrain = () => {
           {isLoading || documentsLoading ? (
             <LoadingComponent />
           ) : active ? (
-            <BrainDocument
+            <BriefDocument
               key={`${active.category.id}:${active.key}`}
               document={active}
               content={content}
@@ -128,7 +115,7 @@ export const AgentBrain = () => {
             />
           ) : (
             <div className="text-textItemBlur">
-              {t('brain_empty_state', 'Pick a document to start')}
+              {t('brief_empty_state', 'Pick a document to start')}
             </div>
           )}
         </div>

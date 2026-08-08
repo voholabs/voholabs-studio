@@ -5,41 +5,41 @@ import { useSWRConfig } from 'swr';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { usePreventWindowUnload } from '@gitroom/react/helpers/use.prevent.window.unload';
 import {
-  BRAIN_AUTOSAVE_MS,
-  BRAIN_SAVE_TIMEOUT_MS,
-  BRAIN_SAVED_INDICATOR_MS,
-} from '@gitroom/nestjs-libraries/agent-brain/brain.registry';
+  BRIEF_AUTOSAVE_MS,
+  BRIEF_SAVE_TIMEOUT_MS,
+  BRIEF_SAVED_INDICATOR_MS,
+} from '@gitroom/nestjs-libraries/agent-brief/brief.registry';
 import {
-  BrainAsset,
-  BrainBlock,
-  BrainLink,
-} from '@gitroom/nestjs-libraries/agent-brain/brain.types';
+  BriefAsset,
+  BriefBlock,
+  BriefLink,
+} from '@gitroom/nestjs-libraries/agent-brief/brief.types';
 import {
-  BRAIN_DOCUMENTS_KEY,
-  BrainDocumentsResponse,
-} from '@gitroom/frontend/components/agent-brain/use.brain.documents';
+  BRIEF_DOCUMENTS_KEY,
+  BriefDocumentsResponse,
+} from '@gitroom/frontend/components/agent-brief/use.brief.documents';
 
-export type BrainSaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
+export type BriefSaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 
 // Only the parts of the document that changed are sent; anything absent keeps
 // whatever is already stored.
-export interface BrainPatch {
+export interface BriefPatch {
   title?: string;
-  blocks?: BrainBlock[];
-  links?: BrainLink[];
-  assets?: BrainAsset[];
+  blocks?: BriefBlock[];
+  links?: BriefLink[];
+  assets?: BriefAsset[];
 }
 
 // One controller per document, never per section: a single in-flight save is
 // what keeps two sections of the same document from clobbering each other, and
 // the document view is keyed on the document so switching documents tears this
 // down (flushing on the way out) rather than retargeting it mid-flight.
-export const useBrainAutosave = (category: string, documentKey: string) => {
+export const useBriefAutosave = (category: string, documentKey: string) => {
   const fetch = useFetch();
   const { mutate } = useSWRConfig();
-  const [state, setState] = useState<BrainSaveState>('idle');
+  const [state, setState] = useState<BriefSaveState>('idle');
 
-  const dirty = useRef<BrainPatch>({});
+  const dirty = useRef<BriefPatch>({});
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const savedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined
@@ -49,11 +49,11 @@ export const useBrainAutosave = (category: string, documentKey: string) => {
   const queued = useRef(false);
   const mounted = useRef(true);
 
-  const url = `/brain/${encodeURIComponent(category)}/${encodeURIComponent(
+  const url = `/brief/${encodeURIComponent(category)}/${encodeURIComponent(
     documentKey
   )}`;
 
-  const setStateIfMounted = useCallback((next: BrainSaveState) => {
+  const setStateIfMounted = useCallback((next: BriefSaveState) => {
     if (mounted.current) {
       setState(next);
     }
@@ -93,7 +93,7 @@ export const useBrainAutosave = (category: string, documentKey: string) => {
             ...(keepalive ? { keepalive: true } : {}),
           }),
           new Promise<Response>((_, reject) =>
-            setTimeout(() => reject(new Error('timeout')), BRAIN_SAVE_TIMEOUT_MS)
+            setTimeout(() => reject(new Error('timeout')), BRIEF_SAVE_TIMEOUT_MS)
           ),
         ]);
 
@@ -105,8 +105,8 @@ export const useBrainAutosave = (category: string, documentKey: string) => {
 
         const saved = await response.json();
 
-        mutate<BrainDocumentsResponse>(
-          BRAIN_DOCUMENTS_KEY,
+        mutate<BriefDocumentsResponse>(
+          BRIEF_DOCUMENTS_KEY,
           (current) => {
             if (!current) {
               return current;
@@ -127,7 +127,7 @@ export const useBrainAutosave = (category: string, documentKey: string) => {
         clearTimeout(savedTimer.current);
         savedTimer.current = setTimeout(
           () => setStateIfMounted('idle'),
-          BRAIN_SAVED_INDICATOR_MS
+          BRIEF_SAVED_INDICATOR_MS
         );
       } catch (err) {
         // Put the work back so nothing typed is lost, without overwriting
@@ -151,11 +151,11 @@ export const useBrainAutosave = (category: string, documentKey: string) => {
   const schedule = useCallback(() => {
     setStateIfMounted('dirty');
     clearTimeout(timer.current);
-    timer.current = setTimeout(() => flush(), BRAIN_AUTOSAVE_MS);
+    timer.current = setTimeout(() => flush(), BRIEF_AUTOSAVE_MS);
   }, [flush, setStateIfMounted]);
 
   const save = useCallback(
-    (patch: BrainPatch) => {
+    (patch: BriefPatch) => {
       dirty.current = { ...dirty.current, ...patch };
       schedule();
     },

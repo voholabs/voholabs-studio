@@ -3,51 +3,51 @@
 import { useCallback, useMemo } from 'react';
 import { orderBy } from 'lodash';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
-import { BRAIN_REGISTRY } from '@gitroom/nestjs-libraries/agent-brain/brain.registry';
+import { BRIEF_REGISTRY } from '@gitroom/nestjs-libraries/agent-brief/brief.registry';
 import {
-  BrainCategoryDef,
-  BrainDocument,
-  BrainDocumentDef,
-} from '@gitroom/nestjs-libraries/agent-brain/brain.types';
+  BriefCategoryDef,
+  BriefDocument,
+  BriefDocumentDef,
+} from '@gitroom/nestjs-libraries/agent-brief/brief.types';
 import {
-  BrainChannel,
-  useBrainChannels,
-} from '@gitroom/frontend/components/agent-brain/use.brain.channels';
+  BriefChannel,
+  useBriefChannels,
+} from '@gitroom/frontend/components/agent-brief/use.brief.channels';
 
-export interface BrainTreeDocument {
-  category: BrainCategoryDef;
-  definition: BrainDocumentDef;
+export interface BriefTreeDocument {
+  category: BriefCategoryDef;
+  definition: BriefDocumentDef;
   // What the URL and the API address this document by.
   key: string;
   label: string;
   description?: string;
   icon: string;
-  channel?: BrainChannel;
+  channel?: BriefChannel;
 }
 
-export interface BrainTreeGroup {
-  category: BrainCategoryDef;
+export interface BriefTreeGroup {
+  category: BriefCategoryDef;
   label: string;
-  documents: BrainTreeDocument[];
+  documents: BriefTreeDocument[];
 }
 
 // The whole tree is derived from the registry plus whatever the user has
 // created, so adding a category or a document upstream shows up here with no
 // change.
-export const useBrainTree = (documents?: BrainDocument[]) => {
+export const useBriefTree = (documents?: BriefDocument[]) => {
   const t = useT();
-  const { data: channels, isLoading } = useBrainChannels();
+  const { data: channels, isLoading } = useBriefChannels();
 
-  const groups = useMemo<BrainTreeGroup[]>(() => {
+  const groups = useMemo<BriefTreeGroup[]>(() => {
     const sortedChannels = orderBy(
       channels || [],
       ['disabled', 'identifier', 'name'],
       ['asc', 'asc', 'asc']
     );
 
-    return BRAIN_REGISTRY.map((category) => {
+    return BRIEF_REGISTRY.map((category) => {
       const template = category.documentTemplate;
-      let entries: BrainTreeDocument[] = [];
+      let entries: BriefTreeDocument[] = [];
 
       if (category.source === 'integration' && template) {
         entries = sortedChannels.map((channel) => ({

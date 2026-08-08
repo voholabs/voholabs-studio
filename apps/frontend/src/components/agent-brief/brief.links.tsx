@@ -4,24 +4,24 @@ import { FC, useCallback, useState } from 'react';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 import {
-  BRAIN_LINK_NOTE_MAX,
-  BRAIN_LINK_URL_MAX,
-  BRAIN_LINKS_MAX,
-} from '@gitroom/nestjs-libraries/agent-brain/brain.registry';
-import { BrainLink } from '@gitroom/nestjs-libraries/agent-brain/brain.types';
+  BRIEF_LINK_NOTE_MAX,
+  BRIEF_LINK_URL_MAX,
+  BRIEF_LINKS_MAX,
+} from '@gitroom/nestjs-libraries/agent-brief/brief.registry';
+import { BriefLink } from '@gitroom/nestjs-libraries/agent-brief/brief.types';
 
 // The links a source document registers, each with its own note about what it
 // is and how the agent should use it.
-export const BrainLinks: FC<{
-  links: BrainLink[];
-  onChange: (links: BrainLink[]) => void;
+export const BriefLinks: FC<{
+  links: BriefLink[];
+  onChange: (links: BriefLink[]) => void;
 }> = ({ links, onChange }) => {
   const t = useT();
   // Local first so typing stays responsive; the parent debounces the save.
-  const [current, setCurrent] = useState<BrainLink[]>(links);
+  const [current, setCurrent] = useState<BriefLink[]>(links);
 
   const update = useCallback(
-    (next: BrainLink[]) => {
+    (next: BriefLink[]) => {
       setCurrent(next);
       onChange(next);
     },
@@ -76,14 +76,14 @@ export const BrainLinks: FC<{
             <input
               value={link.url}
               onChange={change(link.id, 'url')}
-              maxLength={BRAIN_LINK_URL_MAX}
-              placeholder={t('brain_link_placeholder', 'Paste a link...')}
+              maxLength={BRIEF_LINK_URL_MAX}
+              placeholder={t('brief_link_placeholder', 'Paste a link...')}
               className="flex-1 bg-transparent outline-none text-[14px] placeholder:text-textItemBlur"
             />
             <div
               onClick={remove(link.id)}
               data-tooltip-id="tooltip"
-              data-tooltip-content={t('brain_remove_link', 'Remove link')}
+              data-tooltip-content={t('brief_remove_link', 'Remove link')}
               className="cursor-pointer select-none text-textItemBlur hover:text-warm transition-colors"
             >
               <svg
@@ -106,10 +106,10 @@ export const BrainLinks: FC<{
           <textarea
             value={link.note || ''}
             onChange={change(link.id, 'note')}
-            maxLength={BRAIN_LINK_NOTE_MAX}
+            maxLength={BRIEF_LINK_NOTE_MAX}
             rows={2}
             placeholder={t(
-              'brain_link_note_placeholder',
+              'brief_link_note_placeholder',
               'What is this, and how should the agent use it?'
             )}
             className="w-full bg-transparent outline-none resize-none text-[14px] text-textItemBlur placeholder:text-textItemBlur"
@@ -117,7 +117,7 @@ export const BrainLinks: FC<{
         </div>
       ))}
 
-      {current.length < BRAIN_LINKS_MAX && (
+      {current.length < BRIEF_LINKS_MAX && (
         <div
           onClick={add}
           className="self-start cursor-pointer select-none flex items-center gap-[8px] rounded-[8px] border border-dashed border-newTableBorder px-[14px] h-[38px] text-[14px] text-textItemBlur hover:border-warm hover:text-warm hover:bg-warmHover transition-colors"
@@ -137,7 +137,7 @@ export const BrainLinks: FC<{
               strokeLinejoin="round"
             />
           </svg>
-          {t('brain_add_link', 'Add link')}
+          {t('brief_add_link', 'Add link')}
         </div>
       )}
     </div>

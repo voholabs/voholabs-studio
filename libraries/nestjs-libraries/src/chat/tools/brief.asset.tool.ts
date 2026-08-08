@@ -3,16 +3,16 @@ import { createTool } from '@mastra/core/tools';
 import { Injectable } from '@nestjs/common';
 import z from 'zod';
 import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
-import { BrainService } from '@gitroom/nestjs-libraries/database/prisma/brain/brain.service';
+import { BriefService } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.service';
 
 @Injectable()
-export class BrainAssetTool implements AgentToolInterface {
-  constructor(private _brainService: BrainService) {}
-  name = 'brainAssetTool';
+export class BriefAssetTool implements AgentToolInterface {
+  constructor(private _briefService: BriefService) {}
+  name = 'briefAssetTool';
 
   run() {
     return createTool({
-      id: 'brainAssetTool',
+      id: 'briefAssetTool',
       description: `Register a brand file — a logo, a product shot, a video — in Branding & assets, so it is on hand the next time something is made for this brand.
 Get the file into the media library first (uploadFromUrlTool, uploadMediaTool or createUploadLinkTool) and pass the "path" it returns as the url. Files uploaded that way already live in the account's own storage.
 Always write a note saying when to reach for this file and when not to — a logo on a dark background, a shot that is only for launches, a video that must never be cropped. A file with no note is nearly useless later.`,
@@ -50,7 +50,7 @@ Always write a note saying when to reach for this file and when not to — a log
             (context?.requestContext as any)?.get('organization') as string
           ).id;
 
-          const saved = await this._brainService.registerAsset(organizationId, {
+          const saved = await this._briefService.registerAsset(organizationId, {
             name: inputData.name,
             url: inputData.url,
             mime: inputData.mime,

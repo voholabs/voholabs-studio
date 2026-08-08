@@ -8,26 +8,26 @@ import { useToaster } from '@gitroom/react/toaster/toaster';
 import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 import {
-  BRAIN_BLOCKS_MAX,
-  BRAIN_HEADING_MAX,
+  BRIEF_BLOCKS_MAX,
+  BRIEF_HEADING_MAX,
   documentHasFeature,
   emptyContent,
   stripHtml,
-} from '@gitroom/nestjs-libraries/agent-brain/brain.registry';
+} from '@gitroom/nestjs-libraries/agent-brief/brief.registry';
 import {
-  BrainBlock,
-  BrainDocumentContent,
-} from '@gitroom/nestjs-libraries/agent-brain/brain.types';
-import { BrainTreeDocument } from '@gitroom/frontend/components/agent-brain/use.brain.tree';
-import { useBrainAutosave } from '@gitroom/frontend/components/agent-brain/use.brain.autosave';
-import { BrainTextarea } from '@gitroom/frontend/components/agent-brain/brain.textarea';
-import { BrainSaveIndicator } from '@gitroom/frontend/components/agent-brain/brain.save.indicator';
-import { BrainLinks } from '@gitroom/frontend/components/agent-brain/brain.links';
-import { BrainAssets } from '@gitroom/frontend/components/agent-brain/brain.assets';
+  BriefBlock,
+  BriefDocumentContent,
+} from '@gitroom/nestjs-libraries/agent-brief/brief.types';
+import { BriefTreeDocument } from '@gitroom/frontend/components/agent-brief/use.brief.tree';
+import { useBriefAutosave } from '@gitroom/frontend/components/agent-brief/use.brief.autosave';
+import { BriefTextarea } from '@gitroom/frontend/components/agent-brief/brief.textarea';
+import { BriefSaveIndicator } from '@gitroom/frontend/components/agent-brief/brief.save.indicator';
+import { BriefLinks } from '@gitroom/frontend/components/agent-brief/brief.links';
+import { BriefAssets } from '@gitroom/frontend/components/agent-brief/brief.assets';
 import {
-  BRAIN_DOCUMENTS_KEY,
-  BrainDocumentsResponse,
-} from '@gitroom/frontend/components/agent-brain/use.brain.documents';
+  BRIEF_DOCUMENTS_KEY,
+  BriefDocumentsResponse,
+} from '@gitroom/frontend/components/agent-brief/use.brief.documents';
 
 const PlusIcon: FC = () => (
   <svg
@@ -83,9 +83,9 @@ const ActionButton: FC<{
 
 // Mounted with a key of category + document, so every document gets its own
 // autosave controller.
-export const BrainDocument: FC<{
-  document: BrainTreeDocument;
-  content?: BrainDocumentContent;
+export const BriefDocument: FC<{
+  document: BriefTreeDocument;
+  content?: BriefDocumentContent;
   onDeleted: () => void;
 }> = ({ document, content, onDeleted }) => {
   const t = useT();
@@ -95,7 +95,7 @@ export const BrainDocument: FC<{
 
   const current = content || emptyContent();
   // Bodies written before this was plain text may still carry markup.
-  const [blocks, setBlocks] = useState<BrainBlock[]>(() =>
+  const [blocks, setBlocks] = useState<BriefBlock[]>(() =>
     (current.blocks || []).map((block) =>
       /<[a-z][\s\S]*>/i.test(block.body)
         ? { ...block, body: stripHtml(block.body).replace(/\s+/g, ' ').trim() }
@@ -104,19 +104,22 @@ export const BrainDocument: FC<{
   );
   const [title, setTitle] = useState(current.title || '');
 
-  const { state, save, discardPending, retry } = useBrainAutosave(
+  const { state, save, discardPending, retry } = useBriefAutosave(
     document.category.id,
     document.key
   );
 
   const hasLinks = documentHasFeature(document.definition, 'links');
   const hasAssets = documentHasFeature(document.definition, 'assets');
-  const readOnly = !!document.category.readOnly;
-  const canDelete = !!document.category.canDelete && !readOnly;
-  const canRename = document.category.source === 'user' && !readOnly;
+  // The agent writes this category itself. That only changes what we say at
+  // the top of the page, not what can be done with it: a note the agent got
+  // wrong is worth no more than a note it never wrote.
+  const agentKept = !!document.category.agentManaged;
+  const canDelete = !!document.category.canDelete;
+  const canRename = document.category.source === 'user';
 
   const commitBlocks = useCallback(
-    (next: BrainBlock[]) => {
+    (next: BriefBlock[]) => {
       setBlocks(next);
       save({ blocks: next });
     },
@@ -146,8 +149,8 @@ export const BrainDocument: FC<{
   const remove = useCallback(async () => {
     if (
       !(await deleteDialog(
-        t('brain_delete_confirm', 'Delete this document and everything in it?'),
-        t('brain_delete_document', 'Delete document')
+        t('brief_delete_confirm', 'Delete this document and everything in it?'),
+        t('brief_delete_document', 'Delete document')
       ))
     ) {
       return;
@@ -157,19 +160,19 @@ export const BrainDocument: FC<{
     await discardPending();
 
     const response = await fetch(
-      `/brain/${encodeURIComponent(
+      `/brief/${encodeURIComponent(
         document.category.id
       )}/${encodeURIComponent(document.key)}`,
       { method: 'DELETE' }
     );
 
     if (!response.ok) {
-      toaster.show(t('brain_save_failed', 'Could not save'), 'warning');
+      toaster.show(t('brief_save_failed', 'Could not save'), 'warning');
       return;
     }
 
-    mutate<BrainDocumentsResponse>(
-      BRAIN_DOCUMENTS_KEY,
+    mutate<BriefDocumentsResponse>(
+      BRIEF_DOCUMENTS_KEY,
       (documents) =>
         documents && {
           ...documents,
@@ -198,7 +201,7 @@ export const BrainDocument: FC<{
       <div className="flex items-start gap-[16px]">
         <div className="flex-1 flex flex-col gap-[6px] min-w-0">
           <div className="flex items-center gap-[8px] text-[12px] text-textItemBlur">
-            <span>{t('brain_title', 'Agent Brain')}</span>
+            <span>{t('brief_title', 'Agent Brief')}</span>
             <span>/</span>
             <span>
               {t(document.category.labelKey, document.category.label)}
@@ -209,12 +212,12 @@ export const BrainDocument: FC<{
           {canRename ? (
             <input
               value={title}
-              maxLength={BRAIN_HEADING_MAX}
+              maxLength={BRIEF_HEADING_MAX}
               onChange={(event) => {
                 setTitle(event.target.value);
                 save({ title: event.target.value });
               }}
-              placeholder={t('brain_untitled', 'Untitled source')}
+              placeholder={t('brief_untitled', 'Untitled source')}
               className="text-[28px] font-[500] bg-transparent outline-none w-full placeholder:text-textItemBlur"
             />
           ) : (
@@ -227,74 +230,66 @@ export const BrainDocument: FC<{
           )}
         </div>
         <div className="flex items-center gap-[12px] pt-[4px]">
-          <BrainSaveIndicator state={state} onRetry={retry} />
+          <BriefSaveIndicator state={state} onRetry={retry} />
         </div>
       </div>
 
       {hasLinks && (
-        <BrainLinks
+        <BriefLinks
           links={current.links || []}
           onChange={(links) => save({ links })}
         />
       )}
 
       {hasAssets && (
-        <BrainAssets
+        <BriefAssets
           assets={current.assets || []}
           onChange={(assets) => save({ assets })}
         />
       )}
 
-      {readOnly && (
+      {agentKept && (
         <div className="flex items-center gap-[8px] text-[12px] text-textItemBlur">
           <span className="w-[6px] h-[6px] rounded-full bg-warm" />
-          {t('brain_agent_kept', 'Kept by the agent — shown here so you can see what it has learned')}
+          {t(
+            'brief_agent_kept',
+            'Written by the agent as it learns. Correct anything it got wrong.'
+          )}
         </div>
       )}
 
-      {readOnly && !blocks.length && (
+      {agentKept && !blocks.length && (
         <div className="text-[14px] text-textItemBlur">
-          {t('brain_agent_empty', 'Fills in as agent learns')}
+          {t('brief_agent_empty', 'Fills in as agent learns')}
         </div>
       )}
-
-      {readOnly &&
-        blocks.map((block) => (
-          <div key={block.id} className="flex flex-col gap-[6px] mt-[10px]">
-            <h3 className="text-[22px] font-[600]">{block.heading}</h3>
-            <div className="text-[15px] leading-[1.7] whitespace-pre-wrap">
-              {block.body}
-            </div>
-          </div>
-        ))}
 
       {/* No cards, no rules: a heading and the text under it, straight on the
           page, the way a document reads. */}
-      {!readOnly &&
-        blocks.map((block) => (
+      {blocks.map((block) => (
         <div key={block.id} className="flex flex-col gap-[6px] mt-[10px]">
           <div className="flex items-start gap-[10px]">
             <input
               value={block.heading}
-              maxLength={BRAIN_HEADING_MAX}
+              maxLength={BRIEF_HEADING_MAX}
               onChange={(event) =>
                 changeBlock(block.id, 'heading', event.target.value)
               }
-              placeholder={t('brain_heading_placeholder', 'Heading')}
+              placeholder={t('brief_heading_placeholder', 'Heading')}
               className="flex-1 text-[22px] font-[600] bg-transparent outline-none placeholder:text-textItemBlur"
             />
             <div
               onClick={removeBlock(block.id)}
               data-tooltip-id="tooltip"
-              data-tooltip-content={t('brain_remove_block', 'Remove')}
+              data-tooltip-content={t('brief_remove_block', 'Remove')}
               className="shrink-0 mt-[4px] cursor-pointer select-none w-[28px] h-[28px] rounded-[6px] flex items-center justify-center text-textItemBlur hover:text-warm hover:bg-warmHover transition-colors"
             >
               <TrashIcon />
             </div>
           </div>
-          <BrainTextarea
+          <BriefTextarea
             value={block.body}
-            placeholder={t('brain_body_placeholder', 'Write here...')}
+            placeholder={t('brief_body_placeholder', 'Write here...')}
             onChange={(value) => changeBlock(block.id, 'body', value)}
             className="w-full bg-transparent outline-none resize-none overflow-hidden text-[15px] leading-[1.7] placeholder:text-textItemBlur"
           />
@@ -302,17 +297,17 @@ export const BrainDocument: FC<{
       ))}
 
       <div className="flex items-center gap-[10px] mt-[10px]">
-        {blocks.length < BRAIN_BLOCKS_MAX && (
+        {blocks.length < BRIEF_BLOCKS_MAX && (
           <ActionButton
             icon="plus"
-            label={t('brain_add_rule', 'Add a rule')}
+            label={t('brief_add_rule', 'Add a rule')}
             onClick={addBlock}
           />
         )}
         {canDelete && (
           <ActionButton
             icon="trash"
-            label={t('brain_delete_document', 'Delete document')}
+            label={t('brief_delete_document', 'Delete document')}
             onClick={remove}
           />
         )}

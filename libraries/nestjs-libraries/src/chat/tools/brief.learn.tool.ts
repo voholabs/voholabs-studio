@@ -3,18 +3,18 @@ import { createTool } from '@mastra/core/tools';
 import { Injectable } from '@nestjs/common';
 import z from 'zod';
 import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
-import { BrainService } from '@gitroom/nestjs-libraries/database/prisma/brain/brain.service';
+import { BriefService } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.service';
 
 @Injectable()
-export class BrainLearnTool implements AgentToolInterface {
-  constructor(private _brainService: BrainService) {}
-  name = 'brainLearnTool';
+export class BriefLearnTool implements AgentToolInterface {
+  constructor(private _briefService: BriefService) {}
+  name = 'briefLearnTool';
 
   run() {
     return createTool({
-      id: 'brainLearnTool',
-      description: `Record something you have learned about what works for this brand, in the Experience section of the agent brain.
-Experience is your own notebook, not the user's instructions, so unlike the rest of the brain you may write here without asking permission first. Say afterwards what you noted.
+      id: 'briefLearnTool',
+      description: `Record something you have learned about what works for this brand, in the Experience section of the agent brief.
+Experience is your own notebook, not the user's instructions, so unlike the rest of the brief you may write here without asking permission first. Say afterwards what you noted. The user can edit what you wrote, so treat a changed lesson as a correction and keep to it.
 Write one lesson per call. Give it a heading you will recognise again — writing the same heading twice revises what is there instead of adding a duplicate, which is how a lesson gets sharper over time rather than piling up.
 Record what you actually observed, in a form that changes a future decision: what was tried, what happened, and what to do differently. Do not record the user's instructions here — those belong to the Foundation and are theirs to write.
 Group related lessons by using the same "topic": one document per channel, per format, per campaign, or whatever division earns its keep.`,
@@ -63,7 +63,7 @@ Group related lessons by using the same "topic": one document per channel, per f
             (context?.requestContext as any)?.get('organization') as string
           ).id;
 
-          const saved = await this._brainService.recordExperience(
+          const saved = await this._briefService.recordExperience(
             organizationId,
             inputData.topic,
             { heading: inputData.heading, body: inputData.lesson },

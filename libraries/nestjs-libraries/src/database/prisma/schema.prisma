@@ -48,7 +48,7 @@ model Organization {
   webhooks            Webhooks[]
   oauthApp            OAuthApp[]
   oauthAuthorizations OAuthAuthorization[]
-  agentBrain          AgentBrainDocument[]
+  agentBrief          AgentBriefDocument[]
   hermesConversations HermesConversation[]
 
   @@index([apiKey])
@@ -377,11 +377,11 @@ model Signatures {
   @@index([deletedAt])
 }
 
-// One document of the agent brain. `category` and `key` come from the brain
+// One document of the agent brief. `category` and `key` come from the brief
 // registry, so a document that was never edited simply has no row here and the
 // UI renders it empty from the registry instead. That also makes deleting a
 // document idempotent, which is why there is no deletedAt.
-model AgentBrainDocument {
+model AgentBriefDocument {
   id             String       @id @default(uuid())
   organizationId String
   category       String

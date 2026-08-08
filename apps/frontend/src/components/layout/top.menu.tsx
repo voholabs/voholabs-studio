@@ -15,7 +15,7 @@ interface MenuItemInterface {
   role?: string[];
   hide?: boolean;
   requireBilling?: boolean;
-  // Paid-tier only: the AI capability is what the brain and the agent run on.
+  // Paid-tier only: the AI capability is what the brief and the agent run on.
   requireAi?: boolean;
   onClick?: () => void;
   comingSoon?: boolean;
@@ -121,7 +121,7 @@ export const useMenuItem = () => {
       path: '/plugs',
     },
     {
-      name: t('brain', 'Brain'),
+      name: t('brief', 'Brief'),
       icon: (
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -134,12 +134,20 @@ export const useMenuItem = () => {
           strokeLinecap="round"
           strokeLinejoin="round"
         >
-          <path d="M12 4.5a3 3 0 0 0-5.6-1.5A2.8 2.8 0 0 0 4 6.1a3 3 0 0 0-1 5A3 3 0 0 0 4.4 16a2.9 2.9 0 0 0 3 3.6A2.9 2.9 0 0 0 12 20.5z" />
-          <path d="M12 4.5a3 3 0 0 1 5.6-1.5A2.8 2.8 0 0 1 20 6.1a3 3 0 0 1 1 5A3 3 0 0 1 19.6 16a2.9 2.9 0 0 1-3 3.6A2.9 2.9 0 0 1 12 20.5z" />
-          <path d="M12 4.5v16M8.6 8.2h1.7M13.7 8.2h1.7M8 12.6h2M14 12.6h2M9 16.6h1.3M13.7 16.6H15" />
+          {/* Someone briefing someone: a person and what they are saying.
+              The scene it comes from has two people, a document and two
+              bubbles, which is a smudge at 22px — a person plus one bubble is
+              what survives. The bubble is square-ish and off to the side so it
+              does not read as the Agent chat icon, which is a round centred
+              bubble with the same two lines in it. */}
+          <rect x="12.2" y="2.6" width="9.4" height="7.6" rx="1.8" />
+          <path d="M15 10.2 13.8 13 17.4 10.2" />
+          <path d="M14.6 5.3h4.8M14.6 7.6h2.8" />
+          <circle cx="6.5" cy="12.8" r="2.9" />
+          <path d="M1.5 21.3c0-3 2.2-5.3 5-5.3s5 2.3 5 5.3" />
         </svg>
       ),
-      path: '/brain',
+      path: '/brief',
       requireAi: true,
     },
     {

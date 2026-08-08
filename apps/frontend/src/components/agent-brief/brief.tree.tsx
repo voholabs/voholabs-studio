@@ -6,7 +6,6 @@ import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import ImageWithFallback from '@gitroom/react/helpers/image.with.fallback';
 import SafeImage from '@gitroom/react/helpers/safe.image';
 import { BriefIcon } from '@gitroom/frontend/components/agent-brief/brief.icons';
-import { categoryHint } from '@gitroom/nestjs-libraries/agent-brief/brief.registry';
 import {
   BriefTreeDocument,
   BriefTreeGroup,
@@ -64,9 +63,8 @@ const Hint: FC<{ content: string }> = ({ content }) => (
 const TreeRow: FC<{
   document: BriefTreeDocument;
   active: boolean;
-  filled: boolean;
   onSelect: (document: BriefTreeDocument) => void;
-}> = ({ document, active, filled, onSelect }) => (
+}> = ({ document, active, onSelect }) => (
   <div
     onClick={() => onSelect(document)}
     className={clsx(
@@ -127,17 +125,15 @@ const TreeRow: FC<{
     >
       {document.label}
     </span>
-    {filled && <span className="w-[6px] h-[6px] rounded-full bg-warm shrink-0" />}
   </div>
 );
 
 export const BriefTree: FC<{
   groups: BriefTreeGroup[];
   active?: BriefTreeDocument;
-  isFilled: (document: BriefTreeDocument) => boolean;
   onSelect: (document: BriefTreeDocument) => void;
   onCreate: (group: BriefTreeGroup) => void;
-}> = ({ groups, active, isFilled, onSelect, onCreate }) => {
+}> = ({ groups, active, onSelect, onCreate }) => {
   const t = useT();
   const [search, setSearch] = useState('');
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -191,7 +187,7 @@ export const BriefTree: FC<{
         <Hint
           content={t(
             'brief_title_tooltip',
-            'What the agent knows about your business. It reads this before writing anything. Quicker to have the agent fill it in, or your own tools over MCP, than to type it yourself.'
+            'Imagine you are briefing your chief marketing officer. You can brief the agent manually, via MCP using another agent, or by talking directly to the agent.'
           )}
         />
       </div>
@@ -233,12 +229,14 @@ export const BriefTree: FC<{
                 <Chevron open={!collapsed[group.category.id]} />
                 {group.label}
               </div>
-              {(() => {
-                const hint = categoryHint(group.category);
-                return hint ? (
-                  <Hint content={t(hint.key, hint.text)} />
-                ) : null;
-              })()}
+              {!!group.category.tooltipKey && (
+                <Hint
+                  content={t(
+                    group.category.tooltipKey,
+                    group.category.tooltip!
+                  )}
+                />
+              )}
               {group.category.canCreate && (
                 <div
                   onClick={() => onCreate(group)}
@@ -274,7 +272,6 @@ export const BriefTree: FC<{
                       active?.category.id === group.category.id &&
                       active?.key === document.key
                     }
-                    filled={isFilled(document)}
                     onSelect={onSelect}
                   />
                 ))}

@@ -134,11 +134,17 @@ export const useMenuItem = () => {
           strokeLinecap="round"
           strokeLinejoin="round"
         >
-          {/* A page with its corner turned down: the brief is a document the
-              user writes, not an organ the agent grows. */}
-          <path d="M14 3H7.2A2.2 2.2 0 0 0 5 5.2v13.6A2.2 2.2 0 0 0 7.2 21h9.6a2.2 2.2 0 0 0 2.2-2.2V8z" />
-          <path d="M14 3v3.8A2.2 2.2 0 0 0 16.2 9H19" />
-          <path d="M8.6 12.5h6.8M8.6 16h4.6" />
+          {/* Someone briefing someone: a person and what they are saying.
+              The scene it comes from has two people, a document and two
+              bubbles, which is a smudge at 22px — a person plus one bubble is
+              what survives. The bubble is square-ish and off to the side so it
+              does not read as the Agent chat icon, which is a round centred
+              bubble with the same two lines in it. */}
+          <rect x="12.2" y="2.6" width="9.4" height="7.6" rx="1.8" />
+          <path d="M15 10.2 13.8 13 17.4 10.2" />
+          <path d="M14.6 5.3h4.8M14.6 7.6h2.8" />
+          <circle cx="6.5" cy="12.8" r="2.9" />
+          <path d="M1.5 21.3c0-3 2.2-5.3 5-5.3s5 2.3 5 5.3" />
         </svg>
       ),
       path: '/brief',

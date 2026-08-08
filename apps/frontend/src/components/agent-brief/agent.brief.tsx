@@ -8,7 +8,6 @@ import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
-import { isDocumentEmpty } from '@gitroom/nestjs-libraries/agent-brief/brief.registry';
 import {
   useBriefTree,
   BriefTreeDocument,
@@ -51,17 +50,6 @@ export const AgentBrief = () => {
           document.key === active?.key
       )?.content,
     [data, active]
-  );
-
-  const isFilled = useCallback(
-    (document: BriefTreeDocument) =>
-      !isDocumentEmpty(
-        data?.documents.find(
-          (one) =>
-            one.category === document.category.id && one.key === document.key
-        )?.content
-      ),
-    [data]
   );
 
   const select = useCallback(
@@ -109,7 +97,6 @@ export const AgentBrief = () => {
           <BriefTree
             groups={groups}
             active={active}
-            isFilled={isFilled}
             onSelect={select}
             onCreate={create}
           />

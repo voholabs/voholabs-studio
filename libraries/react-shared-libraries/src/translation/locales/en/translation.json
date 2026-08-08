@@ -793,6 +793,9 @@
   "hermes_suggest_3": "Who are we writing for?",
   "hermes_scope_hint": "One APEX for this team. Everyone in it talks to the same one.",
   "hermes_new": "New",
-  "brief_title_tooltip": "What the agent knows about your business. It reads this before writing anything. Quicker to have the agent fill it in, or your own tools over MCP, than to type it yourself.",
-  "brief_foundation_tooltip": "The marketing direction that holds across every account"
+  "brief_title_tooltip": "Imagine you are briefing your chief marketing officer. You can brief the agent manually, via MCP using another agent, or by talking directly to the agent.",
+  "brief_foundation_tooltip": "The foundation of your content strategy across all channels.",
+  "brief_sources_tooltip": "Where agent should read more; Add + sources agent should draw on.",
+  "brief_experience_tooltip": "Fills in as agent learns; Agent keeps refining it.",
+  "brief_channel_preferences_tooltip": "Steer the foundation rules based on each channel."
 }

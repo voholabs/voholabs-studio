@@ -166,7 +166,7 @@ export const BRIEF_REGISTRY: readonly BriefCategoryDef[] = [
     label: 'Foundation',
     source: 'static',
     tooltipKey: 'brief_foundation_tooltip',
-    tooltip: 'The marketing direction that holds across every account',
+    tooltip: 'The foundation of your content strategy across all channels.',
     documents: FOUNDATION,
   },
   {
@@ -176,6 +176,8 @@ export const BRIEF_REGISTRY: readonly BriefCategoryDef[] = [
     source: 'user',
     emptyKey: 'brief_sources_empty',
     empty: 'Add + sources agent should draw on',
+    tooltipKey: 'brief_sources_tooltip',
+    tooltip: 'Where agent should read more; Add + sources agent should draw on.',
     documentTemplate: SOURCE_TEMPLATE,
     canCreate: true,
     canDelete: true,
@@ -187,6 +189,8 @@ export const BRIEF_REGISTRY: readonly BriefCategoryDef[] = [
     source: 'user',
     emptyKey: 'brief_experience_empty',
     empty: 'Fills in as agent learns',
+    tooltipKey: 'brief_experience_tooltip',
+    tooltip: 'Fills in as agent learns; Agent keeps refining it.',
     documentTemplate: EXPERIENCE_TEMPLATE,
     // The agent fills this one in on its own, without being asked. People do
     // not have to touch it, but they can: the agent draws the wrong lesson
@@ -202,6 +206,8 @@ export const BRIEF_REGISTRY: readonly BriefCategoryDef[] = [
     source: 'integration',
     emptyKey: 'brief_no_channels',
     empty: 'Connect a channel to steer it here',
+    tooltipKey: 'brief_channel_preferences_tooltip',
+    tooltip: 'Steer the foundation rules based on each channel.',
     documentTemplate: CHANNEL_TEMPLATE,
   },
 ];
@@ -263,17 +269,6 @@ export const channelDocumentKey = (
   providerIdentifier: string,
   internalId: string
 ) => `${providerIdentifier}:${internalId}`;
-
-// What the hover on a category heading says. Three of the four already have a
-// line that explains them — the one shown when they are empty — and it says the
-// same thing whether the category has anything in it or not, so it is reused
-// rather than written twice and left to drift.
-export const categoryHint = (category: BriefCategoryDef) =>
-  category.tooltipKey
-    ? { key: category.tooltipKey, text: category.tooltip! }
-    : category.emptyKey
-    ? { key: category.emptyKey, text: category.empty! }
-    : undefined;
 
 export const isAgentManaged = (categoryId: string) =>
   !!findCategory(categoryId)?.agentManaged;

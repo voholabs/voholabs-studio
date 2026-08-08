@@ -17,7 +17,7 @@ export class BriefSaveTool implements AgentToolInterface {
       description: `Write to the agent brief — the description of the business that steers everything published on its behalf.
 "rules" replaces the whole document, so always read the document with briefListTool first and send back the existing rules plus your changes — anything you leave out is deleted.
 Each rule is a heading and the plain text under it; do not send markup.
-Experience is not written here — use briefLearnTool, which revises one lesson at a time and needs no permission.
+For Experience use briefLearnTool instead, which revises one lesson at a time rather than replacing the document, and needs no permission.
 Use briefListTool for the list of valid categories and keys. Only documents in a category marked canCreate may be created with a new key; everything else must use a key that already exists.`,
       mcp: {
         annotations: {

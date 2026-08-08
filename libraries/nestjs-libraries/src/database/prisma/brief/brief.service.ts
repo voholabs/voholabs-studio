@@ -80,12 +80,6 @@ export class BriefService {
       throw new NotFoundException('Document not found');
     }
 
-    // Agent-kept categories are written through their own path, so a request
-    // arriving here is a person trying to edit the agent's notes.
-    if (definition.readOnly) {
-      throw new BadRequestException('This section is maintained by the agent');
-    }
-
     const storageKey = await this.toStorageKey(orgId, category, key);
     const existing = await this._briefRepository.getDocument(
       orgId,
@@ -143,20 +137,14 @@ export class BriefService {
       throw new NotFoundException('Document not found');
     }
 
-    // Only documents the user created are theirs to throw away; the rest are
-    // part of the registry and are emptied rather than removed. An agent-kept
-    // category is the agent's own, so it may retire a note it no longer stands
-    // behind, but a person still cannot reach in and edit its notebook.
-    const allowed = definition.agentManaged
-      ? viaAgent
-      : !!definition.canDelete;
+    // Registry documents are emptied rather than removed, so only a category
+    // that says canDelete can lose one. On top of that, the agent may always
+    // retire a note of its own, whatever the category allows people to do.
+    const allowed =
+      !!definition.canDelete || (!!definition.agentManaged && viaAgent);
 
     if (!allowed) {
-      throw new BadRequestException(
-        definition.agentManaged
-          ? 'This section is maintained by the agent'
-          : 'This document cannot be deleted'
-      );
+      throw new BadRequestException('This document cannot be deleted');
     }
 
     const storageKey = await this.toStorageKey(orgId, category, key);

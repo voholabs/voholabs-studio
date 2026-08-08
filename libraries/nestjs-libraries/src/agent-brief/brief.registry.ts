@@ -166,8 +166,7 @@ export const BRIEF_REGISTRY: readonly BriefCategoryDef[] = [
     label: 'Foundation',
     source: 'static',
     tooltipKey: 'brief_foundation_tooltip',
-    tooltip:
-      'The facts about your business that hold true everywhere: what you sell, who it is for, how you sound, and what is off limits. Ten fixed entries, the same for everyone.',
+    tooltip: 'The marketing direction that holds across every account',
     documents: FOUNDATION,
   },
   {
@@ -177,9 +176,6 @@ export const BRIEF_REGISTRY: readonly BriefCategoryDef[] = [
     source: 'user',
     emptyKey: 'brief_sources_empty',
     empty: 'Add + sources agent should draw on',
-    tooltipKey: 'brief_sources_tooltip',
-    tooltip:
-      'Where the agent goes to read more: your docs, your forum, a launch page. Add the link and say when it should be used, and when it should not.',
     documentTemplate: SOURCE_TEMPLATE,
     canCreate: true,
     canDelete: true,
@@ -191,13 +187,13 @@ export const BRIEF_REGISTRY: readonly BriefCategoryDef[] = [
     source: 'user',
     emptyKey: 'brief_experience_empty',
     empty: 'Fills in as agent learns',
-    tooltipKey: 'brief_experience_tooltip',
-    tooltip:
-      "The agent's own notes on what has worked and what has not. It writes these itself as it goes; you can read them so its reasoning is not a black box, but you cannot edit them.",
     documentTemplate: EXPERIENCE_TEMPLATE,
-    // The agent writes this one; people read it.
+    // The agent fills this one in on its own, without being asked. People do
+    // not have to touch it, but they can: the agent draws the wrong lesson
+    // sometimes, and the only person who can tell is the one who knows the
+    // business. Creating an entry is still the agent's job.
     agentManaged: true,
-    readOnly: true,
+    canDelete: true,
   },
   {
     id: 'channels',
@@ -206,9 +202,6 @@ export const BRIEF_REGISTRY: readonly BriefCategoryDef[] = [
     source: 'integration',
     emptyKey: 'brief_no_channels',
     empty: 'Connect a channel to steer it here',
-    tooltipKey: 'brief_channel_preferences_tooltip',
-    tooltip:
-      'Where one channel should differ from the Foundation: what this account is for, how long a post runs, how often it goes out. One entry per connected channel.',
     documentTemplate: CHANNEL_TEMPLATE,
   },
 ];
@@ -271,8 +264,16 @@ export const channelDocumentKey = (
   internalId: string
 ) => `${providerIdentifier}:${internalId}`;
 
-export const isReadOnly = (categoryId: string) =>
-  !!findCategory(categoryId)?.readOnly;
+// What the hover on a category heading says. Three of the four already have a
+// line that explains them — the one shown when they are empty — and it says the
+// same thing whether the category has anything in it or not, so it is reused
+// rather than written twice and left to drift.
+export const categoryHint = (category: BriefCategoryDef) =>
+  category.tooltipKey
+    ? { key: category.tooltipKey, text: category.tooltip! }
+    : category.emptyKey
+    ? { key: category.emptyKey, text: category.empty! }
+    : undefined;
 
 export const isAgentManaged = (categoryId: string) =>
   !!findCategory(categoryId)?.agentManaged;

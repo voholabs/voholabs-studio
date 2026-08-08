@@ -704,7 +704,7 @@
   "brief_asset_remove": "Remove",
   "brief_asset_failed": "could not be uploaded",
   "brief_asset_note_placeholder": "When should the agent use this, and when should it not?",
-  "brief_agent_kept": "Kept by the agent — shown here so you can see what it has learned",
+  "brief_agent_kept": "Written by the agent as it learns. Correct anything it got wrong.",
   "brief_agent_empty": "Fills in as agent learns",
   "brief_experience_entry": "Experience",
   "brief_experience_entry_description": "What the agent has learned works for this brand.",
@@ -793,9 +793,6 @@
   "hermes_suggest_3": "Who are we writing for?",
   "hermes_scope_hint": "One APEX for this team. Everyone in it talks to the same one.",
   "hermes_new": "New",
-  "brief_title_tooltip": "Everything the agent knows about your business. It reads this before writing anything, so what is here decides what goes out. You can fill it in by hand, but it is faster to ask the agent to do it, or to point your own tools at the MCP — it reads and writes this section itself.",
-  "brief_foundation_tooltip": "The facts about your business that hold true everywhere: what you sell, who it is for, how you sound, and what is off limits. Ten fixed entries, the same for everyone.",
-  "brief_sources_tooltip": "Where the agent goes to read more: your docs, your forum, a launch page. Add the link and say when it should be used, and when it should not.",
-  "brief_experience_tooltip": "The agent's own notes on what has worked and what has not. It writes these itself as it goes; you can read them so its reasoning is not a black box, but you cannot edit them.",
-  "brief_channel_preferences_tooltip": "Where one channel should differ from the Foundation: what this account is for, how long a post runs, how often it goes out. One entry per connected channel."
+  "brief_title_tooltip": "What the agent knows about your business. It reads this before writing anything. Quicker to have the agent fill it in, or your own tools over MCP, than to type it yourself.",
+  "brief_foundation_tooltip": "The marketing direction that holds across every account"
 }

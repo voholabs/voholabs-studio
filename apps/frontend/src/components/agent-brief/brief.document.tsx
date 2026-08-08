@@ -111,9 +111,12 @@ export const BriefDocument: FC<{
 
   const hasLinks = documentHasFeature(document.definition, 'links');
   const hasAssets = documentHasFeature(document.definition, 'assets');
-  const readOnly = !!document.category.readOnly;
-  const canDelete = !!document.category.canDelete && !readOnly;
-  const canRename = document.category.source === 'user' && !readOnly;
+  // The agent writes this category itself. That only changes what we say at
+  // the top of the page, not what can be done with it: a note the agent got
+  // wrong is worth no more than a note it never wrote.
+  const agentKept = !!document.category.agentManaged;
+  const canDelete = !!document.category.canDelete;
+  const canRename = document.category.source === 'user';
 
   const commitBlocks = useCallback(
     (next: BriefBlock[]) => {
@@ -245,33 +248,25 @@ export const BriefDocument: FC<{
         />
       )}
 
-      {readOnly && (
+      {agentKept && (
         <div className="flex items-center gap-[8px] text-[12px] text-textItemBlur">
           <span className="w-[6px] h-[6px] rounded-full bg-warm" />
-          {t('brief_agent_kept', 'Kept by the agent — shown here so you can see what it has learned')}
+          {t(
+            'brief_agent_kept',
+            'Written by the agent as it learns. Correct anything it got wrong.'
+          )}
         </div>
       )}
 
-      {readOnly && !blocks.length && (
+      {agentKept && !blocks.length && (
         <div className="text-[14px] text-textItemBlur">
           {t('brief_agent_empty', 'Fills in as agent learns')}
         </div>
       )}
 
-      {readOnly &&
-        blocks.map((block) => (
-          <div key={block.id} className="flex flex-col gap-[6px] mt-[10px]">
-            <h3 className="text-[22px] font-[600]">{block.heading}</h3>
-            <div className="text-[15px] leading-[1.7] whitespace-pre-wrap">
-              {block.body}
-            </div>
-          </div>
-        ))}
-
       {/* No cards, no rules: a heading and the text under it, straight on the
           page, the way a document reads. */}
-      {!readOnly &&
-        blocks.map((block) => (
+      {blocks.map((block) => (
         <div key={block.id} className="flex flex-col gap-[6px] mt-[10px]">
           <div className="flex items-start gap-[10px]">
             <input

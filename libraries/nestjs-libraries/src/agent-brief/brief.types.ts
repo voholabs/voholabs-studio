@@ -50,11 +50,10 @@ export interface BriefCategoryDef {
   canDelete?: boolean;
   // The agent keeps this category itself: it may add and refine rules here
   // without asking, because the content is its own notes rather than the
-  // user's instructions.
+  // user's instructions. People can still correct what it wrote — the notes
+  // are visible so the agent is not a black box, and visible is not much use
+  // if a wrong one cannot be fixed.
   agentManaged?: boolean;
-  // Shown to people but not editable by them — it exists so the agent's own
-  // notes are visible rather than a black box.
-  readOnly?: boolean;
 }
 
 // A heading and the text underneath it. This is the whole content model: the

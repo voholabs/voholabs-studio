@@ -6,6 +6,7 @@ import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import ImageWithFallback from '@gitroom/react/helpers/image.with.fallback';
 import SafeImage from '@gitroom/react/helpers/safe.image';
 import { BriefIcon } from '@gitroom/frontend/components/agent-brief/brief.icons';
+import { categoryHint } from '@gitroom/nestjs-libraries/agent-brief/brief.registry';
 import {
   BriefTreeDocument,
   BriefTreeGroup,
@@ -190,7 +191,7 @@ export const BriefTree: FC<{
         <Hint
           content={t(
             'brief_title_tooltip',
-            'Everything the agent knows about your business. It reads this before writing anything, so what is here decides what goes out. You can fill it in by hand, but it is faster to ask the agent to do it, or to point your own tools at the MCP — it reads and writes this section itself.'
+            'What the agent knows about your business. It reads this before writing anything. Quicker to have the agent fill it in, or your own tools over MCP, than to type it yourself.'
           )}
         />
       </div>
@@ -232,14 +233,12 @@ export const BriefTree: FC<{
                 <Chevron open={!collapsed[group.category.id]} />
                 {group.label}
               </div>
-              {!!group.category.tooltipKey && (
-                <Hint
-                  content={t(
-                    group.category.tooltipKey,
-                    group.category.tooltip!
-                  )}
-                />
-              )}
+              {(() => {
+                const hint = categoryHint(group.category);
+                return hint ? (
+                  <Hint content={t(hint.key, hint.text)} />
+                ) : null;
+              })()}
               {group.category.canCreate && (
                 <div
                   onClick={() => onCreate(group)}

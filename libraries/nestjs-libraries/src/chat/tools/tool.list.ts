@@ -24,6 +24,7 @@ import { BriefAssetTool } from '@gitroom/nestjs-libraries/chat/tools/brief.asset
 import { AnalyticsChannelTool } from '@gitroom/nestjs-libraries/chat/tools/analytics.channel.tool';
 import { AnalyticsPostTool } from '@gitroom/nestjs-libraries/chat/tools/analytics.post.tool';
 import { PostsStatusTool } from '@gitroom/nestjs-libraries/chat/tools/posts.status.tool';
+import { TeamEmailTool } from '@gitroom/nestjs-libraries/chat/tools/team.email.tool';
 
 export const toolList = [
   AccountInfoTool,
@@ -52,4 +53,5 @@ export const toolList = [
   GenerateVideoTool,
   GenerateImageTool,
   UploadFromUrlTool,
+  TeamEmailTool,
 ];

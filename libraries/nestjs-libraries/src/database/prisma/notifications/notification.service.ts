@@ -114,4 +114,79 @@ export class NotificationService {
   hasEmailProvider() {
     return this._emailService.hasProvider();
   }
+
+  // Email the team. This is the only path an agent has to send mail, and the
+  // address list is never taken from the caller: it is read from the
+  // organization and any address that is not on it is dropped. An agent with a
+  // key for one team therefore cannot reach anybody outside that team, whatever
+  // it is asked or talked into sending.
+  //
+  // Delivery preferences are not consulted. sendSuccessEmails and
+  // sendFailureEmails govern automated post-result mail; this is someone
+  // deliberately writing to their colleagues, which is closer to the 'info'
+  // type that already ignores them.
+  async notifyTeam(
+    orgId: string,
+    subject: string,
+    message: string,
+    only?: string[]
+  ): Promise<{
+    sent: string[];
+    rejected: string[];
+    delivered: boolean;
+  }> {
+    const organization = await this._organizationRepository.getAllUsersOrgs(
+      orgId
+    );
+
+    const members = (organization?.users || []).map((one) =>
+      one.user.email.trim().toLowerCase()
+    );
+
+    // No list means everyone on the team. A list is treated as a filter over
+    // the members, never as a set of addresses to send to — so an address that
+    // is not a member cannot survive this step.
+    const requested = (only || []).map((email) => email.trim().toLowerCase());
+    const recipients = only?.length
+      ? members.filter((email) => requested.includes(email))
+      : members;
+    const rejected = requested.filter((email) => !members.includes(email));
+
+    const delivered = this.hasEmailProvider() && !!recipients.length;
+    if (delivered) {
+      const html = this.asEmailBody(message);
+      for (const email of recipients) {
+        await this.sendEmail(email, subject, html);
+      }
+
+      // Leaves a trace in the bell as well, so a mail the agent sent is
+      // visible to someone who never opens their inbox.
+      await this._notificationRepository.createNotification(orgId, subject);
+    }
+
+    return { sent: recipients, rejected, delivered };
+  }
+
+  // The agent writes plain text and this turns it into the body of an email.
+  // It is escaped rather than trusted: the text can quote a customer, a post
+  // or a web page, and none of those should be able to put markup in mail the
+  // team receives.
+  private asEmailBody(message: string) {
+    const escaped = message
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+
+    return escaped
+      .split(/\n{2,}/)
+      .map(
+        (paragraph) =>
+          `<p style="margin: 0 0 1rem; line-height: 1.6;">${paragraph.replace(
+            /\n/g,
+            '<br />'
+          )}</p>`
+      )
+      .join('');
+  }
 }

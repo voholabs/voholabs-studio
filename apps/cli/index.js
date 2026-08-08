@@ -200,6 +200,17 @@ var PostizAPI = class {
       body: JSON.stringify({ methodName, data })
     });
   }
+  async getTeam() {
+    return this.request("/public/v1/team", {
+      method: "GET"
+    });
+  }
+  async notifyTeam(body) {
+    return this.request("/public/v1/notify", {
+      method: "POST",
+      body: JSON.stringify(body)
+    });
+  }
   async getBriefSchema() {
     return this.request("/public/v1/brief/schema", {
       method: "GET"
@@ -813,9 +824,64 @@ async function findSlot(args) {
   }
 }
 
+// src/commands/team.ts
+var import_fs4 = require("fs");
+async function listTeam() {
+  const api = new PostizAPI(getConfig());
+  try {
+    const result = await api.getTeam();
+    console.log("\u{1F465} Team:");
+    for (const member of (result == null ? void 0 : result.members) || []) {
+      console.log(`  ${member.email}`);
+    }
+    if (result && !result.emailProvider) {
+      console.log(
+        "\n\u26A0\uFE0F  No email provider is configured, so notify would send nothing."
+      );
+    }
+    return result;
+  } catch (error) {
+    console.error("\u274C Failed to read the team:", error.message);
+    process.exit(1);
+  }
+}
+async function notifyTeam(args) {
+  var _a;
+  const api = new PostizAPI(getConfig());
+  const message = args.file ? (0, import_fs4.readFileSync)(args.file, "utf8") : args.message;
+  if (!message) {
+    console.error("\u274C Pass --message or --file");
+    process.exit(1);
+  }
+  const to = args.to ? String(args.to).split(",").map((one) => one.trim()).filter(Boolean) : void 0;
+  try {
+    const result = await api.notifyTeam({
+      subject: args.subject,
+      message,
+      to
+    });
+    if (!(result == null ? void 0 : result.delivered)) {
+      console.error(
+        "\u274C Nothing was sent. Either no email provider is configured, or none of the addresses are on this team."
+      );
+      process.exit(1);
+    }
+    console.log(`\u2705 Sent to ${result.sent.length} team member(s):`);
+    result.sent.forEach((email) => console.log(`  ${email}`));
+    if ((_a = result.rejected) == null ? void 0 : _a.length) {
+      console.log("\n\u26A0\uFE0F  Not on this team, so not sent:");
+      result.rejected.forEach((email) => console.log(`  ${email}`));
+    }
+    return result;
+  } catch (error) {
+    console.error("\u274C Failed to email the team:", error.message);
+    process.exit(1);
+  }
+}
+
 // src/commands/brief.ts
 var import_readline = require("readline");
-var import_fs4 = require("fs");
+var import_fs5 = require("fs");
 var ruleId = () => Math.random().toString(36).slice(2, 12);
 async function confirmHuman(summary) {
   console.log("");
@@ -878,7 +944,7 @@ async function briefSet(args) {
   const api = new PostizAPI(getConfig());
   let payload;
   try {
-    const raw = args.file ? (0, import_fs4.readFileSync)(args.file, "utf8") : args.rules;
+    const raw = args.file ? (0, import_fs5.readFileSync)(args.file, "utf8") : args.rules;
     if (!raw) {
       console.error("\u274C Pass --file <path> or --rules '<json>'");
       process.exit(1);
@@ -1244,6 +1310,32 @@ async function briefDelete(args) {
     }).example("$0 upload ./image.png", "Upload an image");
   },
   uploadFile
+).command("team:list", "Show who is on this team", {}, listTeam).command(
+  "team:notify",
+  "Email the team (team members only \u2014 no outside addresses)",
+  (yargs2) => {
+    return yargs2.option("subject", {
+      describe: "Subject line",
+      type: "string",
+      demandOption: true
+    }).option("message", {
+      describe: "Body as plain text. Use --file for anything long.",
+      type: "string"
+    }).option("file", {
+      describe: "Read the body from a file instead of --message",
+      type: "string"
+    }).option("to", {
+      describe: "Comma separated team addresses. Omit for everyone. Non-members are dropped.",
+      type: "string"
+    }).example(
+      '$0 team:notify --subject "Launch is live" --message "All four posts went out."',
+      "Email everyone on the team"
+    ).example(
+      '$0 team:notify --subject "Needs a look" --file ./note.txt --to sam@acme.com',
+      "Email one member with the body from a file"
+    );
+  },
+  notifyTeam
 ).command(
   "brief:schema",
   "Show which brief categories and documents exist",

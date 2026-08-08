@@ -12,10 +12,12 @@ import { PublicIntegrationsController } from '@gitroom/backend/public-api/routes
 import { PublicAuthMiddleware } from '@gitroom/backend/services/auth/public.auth.middleware';
 import { PublicUploadTicketController } from '@gitroom/backend/public-api/routes/v1/public.upload.ticket.controller';
 import { PublicBriefController } from '@gitroom/backend/public-api/routes/v1/public.brief.controller';
+import { PublicNotifyController } from '@gitroom/backend/public-api/routes/v1/public.notify.controller';
 
 const authenticatedController = [
   PublicIntegrationsController,
   PublicBriefController,
+  PublicNotifyController,
 ];
 // Authenticated by the single-use ticket in its own URL, so it must stay out of
 // the list above — PublicAuthMiddleware would reject it for having no API key.

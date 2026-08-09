@@ -11,9 +11,13 @@ import { stripHtmlValidation } from '@gitroom/helpers/utils/strip.html.validatio
 export const GeneralPreviewComponent: FC<{
   maximumCharacters?: number;
 }> = (props) => {
-  const { value: topValue, integration } = useIntegration();
+  const { value: topValue, integration, previewOnly } = useIntegration();
   const current = useLaunchStore((state) => state.current);
   const mediaDir = useMediaDirectory();
+
+  // Outside the editor there is no "global" tab to render, so the channel is
+  // always the one the post belongs to.
+  const isGlobal = !previewOnly && current === 'global';
 
   const renderContent = topValue.map((p) => {
     const newContent = stripHtmlValidation(
@@ -64,7 +68,7 @@ export const GeneralPreviewComponent: FC<{
               <div className="relative">
                 <img
                   src={
-                    current === 'global'
+                    isGlobal
                       ? '/no-picture.jpg'
                       : integration?.picture || '/no-picture.jpg'
                   }
@@ -72,7 +76,7 @@ export const GeneralPreviewComponent: FC<{
                   className="rounded-full relative z-[2]"
                 />
 
-                {current !== 'global' && (
+                {!isGlobal && (
                   <SafeImage
                     src={`/icons/platforms/${integration?.identifier}.png`}
                     className="min-w-[20px] min-h-[20px] rounded-full absolute z-10 -bottom-[5px] -end-[5px] border border-fifth"
@@ -89,7 +93,7 @@ export const GeneralPreviewComponent: FC<{
             <div className="flex-1 flex flex-col gap-[4px]">
               <div className="flex">
                 <div className="h-[22px] text-[15px] font-[700]">
-                  {current === 'global' ? 'Global Edit' : integration?.name}
+                  {isGlobal ? 'Global Edit' : integration?.name}
                 </div>
                 <div className="text-[15px] text-customColor26 mt-[1px] ms-[2px]">
                   <svg
@@ -105,9 +109,7 @@ export const GeneralPreviewComponent: FC<{
                   </svg>
                 </div>
                 <div className="text-[15px] font-[400] text-customColor27 ms-[4px]">
-                  {current === 'global'
-                    ? ''
-                    : integration?.display || '@username'}
+                  {isGlobal ? '' : integration?.display || '@username'}
                 </div>
               </div>
               <div

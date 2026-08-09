@@ -64,6 +64,15 @@ export class PostsController {
     return this._postsService.updateReleaseId(org.id, id, releaseId);
   }
 
+  @Put('/:id/reviewed')
+  async setReviewed(
+    @GetOrgFromRequest() org: Organization,
+    @Param('id') id: string,
+    @Body('reviewed') reviewed: boolean
+  ) {
+    return this._postsService.setReviewed(org.id, id, !!reviewed);
+  }
+
   @Post('/should-shortlink')
   async shouldShortlink(@Body() body: { messages: string[] }) {
     return { ask: this._shortLinkService.askShortLinkedin(body.messages) };

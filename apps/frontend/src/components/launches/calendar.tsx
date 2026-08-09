@@ -58,6 +58,8 @@ import copy from 'copy-to-clipboard';
 import { stripHtmlValidation } from '@gitroom/helpers/utils/strip.html.validation';
 import { newDayjs } from '@gitroom/frontend/components/layout/set.timezone';
 import { Button } from '@gitroom/react/form/button';
+import { ReviewPostCard } from '@gitroom/frontend/components/launches/review.post.card';
+import { ReviewedCheckIcon } from '@gitroom/frontend/components/launches/reviewed.checkbox';
 
 // Extend dayjs with necessary plugins
 extend(isSameOrAfter);
@@ -577,11 +579,107 @@ export const ListView = () => {
   );
 };
 
+/**
+ * Same feed as the list view, ordered closest-to-publish first, but each row
+ * renders the real post preview so a whole batch can be reviewed in one pass.
+ */
+export const ReviewView = () => {
+  const t = useT();
+  const { integrations, loading, listPosts, listState, reloadCalendarView } =
+    useCalendar();
+  const { editPost, deletePost } = usePostActions();
+
+  const emptyMessage =
+    listState === 'scheduled'
+      ? t('no_upcoming_posts', 'No upcoming posts scheduled')
+      : listState === 'draft'
+      ? t('no_draft_posts', 'No draft posts')
+      : listState === 'published'
+      ? t('no_published_posts', 'No published posts')
+      : t('no_posts', 'No posts');
+
+  const groupedPosts = useMemo(() => {
+    const groups: { [key: string]: any[] } = {};
+    listPosts.forEach((post) => {
+      const dateKey = newDayjs(post.publishDate).local().format('YYYY-MM-DD');
+      if (!groups[dateKey]) {
+        groups[dateKey] = [];
+      }
+      groups[dateKey].push(post);
+    });
+    return Object.entries(groups).sort(([a], [b]) =>
+      listState === 'published' ? b.localeCompare(a) : a.localeCompare(b)
+    );
+  }, [listPosts, listState]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col flex-1 items-center justify-center">
+        <div className="text-textColor">{t('loading', 'Loading...')}</div>
+      </div>
+    );
+  }
+
+  if (listPosts.length === 0) {
+    return (
+      <div className="flex flex-col flex-1 items-center justify-center">
+        <div className="text-textColor text-[16px]">{emptyMessage}</div>
+      </div>
+    );
+  }
+
+  // Only the very first card of an upcoming feed is the one actually going out
+  // next — published feeds read newest-first, so nothing there is "next".
+  const nextPostId =
+    listState === 'published'
+      ? undefined
+      : groupedPosts?.[0]?.[1]?.[0]?.publishDate &&
+        newDayjs(groupedPosts[0][1][0].publishDate).isAfter(newDayjs())
+      ? groupedPosts[0][1][0].id
+      : undefined;
+
+  return (
+    <div className="flex flex-col gap-[10px] flex-1 relative">
+      <div className="absolute start-0 top-0 w-full h-full flex flex-col overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
+        <div className="w-full max-w-[640px] mx-auto px-[10px] pb-[20px]">
+          {groupedPosts.map(([dateKey, datePosts]) => (
+            <Fragment key={dateKey}>
+              {/* Sticky so the day you are looking at never scrolls away. */}
+              <div className="sticky top-0 z-[2] py-[10px] bg-newBgColor">
+                <div className="text-center text-[13px] text-textColor font-[500] py-[5px] rounded-[8px] bg-newColColor border border-newTableBorder">
+                  {newDayjs(dateKey).format(
+                    isUSCitizen() ? 'dddd, MMMM D, YYYY' : 'dddd, D MMMM YYYY'
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-col gap-[16px] mb-[10px]">
+                {datePosts.map((post) => (
+                  <ReviewPostCard
+                    key={post.id}
+                    post={post}
+                    integrations={integrations}
+                    isNext={post.id === nextPostId}
+                    editPost={editPost(post, false)}
+                    deletePost={deletePost(post)}
+                    onReviewed={reloadCalendarView}
+                  />
+                ))}
+              </div>
+            </Fragment>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const Calendar = () => {
   const { display } = useCalendar();
   return (
     <>
-      {display === 'list' ? (
+      {display === 'review' ? (
+        <ReviewView />
+      ) : display === 'list' ? (
         <ListView />
       ) : display === 'day' ? (
         <DayView />
@@ -1061,6 +1159,19 @@ const CalendarItem: FC<{
           data-tooltip-content={post.error || 'An error occurred while publishing this post'}
         >
           !
+        </div>
+      )}
+      {/* Shifted along when there is already an error marker in that corner. */}
+      {!!(post as any).reviewed && (
+        <div
+          className={clsx(
+            'absolute -top-[6px] z-20 w-[18px] h-[18px] rounded-full bg-forth flex items-center justify-center text-white',
+            state === 'ERROR' ? 'left-[14px]' : '-left-[6px]'
+          )}
+          data-tooltip-id="tooltip"
+          data-tooltip-content={t('reviewed', 'Reviewed')}
+        >
+          <ReviewedCheckIcon size={11} />
         </div>
       )}
       {showCreationMethodBadge && (

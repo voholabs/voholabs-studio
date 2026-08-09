@@ -43,6 +43,7 @@ import { useHasScroll } from '@gitroom/frontend/components/ui/is.scroll.hook';
 import { useShortlinkPreference } from '@gitroom/frontend/components/settings/shortlink-preference.component';
 import dayjs from 'dayjs';
 import { Button } from '@gitroom/react/form/button';
+import { ReviewedCheckbox } from '@gitroom/frontend/components/launches/reviewed.checkbox';
 
 export const ManageModal: FC<AddEditModalProps> = (props) => {
   const t = useT();
@@ -54,6 +55,12 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
   const modal = useModals();
   const [showSettings, setShowSettings] = useState(false);
   const { data: shortlinkPreferenceData } = useShortlinkPreference();
+
+  // Bookkeeping only — it rides along with the payload so saving does not clear
+  // whatever was ticked in the review view.
+  const [reviewed, setReviewed] = useState(
+    !!existingData?.posts?.[0]?.reviewed
+  );
 
   const { addEditSets, mutate, customClose, dummy } = props;
 
@@ -253,6 +260,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
           id: post.id,
         },
         group,
+        reviewed,
         settings: { ...(post.settings || {}) },
         value: post.values.map((value: any) => ({
           ...(value.id ? { id: value.id } : {}),
@@ -433,7 +441,16 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
         }
       }
     },
-    [ref, repeater, tags, date, addEditSets, dummy, shortlinkPreferenceData]
+    [
+      ref,
+      repeater,
+      tags,
+      date,
+      addEditSets,
+      dummy,
+      shortlinkPreferenceData,
+      reviewed,
+    ]
   );
 
   return (
@@ -562,6 +579,10 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
 
             {!dummy && (
               <RepeatComponent repeat={repeater} onChange={setRepeater} />
+            )}
+
+            {!dummy && (
+              <ReviewedCheckbox checked={reviewed} onChange={setReviewed} />
             )}
           </div>
           <div className="pe-[20px] flex items-center justify-end gap-[8px]">

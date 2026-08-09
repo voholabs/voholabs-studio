@@ -8,6 +8,7 @@ import { getPresetBackground } from '@gitroom/frontend/components/new-launch/pro
 import { FC } from 'react';
 import { useFormContext, useWatch } from 'react-hook-form';
 import { VideoOrImage } from '@gitroom/react/helpers/video.or.image';
+import { SliderComponent } from '@gitroom/frontend/components/third-parties/slider.component';
 
 const Icons = () => {
   return (
@@ -168,18 +169,21 @@ export const FacebookPreview: FC<{
         />
       )}
       {!!renderContent?.[0]?.images?.length && (
-        <div className="h-[280px] -mx-[15px] overflow-hidden flex">
-          {renderContent?.[0]?.images.map((image, index) => (
+        // Paged one slide at a time — laying a carousel out side by side left
+        // every image as an unreadable sliver.
+        <SliderComponent
+          className="h-[280px] -mx-[15px] overflow-hidden"
+          list={renderContent?.[0]?.images.map((image, index) => (
             <a
               key={`image_${index}`}
-              className="flex-1"
+              className="block w-full h-full"
               href={mediaDir.set(image.path)}
               target="_blank"
             >
               <VideoOrImage autoplay={true} src={mediaDir.set(image.path)} />
             </a>
           ))}
-        </div>
+        />
       )}
       <div className="flex text-textLinkedin text-[12px] font-[400] items-center">
         <div className="flex flex-1 gap-[10px] items-center">
@@ -301,11 +305,12 @@ export const FacebookPreview: FC<{
                       }}
                     />
                     {!!value.images?.length && (
-                      <div className="h-[100px] mt-[12px] -mx-[15px] overflow-hidden flex">
-                        {value.images.map((image, index) => (
+                      <SliderComponent
+                        className="h-[100px] mt-[12px] -mx-[15px] overflow-hidden"
+                        list={value.images.map((image, index) => (
                           <a
                             key={`image_${index}`}
-                            className="flex-1"
+                            className="block w-full h-full"
                             href={mediaDir.set(image.path)}
                             target="_blank"
                           >
@@ -315,7 +320,7 @@ export const FacebookPreview: FC<{
                             />
                           </a>
                         ))}
-                      </div>
+                      />
                     )}
                   </div>
                   <div className="flex font-[400] text-[12px] text-textLinkedin items-center">

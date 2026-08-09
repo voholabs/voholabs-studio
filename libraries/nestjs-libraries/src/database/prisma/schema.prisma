@@ -451,6 +451,9 @@ model Post {
   submittedForOrganizationId String?
   approvedSubmitForOrder     APPROVED_SUBMIT_FOR_ORDER @default(NO)
   creationMethod             CreationMethod            @default(UNKNOWN)
+  // Bookkeeping only: "I have eyeballed this in review mode". Nothing in the
+  // publishing pipeline reads it.
+  reviewed                   Boolean                   @default(false)
   lastMessageId              String?
   intervalInDays             Int?
   error                      String?

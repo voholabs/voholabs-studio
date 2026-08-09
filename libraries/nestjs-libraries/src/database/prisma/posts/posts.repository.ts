@@ -181,6 +181,7 @@ export class PostsRepository {
         intervalInDays: true,
         group: true,
         creationMethod: true,
+        reviewed: true,
         tags: {
           select: {
             tag: true,
@@ -293,6 +294,7 @@ export class PostsRepository {
           intervalInDays: true,
           group: true,
           creationMethod: true,
+          reviewed: true,
           tags: {
             select: {
               tag: true,
@@ -400,6 +402,40 @@ export class PostsRepository {
         releaseId: postId,
       },
     });
+  }
+
+  /**
+   * The review flag belongs to the post as a whole, so a thread's children move
+   * with its parent.
+   */
+  async setReviewed(orgId: string, id: string, reviewed: boolean) {
+    const post = await this._post.model.post.findFirst({
+      where: {
+        id,
+        organizationId: orgId,
+        deletedAt: null,
+      },
+      select: {
+        group: true,
+      },
+    });
+
+    if (!post) {
+      return { reviewed: false };
+    }
+
+    await this._post.model.post.updateMany({
+      where: {
+        organizationId: orgId,
+        group: post.group,
+        deletedAt: null,
+      },
+      data: {
+        reviewed,
+      },
+    });
+
+    return { reviewed };
   }
 
   updateReleaseId(id: string, orgId: string, releaseId: string) {
@@ -551,6 +587,9 @@ export class PostsRepository {
         group: uuid,
         intervalInDays: inter ? +inter : null,
         approvedSubmitForOrder: APPROVED_SUBMIT_FOR_ORDER.NO,
+        // Editing rewrites the row, so the review flag has to be sent back with
+        // it or it would silently reset on every save.
+        reviewed: !!body.reviewed,
         ...(type === 'create' ? { creationMethod } : {}),
         ...(state === 'update'
           ? {}

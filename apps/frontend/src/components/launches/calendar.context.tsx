@@ -28,6 +28,18 @@ extend(weekOfYear);
 
 export type ListStateFilter = 'all' | 'scheduled' | 'draft' | 'published';
 
+export type CalendarDisplay = 'week' | 'month' | 'day' | 'list' | 'review';
+
+/**
+ * List and review share the same paginated feed. Review renders a full post
+ * preview per row and fetches each post's group on top of that, so it asks for
+ * a much smaller page.
+ */
+export const isFeedDisplay = (display: string) =>
+  display === 'list' || display === 'review';
+
+const feedPageSize = (display: string) => (display === 'review' ? 25 : 100);
+
 export const CalendarContext = createContext({
   startDate: newDayjs().startOf('isoWeek').format('YYYY-MM-DD'),
   endDate: newDayjs().endOf('isoWeek').format('YYYY-MM-DD'),
@@ -58,7 +70,7 @@ export const CalendarContext = createContext({
   setFilters: (filters: {
     startDate: string;
     endDate: string;
-    display: 'week' | 'month' | 'day' | 'list';
+    display: CalendarDisplay;
     customer: string | null;
   }) => {
     /** empty **/
@@ -196,14 +208,15 @@ export const CalendarWeekProvider: FC<{
   }, [filters, params]);
 
   // List view data fetcher
+  const listLimit = feedPageSize(filters.display);
   const listParams = useMemo(() => {
     return new URLSearchParams({
       page: listPage.toString(),
-      limit: '100',
+      limit: listLimit.toString(),
       customer: filters?.customer?.toString() || '',
       state: listState,
     }).toString();
-  }, [listPage, filters.customer, listState]);
+  }, [listPage, listLimit, filters.customer, listState]);
 
   const loadListData = useCallback(async () => {
     const response = await fetch(`/posts/list?${listParams}`);
@@ -216,7 +229,7 @@ export const CalendarWeekProvider: FC<{
     isLoading: calendarIsLoading,
     mutate: mutateCalendar,
   } = useSWR(
-    filters.display !== 'list' ? `/posts-${params}` : null,
+    !isFeedDisplay(filters.display) ? `/posts-${params}` : null,
     loadData,
     {
       refreshInterval: 3600000,
@@ -232,7 +245,7 @@ export const CalendarWeekProvider: FC<{
     isLoading: listIsLoading,
     mutate: mutateList,
   } = useSWR(
-    filters.display === 'list' ? `/posts-list-${listParams}` : null,
+    isFeedDisplay(filters.display) ? `/posts-list-${listParams}` : null,
     loadListData,
     {
       refreshInterval: 3600000,
@@ -271,15 +284,15 @@ export const CalendarWeekProvider: FC<{
     (newFilters: {
       startDate: string;
       endDate: string;
-      display: 'week' | 'month' | 'day' | 'list';
+      display: CalendarDisplay;
       customer: string | null;
     }) => {
       setDisplaySaved(newFilters.display);
       setFilters(newFilters);
       setInternalData([]);
 
-      // Reset page when switching to list view
-      if (newFilters.display === 'list') {
+      // Reset page when switching into a feed view
+      if (isFeedDisplay(newFilters.display)) {
         setListPage(0);
       }
 
@@ -300,7 +313,7 @@ export const CalendarWeekProvider: FC<{
   // List view data
   const listPosts = useMemo(() => listData?.posts || [], [listData?.posts]);
   const listTotal = listData?.total || 0;
-  const listTotalPages = Math.ceil(listTotal / 100);
+  const listTotalPages = Math.ceil(listTotal / listLimit);
 
   const changeDate = useCallback(
     (id: string, date: dayjs.Dayjs) => {
@@ -332,7 +345,9 @@ export const CalendarWeekProvider: FC<{
   }, [mutateCalendar, mutateList]);
 
   // Determine loading state based on current view
-  const loading = filters.display === 'list' ? listIsLoading : calendarIsLoading;
+  const loading = isFeedDisplay(filters.display)
+    ? listIsLoading
+    : calendarIsLoading;
 
   return (
     <CalendarContext.Provider

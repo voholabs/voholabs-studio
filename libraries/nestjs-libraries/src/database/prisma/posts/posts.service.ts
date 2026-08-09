@@ -149,6 +149,10 @@ export class PostsService {
     return this._postRepository.updateReleaseId(postId, orgId, releaseId);
   }
 
+  async setReviewed(orgId: string, postId: string, reviewed: boolean) {
+    return this._postRepository.setReviewed(orgId, postId, reviewed);
+  }
+
   async checkPostAnalytics(
     orgId: string,
     postId: string,

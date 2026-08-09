@@ -68,6 +68,12 @@ export class Post {
   @IsString()
   group: string;
 
+  // Bookkeeping flag surfaced in the review view; carried through create/update
+  // so editing a post does not silently clear it.
+  @IsOptional()
+  @IsBoolean()
+  reviewed?: boolean;
+
   @ValidateIf((o) => o.type !== 'draft')
   @ValidateNested()
   @Type(() => EmptySettings, {

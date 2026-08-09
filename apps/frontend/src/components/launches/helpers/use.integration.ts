@@ -16,6 +16,13 @@ export type IntegrationContextType = {
       id: string;
     }>;
   }>;
+  /**
+   * Set when a preview is rendered outside the editor (review mode, share
+   * pages). The launch store's `current` is meaningless there — it still holds
+   * whatever the last opened editor left behind — so previews must not read it
+   * to decide whether they are showing a "global" post.
+   */
+  previewOnly?: boolean;
 };
 export const IntegrationContext = createContext<IntegrationContextType>({
   integration: undefined,

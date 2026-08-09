@@ -1,6 +1,10 @@
 'use client';
 
-import { useCalendar, ListStateFilter } from '@gitroom/frontend/components/launches/calendar.context';
+import {
+  useCalendar,
+  ListStateFilter,
+  isFeedDisplay,
+} from '@gitroom/frontend/components/launches/calendar.context';
 import clsx from 'clsx';
 import dayjs from 'dayjs';
 import { useCallback } from 'react';
@@ -11,7 +15,7 @@ import { newDayjs } from '@gitroom/frontend/components/layout/set.timezone';
 
 // Helper function to get start and end dates based on display type
 function getDateRange(
-  display: 'day' | 'week' | 'month' | 'list',
+  display: 'day' | 'week' | 'month' | 'list' | 'review',
   referenceDate?: string
 ) {
   const date = referenceDate ? newDayjs(referenceDate) : newDayjs();
@@ -33,6 +37,7 @@ function getDateRange(
         endDate: date.endOf('month').format('YYYY-MM-DD'),
       };
     case 'list':
+    case 'review':
       return {
         startDate: date.format('YYYY-MM-DD'),
         endDate: date.format('YYYY-MM-DD'),
@@ -155,8 +160,22 @@ export const Filters = () => {
     });
   }, [calendar]);
 
+  const setReview = useCallback(() => {
+    if (calendar.display === 'review') {
+      return;
+    }
+
+    const range = getDateRange('review');
+    calendar.setFilters({
+      startDate: range.startDate,
+      endDate: range.endDate,
+      display: 'review',
+      customer: calendar.customer,
+    });
+  }, [calendar]);
+
   const setCalendarView = useCallback(() => {
-    if (calendar.display !== 'list') {
+    if (!isFeedDisplay(calendar.display)) {
       return;
     }
 
@@ -258,6 +277,10 @@ export const Filters = () => {
   );
 
   const isListView = calendar.display === 'list';
+  const isReviewView = calendar.display === 'review';
+  // List and review both page through the same feed, so they share the pager
+  // and the state pills instead of the date navigation.
+  const isFeedView = isFeedDisplay(calendar.display);
 
   const setListStateFilter = useCallback(
     (next: ListStateFilter) => () => {
@@ -288,7 +311,7 @@ export const Filters = () => {
 
   return (
     <div className="text-textColor flex flex-col md:flex-row gap-[8px] items-center select-none">
-      {!isListView && (
+      {!isFeedView && (
         <div className="flex flex-grow flex-row items-center gap-[10px]">
           <div className="border h-[42px] border-newTableBorder bg-newTableBorder gap-[1px] flex items-center rounded-[8px] overflow-hidden">
             <div
@@ -349,7 +372,7 @@ export const Filters = () => {
           </div>
         </div>
       )}
-      {isListView && (
+      {isFeedView && (
         <div className="flex flex-grow flex-row items-center gap-[10px]">
           <div className="border h-[42px] border-newTableBorder bg-newTableBorder gap-[1px] flex items-center rounded-[8px] overflow-hidden">
             <div
@@ -431,7 +454,7 @@ export const Filters = () => {
         onChange={(customer: string) => setCustomer(customer)}
         integrations={calendar.integrations}
       />
-      {!isListView && (
+      {!isFeedView && (
         <div className="flex flex-row p-[4px] border border-newTableBorder rounded-[8px] text-[14px] font-[500]">
           <div
             className={clsx(
@@ -465,9 +488,11 @@ export const Filters = () => {
       <div className="flex flex-row p-[4px] border border-newTableBorder rounded-[8px] text-[14px] font-[500]">
         <div
           onClick={setCalendarView}
+          data-tooltip-id="tooltip"
+          data-tooltip-content={t('calendar_view', 'Calendar view')}
           className={clsx(
             'pt-[6px] pb-[5px] cursor-pointer flex justify-center items-center w-[34px] text-center rounded-[6px]',
-            !isListView && 'text-textItemFocused bg-boxFocused'
+            !isFeedView && 'text-textItemFocused bg-boxFocused'
           )}
         >
           {/*calendar*/}
@@ -489,6 +514,8 @@ export const Filters = () => {
         </div>
         <div
           onClick={setList}
+          data-tooltip-id="tooltip"
+          data-tooltip-content={t('list_view', 'List view')}
           className={clsx(
             'pt-[6px] pb-[5px] flex justify-center items-center cursor-pointer w-[34px] text-center rounded-[6px]',
             isListView && 'text-textItemFocused bg-boxFocused'
@@ -508,6 +535,48 @@ export const Filters = () => {
               strokeWidth="1.5"
               strokeLinecap="round"
               strokeLinejoin="round"
+            />
+          </svg>
+        </div>
+        <div
+          onClick={setReview}
+          data-tooltip-id="tooltip"
+          data-tooltip-content={t('review_view', 'Review view')}
+          className={clsx(
+            'pt-[6px] pb-[5px] flex justify-center items-center cursor-pointer w-[34px] text-center rounded-[6px]',
+            isReviewView && 'text-textItemFocused bg-boxFocused'
+          )}
+        >
+          {/*review*/}
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 20 20"
+            fill="none"
+          >
+            <rect
+              x="2.5"
+              y="2.5"
+              width="15"
+              height="15"
+              rx="2.5"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            />
+            <path
+              d="M2.5 13.3333L6.66667 9.16667L11.6667 14.1667"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <circle
+              cx="12.9167"
+              cy="7.08333"
+              r="1.25"
+              stroke="currentColor"
+              strokeWidth="1.5"
             />
           </svg>
         </div>

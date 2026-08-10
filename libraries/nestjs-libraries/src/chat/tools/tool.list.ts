@@ -24,6 +24,9 @@ import { BriefAssetTool } from '@gitroom/nestjs-libraries/chat/tools/brief.asset
 import { AnalyticsChannelTool } from '@gitroom/nestjs-libraries/chat/tools/analytics.channel.tool';
 import { AnalyticsPostTool } from '@gitroom/nestjs-libraries/chat/tools/analytics.post.tool';
 import { PostsStatusTool } from '@gitroom/nestjs-libraries/chat/tools/posts.status.tool';
+import { PostHistoryTool } from '@gitroom/nestjs-libraries/chat/tools/post.history.tool';
+import { BriefHistoryTool } from '@gitroom/nestjs-libraries/chat/tools/brief.history.tool';
+import { MarkLearnedTool } from '@gitroom/nestjs-libraries/chat/tools/mark.learned.tool';
 
 export const toolList = [
   AccountInfoTool,
@@ -32,6 +35,8 @@ export const toolList = [
   BriefDeleteTool,
   BriefLearnTool,
   BriefAssetTool,
+  BriefHistoryTool,
+  MarkLearnedTool,
   IntegrationListTool,
   GroupListTool,
   IntegrationValidationTool,
@@ -40,6 +45,7 @@ export const toolList = [
   PostsListTool,
   PostsDeleteTool,
   PostsStatusTool,
+  PostHistoryTool,
   AnalyticsChannelTool,
   AnalyticsPostTool,
   FindSlotTool,

@@ -50,6 +50,8 @@ model Organization {
   oauthAuthorizations OAuthAuthorization[]
   agentBrief          AgentBriefDocument[]
   hermesConversations HermesConversation[]
+  postRevisions       PostRevision[]
+  briefRevisions      BriefRevision[]
 
   @@index([apiKey])
   @@index([streakSince])
@@ -1011,4 +1013,79 @@ model Announcement {
   description String
   color       AnnouncementColor @default(INFO)
   createdAt   DateTime          @default(now())
+}
+
+enum PostRevisionKind {
+  INITIAL
+  FINAL
+}
+
+enum RevisionLearnedOutcome {
+  RECORDED
+  NO_SIGNAL
+}
+
+// What a post looked like when it was first created, and what it looked like
+// when it actually went out. The diff between those two is the whole point;
+// nothing in the publishing pipeline reads this table.
+//
+// A "chain" is one scheduled thread on one channel and holds at most two rows:
+// INITIAL is written once and its snapshot never changes; FINAL is rewritten on
+// every later save and frozen the moment the post publishes. Who made a change
+// is deliberately not recorded — only what the post started as and what went
+// out.
+model PostRevision {
+  id             String                  @id @default(uuid())
+  organizationId String
+  chainId        String
+  kind           PostRevisionKind
+  // Plain strings rather than relations on purpose: deleting a channel or a
+  // post must never be blocked by a revision, and revision cleanup is done
+  // explicitly in PostsService.deletePost.
+  integrationId  String
+  // Post.group is regenerated on every save, so these two fields are what links
+  // a save back to its chain. They are refreshed even when the snapshot is not.
+  group          String
+  postIds        String[]
+  // JSON: { value: [{ content, delay, image[] }], settings, publishDate }
+  payload        String
+  // contentHash covers the payload minus the date; payloadHash covers the date
+  // too, so a pure reschedule updates the snapshot without counting as an edit.
+  payloadHash    String
+  contentHash    String
+  // FINAL only: its content differs from INITIAL, i.e. the post that went out
+  // is not the post that was drafted. A post published untouched has nothing to
+  // diff, so this is what the review queue filters on.
+  changed        Boolean                 @default(false)
+  publishedAt    DateTime?
+  learnedAt      DateTime?
+  learnedTopic   String?
+  learnedOutcome RevisionLearnedOutcome?
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  organization   Organization            @relation(fields: [organizationId], references: [id])
+
+  @@unique([chainId, kind])
+  @@index([organizationId])
+  @@index([group])
+  @@index([postIds(ops: ArrayOps)], type: Gin)
+  @@index([organizationId, kind, publishedAt])
+}
+
+// The same idea for the agent brief, except a document has no published state:
+// this is a capped, append-only log, and the baseline for "what changed" is the
+// newest revision that was already marked as learned from.
+model BriefRevision {
+  id             String                  @id @default(uuid())
+  organizationId String
+  category       String
+  key            String
+  content        String
+  contentHash    String
+  learnedAt      DateTime?
+  learnedOutcome RevisionLearnedOutcome?
+  createdAt      DateTime                @default(now())
+  organization   Organization            @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, category, key, createdAt])
 }

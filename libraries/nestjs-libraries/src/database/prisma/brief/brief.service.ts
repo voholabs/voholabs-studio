@@ -22,13 +22,33 @@ import {
   BriefDocument,
   BriefDocumentContent,
 } from '@gitroom/nestjs-libraries/agent-brief/brief.types';
+import { BriefRevisionService } from '@gitroom/nestjs-libraries/database/prisma/brief/brief-revision.service';
 
 @Injectable()
 export class BriefService {
   constructor(
     private _briefRepository: BriefRepository,
-    private _integrationService: IntegrationService
+    private _integrationService: IntegrationService,
+    private _briefRevisionService: BriefRevisionService
   ) {}
+
+  // Every write goes through here so a document's history is recoverable and
+  // the agent can see what changed. Never allowed to fail the save itself.
+  private async capture(
+    orgId: string,
+    category: string,
+    storageKey: string,
+    content: BriefDocumentContent
+  ) {
+    try {
+      await this._briefRevisionService.capture(
+        orgId,
+        category,
+        storageKey,
+        content
+      );
+    } catch (err) {}
+  }
 
   async getDocuments(orgId: string) {
     const [rows, channelKeys] = await Promise.all([
@@ -118,6 +138,8 @@ export class BriefService {
       JSON.stringify(content)
     );
 
+    await this.capture(orgId, category, storageKey, content);
+
     return {
       category,
       key,
@@ -149,6 +171,15 @@ export class BriefService {
 
     const storageKey = await this.toStorageKey(orgId, category, key);
     await this._briefRepository.deleteDocument(orgId, category, storageKey);
+
+    // A document that is gone leaves no history behind, same as a deleted post.
+    try {
+      await this._briefRevisionService.deleteDocument(
+        orgId,
+        category,
+        storageKey
+      );
+    } catch (err) {}
 
     return { deleted: true };
   }
@@ -207,6 +238,8 @@ export class BriefService {
       JSON.stringify(content)
     );
 
+    await this.capture(orgId, category, key, content);
+
     return {
       category,
       key,
@@ -260,6 +293,8 @@ export class BriefService {
       key,
       JSON.stringify(content)
     );
+
+    await this.capture(orgId, category, key, content);
 
     return { assets: content.assets.length };
   }

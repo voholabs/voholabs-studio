@@ -29,6 +29,10 @@ import { SignatureRepository } from '@gitroom/nestjs-libraries/database/prisma/s
 import { SignatureService } from '@gitroom/nestjs-libraries/database/prisma/signatures/signature.service';
 import { BriefRepository } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.repository';
 import { BriefService } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.service';
+import { BriefRevisionRepository } from '@gitroom/nestjs-libraries/database/prisma/brief/brief-revision.repository';
+import { BriefRevisionService } from '@gitroom/nestjs-libraries/database/prisma/brief/brief-revision.service';
+import { PostRevisionRepository } from '@gitroom/nestjs-libraries/database/prisma/post-revisions/post-revision.repository';
+import { PostRevisionService } from '@gitroom/nestjs-libraries/database/prisma/post-revisions/post-revision.service';
 import { HermesRepository } from '@gitroom/nestjs-libraries/database/prisma/hermes/hermes.repository';
 import { HermesService } from '@gitroom/nestjs-libraries/database/prisma/hermes/hermes.service';
 import { AutopostRepository } from '@gitroom/nestjs-libraries/database/prisma/autopost/autopost.repository';
@@ -78,6 +82,10 @@ import { AdminStatsService } from '@gitroom/nestjs-libraries/database/prisma/adm
     SignatureService,
     BriefRepository,
     BriefService,
+    BriefRevisionRepository,
+    BriefRevisionService,
+    PostRevisionRepository,
+    PostRevisionService,
     HermesRepository,
     HermesService,
     MediaService,

@@ -53,6 +53,7 @@ import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import { stripHtmlValidation } from '@gitroom/helpers/utils/strip.html.validation';
 import { weightedLength } from '@gitroom/helpers/utils/count.length';
+import { PostRevisionService } from '@gitroom/nestjs-libraries/database/prisma/post-revisions/post-revision.service';
 
 type PostWithConditionals = Post & {
   integration?: Integration;
@@ -70,15 +71,30 @@ export class PostsService {
     private _shortLinkService: ShortLinkService,
     private _openaiService: OpenaiService,
     private _temporalService: TemporalService,
-    private _refreshIntegrationService: RefreshIntegrationService
+    private _refreshIntegrationService: RefreshIntegrationService,
+    private _postRevisionService: PostRevisionService
   ) {}
 
   searchForMissingThreeHoursPosts() {
     return this._postRepository.searchForMissingThreeHoursPosts();
   }
 
-  updatePost(id: string, postId: string, releaseURL: string) {
-    return this._postRepository.updatePost(id, postId, releaseURL);
+  // The one place a post becomes PUBLISHED, so it is also where the revision
+  // chain learns what actually went out.
+  async updatePost(id: string, postId: string, releaseURL: string) {
+    const post = await this._postRepository.updatePost(id, postId, releaseURL);
+
+    try {
+      await this._postRevisionService.markPublished(
+        post.organizationId,
+        post.id,
+        post.group
+      );
+    } catch (err) {
+      // Bookkeeping must never fail a publish.
+    }
+
+    return post;
   }
 
   async getMissingContent(
@@ -743,7 +759,28 @@ export class PostsService {
   }
 
   async deletePost(orgId: string, group: string) {
+    // Resolved before the delete, while the group still points at live rows.
+    let chainId: string | undefined;
+    try {
+      chainId = await this._postRevisionService.resolveChainId(orgId, [], group);
+    } catch (err) {}
+
     const post = await this._postRepository.deletePost(orgId, group);
+
+    if (!chainId && post?.id) {
+      try {
+        chainId = await this._postRevisionService.resolveChainId(orgId, [
+          post.id,
+        ]);
+      } catch (err) {}
+    }
+
+    // A deleted post leaves no history behind.
+    if (chainId) {
+      try {
+        await this._postRevisionService.deleteChain(orgId, chainId);
+      } catch (err) {}
+    }
 
     if (post?.id) {
       try {
@@ -1033,6 +1070,22 @@ export class PostsService {
       if (!posts?.length) {
         return [] as any[];
       }
+
+      // Snapshot what was just written, so the original draft can later be
+      // compared with whatever actually went out. Awaited so two quick saves
+      // cannot race past each other, but never allowed to fail the save.
+      try {
+        await this._postRevisionService.captureSnapshot({
+          orgId,
+          oldGroup: post.group,
+          newGroup: posts[0].group,
+          postIds: posts.map((p) => p.id),
+          integrationId: post.integration.id,
+          publishDate: posts[0].publishDate,
+          value: post.value,
+          settings: post.settings,
+        });
+      } catch (err) {}
 
       if (body.type !== 'update') {
         this.startWorkflow(

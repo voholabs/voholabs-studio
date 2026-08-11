@@ -28,6 +28,24 @@ export class OrganizationService {
     );
   }
 
+  /**
+   * Creates the organization with the user already activated, skipping the
+   * confirm-your-email step.
+   *
+   * Only for callers that have already established who this person is by some
+   * other means — the provisioning endpoint, where payment was taken before the
+   * account was asked for. Everything reached from a public signup form must
+   * keep using `createOrgAndUser`, which activates by email when a provider is
+   * configured.
+   */
+  async createActivatedOrgAndUser(
+    body: Omit<CreateOrgUserDto, 'providerToken'> & { providerId?: string },
+    ip: string,
+    userAgent: string
+  ) {
+    return this._organizationRepository.createOrgAndUser(body, false, ip, userAgent);
+  }
+
   async getCount() {
     return this._organizationRepository.getCount();
   }

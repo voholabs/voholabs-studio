@@ -12,10 +12,14 @@ import { PublicIntegrationsController } from '@gitroom/backend/public-api/routes
 import { PublicAuthMiddleware } from '@gitroom/backend/services/auth/public.auth.middleware';
 import { PublicUploadTicketController } from '@gitroom/backend/public-api/routes/v1/public.upload.ticket.controller';
 import { PublicBriefController } from '@gitroom/backend/public-api/routes/v1/public.brief.controller';
+import { PublicUploadMintController } from '@gitroom/backend/public-api/routes/v1/public.upload.mint.controller';
 
 const authenticatedController = [
   PublicIntegrationsController,
   PublicBriefController,
+  // Minting a ticket needs the API key. The route that receives the file is in
+  // ticketController below and must stay unauthenticated.
+  PublicUploadMintController,
 ];
 // Authenticated by the single-use ticket in its own URL, so it must stay out of
 // the list above — PublicAuthMiddleware would reject it for having no API key.

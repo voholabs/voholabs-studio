@@ -217,6 +217,17 @@ export class SubscriptionService {
     );
   }
 
+  // Access to an exact moment rather than a number of days, for callers that
+  // are mirroring somebody else's billing period. `whitelistOrganization` above
+  // rounds to whole days, which would hand out or hold back a few hours every
+  // time a subscription renews.
+  //
+  // `identifier` says where the grant came from, so a whitelist driven by an
+  // external subscription can be told apart from one a human set by hand.
+  whitelistOrganizationUntil(orgId: string, until: Date, identifier: string) {
+    return this._subscriptionRepository.setWhitelist(orgId, until, identifier);
+  }
+
   removeWhitelistFromOrganization(orgId: string) {
     return this._subscriptionRepository.removeWhitelist(orgId);
   }

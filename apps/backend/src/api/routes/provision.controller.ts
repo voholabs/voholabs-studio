@@ -185,8 +185,13 @@ export class ProvisionController {
   }
 
   /**
-   * A fresh session for an organization that already exists, for handing a
-   * returning customer straight into Studio without a login screen.
+   * A fresh session and the organization's API key, for a caller that already
+   * proved itself with the shared secret.
+   *
+   * Returning the API key here means the caller never has to store one: it can
+   * ask again whenever it needs to write to this account. Both values are
+   * credentials for the whole organization, so this is server-to-server only
+   * and neither may be forwarded to a browser.
    */
   @Post('/session')
   async session(
@@ -195,13 +200,18 @@ export class ProvisionController {
   ) {
     this.assertSecret(secret);
 
+    const organization = await this._organizationService.getOrgById(body.orgId);
+    if (!organization) {
+      throw new HttpException('Organization not found', 404);
+    }
+
     const team = await this._organizationService.getTeam(body.orgId);
     const owner =
       team?.users?.find((member) => member.role === 'SUPERADMIN') ??
       team?.users?.[0];
 
     if (!owner) {
-      throw new HttpException('Organization not found', 404);
+      throw new HttpException('Organization has no users', 404);
     }
 
     // getTeam returns a trimmed user, and the session has to be signed over the
@@ -211,6 +221,10 @@ export class ProvisionController {
       throw new HttpException('Organization owner not found', 404);
     }
 
-    return { orgId: body.orgId, jwt: this.sign(user) };
+    return {
+      orgId: body.orgId,
+      apiKey: organization.apiKey ?? null,
+      jwt: this.sign(user),
+    };
   }
 }

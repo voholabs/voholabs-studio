@@ -30,7 +30,26 @@ export interface AccessSubscription {
   deletedAt?: Date | string | null;
   cancelAt?: Date | string | null;
   subscriptionTier?: string;
+  identifier?: string | null;
 }
+
+/**
+ * A paying customer, as opposed to someone on the free trial.
+ *
+ * Both are stored the same way, as a whitelist with an expiry, because access
+ * should stop either way once the date passes. The difference is what the date
+ * means: a trial is counting down to a decision, whereas a paid window is just
+ * how far ahead the last payment covers and moves forward every renewal.
+ *
+ * Only the countdown cares. `hasAccess` deliberately does not: a paid window
+ * that has run out still has to hit the paywall, or a cancelled customer would
+ * keep the product.
+ */
+export const PAID_IDENTIFIERS = ['apex-stripe'];
+
+export const isPaidSubscription = (subscription?: AccessSubscription | null) =>
+  !!subscription?.identifier &&
+  PAID_IDENTIFIERS.includes(subscription.identifier);
 
 export interface AccessOrganization {
   subscription?: AccessSubscription | null;
@@ -46,10 +65,15 @@ export const isActiveSubscription = (
 export const hasAccess = (org?: AccessOrganization | null) =>
   org?.subscription ? isActiveSubscription(org.subscription) : !billingEnabled();
 
-// When the free trial (or a time limited whitelist) runs out. `null` means the
-// organization is whitelisted forever, so there is nothing to count down.
+// When the free trial runs out. `null` means there is nothing to count down:
+// either the organization is whitelisted forever, or it is a paying customer,
+// whose expiry is just the end of the period they have paid for and moves
+// forward on every renewal. Counting that down reads as "your access is about
+// to end" to someone who is not going anywhere.
 export const trialEndsAt = (org?: AccessOrganization | null) =>
-  org?.subscription && !org.subscription.deletedAt
+  org?.subscription &&
+  !org.subscription.deletedAt &&
+  !isPaidSubscription(org.subscription)
     ? org.subscription.cancelAt || null
     : null;
 

@@ -63,6 +63,11 @@ export class SubscriptionRepository {
         subscriptionTier: 'ULTIMATE',
         totalChannels: 1000000,
         period: 'MONTHLY',
+        // Written on update as well as create. Nearly every organization that
+        // gets whitelisted already has a row from its free trial, so leaving
+        // this out meant a paying customer kept the trial's identifier and
+        // went on being counted down as though they were still trialing.
+        identifier,
         cancelAt,
         deletedAt: null,
       },

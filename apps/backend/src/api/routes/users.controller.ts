@@ -118,6 +118,8 @@ export class UsersController {
         subscriptionTier?: string;
         cancelAt?: Date | null;
         deletedAt?: Date | null;
+        // Tells a paying customer's expiry apart from a trial countdown.
+        identifier?: string | null;
       } | null;
     };
     // @ts-ignore
@@ -136,8 +138,10 @@ export class UsersController {
         (hasAccess(org) && !process.env.STRIPE_PUBLISHABLE_KEY
           ? 'ULTIMATE'
           : 'FREE'),
-      // When the free trial (or a time limited whitelist) ends. `null` when the
-      // organization is whitelisted forever.
+      // When the free trial ends. `null` when the organization is whitelisted
+      // forever, and also when it is paying: that expiry moves forward on every
+      // renewal, so counting it down would tell a customer who is not going
+      // anywhere that their access is about to run out.
       trialEndsAt: trialEndsAt(org),
       // @ts-ignore
       role: organization?.users[0]?.role,

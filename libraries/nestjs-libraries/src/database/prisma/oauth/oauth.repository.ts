@@ -197,6 +197,7 @@ export class OAuthRepository {
                 isLifetime: true,
                 cancelAt: true,
                 deletedAt: true,
+                identifier: true,
               },
             },
           },

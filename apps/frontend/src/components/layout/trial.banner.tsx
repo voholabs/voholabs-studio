@@ -5,8 +5,9 @@ import dayjs from 'dayjs';
 import { useUser } from '@gitroom/frontend/components/layout/user.context';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 
-// Days left in the free trial. Hidden for whitelisted organizations - they have
-// no `trialEndsAt`, so there is nothing to count down.
+// Days left in the free trial. Hidden for whitelisted organizations and for
+// paying customers alike: both come back with no `trialEndsAt`, so there is
+// nothing to count down.
 export const TrialBanner: FC = () => {
   const user = useUser();
   const t = useT();

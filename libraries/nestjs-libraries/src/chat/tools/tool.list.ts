@@ -1,10 +1,13 @@
 import { IntegrationValidationTool } from '@gitroom/nestjs-libraries/chat/tools/integration.validation.tool';
 import { IntegrationTriggerTool } from '@gitroom/nestjs-libraries/chat/tools/integration.trigger.tool';
 import { IntegrationSchedulePostTool } from './integration.schedule.post';
-import { GenerateVideoOptionsTool } from '@gitroom/nestjs-libraries/chat/tools/generate.video.options.tool';
-import { VideoFunctionTool } from '@gitroom/nestjs-libraries/chat/tools/video.function.tool';
-import { GenerateVideoTool } from '@gitroom/nestjs-libraries/chat/tools/generate.video.tool';
-import { GenerateImageTool } from '@gitroom/nestjs-libraries/chat/tools/generate.image.tool';
+// Media generation is off. Commented rather than deleted so the reason stays
+// next to the code and turning one back on is a one line change. See the
+// matching block at the bottom of toolList.
+// import { GenerateVideoOptionsTool } from '@gitroom/nestjs-libraries/chat/tools/generate.video.options.tool';
+// import { VideoFunctionTool } from '@gitroom/nestjs-libraries/chat/tools/video.function.tool';
+// import { GenerateVideoTool } from '@gitroom/nestjs-libraries/chat/tools/generate.video.tool';
+// import { GenerateImageTool } from '@gitroom/nestjs-libraries/chat/tools/generate.image.tool';
 import { AccountInfoTool } from '@gitroom/nestjs-libraries/chat/tools/account.info.tool';
 import { IntegrationListTool } from '@gitroom/nestjs-libraries/chat/tools/integration.list.tool';
 import { GroupListTool } from '@gitroom/nestjs-libraries/chat/tools/group.list.tool';
@@ -53,9 +56,14 @@ export const toolList = [
   MediaDeleteTool,
   MediaUploadTool,
   MediaUploadLinkTool,
-  GenerateVideoOptionsTool,
-  VideoFunctionTool,
-  GenerateVideoTool,
-  GenerateImageTool,
+  // Media generation belongs to the vendor, so the agent does not get these:
+  //   GenerateImageTool      - vendor's job
+  //   GenerateVideoTool      - exposes no models on this account anyway
+  //   GenerateVideoOptionsTool - returns {"video":[]}, which four workers blocked on
+  //   VideoFunctionTool      - setup call for the above
+  // GenerateVideoOptionsTool,
+  // VideoFunctionTool,
+  // GenerateVideoTool,
+  // GenerateImageTool,
   UploadFromUrlTool,
 ];

@@ -60,7 +60,13 @@ export const startMcp = async (app: INestApplication) => {
     name: 'Voholabs MCP',
     version: '1.0.0',
     tools,
-    agents: { postiz: agent },
+    // Registering the agent here is what publishes `ask_postiz`: MCPServer
+    // generates an `ask_<name>` tool for every agent in this map. That tool
+    // hands the whole job to Studio's own agent, which needs its own OpenAI key
+    // and goes around the writer entirely, so there is no card, no draft file
+    // and nothing for the batch check. `agent` above stays, because
+    // listTools() still needs it.
+    // agents: { postiz: agent },
   };
 
   const server = new MCPServer(serverConfig);

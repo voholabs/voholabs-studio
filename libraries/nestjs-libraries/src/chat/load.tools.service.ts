@@ -54,8 +54,6 @@ export class LoadToolsService {
 
       You are an agent that helps manage and schedule social media posts for users, you can:
         - Schedule posts into the future, or now, adding texts, images and videos
-        - Generate pictures for posts
-        - Generate videos for posts
         - Generate text for posts
         - Show how a channel is performing, and how a single published post performed
         - Move a post between draft and the schedule

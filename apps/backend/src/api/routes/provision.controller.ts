@@ -8,18 +8,23 @@ import { UsersService } from '@gitroom/nestjs-libraries/database/prisma/users/us
 import { AuthService as AuthChecker } from '@gitroom/helpers/auth/auth.service';
 import {
   ProvisionAccessDto,
-  ProvisionCreateDto,
   ProvisionLookupDto,
   ProvisionSessionDto,
 } from '@gitroom/nestjs-libraries/dtos/provision/provision.dto';
 
 /**
- * Account provisioning for a trusted first-party front end.
+ * Subscription plumbing for a trusted first-party front end.
  *
- * This exists because signup on the website happens after payment has already
- * been taken somewhere else, so the customer should land inside Studio rather
- * than in an inbox waiting for an activation link. Nothing here is reachable
- * without the shared secret, and none of it is part of the public API.
+ * The caller sells a subscription elsewhere and needs three things from
+ * Studio: whether an account exists, the ability to grant and revoke access as
+ * that subscription changes, and the organization's API key so it can write the
+ * brief. Nothing here is reachable without the shared secret, and none of it is
+ * part of the public API.
+ *
+ * It deliberately cannot create an account. Customers sign up through Studio
+ * itself, which is what ties a workspace to a person who proved they hold that
+ * email. An endpoint that could mint accounts on a shared secret was a large
+ * capability to leave sitting behind one string, and nothing needs it.
  *
  * Deliberately kept dumb about billing: the caller says when access should
  * lapse and this writes it down. Studio never asks who was paid or how much,
@@ -83,62 +88,6 @@ export class ProvisionController {
 
     const orgs = await this._organizationService.getOrgsByUserId(user.id);
     return { exists: true, orgId: orgs?.[0]?.id ?? null };
-  }
-
-  /**
-   * Creates the organization pre-activated and grants access to `activeUntil`.
-   *
-   * Uses `createActivatedOrgAndUser` so the account is usable straight away.
-   * That is the whole reason this endpoint exists rather than reusing
-   * /auth/register, which sends an activation mail whenever an email provider
-   * is configured and returns no session until the link is clicked.
-   */
-  @Post('/create')
-  async create(
-    @Headers('x-provision-secret') secret: string,
-    @Body() body: ProvisionCreateDto
-  ) {
-    this.assertSecret(secret);
-
-    const email = body.email.toLowerCase();
-    const until = new Date(body.activeUntil);
-    if (Number.isNaN(until.getTime()) || until.getTime() <= Date.now()) {
-      throw new HttpException('activeUntil must be a future date', 400);
-    }
-
-    if (await this._userService.getUserByEmail(email)) {
-      throw new HttpException('Email already exists', 409);
-    }
-
-    // Activated on creation: payment has already been taken, and sending
-    // someone to their inbox at this point loses them.
-    const created = await this._organizationService.createActivatedOrgAndUser(
-      {
-        email,
-        password: body.password,
-        provider: 'LOCAL',
-        company: body.company,
-      } as never,
-      '',
-      'apex-provisioning'
-    );
-
-    const orgId = created.id;
-    await this._subscriptionService.whitelistOrganizationUntil(
-      orgId,
-      until,
-      'apex-stripe'
-    );
-
-    const organization = await this._organizationService.getOrgById(orgId);
-
-    return {
-      orgId,
-      // The stored value is what the Authorization header must carry: the
-      // public API compares it as-is.
-      apiKey: organization?.apiKey ?? null,
-      jwt: this.sign(created.users[0].user),
-    };
   }
 
   /**

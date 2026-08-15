@@ -1292,6 +1292,9 @@ export class SanityProvider extends SocialAbstract implements SocialProvider {
         errors: [
           'This document no longer exists in Sanity. It may have been deleted.',
         ],
+        blocking: [
+          'This document no longer exists in Sanity. It may have been deleted.',
+        ],
         id,
         type: '',
         title: '',
@@ -1306,7 +1309,12 @@ export class SanityProvider extends SocialAbstract implements SocialProvider {
       };
     }
 
+    // Two kinds of problem. A hard one means publishing cannot work or would
+    // produce something broken, and stops the schedule. A soft one is worth
+    // seeing in red but is the author's call - a post with no FAQ block is
+    // still a post.
     const errors: string[] = [];
+    const warnings: string[] = [];
     const title = this.titleOf(subject);
 
     if (!title) {
@@ -1325,7 +1333,7 @@ export class SanityProvider extends SocialAbstract implements SocialProvider {
     );
 
     if (missing.length) {
-      errors.push(`Missing ${missing.join(', ')}.`);
+      warnings.push(`Missing ${missing.join(', ')}.`);
     }
 
     const references = [...this.collectReferences(subject)];
@@ -1363,8 +1371,11 @@ export class SanityProvider extends SocialAbstract implements SocialProvider {
       '';
 
     return {
-      ok: errors.length === 0,
-      errors,
+      ok: errors.length === 0 && warnings.length === 0,
+      // Everything worth showing, hard problems first.
+      errors: [...errors, ...warnings],
+      // Only these stop a post being scheduled.
+      blocking: errors,
       id,
       type: subject._type || '',
       title,
@@ -1418,6 +1429,7 @@ export class SanityProvider extends SocialAbstract implements SocialProvider {
             err?.message || 'unknown error'
           }`,
         ],
+        blocking: [] as string[],
         id: data?.documentId || '',
         type: '',
         title: '',
@@ -1520,8 +1532,8 @@ export class SanityProvider extends SocialAbstract implements SocialProvider {
     const credentials = this.decode(integration.token);
     const result = await this.inspect(credentials, documentId);
 
-    if (!result.ok) {
-      return result.errors.join(' ');
+    if (result.blocking.length) {
+      return result.blocking.join(' ');
     }
 
     return true;

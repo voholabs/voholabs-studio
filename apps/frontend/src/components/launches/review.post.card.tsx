@@ -320,13 +320,21 @@ export const ReviewPostCard: FC<{
    * page on the site, and that is what previewing it means. Anything not yet
    * published has no page, so the only place to see and fix it is Sanity.
    */
-  const sanityStatus =
-    sanityLookup?.document?.status || post.sanityDocument?.status;
+  // Whichever side knows about the document: an unscheduled row carries it
+  // directly, a scheduled post resolves it by reference.
+  const sanityDoc = post.sanityDocument || sanityLookup?.document;
+  const sanityStatus = sanityDoc?.status;
 
   const openSanityPreview = useCallback(async () => {
     // Opened up front so the browser attributes the tab to the click, then
     // pointed once the document is known - the list may not have arrived yet.
-    const tab = window.open('', '_blank', 'noopener,noreferrer');
+    // No 'noopener' here: with it window.open returns null, leaving an
+    // about:blank tab with nothing able to navigate it. The opener is dropped
+    // straight afterwards instead.
+    const tab = window.open('', '_blank');
+    if (tab) {
+      tab.opener = null;
+    }
 
     const document =
       post.sanityDocument ||
@@ -535,6 +543,25 @@ export const ReviewPostCard: FC<{
               so the generic state badge would say it twice. */}
           {post.state === 'DRAFT' && !isSanityDocument && (
             <Badge className="bg-newTableBorder">{t('draft', 'Draft')}</Badge>
+          )}
+          {/* What this document is and where it stands, read from Sanity and
+              shown with the channel rather than buried in the article. */}
+          {!!sanityDoc?.type && (
+            <Badge className="bg-newTableBorder capitalize">
+              {sanityDoc.type}
+            </Badge>
+          )}
+          {!!sanityDoc && (
+            <Badge className="bg-newTableBorder">
+              {sanityDoc.status === 'published'
+                ? t('published', 'Published')
+                : t('draft', 'Draft')}
+            </Badge>
+          )}
+          {!!sanityDoc?.hasUnpublishedChanges && (
+            <Badge className="bg-newTableBorder">
+              {t('sanity_unpublished_changes', 'Unpublished changes')}
+            </Badge>
           )}
           {post.state === 'ERROR' && (
             <Badge

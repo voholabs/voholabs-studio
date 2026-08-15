@@ -220,9 +220,21 @@ const CustomVariablesSetup: FC<{
   // Steps are plain text apart from markdown links, so a step can point at the
   // exact page it is talking about instead of describing how to get there.
   const renderStep = (step: string) => {
-    const parts = step.split(/(\[[^\]]+\]\([^)]+\))/g);
+    // Links and bold. A step that writes **Editor** for emphasis should not
+    // render the asterisks.
+    const parts = step.split(/(\[[^\]]+\]\([^)]+\)|\*\*[^*]+\*\*)/g);
 
     return parts.map((part, index) => {
+      const bold = part.match(/^\*\*([^*]+)\*\*$/);
+
+      if (bold) {
+        return (
+          <strong key={index} className="font-[700] text-textColor">
+            {bold[1]}
+          </strong>
+        );
+      }
+
       const link = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
 
       if (!link) {

@@ -133,33 +133,12 @@ export const SanityPreview: FC<{ maximumCharacters?: number }> = () => {
         />
       )}
 
-      <div className="flex flex-col gap-[6px]">
-        <div className="text-[20px] font-[700] leading-[1.3]">
-          {inspection.title || (
-            <span className="text-red-500">
-              {t('sanity_untitled', 'Untitled document')}
-            </span>
-          )}
-        </div>
-
-        <div className="flex gap-[8px] items-center flex-wrap text-[12px] text-textColor/60">
-          {!!inspection.type && (
-            <span className="px-[8px] py-[2px] rounded-full bg-newTableBorder capitalize">
-              {inspection.type}
-            </span>
-          )}
-          <span className="px-[8px] py-[2px] rounded-full bg-newTableBorder">
-            {inspection.status === 'published'
-              ? t('published', 'Published')
-              : t('draft', 'Draft')}
+      <div className="text-[20px] font-[700] leading-[1.3]">
+        {inspection.title || (
+          <span className="text-red-500">
+            {t('sanity_untitled', 'Untitled document')}
           </span>
-          {inspection.hasUnpublishedChanges && (
-            <span className="px-[8px] py-[2px] rounded-full bg-newTableBorder">
-              {t('sanity_unpublished_changes', 'Has unpublished changes')}
-            </span>
-          )}
-
-        </div>
+        )}
       </div>
 
       {!!inspection.excerpt && (
@@ -171,7 +150,6 @@ export const SanityPreview: FC<{ maximumCharacters?: number }> = () => {
       {/* The article exactly as it will appear once published - images,
           callouts and lists included. Approving a post means seeing the post. */}
       <SanityArticle blocks={inspection.body} />
-
     </div>
   );
 };

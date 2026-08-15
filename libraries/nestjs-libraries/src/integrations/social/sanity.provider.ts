@@ -182,7 +182,7 @@ export class SanityProvider extends SocialAbstract implements SocialProvider {
     title: 'Connect your Sanity project',
     steps: [
       'Open [sanity.io/manage](https://www.sanity.io/manage) and click the project your blog comes from.',
-      'Paste that page\'s address into Project below — or just the id at the end of it.',
+      'Copy the Project ID from that page - it is the short code at the end of the address - and paste it below.',
       'Dataset is usually "production".',
       'In the same project open API → Tokens → Add API token, give it the **Editor** role, and paste it below. Sanity shows it once. Viewer connects but then fails when a post is due.',
     ],
@@ -202,12 +202,10 @@ export class SanityProvider extends SocialAbstract implements SocialProvider {
     return [
       {
         key: 'projectId',
-        // Accepts the manage URL as well as a bare id: the URL is what the user
-        // already has on screen, and the id is the last segment of it.
-        label: 'Project',
-        validation: `/^(https?:\\/\\/[^\\s]*\\/)?[a-z0-9-]{3,}\\/?$/`,
+        label: 'Project ID',
+        validation: `/^[a-z0-9-]{3,}$/`,
         type: 'text' as const,
-        hint: 'e.g. https://www.sanity.io/manage/project/abc12xyz - or just abc12xyz',
+        hint: 'The short id on your project page, e.g. abc12xyz',
       },
       {
         key: 'dataset',
@@ -407,7 +405,9 @@ export class SanityProvider extends SocialAbstract implements SocialProvider {
       }
 
       if (response.status === 404) {
-        return `Sanity could not find the dataset "${dataset}" in project "${projectId}". Check both values.`;
+        // The commonest cause is a Project ID that is not one: a path segment
+        // off the end of a pasted URL, for instance.
+        return `Sanity has no project "${projectId}" with a dataset called "${dataset}". The Project ID is the short code on your project page, e.g. abc12xyz - not part of a URL.`;
       }
 
       return `Sanity returned an unexpected error (HTTP ${response.status}).`;

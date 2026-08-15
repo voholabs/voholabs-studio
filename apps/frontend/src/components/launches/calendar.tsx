@@ -1142,8 +1142,13 @@ const CalendarItem: FC<{
     }
 
     // Opened up front so the browser attributes the tab to the click; the
-    // destination is filled in once the document has been resolved.
-    const tab = window.open('', '_blank', 'noopener,noreferrer');
+    // destination is filled in once the document has been resolved. Passing
+    // 'noopener' here would make window.open return null and strand the tab on
+    // about:blank, so the opener is cleared afterwards instead.
+    const tab = window.open('', '_blank');
+    if (tab) {
+      tab.opener = null;
+    }
     const document = await sanityLookup.resolve();
     const destination =
       document?.status === 'published' && document?.liveUrl

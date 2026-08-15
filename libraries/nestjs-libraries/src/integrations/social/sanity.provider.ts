@@ -985,6 +985,158 @@ export class SanityProvider extends SocialAbstract implements SocialProvider {
    * `text`. Walking for that shape works against any schema without being told
    * the field name.
    */
+  /**
+   * The article as a list of things to draw, rather than as flattened text.
+   *
+   * A body is Portable Text: paragraphs and headings, bullet lists, and
+   * whatever custom objects the schema mixes in - images with captions,
+   * callouts, embeds. Flattening it to paragraphs loses exactly the parts a
+   * reviewer needs to see, so each block is carried through in a shape the
+   * preview can render, and anything unrecognised is skipped rather than
+   * guessed at.
+   */
+  private renderBody(credentials: SanityCredentials, document: any) {
+    const source = this.findPortableText(document);
+    if (!source) {
+      return [];
+    }
+
+    const blocks: any[] = [];
+
+    const spansOf = (block: any) =>
+      (block?.children || [])
+        .filter((child: any) => (child?.text || '').length)
+        .map((child: any) => {
+          const marks: string[] = child?.marks || [];
+          const link = (block?.markDefs || []).find(
+            (def: any) => marks.includes(def?._key) && def?.href
+          );
+
+          return {
+            text: child.text,
+            bold: marks.includes('strong'),
+            italic: marks.includes('em'),
+            code: marks.includes('code'),
+            href: link?.href,
+          };
+        });
+
+    for (const block of source) {
+      if (!block || typeof block !== 'object') {
+        continue;
+      }
+
+      if (block._type === 'block') {
+        const spans = spansOf(block);
+        if (!spans.length) {
+          continue;
+        }
+
+        // Consecutive list items are one list, the way they read on the page.
+        if (block.listItem) {
+          const previous = blocks[blocks.length - 1];
+          const ordered = block.listItem === 'number';
+
+          if (previous?.kind === 'list' && previous.ordered === ordered) {
+            previous.items.push(spans);
+          } else {
+            blocks.push({ kind: 'list', ordered, items: [spans] });
+          }
+
+          continue;
+        }
+
+        const heading = String(block.style || '').match(/^h([1-6])$/);
+        blocks.push(
+          heading
+            ? {
+                kind: 'heading',
+                level: Number(heading[1]),
+                text: spans.map((s: any) => s.text).join(''),
+              }
+            : block.style === 'blockquote'
+            ? { kind: 'quote', spans }
+            : { kind: 'paragraph', spans }
+        );
+
+        continue;
+      }
+
+      // A mid-article image, the thing most often lost when a body is
+      // flattened - charts and diagrams carry the argument in these posts.
+      const image = this.extractImage(credentials, block);
+      if (image) {
+        blocks.push({
+          kind: 'image',
+          url: image,
+          alt: block.alt || '',
+          caption: block.caption || '',
+        });
+        continue;
+      }
+
+      // Callouts and similar: a labelled box holding a line of prose.
+      const text =
+        typeof block.body === 'string'
+          ? block.body
+          : typeof block.text === 'string'
+          ? block.text
+          : '';
+
+      if (text) {
+        blocks.push({
+          kind: 'callout',
+          style: String(block.style || block._type || 'note'),
+          text,
+        });
+        continue;
+      }
+
+      // An embed: something that lives elsewhere and is linked to.
+      if (typeof block.url === 'string' && block.url.startsWith('http')) {
+        blocks.push({
+          kind: 'embed',
+          provider: String(block._type || 'link'),
+          url: block.url,
+          caption: block.caption || '',
+        });
+      }
+    }
+
+    return blocks;
+  }
+
+  /** The first array in the document that looks like Portable Text. */
+  private findPortableText(value: any, depth = 0): any[] | undefined {
+    if (!value || typeof value !== 'object' || depth > 8) {
+      return undefined;
+    }
+
+    if (Array.isArray(value)) {
+      if (
+        value.some(
+          (item) => item && typeof item === 'object' && item._type === 'block'
+        )
+      ) {
+        return value;
+      }
+
+      for (const item of value) {
+        const found = this.findPortableText(item, depth + 1);
+        if (found) return found;
+      }
+
+      return undefined;
+    }
+
+    for (const child of Object.values(value)) {
+      const found = this.findPortableText(child, depth + 1);
+      if (found) return found;
+    }
+
+    return undefined;
+  }
+
   private extractText(value: any, out: string[] = [], depth = 0): string[] {
     if (!value || typeof value !== 'object' || depth > 8) {
       return out;
@@ -1134,7 +1286,7 @@ export class SanityProvider extends SocialAbstract implements SocialProvider {
         hasUnpublishedChanges: false,
         updatedAt: '',
         excerpt: '',
-        body: '',
+        body: [] as any[],
         image: '',
         liveUrl: '',
         editUrl: '',
@@ -1203,7 +1355,9 @@ export class SanityProvider extends SocialAbstract implements SocialProvider {
       excerpt: typeof excerpt === 'string' ? excerpt : '',
       // The whole article, so it can be read and approved in Studio without a
       // trip to Sanity. Capped so one enormous post cannot bloat the response.
-      body: this.extractText(subject).join('\n\n').slice(0, 40000),
+      // The article as blocks, so the review card can draw it the way it will
+      // appear - images, callouts and lists included.
+      body: this.renderBody(credentials, subject),
       image: this.extractImage(credentials, subject),
       // Only a published post has somewhere to be read.
       liveUrl: published && subject?.slug?.current
@@ -1252,7 +1406,7 @@ export class SanityProvider extends SocialAbstract implements SocialProvider {
         hasUnpublishedChanges: false,
         updatedAt: '',
         excerpt: '',
-        body: '',
+        body: [] as any[],
         image: '',
         liveUrl: '',
         editUrl: '',

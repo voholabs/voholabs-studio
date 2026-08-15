@@ -6,6 +6,10 @@ import { useIntegration } from '@gitroom/frontend/components/launches/helpers/us
 import { useSettings } from '@gitroom/frontend/components/launches/helpers/use.values';
 import { useCustomProviderFunction } from '@gitroom/frontend/components/launches/helpers/use.custom.provider.function';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
+import {
+  SanityArticle,
+  SanityBlock,
+} from '@gitroom/frontend/components/new-launch/providers/sanity/sanity.article';
 
 type SanityInspection = {
   ok: boolean;
@@ -17,7 +21,7 @@ type SanityInspection = {
   hasUnpublishedChanges: boolean;
   updatedAt: string;
   excerpt: string;
-  body: string;
+  body: SanityBlock[];
   image: string;
   liveUrl: string;
   editUrl: string;
@@ -100,7 +104,7 @@ export const SanityPreview: FC<{ maximumCharacters?: number }> = () => {
           hasUnpublishedChanges: false,
           updatedAt: '',
           excerpt: '',
-          body: '',
+          body: [],
           image: '',
           liveUrl: '',
           editUrl: '',
@@ -164,26 +168,9 @@ export const SanityPreview: FC<{ maximumCharacters?: number }> = () => {
         </div>
       )}
 
-      {/* The article itself, so it can be read and approved here. Going to
-          Sanity is for editing, not for finding out what the post says. */}
-      {!!inspection.body && (
-        <div className="flex flex-col gap-[10px] text-[14px] leading-[1.6] text-textColor/90">
-          {inspection.body.split('\n\n').map((paragraph, index) =>
-            paragraph.startsWith('### ') ? (
-              <h3
-                key={index}
-                className="text-[16px] font-[600] text-textColor pt-[6px]"
-              >
-                {paragraph.slice(4)}
-              </h3>
-            ) : (
-              <p key={index} className="whitespace-pre-line">
-                {paragraph}
-              </p>
-            )
-          )}
-        </div>
-      )}
+      {/* The article exactly as it will appear once published - images,
+          callouts and lists included. Approving a post means seeing the post. */}
+      <SanityArticle blocks={inspection.body} />
 
     </div>
   );

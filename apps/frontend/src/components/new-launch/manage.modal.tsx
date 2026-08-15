@@ -77,6 +77,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
     setSelectedIntegrations,
     locked,
     current,
+    setCurrent,
     activateExitButton,
     setHide,
   } = useLaunchStore(
@@ -92,6 +93,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
       setTags: state.setTags,
       selectedIntegrations: state.selectedIntegrations,
       integrations: state.integrations,
+      setCurrent: state.setCurrent,
       setSelectedIntegrations: state.setSelectedIntegrations,
       locked: state.locked,
       activateExitButton: state.activateExitButton,
@@ -103,6 +105,43 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
       setHide(false);
     }
   }, [hide]);
+
+  // A channel that declares no editor keeps its content elsewhere (Sanity), so
+  // its settings are the entire post - picking the document is the only thing
+  // to do here. Two consequences, both about not showing an empty modal:
+  //
+  // 1. The shared tab has nothing to offer when every channel in the post is
+  //    editor-less, so open on the channel's own tab instead. Callers can pass
+  //    focusedChannel, but the channel menu's "Create a new post" does not, so
+  //    it is handled here rather than at each entry point. Once only, so it
+  //    never fights a user who deliberately clicks back to the shared tab.
+  // 2. The picker lives in the settings panel, which is collapsed by default -
+  //    fine when an editor fills the screen, useless when there isn't one.
+  const focusedEditorless = useRef(false);
+
+  useEffect(() => {
+    if (focusedEditorless.current || current !== 'global') {
+      return;
+    }
+
+    if (
+      selectedIntegrations.length &&
+      selectedIntegrations.every((p) => p.integration.editor === 'none')
+    ) {
+      focusedEditorless.current = true;
+      setCurrent(selectedIntegrations[0].integration.id);
+    }
+  }, [current, selectedIntegrations]);
+
+  useEffect(() => {
+    if (current === 'global') {
+      return;
+    }
+
+    if (integrations.find((p) => p.id === current)?.editor === 'none') {
+      setShowSettings(true);
+    }
+  }, [current, integrations]);
 
   const currentIntegrationText = useMemo(() => {
     if (current === 'global') {

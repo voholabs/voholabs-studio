@@ -357,6 +357,22 @@ export const EditorWrapper: FC<{
     return null;
   }
 
+  // A channel that declares no editor keeps its content somewhere else - Sanity
+  // holds the article, and the post here is only a reference to it. Showing an
+  // editor would invite writing that is thrown away, and would put the internal
+  // reference marker on screen as if it were the post. The shared tab keeps its
+  // editor only while something in the post actually uses it.
+  const everyChannelEditorless =
+    selectedIntegration.length > 0 &&
+    selectedIntegration.every((p) => p.integration.editor === 'none');
+
+  if (
+    (editor === 'none' && current !== 'global') ||
+    (current === 'global' && everyChannelEditorless)
+  ) {
+    return null;
+  }
+
   return (
     <div
       className={clsx(

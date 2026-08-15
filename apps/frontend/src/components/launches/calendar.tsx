@@ -56,6 +56,7 @@ import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
 import { useVariables } from '@gitroom/react/helpers/variable.context';
 import copy from 'copy-to-clipboard';
 import { stripHtmlValidation } from '@gitroom/helpers/utils/strip.html.validation';
+import { useSanityDocumentFor } from '@gitroom/frontend/components/launches/sanity.post.label';
 import { newDayjs } from '@gitroom/frontend/components/layout/set.timezone';
 import { Button } from '@gitroom/react/form/button';
 import { ReviewPostCard } from '@gitroom/frontend/components/launches/review.post.card';
@@ -1102,6 +1103,15 @@ const CalendarItem: FC<{
   };
 }> = memo((props) => {
   const t = useT();
+  // A blog post sits in the calendar next to every other channel, so it has to
+  // read like one: its stored body is only a reference into Sanity, and the
+  // title is resolved live.
+  const sanityLookup = useSanityDocumentFor(props.post as any);
+  // Set only for documents that exist in Sanity but have no post here yet.
+  const isSanityDocument = !!(props.post as any)?.sanityDocument;
+  const sanityLabel = sanityLookup
+    ? sanityLookup.document?.title || 'Blog post'
+    : undefined;
   const {
     editPost,
     statistics,
@@ -1122,9 +1132,28 @@ const CalendarItem: FC<{
     user?.impersonate &&
     post.creationMethod &&
     post.creationMethod !== 'UNKNOWN';
-  const preview = useCallback(() => {
-    window.open(`/p/` + post.id + '?share=true', '_blank');
-  }, [post]);
+  const preview = useCallback(async () => {
+    // A blog post is not previewed on a share page of ours: once published it
+    // has a page on the site, and before that the only place to see it is
+    // Sanity. Same rule as the review feed.
+    if (!sanityLookup) {
+      window.open(`/p/` + post.id + '?share=true', '_blank');
+      return;
+    }
+
+    // Opened up front so the browser attributes the tab to the click; the
+    // destination is filled in once the document has been resolved.
+    const tab = window.open('', '_blank', 'noopener,noreferrer');
+    const document = await sanityLookup.resolve();
+    const destination =
+      document?.status === 'published' && document?.liveUrl
+        ? document.liveUrl
+        : document?.editUrl;
+
+    if (tab) {
+      tab.location.href = destination || `/p/${post.id}?share=true`;
+    }
+  }, [post, sanityLookup]);
   const [{ opacity }, dragRef] = useDrag(
     () => ({
       type: 'post',
@@ -1209,15 +1238,19 @@ const CalendarItem: FC<{
             <CopyDebug />
           </div>
         )}
-        <div
-          className={clsx(
-            'hidden group-hover:block hover:underline cursor-pointer',
-            post?.tags?.[0]?.tag?.color && 'mix-blend-difference'
-          )}
-          onClick={duplicatePost}
-        >
-          <Duplicate />
-        </div>
+        {/* A Sanity document that is not scheduled has no post of ours to
+            duplicate or delete - both actions run against an empty group. */}
+        {!isSanityDocument && (
+          <div
+            className={clsx(
+              'hidden group-hover:block hover:underline cursor-pointer',
+              post?.tags?.[0]?.tag?.color && 'mix-blend-difference'
+            )}
+            onClick={duplicatePost}
+          >
+            <Duplicate />
+          </div>
+        )}
         <div
           className={clsx(
             'hidden group-hover:block hover:underline cursor-pointer',
@@ -1252,18 +1285,20 @@ const CalendarItem: FC<{
         ) : (
           <></>
         )}{' '}
-        <div
-          className={clsx(
-            'hidden group-hover:block hover:underline cursor-pointer',
-            post?.tags?.[0]?.tag?.color && 'mix-blend-difference'
-          )}
-          onClick={deletePost}
-        >
-          <DeletePost />
-        </div>
+        {!isSanityDocument && (
+          <div
+            className={clsx(
+              'hidden group-hover:block hover:underline cursor-pointer',
+              post?.tags?.[0]?.tag?.color && 'mix-blend-difference'
+            )}
+            onClick={deletePost}
+          >
+            <DeletePost />
+          </div>
+        )}
       </div>
       <div
-        onClick={editPost}
+        onClick={isSanityDocument ? preview : editPost}
         className={clsx(
           'gap-[5px] w-full flex h-full flex-1 rounded-br-[10px] rounded-bl-[10px] p-[8px] text-[14px] bg-newColColor',
           'relative',
@@ -1282,11 +1317,20 @@ const CalendarItem: FC<{
         </div>
         <div className="w-full flex-1 flex flex-col min-h-[40px]">
           <div className="text-start">
-            {state === 'DRAFT' ? t('draft', 'Draft') + ': ' : ''}
+            {/* A row for a document that lives in Sanity and is not scheduled
+                looks identical to a scheduled post otherwise. */}
+            {isSanityDocument
+              ? state === 'DRAFT'
+                ? t('blog_draft', 'Blog draft') + ': '
+                : t('blog', 'Blog') + ': '
+              : state === 'DRAFT'
+              ? t('draft', 'Draft') + ': '
+              : ''}
           </div>
             <div className="w-full relative">
               <div className="absolute top-0 start-0 w-full text-ellipsis break-words line-clamp-1 text-start">
-                {stripHtmlValidation('none', post.content, false, true, false) ||
+                {sanityLabel ||
+                  stripHtmlValidation('none', post.content, false, true, false) ||
                   t('no_content', 'no content')}
               </div>
             </div>

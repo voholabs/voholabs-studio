@@ -245,6 +245,23 @@ export const Menu: FC<{
     [integrations]
   );
 
+  // Writing is not ours to offer for a CMS-backed channel: the article lives in
+  // Sanity and is authored there (or by an agent through the Sanity MCP). So
+  // this channel gets a way out to Sanity instead of a "Create Post" that would
+  // imply Voholabs Studio can write it.
+  const writeInSanity = useCallback(async () => {
+    setShow(false);
+
+    const { url } = await (
+      await fetch('/integrations/function', {
+        method: 'POST',
+        body: JSON.stringify({ name: 'studioLink', id, data: {} }),
+      })
+    ).json();
+
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }, [id]);
+
   const changeBotPicture = useCallback(() => {
     const findIntegration = integrations.find(
       (integration) => integration.id === id
@@ -358,7 +375,38 @@ export const Menu: FC<{
           style={{ left: show.x, top: show.y }}
           className={`fixed p-[12px] bg-newBgColorInner shadow-menu flex flex-col gap-[16px] z-[100] rounded-[8px] border border-tableBorder text-nowrap`}
         >
-          {canDisable && !findIntegration?.refreshNeeded && (
+          {canDisable &&
+            !findIntegration?.refreshNeeded &&
+            findIntegration?.identifier === 'sanity' && (
+              <div
+                className="flex gap-[12px] items-center py-[8px] px-[10px]"
+                onClick={writeInSanity}
+              >
+                <div>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 32 32"
+                    fill="none"
+                  >
+                    <path
+                      d="M18 4H8a2 2 0 0 0-2 2v20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V12M18 4l8 8M18 4v8h8"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </div>
+                <div className="text-[14px]">
+                  {t('write_in_sanity', 'Write in Sanity')}
+                </div>
+              </div>
+            )}
+          {canDisable &&
+            !findIntegration?.refreshNeeded &&
+            findIntegration?.identifier !== 'sanity' && (
             <div
               className="flex gap-[12px] items-center py-[8px] px-[10px]"
               onClick={createPost(findIntegration!)}

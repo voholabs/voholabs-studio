@@ -23,6 +23,7 @@ import useCookie from 'react-use-cookie';
 import { newDayjs } from '@gitroom/frontend/components/layout/set.timezone';
 import { timer } from '@gitroom/helpers/utils/timer';
 import { expandPostsList, expandPosts } from '@gitroom/helpers/utils/posts.list.minify';
+import { useSanityFeedItems } from '@gitroom/frontend/components/launches/sanity.feed';
 extend(isoWeek);
 extend(weekOfYear);
 
@@ -311,7 +312,26 @@ export const CalendarWeekProvider: FC<{
   const comments = useMemo(() => calendarData?.comments || [], [calendarData?.comments]);
 
   // List view data
-  const listPosts = useMemo(() => listData?.posts || [], [listData?.posts]);
+  const realListPosts = useMemo(() => listData?.posts || [], [listData?.posts]);
+
+  // Blog posts that exist in Sanity but are not scheduled yet have no row of
+  // their own, so they are merged in here - once, at the source - and every
+  // feed that reads listPosts shows them alongside real posts.
+  const sanityItems = useSanityFeedItems(
+    integrations,
+    realListPosts,
+    listState
+  );
+
+  const listPosts = useMemo(
+    () =>
+      [...realListPosts, ...sanityItems].sort((a, b) =>
+        listState === 'published'
+          ? String(b.publishDate).localeCompare(String(a.publishDate))
+          : String(a.publishDate).localeCompare(String(b.publishDate))
+      ),
+    [realListPosts, sanityItems, listState]
+  );
   const listTotal = listData?.total || 0;
   const listTotalPages = Math.ceil(listTotal / listLimit);
 

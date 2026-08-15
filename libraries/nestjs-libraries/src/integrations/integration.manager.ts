@@ -37,6 +37,7 @@ import { SkoolProvider } from '@gitroom/nestjs-libraries/integrations/social/sko
 import { WhopProvider } from '@gitroom/nestjs-libraries/integrations/social/whop.provider';
 import { MeweProvider } from '@gitroom/nestjs-libraries/integrations/social/mewe.provider';
 import { TumblrProvider } from '@gitroom/nestjs-libraries/integrations/social/tumblr.provider';
+import { SanityProvider } from '@gitroom/nestjs-libraries/integrations/social/sanity.provider';
 
 export const socialIntegrationList: Array<SocialAbstract & SocialProvider> = [
   new XProvider(),
@@ -73,6 +74,7 @@ export const socialIntegrationList: Array<SocialAbstract & SocialProvider> = [
   new SkoolProvider(),
   new MeweProvider(),
   new TumblrProvider(),
+  new SanityProvider(),
   // new MastodonCustomProvider(),
 ];
 
@@ -93,6 +95,9 @@ export class IntegrationManager {
             ? { extensionCookies: p.extensionCookies }
             : {}),
           ...(p.customFields ? { customFields: await p.customFields() } : {}),
+          ...(p.customFieldsSetup
+            ? { customFieldsSetup: p.customFieldsSetup }
+            : {}),
         }))
       ),
       article: [] as any[],

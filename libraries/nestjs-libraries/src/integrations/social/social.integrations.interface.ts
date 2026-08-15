@@ -124,7 +124,7 @@ export interface ISocialMediaIntegration {
   ): Promise<string | undefined>;
 
   // Removes an already-published post from the platform itself. Deleting a post
-  // in Postiz only clears our own calendar, so this is what actually takes the
+  // in Voholabs Studio only clears our own calendar, so this is what actually takes the
   // message down. Optional: providers with no delete endpoint simply omit it.
   // `postId` is the platform id we stored as releaseId; `post` carries the
   // saved settings and the release URL, which is where a provider can recover
@@ -202,8 +202,22 @@ export interface SocialProvider
       validation: string;
       type: 'text' | 'password';
       hint?: string;
+      // Blank is allowed. Without this every field is required, which is wrong
+      // for anything the integration can work out for itself.
+      optional?: boolean;
     }[]
   >;
+  // Shown above the customFields form when connecting. A per-field `hint` is a
+  // tooltip and is easy to miss; a provider whose credentials have to be
+  // created by hand somewhere else needs the whole procedure visible before the
+  // user starts typing. A link `url` may contain `{fieldKey}` placeholders,
+  // which are filled in from what has been typed so far - that turns a generic
+  // "go to your dashboard" into a link straight to the right project.
+  customFieldsSetup?: {
+    title: string;
+    steps: string[];
+    links?: { label: string; url: string }[];
+  };
   name: string;
   toolTip?: string;
   oneTimeToken?: boolean;

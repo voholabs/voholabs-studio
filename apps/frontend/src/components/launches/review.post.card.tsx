@@ -26,6 +26,11 @@ import { isUSCitizen } from '@gitroom/frontend/components/launches/helpers/isusc
 import { CreationMethodBadge } from '@gitroom/frontend/components/launches/creation.method.badge';
 import { ReviewedCheckIcon } from '@gitroom/frontend/components/launches/reviewed.checkbox';
 import { stripHtmlValidation } from '@gitroom/helpers/utils/strip.html.validation';
+import { useSanityDocumentFor } from '@gitroom/frontend/components/launches/sanity.post.label';
+import dayjs from 'dayjs';
+import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
+import { useModals } from '@gitroom/frontend/components/layout/new-modal';
+import { AddEditModal } from '@gitroom/frontend/components/new-launch/add.edit.modal';
 
 /**
  * Past this the card collapses and offers to expand. A page of the feed is 25
@@ -240,7 +245,33 @@ export const ReviewPostCard: FC<{
   const ref = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const near = useNearViewport(ref);
-  const { data, isLoading } = usePostGroup(post.group, near);
+  // A Sanity document that is not scheduled has no post group, so asking for
+  // one is a guaranteed 500 - once per card, on every page of the feed.
+  const { data: fetchedData, isLoading } = usePostGroup(
+    post.group,
+    near && !post.sanityDocument
+  );
+
+  // A Sanity document that is not scheduled has no post group to fetch - the
+  // reference it carries is everything the preview needs, and the preview reads
+  // the rest live from Sanity.
+  const isSanityDocument = !!post.sanityDocument;
+  // Scheduled blog posts are Sanity's too - previewing one should not land on
+  // an internal share page.
+  const isSanityChannel =
+    isSanityDocument ||
+    post.integration?.providerIdentifier === 'sanity' ||
+    post.integration?.identifier === 'sanity';
+  const data = useMemo(() => {
+    if (!isSanityDocument) {
+      return fetchedData;
+    }
+
+    return {
+      posts: [{ id: post.id, content: post.content, image: [] }],
+      settings: { documentId: post.sanityDocument.id },
+    };
+  }, [isSanityDocument, fetchedData, post]);
 
   // Ticked optimistically — the feed only catches up on its next revalidation
   // and waiting for that makes the checkbox feel broken.
@@ -277,6 +308,133 @@ export const ReviewPostCard: FC<{
     },
     [fetch, post.id, onReviewed, toaster, t]
   );
+
+  const modal = useModals();
+
+  // Works for both a scheduled blog post and a document that is not scheduled -
+  // either way the truth lives in Sanity.
+  const sanityLookup = useSanityDocumentFor(post);
+
+  /**
+   * Where "preview" should take you for a blog post. A published article has a
+   * page on the site, and that is what previewing it means. Anything not yet
+   * published has no page, so the only place to see and fix it is Sanity.
+   */
+  const sanityStatus =
+    sanityLookup?.document?.status || post.sanityDocument?.status;
+
+  const openSanityPreview = useCallback(async () => {
+    // Opened up front so the browser attributes the tab to the click, then
+    // pointed once the document is known - the list may not have arrived yet.
+    const tab = window.open('', '_blank', 'noopener,noreferrer');
+
+    const document =
+      post.sanityDocument ||
+      sanityLookup?.document ||
+      (await sanityLookup?.resolve());
+
+    const destination =
+      document?.status === 'published' && document?.liveUrl
+        ? document.liveUrl
+        : document?.editUrl;
+
+    if (tab) {
+      if (destination) {
+        tab.location.href = destination;
+      } else {
+        tab.close();
+      }
+    }
+  }, [sanityLookup, post]);
+
+  const scheduleSanityDocument = useCallback(async () => {
+    const { date } = await (
+      await fetch(`/posts/find-slot/${post.integration.id}`)
+    ).json();
+
+    modal.openModal({
+      id: 'add-edit-modal',
+      closeOnClickOutside: false,
+      removeLayout: true,
+      closeOnEscape: false,
+      withCloseButton: false,
+      askClose: true,
+      fullScreen: true,
+      classNames: { modal: 'w-[100%] max-w-[1400px] text-textColor' },
+      children: (
+        <AddEditModal
+          allIntegrations={integrations.map((p) => ({ ...p }))}
+          reopenModal={() => {}}
+          mutate={() => onReviewed?.()}
+          integrations={integrations}
+          focusedChannel={post.integration.id}
+          set={{
+            posts: [
+              {
+                integration: { id: post.integration.id },
+                settings: {
+                  __type: 'sanity',
+                  documentId: post.sanityDocument.id,
+                },
+                value: [
+                  { content: `sanity:${post.sanityDocument.id}`, media: [] },
+                ],
+              },
+            ],
+          }}
+          date={date ? dayjs.utc(date).local() : newDayjs()}
+        />
+      ),
+      size: '80%',
+      title: ``,
+    });
+  }, [post, integrations, modal, fetch, onReviewed]);
+
+  const deleteSanityDocument = useCallback(async () => {
+    const published = post.sanityDocument.status === 'published';
+
+    if (
+      !(await deleteDialog(
+        `${post.sanityDocument.title || post.sanityDocument.id} — ${
+          published
+            ? t(
+                'sanity_delete_published',
+                'This unpublishes it in Sanity. The draft is kept, so nothing you wrote is lost.'
+              )
+            : t(
+                'sanity_delete_draft',
+                'This deletes the draft in Sanity and cannot be undone.'
+              )
+        }`,
+        t('yes_delete_it', 'Yes, delete it!'),
+        t('delete_blog_post', 'Delete blog post')
+      ))
+    ) {
+      return;
+    }
+
+    const result = await (
+      await fetch('/integrations/function', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: 'deleteDocument',
+          id: post.integration.id,
+          data: { documentId: post.sanityDocument.id },
+        }),
+      })
+    ).json();
+
+    if (!result || result.success === false) {
+      toaster.show(
+        result?.error ||
+          t('sanity_delete_failed', 'Sanity refused to delete this post'),
+        'warning'
+      );
+      return;
+    }
+
+    onReviewed?.();
+  }, [post, fetch, toaster, onReviewed, t]);
 
   const [expanded, setExpanded] = useState(false);
   const contentHeight = useMeasuredHeight(bodyRef, data);
@@ -352,7 +510,18 @@ export const ReviewPostCard: FC<{
             {integration.name}
           </div>
           <div className="text-[12px] text-textColor/60 whitespace-nowrap">
-            {time} <span className="opacity-40">•</span> {fromNow}
+            {/* An unscheduled document has no publish time - the date on it is
+                when it last changed, and showing that as a clock time reads as
+                a schedule that does not exist. */}
+            {isSanityDocument ? (
+              <>
+                {t('updated', 'Updated')} {fromNow}
+              </>
+            ) : (
+              <>
+                {time} <span className="opacity-40">•</span> {fromNow}
+              </>
+            )}
           </div>
         </div>
 
@@ -362,7 +531,9 @@ export const ReviewPostCard: FC<{
               {t('next_up', 'Next up')}
             </Badge>
           )}
-          {post.state === 'DRAFT' && (
+          {/* A blog card carries its own Draft / Published pill from Sanity,
+              so the generic state badge would say it twice. */}
+          {post.state === 'DRAFT' && !isSanityDocument && (
             <Badge className="bg-newTableBorder">{t('draft', 'Draft')}</Badge>
           )}
           {post.state === 'ERROR' && (
@@ -397,28 +568,70 @@ export const ReviewPostCard: FC<{
         </div>
 
         <div className="flex items-center gap-[6px] text-textColor">
+          {/* Nothing has been scheduled yet, so there is no post to mark as
+              reviewed and nothing of ours to edit - the actions are "give it a
+              time" and "take it down in Sanity". */}
+          {!isSanityDocument && (
+            <ReviewAction
+              onClick={() => toggleReviewed(!reviewed)}
+              active={reviewed}
+              label={
+                reviewed
+                  ? t('reviewed_click_to_undo', 'Reviewed — click to undo')
+                  : t('mark_as_reviewed', 'Mark as reviewed')
+              }
+            >
+              <ReviewedCheckIcon size={16} />
+            </ReviewAction>
+          )}
           <ReviewAction
-            onClick={() => toggleReviewed(!reviewed)}
-            active={reviewed}
+            onClick={isSanityChannel ? openSanityPreview : preview}
             label={
-              reviewed
-                ? t('reviewed_click_to_undo', 'Reviewed — click to undo')
-                : t('mark_as_reviewed', 'Mark as reviewed')
+              !isSanityChannel
+                ? t('preview_post', 'Preview Post')
+                : sanityStatus === 'published'
+                ? t('view_live_post', 'View the live post')
+                : t('open_in_sanity', 'Open in Sanity')
             }
-          >
-            <ReviewedCheckIcon size={16} />
-          </ReviewAction>
-          <ReviewAction
-            onClick={preview}
-            label={t('preview_post', 'Preview Post')}
           >
             <PreviewIcon />
           </ReviewAction>
-          <ReviewAction onClick={editPost} label={t('edit_post', 'Edit Post')}>
-            <EditIcon />
-          </ReviewAction>
+          {/* Already live and unchanged since - there is nothing left to
+              publish, so offering to schedule it again is a trap. A published
+              post with edits waiting is a different matter. */}
+          {isSanityDocument &&
+            (post.sanityDocument.status !== 'published' ||
+              post.sanityDocument.hasUnpublishedChanges) && (
+              <div
+                onClick={scheduleSanityDocument}
+                className="text-[12px] font-[600] px-[10px] py-[5px] rounded-[6px] bg-forth text-white cursor-pointer"
+              >
+                {post.sanityDocument.hasUnpublishedChanges
+                  ? t('schedule_update', 'Schedule update')
+                  : t('schedule', 'Schedule')}
+              </div>
+            )}
+          {isSanityDocument && !!post.sanityDocument.editUrl && (
+            <ReviewAction
+              onClick={() =>
+                window.open(
+                  post.sanityDocument.editUrl,
+                  '_blank',
+                  'noopener,noreferrer'
+                )
+              }
+              label={t('edit_in_sanity', 'Edit in Sanity')}
+            >
+              <EditIcon />
+            </ReviewAction>
+          )}
+          {!isSanityDocument && (
+            <ReviewAction onClick={editPost} label={t('edit_post', 'Edit Post')}>
+              <EditIcon />
+            </ReviewAction>
+          )}
           <ReviewAction
-            onClick={deletePost}
+            onClick={isSanityDocument ? deleteSanityDocument : deletePost}
             label={t('delete_post', 'Delete Post')}
             danger={true}
           >
@@ -438,7 +651,11 @@ export const ReviewPostCard: FC<{
         <div ref={bodyRef}>
           {!near || isLoading ? (
             <div className="text-[13px] text-textColor/50 px-[5px] py-[15px] line-clamp-2">
-              {stripHtmlValidation('none', post.content, false, true, false) ||
+              {/* A blog post's stored body is a reference, not prose - showing
+                  it while loading flashes "sanity:abc123" at the reader. */}
+              {(isSanityChannel
+                ? ''
+                : stripHtmlValidation('none', post.content, false, true, false)) ||
                 t('loading', 'Loading...')}
             </div>
           ) : !data?.posts?.length ? (
@@ -453,7 +670,7 @@ export const ReviewPostCard: FC<{
         {collapsed && (
           <div
             onClick={() => setExpanded(true)}
-            className="absolute start-0 bottom-0 w-full pt-[60px] pb-[10px] flex justify-center cursor-pointer bg-gradient-to-b from-transparent to-newColColor"
+            className="absolute start-0 bottom-0 w-full pt-[120px] pb-[10px] flex justify-center cursor-pointer bg-gradient-to-b from-transparent to-newColColor"
           >
             <div className="text-[12px] font-[500] px-[12px] py-[5px] rounded-[6px] bg-newTableBorder hover:bg-boxFocused hover:text-textItemFocused transition-all">
               {t('show_full_post', 'Show full post')}

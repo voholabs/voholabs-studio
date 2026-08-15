@@ -40,6 +40,7 @@ import SkoolProvider from '@gitroom/frontend/components/new-launch/providers/sko
 import WhopProvider from '@gitroom/frontend/components/new-launch/providers/whop/whop.provider';
 import MeweProvider from '@gitroom/frontend/components/new-launch/providers/mewe/mewe.provider';
 import TumblrProvider from '@gitroom/frontend/components/new-launch/providers/tumblr/tumblr.provider';
+import SanityProvider from '@gitroom/frontend/components/new-launch/providers/sanity/sanity.provider';
 
 export const Providers = [
   {
@@ -177,6 +178,10 @@ export const Providers = [
   {
     identifier: 'tumblr',
     component: TumblrProvider,
+  },
+  {
+    identifier: 'sanity',
+    component: SanityProvider,
   },
 ];
 export const ShowAllProviders = forwardRef((props, ref) => {

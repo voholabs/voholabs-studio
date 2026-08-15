@@ -4,7 +4,12 @@ import { useModals } from '@gitroom/frontend/components/layout/new-modal';
 import React, { FC, useCallback, useMemo } from 'react';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { Input } from '@gitroom/react/form/input';
-import { FieldValues, FormProvider, useForm } from 'react-hook-form';
+import {
+  FieldValues,
+  FormProvider,
+  useForm,
+  useWatch,
+} from 'react-hook-form';
 import { Button } from '@gitroom/react/form/button';
 import { classValidatorResolver } from '@hookform/resolvers/class-validator';
 import { ApiKeyDto } from '@gitroom/nestjs-libraries/dtos/integrations/api.key.dto';
@@ -34,6 +39,7 @@ const ENABLED_PROVIDERS = [
   'threads',
   'tiktok',
   'discord',
+  'sanity',
 ];
 
 export const useAddProvider = (update?: () => void, invite?: boolean) => {
@@ -173,6 +179,110 @@ export const UrlModal: FC<{
     </div>
   );
 };
+/**
+ * The "how do I even get these credentials" panel above a customFields form.
+ * A link's url can carry `{fieldKey}` placeholders; it only becomes clickable
+ * once every placeholder has been filled in, so "take me to the token page for
+ * my project" lights up the moment the project id is typed.
+ */
+const CustomVariablesSetup: FC<{
+  setup: {
+    title: string;
+    steps: string[];
+    links?: Array<{ label: string; url: string }>;
+  };
+}> = ({ setup }) => {
+  const values = useWatch() as Record<string, string> | undefined;
+
+  // A field that asks for an id will often be filled by pasting the URL the id
+  // came from, which is the easier thing for the user to do. For building a
+  // link out of it, the last path segment is the id.
+  const identifierOf = (value: string) => {
+    const trimmed = (value || '').trim().replace(/[?#].*$/, '').replace(/\/+$/, '');
+    return trimmed.includes('/') ? trimmed.split('/').pop() || '' : trimmed;
+  };
+
+  const resolveLink = (url: string) => {
+    const placeholders = url.match(/\{(\w+)\}/g) || [];
+    const missing = placeholders.some(
+      (token) => !values?.[token.slice(1, -1)]
+    );
+
+    if (missing) {
+      return null;
+    }
+
+    return url.replace(/\{(\w+)\}/g, (_, key) =>
+      identifierOf(values?.[key] || '')
+    );
+  };
+
+  // Steps are plain text apart from markdown links, so a step can point at the
+  // exact page it is talking about instead of describing how to get there.
+  const renderStep = (step: string) => {
+    const parts = step.split(/(\[[^\]]+\]\([^)]+\))/g);
+
+    return parts.map((part, index) => {
+      const link = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+
+      if (!link) {
+        return <span key={index}>{part}</span>;
+      }
+
+      return (
+        <a
+          key={index}
+          href={link[2]}
+          target="_blank"
+          rel="noreferrer"
+          className="underline text-forth"
+        >
+          {link[1]}
+        </a>
+      );
+    });
+  };
+
+  return (
+    <div className="flex flex-col gap-[10px] p-[14px] rounded-[8px] bg-newTableHeader">
+      <div className="text-[14px] font-[600]">{setup.title}</div>
+      <ol className="flex flex-col gap-[8px] text-[13px] leading-[1.5] text-textColor/80 list-decimal ps-[18px]">
+        {setup.steps.map((step) => (
+          <li key={step}>{renderStep(step)}</li>
+        ))}
+      </ol>
+      {!!setup.links?.length && (
+        <div className="flex gap-[12px] flex-wrap pt-[2px]">
+          {setup.links.map((link) => {
+            const url = resolveLink(link.url);
+
+            return url ? (
+              <a
+                key={link.label}
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-[13px] underline text-forth"
+              >
+                {link.label}
+              </a>
+            ) : (
+              <span
+                key={link.label}
+                className="text-[13px] text-textColor/40"
+                data-tooltip-id="tooltip"
+                data-tooltip-content="Fill in the fields above to enable this link"
+              >
+                {link.label}
+              </span>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const CustomVariables: FC<{
   variables: Array<{
     key: string;
@@ -181,13 +291,19 @@ export const CustomVariables: FC<{
     validation: string;
     type: 'text' | 'password';
     hint?: string;
+    optional?: boolean;
   }>;
+  setup?: {
+    title: string;
+    steps: string[];
+    links?: Array<{ label: string; url: string }>;
+  };
   close?: () => void;
   identifier: string;
   gotoUrl(url: string): void;
   onboarding?: boolean;
 }> = (props) => {
-  const { close, gotoUrl, identifier, variables, onboarding } = props;
+  const { close, gotoUrl, identifier, variables, onboarding, setup } = props;
   const fetch = useFetch();
   const modals = useModals();
   const schema = useMemo(() => {
@@ -198,11 +314,11 @@ export const CustomVariables: FC<{
           splitter.slice(1, -1).join('/'),
           splitter.pop()
         );
+        const rule = string().matches(regex, `${item.label} is invalid`);
+
         return {
           ...aIcc,
-          [item.key]: string()
-            .matches(regex, `${item.label} is invalid`)
-            .required(),
+          [item.key]: item.optional ? rule : rule.required(),
         };
       }, {}),
     });
@@ -246,6 +362,7 @@ export const CustomVariables: FC<{
   return (
     <div className="rounded-[4px] relative">
       <FormProvider {...methods}>
+        {!!setup && <CustomVariablesSetup setup={setup} />}
         <form
           className="gap-[8px] flex flex-col pt-[10px]"
           onSubmit={methods.handleSubmit(submit)}
@@ -409,7 +526,13 @@ export const AddProviderComponent: FC<{
       validation: string;
       type: 'text' | 'password';
       hint?: string;
+      optional?: boolean;
     }>;
+    customFieldsSetup?: {
+      title: string;
+      steps: string[];
+      links?: Array<{ label: string; url: string }>;
+    };
   }>;
   article: Array<{
     identifier: string;
@@ -440,7 +563,13 @@ export const AddProviderComponent: FC<{
           defaultValue?: string;
           type: 'text' | 'password';
           hint?: string;
-        }>
+          optional?: boolean;
+        }>,
+        customFieldsSetup?: {
+          title: string;
+          steps: string[];
+          links?: Array<{ label: string; url: string }>;
+        }
       ) =>
       async () => {
         const onboardingParam = onboarding ? 'onboarding=true' : '';
@@ -660,7 +789,10 @@ export const AddProviderComponent: FC<{
             withCloseButton: true,
             ...(isMobile ? { removeLayout: true, fullScreen: true } : {}),
             classNames: {
-              modal: 'bg-transparent text-textColor',
+              // Without a ceiling the dialog grows to whatever its content is
+              // widest at, and a provider with setup instructions turns it into
+              // a full-width page.
+              modal: 'w-[100%] max-w-[560px] bg-transparent text-textColor',
             },
             children: (
               <div
@@ -670,6 +802,7 @@ export const AddProviderComponent: FC<{
                   identifier={identifier}
                   gotoUrl={(url: string) => router.push(url)}
                   variables={customFields}
+                  setup={customFieldsSetup}
                   onboarding={onboarding}
                 />
               </div>
@@ -722,7 +855,8 @@ export const AddProviderComponent: FC<{
                   item.isExternal,
                   item.isWeb3,
                   item.isChromeExtension,
-                  item.customFields
+                  item.customFields,
+                  item.customFieldsSetup
                 )}
                 {...(!!item.toolTip
                   ? {

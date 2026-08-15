@@ -546,20 +546,30 @@ export const ReviewPostCard: FC<{
           )}
           {/* What this document is and where it stands, read from Sanity and
               shown with the channel rather than buried in the article. */}
+          {/* Filled pills, like "Next up" and the creation-method badge beside
+              them - on this card background an outline or a faint fill reads as
+              plain text rather than as a badge. */}
           {!!sanityDoc?.type && (
-            <Badge className="bg-newTableBorder capitalize">
+            <Badge className="bg-slate-600 text-white capitalize">
               {sanityDoc.type}
             </Badge>
           )}
           {!!sanityDoc && (
-            <Badge className="bg-newTableBorder">
+            <Badge
+              className={clsx(
+                'text-white',
+                sanityDoc.status === 'published'
+                  ? 'bg-emerald-600'
+                  : 'bg-amber-600'
+              )}
+            >
               {sanityDoc.status === 'published'
                 ? t('published', 'Published')
                 : t('draft', 'Draft')}
             </Badge>
           )}
           {!!sanityDoc?.hasUnpublishedChanges && (
-            <Badge className="bg-newTableBorder">
+            <Badge className="bg-sky-600 text-white">
               {t('sanity_unpublished_changes', 'Unpublished changes')}
             </Badge>
           )}

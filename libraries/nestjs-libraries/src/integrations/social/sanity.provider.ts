@@ -814,6 +814,19 @@ export class SanityProvider extends SocialAbstract implements SocialProvider {
     return fields;
   }
 
+  /**
+   * Which field this schema dates its posts with. Taken from what the other
+   * posts of the same type actually use, so a schema calling it `publishDate`
+   * or `date` is stamped in its own terms rather than gaining a stray field.
+   */
+  private async publishDateField(credentials: SanityCredentials, type: string) {
+    const fields = await this.expectedFields(credentials, type);
+    return (
+      PUBLISH_DATE_FIELDS.find((field) => fields.includes(field)) ||
+      'publishedAt'
+    );
+  }
+
   /** Whatever this schema calls the human-readable name of a document. */
   private titleOf(document: any) {
     return (
@@ -1303,7 +1316,13 @@ export class SanityProvider extends SocialAbstract implements SocialProvider {
     // Metadata the rest of this blog's posts carry but this one does not - the
     // SEO block, a cover image, a slug, whatever this schema uses.
     const expected = await this.expectedFields(credentials, subject._type || '');
-    const missing = expected.filter((field) => !this.hasValue(subject[field]));
+    const missing = expected.filter(
+      (field) =>
+        !this.hasValue(subject[field]) &&
+        // The publish date is ours to fill in - it is stamped at the moment the
+        // post actually goes out, so its absence beforehand is expected.
+        !PUBLISH_DATE_FIELDS.includes(field)
+    );
 
     if (missing.length) {
       errors.push(`Missing ${missing.join(', ')}.`);
@@ -1560,9 +1579,21 @@ export class SanityProvider extends SocialAbstract implements SocialProvider {
     // published, so the scheduled publish has nothing to do rather than being a
     // failure the user needs to act on.
     if (draft) {
+      // The post is dated as it goes out. A draft written days ago carries
+      // whatever date it was given then, or none at all - neither is when it
+      // was published. Stamped and published in one transaction so the document
+      // can never be live with the wrong date on it.
+      const dateField = await this.publishDateField(credentials, type);
+
       await this.dispatchActions(
         credentials,
         [
+          {
+            actionType: 'sanity.action.document.edit',
+            publishedId: documentId,
+            versionId: draftId,
+            patch: { set: { [dateField]: new Date().toISOString() } },
+          },
           {
             actionType: 'sanity.action.document.publish',
             publishedId: documentId,

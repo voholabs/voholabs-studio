@@ -199,6 +199,9 @@ export class ProvisionController {
 
     return {
       orgId: body.orgId,
+      // The caller names the customer's agent after their workspace, and the id
+      // alone is not something a person can read at a glance in a fleet list.
+      name: organization.name ?? null,
       apiKey: organization.apiKey ?? null,
       jwt: this.sign(user),
     };

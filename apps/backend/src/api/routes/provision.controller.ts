@@ -92,7 +92,11 @@ export class ProvisionController {
   ) {
     this.assertSecret(secret);
 
-    const user = await this._userService.getUserByEmail(
+    // Any provider, not just password accounts. This answers "does this person
+    // already have a workspace", and a customer who signed up with Google has
+    // one exactly as much as anyone else - reporting `false` sends them off to
+    // create a second workspace beside the one they are already using.
+    const user = await this._userService.getUserByEmailAnyProvider(
       body.email.toLowerCase()
     );
     if (!user) {
@@ -180,7 +184,15 @@ export class ProvisionController {
 
     // getTeam returns a trimmed user, and the session has to be signed over the
     // whole row.
-    const user = await this._userService.getUserByEmail(owner.user.email);
+    //
+    // By id, never by email. `getUserByEmail` filters to `providerName: LOCAL`,
+    // which is right for a password login and wrong for everything else: an
+    // owner who signed in with Google is simply not found, and this endpoint
+    // answered "Organization owner not found" for a real organization with a
+    // real owner. Both paying customers were in that state, and most of this
+    // instance's users are - twelve of twenty are GOOGLE - so the email lookup
+    // failed for the majority while looking like missing data.
+    const user = await this._userService.getUserById(owner.user.id);
     if (!user) {
       throw new HttpException('Organization owner not found', 404);
     }

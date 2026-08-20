@@ -47,6 +47,21 @@ export class UsersRepository {
     });
   }
 
+  /**
+   * The same question as getUserByEmail, without the LOCAL filter.
+   *
+   * That filter belongs to password login, where finding a Google account by
+   * email would be a way in past its provider. It does not belong to "does this
+   * address already have an account here", which is a different question and
+   * the one provisioning asks. Kept as a separate method so the login path is
+   * not widened by accident.
+   */
+  getUserByEmailAnyProvider(email: string) {
+    return this._user.model.user.findFirst({
+      where: { email },
+    });
+  }
+
   getUserByEmail(email: string) {
     return this._user.model.user.findFirst({
       where: {

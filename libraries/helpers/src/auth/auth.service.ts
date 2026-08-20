@@ -1,4 +1,5 @@
 import { sign, verify } from 'jsonwebtoken';
+import type { SignOptions } from 'jsonwebtoken';
 import { hashSync, compareSync } from 'bcrypt';
 import crypto from 'crypto';
 // @ts-ignore
@@ -39,8 +40,19 @@ export class AuthService {
   static comparePassword(password: string, hash: string) {
     return compareSync(password, hash);
   }
-  static signJWT(value: object) {
-    return sign(value, process.env.JWT_SECRET!);
+  /**
+   * `options` is optional and there is deliberately no default expiry, because
+   * the login session is signed through here and changing what it mints would
+   * log people out mid-session and break "remember me". Every existing caller
+   * passes nothing and keeps getting exactly the token it got before.
+   *
+   * A caller that knows its token is short-lived should say so - see
+   * ProvisionController.sign. That is the direction this is meant to grow: opt
+   * in per caller, rather than one expiry imposed on a set of callers whose
+   * lifetimes have nothing in common.
+   */
+  static signJWT(value: object, options?: SignOptions) {
+    return sign(value, process.env.JWT_SECRET!, options);
   }
   static verifyJWT(token: string) {
     return verify(token, process.env.JWT_SECRET!);

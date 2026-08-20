@@ -30,6 +30,8 @@ import { PostsStatusTool } from '@gitroom/nestjs-libraries/chat/tools/posts.stat
 import { PostHistoryTool } from '@gitroom/nestjs-libraries/chat/tools/post.history.tool';
 import { BriefHistoryTool } from '@gitroom/nestjs-libraries/chat/tools/brief.history.tool';
 import { MarkLearnedTool } from '@gitroom/nestjs-libraries/chat/tools/mark.learned.tool';
+import { SanityMcpListTool } from '@gitroom/nestjs-libraries/chat/tools/sanity.mcp.list.tool';
+import { SanityMcpCallTool } from '@gitroom/nestjs-libraries/chat/tools/sanity.mcp.call.tool';
 
 export const toolList = [
   AccountInfoTool,
@@ -56,6 +58,12 @@ export const toolList = [
   MediaDeleteTool,
   MediaUploadTool,
   MediaUploadLinkTool,
+  // Sanity's own hosted MCP, proxied and allowlisted. Both register
+  // unconditionally and explain themselves when no Sanity channel is
+  // connected, because the tool map is built once at boot and cannot vary per
+  // organization.
+  SanityMcpListTool,
+  SanityMcpCallTool,
   // Media generation belongs to the vendor, so the agent does not get these:
   //   GenerateImageTool      - vendor's job
   //   GenerateVideoTool      - exposes no models on this account anyway

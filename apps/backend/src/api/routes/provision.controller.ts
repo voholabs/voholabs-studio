@@ -59,10 +59,23 @@ export class ProvisionController {
     }
   }
 
+  // This mints a full owner session for the organization, and the only thing
+  // standing in front of it is a shared secret held by another server. So it
+  // must not mint anything durable: signJWT's default is a token with no `exp`
+  // at all, which AuthMiddleware would keep accepting forever, and which could
+  // only be withdrawn by rotating JWT_SECRET and logging out every user in the
+  // product.
+  //
+  // Ten minutes, because the caller is server-to-server and spends this within
+  // the request it asked for it in - it reads the API key, writes the brief and
+  // is done. Nightly reconcile passes ask for one per customer per run, so
+  // these exist in quantity; a leaked one should be a window, not a key. If
+  // something ever genuinely needs to hold one for longer, that is a reason to
+  // give it its own narrower credential, not to widen this.
   private sign(user: User) {
     const copy = { ...user } as Partial<User>;
     delete copy.password;
-    return AuthChecker.signJWT(copy);
+    return AuthChecker.signJWT(copy, { expiresIn: '10m' });
   }
 
   /**
@@ -140,7 +153,9 @@ export class ProvisionController {
    * Returning the API key here means the caller never has to store one: it can
    * ask again whenever it needs to write to this account. Both values are
    * credentials for the whole organization, so this is server-to-server only
-   * and neither may be forwarded to a browser.
+   * and neither may be forwarded to a browser. Their lifetimes are not the
+   * same, though: the session expires in minutes and is meant to be spent and
+   * dropped, while the API key is durable and revoked by rotating it.
    */
   @Post('/session')
   async session(

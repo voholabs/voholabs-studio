@@ -16,6 +16,11 @@ export class UsersService {
     return this._usersRepository.getUserByEmail(email);
   }
 
+  /** Any provider. See the repository method for why this is separate. */
+  getUserByEmailAnyProvider(email: string) {
+    return this._usersRepository.getUserByEmailAnyProvider(email);
+  }
+
   getUserById(id: string) {
     return this._usersRepository.getUserById(id);
   }

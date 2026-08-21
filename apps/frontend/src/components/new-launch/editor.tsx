@@ -55,6 +55,11 @@ import Mention from '@tiptap/extension-mention';
 import { suggestion } from '@gitroom/frontend/components/new-launch/mention.component';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { AComponent } from '@gitroom/frontend/components/new-launch/a.component';
+import { PostLinkComponent } from '@gitroom/frontend/components/new-launch/post.link.component';
+import {
+  PostReference,
+  markPostReferences,
+} from '@gitroom/frontend/components/new-launch/post.reference.extension';
 import { Placeholder } from '@tiptap/extensions';
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import { InformationComponent } from '@gitroom/frontend/components/launches/information.component';
@@ -794,6 +799,7 @@ export const Editor: FC<{
                   toolBar={
                     <div className="flex gap-[5px]">
                       <SignatureBox editor={editorRef?.current?.editor} />
+                      <PostLinkComponent editor={editorRef?.current?.editor} />
                       {editorType !== 'none' && (
                         <>
                           <UText
@@ -1044,8 +1050,11 @@ export const OnlyEditor = forwardRef<
         depth: 100, // default is 100
         newGroupDelay: 100, // default is 500ms
       }),
+      PostReference,
     ],
-    content: value || '',
+    // Bare `(post:<id>)` - written by the agent over MCP, or by an older
+    // editor - is marked up on the way in so it loads as a chip.
+    content: markPostReferences(value || ''),
     shouldRerenderOnTransaction: true,
     immediatelyRender: false,
     // @ts-ignore

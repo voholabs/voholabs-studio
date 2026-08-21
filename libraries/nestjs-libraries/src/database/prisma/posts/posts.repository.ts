@@ -111,6 +111,8 @@ export class PostsRepository {
     });
   }
 
+  // `state`/`deletedAt` are what tell a post that is still on its way to being
+  // published apart from one that will never get a URL at all.
   getPostUrls(orgId: string, ids: string[]) {
     return this._post.model.post.findMany({
       where: {
@@ -122,6 +124,9 @@ export class PostsRepository {
       select: {
         id: true,
         releaseURL: true,
+        state: true,
+        deletedAt: true,
+        publishDate: true,
       },
     });
   }

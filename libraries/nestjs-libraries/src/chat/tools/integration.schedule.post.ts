@@ -60,6 +60,19 @@ If the user want to post 20 posts for facebook each in individual days without c
 - postsAndComments array length will be one
 
 If the tools return errors, you would need to rerun it with the right parameters, don't ask again, just run it
+
+LINKING TO ANOTHER POST (echoing a post to other channels):
+To put the live URL of another post inside this one, write "(post:<postId>)" in the
+content. It is replaced with that post's real URL at the moment this post publishes,
+so you CAN schedule "here is my new X post: <link>" before the X post exists.
+- Get the postId from postsList, or from the output of a previous call to this tool.
+- The referenced post must be scheduled EARLIER than this one.
+- To echo a post you are creating now, call this tool twice: once for the original
+  post, then again for the echo using the postId this tool returned.
+- If the referenced post has not published by the time this one is due, this post
+  waits for it, and fails instead of publishing a broken link. So an echo never goes
+  out without its link.
+- The reference expands to a full URL, so leave room for it in character limits.
 `,
       inputSchema: z.object({
         socialPost: z
@@ -90,7 +103,7 @@ If the tools return errors, you would need to rerun it with the right parameters
                     content: z
                       .string()
                       .describe(
-                        "The content of the post, HTML, Each line must be wrapped in <p> here is the possible tags: h1, h2, h3, u, strong, li, ul, p (you can't have u and strong together)"
+                        "The content of the post, HTML, Each line must be wrapped in <p> here is the possible tags: h1, h2, h3, u, strong, li, ul, p (you can't have u and strong together). Use \"(post:<postId>)\" to embed another post's live URL - see the tool description."
                       ),
                     attachments: z
                       .array(attachmentUrl)

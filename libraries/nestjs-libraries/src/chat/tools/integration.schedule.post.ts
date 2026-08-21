@@ -16,6 +16,24 @@ import {
 const validUrlExtension = new ValidUrlExtension();
 const validUrlPath = new ValidUrlPath();
 
+/**
+ * `linkToPostIds` is the discoverable form of a `(post:<id>)` reference - an
+ * agent reading the input schema finds a field, where prose in a description
+ * is easy to skim past. Any id listed there that the content does not already
+ * reference is appended to it, so both forms end up as the same stored text.
+ */
+const withPostLinks = (p: { content: string; linkToPostIds?: string[] }) => {
+  const missing = (p.linkToPostIds || []).filter(
+    (id) => p.content.indexOf(`(post:${id})`) === -1
+  );
+
+  if (!missing.length) {
+    return p.content;
+  }
+
+  return `${p.content}${missing.map((id) => `<p>(post:${id})</p>`).join('')}`;
+};
+
 // Same URL validation as MediaDto (valid.url.path) - each attachment must
 // point to an allowed upload domain and a supported file extension.
 const attachmentUrl = z
@@ -108,6 +126,12 @@ so you CAN schedule "here is my new X post: <link>" before the X post exists.
                     attachments: z
                       .array(attachmentUrl)
                       .describe('The image of the post (URLS)'),
+                    linkToPostIds: z
+                      .array(z.string())
+                      .optional()
+                      .describe(
+                        "Ids of other posts whose live URL should appear in this post - this is how you echo a post to another channel. Any id listed here that is not already written as \"(post:<id>)\" in the content is appended to it. The URL is filled in when THIS post publishes, so it works even though the other post has not published yet and its releaseURL is still null. Get the ids from postsList (\"linkReference\") or from this tool's own output. The referenced post must be scheduled earlier than this one; if it has not published by the time this one is due, this post waits for it and then fails rather than publishing a broken link."
+                      ),
                   })
                 )
                 .describe(
@@ -175,7 +199,7 @@ so you CAN schedule "here is my new X post: <link>" before the X post exists.
                 integration: { id: platform.integrationId },
                 settings,
                 value: platform.postsAndComments.map((p: any) => ({
-                  content: p.content,
+                  content: withPostLinks(p),
                   image: (p.attachments || []).map((path: string) => ({
                     path,
                   })),
@@ -244,7 +268,7 @@ so you CAN schedule "here is my new X post: <link>" before the X post exists.
                   } as AllProvidersSettings
                 ),
                 value: post.postsAndComments.map((p: any) => ({
-                  content: p.content,
+                  content: withPostLinks(p),
                   id: makeId(10),
                   delay: 0,
                   image: p.attachments.map((p: any) => ({

@@ -18,7 +18,8 @@ export class PostsListTool implements AgentToolInterface {
       description: `List the posts already on the calendar between two dates, so you can tell the user what is scheduled or find the post they want to change or delete.
 Dates are UTC ISO strings. If you don't pass any, it defaults to the next ${DEFAULT_RANGE_IN_DAYS} days — pass a start date in the past to look at posts that were already published.
 Every post returns both an "id" and a "group": the group holds a post together with its thread items and comments, and is what deletePostTool removes.
-"releaseURL" is the live URL of a published post, and is null until it publishes. To make one post link to another, don't copy the releaseURL - put "(post:<id>)" in the other post's content and it resolves at publish time (see schedulePostTool).`,
+
+TO LINK ONE POST TO ANOTHER (echoing a post to another channel): every post here returns a "linkReference" like "(post:<id>)". Put that string in another post's content and it is replaced with this post's real URL at the moment that post publishes. It works while "releaseURL" is still null - a queued post has no URL yet, and that is exactly the case this is for. Never copy "releaseURL" to build an echo; use "linkReference".`,
       mcp: {
         annotations: {
           title: 'List Scheduled Posts',
@@ -57,6 +58,11 @@ Every post returns both an "id" and a "group": the group holds a post together w
               publishDate: z.string(),
               content: z.string(),
               releaseURL: z.string().nullable(),
+              linkReference: z
+                .string()
+                .describe(
+                  "Paste this into ANOTHER post's content to embed this post's URL. It is replaced with the real URL when that post publishes, so it works even while releaseURL is still null. Use it instead of releaseURL to link one post to another."
+                ),
               channel: z.object({
                 id: z.string(),
                 name: z.string(),
@@ -94,6 +100,7 @@ Every post returns both an "id" and a "group": the group holds a post together w
             publishDate: new Date(post.publishDate).toISOString(),
             content: post.content || '',
             releaseURL: post.releaseURL ?? null,
+            linkReference: `(post:${post.id})`,
             channel: {
               id: post.integration?.id || '',
               name: post.integration?.name || '',

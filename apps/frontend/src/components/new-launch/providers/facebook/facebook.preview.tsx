@@ -7,7 +7,7 @@ import { FACEBOOK_PRESET_MAX_CHARS } from '@gitroom/nestjs-libraries/dtos/posts/
 import { getPresetBackground } from '@gitroom/frontend/components/new-launch/providers/facebook/facebook.background';
 import { FC } from 'react';
 import { useFormContext, useWatch } from 'react-hook-form';
-import { VideoOrImage } from '@gitroom/react/helpers/video.or.image';
+import { MediaPreview } from '@gitroom/react/helpers/video.or.image';
 import { SliderComponent } from '@gitroom/frontend/components/third-parties/slider.component';
 
 const Icons = () => {
@@ -174,14 +174,11 @@ export const FacebookPreview: FC<{
         <SliderComponent
           className="h-[280px] -mx-[15px] overflow-hidden"
           list={renderContent?.[0]?.images.map((image, index) => (
-            <a
+            <MediaPreview
               key={`image_${index}`}
               className="block w-full h-full"
-              href={mediaDir.set(image.path)}
-              target="_blank"
-            >
-              <VideoOrImage autoplay={true} src={mediaDir.set(image.path)} />
-            </a>
+              src={mediaDir.set(image.path)}
+            />
           ))}
         />
       )}
@@ -308,17 +305,11 @@ export const FacebookPreview: FC<{
                       <SliderComponent
                         className="h-[100px] mt-[12px] -mx-[15px] overflow-hidden"
                         list={value.images.map((image, index) => (
-                          <a
+                          <MediaPreview
                             key={`image_${index}`}
                             className="block w-full h-full"
-                            href={mediaDir.set(image.path)}
-                            target="_blank"
-                          >
-                            <VideoOrImage
-                              autoplay={true}
-                              src={mediaDir.set(image.path)}
-                            />
-                          </a>
+                            src={mediaDir.set(image.path)}
+                          />
                         ))}
                       />
                     )}

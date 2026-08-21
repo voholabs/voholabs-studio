@@ -85,7 +85,7 @@ export class PostActivity {
     for (const post of list) {
       await this._temporalService.client
         .getRawClient()
-        .workflow.signalWithStart('postWorkflowV105', {
+        .workflow.signalWithStart('postWorkflowV106', {
           workflowId: `post_${post.id}`,
           taskQueue: 'main',
           signal: 'poke',
@@ -148,6 +148,21 @@ export class PostActivity {
     }
 
     return getPosts.map(slimPost);
+  }
+
+  /**
+   * Whether every `(post:<id>)` reference in this post's group can be resolved
+   * yet. The workflow holds the post back while this says `pending`.
+   */
+  @ActivityMethod()
+  async postDependencies(orgId: string, postId: string) {
+    const posts = await this._postService.getPostsRecursively(
+      postId,
+      true,
+      orgId
+    );
+
+    return this._postService.getPostDependencies(orgId, posts as any);
   }
 
   @ActivityMethod()

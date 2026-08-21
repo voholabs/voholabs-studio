@@ -60,6 +60,29 @@ export class BadBody extends ApplicationFailure {
   }
 }
 
+/**
+ * A post can embed `(post:<id>)` to link to another post's live URL. That URL
+ * only exists once the other post is out, so if it still hasn't resolved by the
+ * time we're about to publish, we refuse to post rather than ship a dangling
+ * link. Non-retryable: retrying the same activity cannot make the other post
+ * publish.
+ */
+export class UnresolvedPostReference extends ApplicationFailure {
+  constructor(ids: string[]) {
+    super(
+      truncateForTemporal(
+        `Can't publish: this post links to ${
+          ids.length === 1 ? 'a post that has' : 'posts that have'
+        } not been published yet (${ids.join(', ')})`,
+        MAX_FAILURE_MESSAGE
+      ),
+      'unresolved_post_reference',
+      true,
+      [{ ids }]
+    );
+  }
+}
+
 export class NotEnoughScopes {
   constructor(
     public message = 'Not enough scopes, when choosing a provider, please add all the scopes'

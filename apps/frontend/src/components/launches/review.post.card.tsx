@@ -473,9 +473,21 @@ export const ReviewPostCard: FC<{
     } as Integrations;
   }, [integrations, post.integration]);
 
+  // A published post lives on the platform it went to; send people there
+  // rather than to our share page, which only helps while it is still queued.
+  const liveUrl =
+    post.state === 'PUBLISHED' && post.releaseURL
+      ? post.releaseURL.split(',')[0].trim()
+      : '';
+
   const preview = useCallback(() => {
+    if (liveUrl) {
+      window.open(liveUrl, '_blank', 'noopener');
+      return;
+    }
+
     window.open(`/p/${post.id}?share=true`, '_blank');
-  }, [post.id]);
+  }, [post.id, liveUrl]);
 
   const publishDate = newDayjs(post.publishDate).local();
   const time = publishDate.format(isUSCitizen() ? 'hh:mm A' : 'HH:mm');
@@ -625,7 +637,9 @@ export const ReviewPostCard: FC<{
             onClick={isSanityChannel ? openSanityPreview : preview}
             label={
               !isSanityChannel
-                ? t('preview_post', 'Preview Post')
+                ? liveUrl
+                  ? t('view_live_post', 'View the live post')
+                  : t('preview_post', 'Preview Post')
                 : sanityStatus === 'published'
                 ? t('view_live_post', 'View the live post')
                 : t('open_in_sanity', 'Open in Sanity')

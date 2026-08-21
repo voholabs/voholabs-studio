@@ -823,3 +823,36 @@ html[dir='rtl'] [dir='ltr'] {
   text-shadow: -1px -1px 0 black, 1px -1px 0 black, -1px 1px 0 black,
     1px 1px 0 black;
 }
+
+/* A `(post:<id>)` reference. In the editor a node view draws the chip; this
+   styles the same span everywhere the raw content is rendered instead - the
+   channel previews - so the id never shows up as bare text next to the copy. */
+.post-reference {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  margin: 0 2px;
+  border-radius: 6px;
+  background: var(--new-col-color);
+  border: 1px solid rgb(var(--new-textColor) / 0.2);
+  font-size: 0;
+  vertical-align: middle;
+}
+
+.post-reference::after {
+  content: '🔗 link to post';
+  font-size: 13px;
+}
+
+/* The same reference inside a channel preview. The preview strips tags before
+   rendering, so it arrives as a marker that is redrawn as this chip. */
+.post-reference-preview {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--new-col-color);
+  border: 1px solid rgb(var(--new-textColor) / 0.2);
+  font-size: 13px;
+  vertical-align: middle;
+}

@@ -43,6 +43,22 @@ import {
   postId as postIdSearchParam,
 } from '@gitroom/nestjs-libraries/temporal/temporal.search.attribute';
 import { AnalyticsData } from '@gitroom/nestjs-libraries/integrations/social/social.integrations.interface';
+import { UnresolvedPostReference } from '@gitroom/nestjs-libraries/integrations/social.abstract';
+
+const POST_REFERENCE_REGEX = /\(post:[a-zA-Z0-9-_]+\)/g;
+
+type PostUrl = {
+  id: string;
+  releaseURL: string | null;
+  state: State;
+  deletedAt: Date | null;
+};
+
+export type PostDependencies = {
+  status: 'ready' | 'pending' | 'dead';
+  pending: string[];
+  dead: string[];
+};
 import { timer } from '@gitroom/helpers/utils/timer';
 import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
 import { RefreshToken } from '@gitroom/nestjs-libraries/integrations/social.abstract';
@@ -574,24 +590,102 @@ export class PostsService {
     return this._postRepository.getOldPosts(orgId, date);
   }
 
+  /**
+   * Pulls the ids out of every `(post:<id>)` reference in a blob of text. The
+   * references can sit anywhere on the post - the content, or a setting such as
+   * an article's canonical link - so callers hand us the serialized post.
+   */
+  public extractPostReferences(text: string): string[] {
+    return Array.from(
+      new Set(
+        (text.match(POST_REFERENCE_REGEX) || []).map((e) =>
+          e.replace('(post:', '').replace(')', '')
+        )
+      )
+    );
+  }
+
+  /**
+   * The live URL of a referenced post, or undefined if it doesn't have one -
+   * because it is gone, hasn't published, or published without the provider
+   * handing us back a URL.
+   */
+  private resolvedPostUrl(urls: PostUrl[], id: string): string | undefined {
+    const found = urls.find((u) => u.id === id);
+    if (!found || found.deletedAt || found.state !== 'PUBLISHED') {
+      return undefined;
+    }
+
+    // Some providers store a comma separated list; the first one is the post.
+    return (found.releaseURL || '').split(',')[0].trim() || undefined;
+  }
+
+  /**
+   * Tells the caller whether every `(post:<id>)` reference in a post can be
+   * resolved right now, and if not, whether it is worth waiting:
+   *  - `pending`: the referenced post is still queued, its URL is coming.
+   *  - `dead`:    the referenced post is deleted, errored, parked as a draft, or
+   *               published without a URL. Waiting will never help.
+   */
+  public async getPostDependencies(
+    orgId: string,
+    posts: Post[]
+  ): Promise<PostDependencies> {
+    const ids = this.extractPostReferences(JSON.stringify(posts));
+    if (!ids.length) {
+      return { status: 'ready', pending: [], dead: [] };
+    }
+
+    const urls = await this._postRepository.getPostUrls(orgId, ids);
+    const pending: string[] = [];
+    const dead: string[] = [];
+
+    for (const id of ids) {
+      if (this.resolvedPostUrl(urls, id)) {
+        continue;
+      }
+
+      const found = urls.find((u) => u.id === id);
+      if (found && !found.deletedAt && found.state === 'QUEUE') {
+        pending.push(id);
+        continue;
+      }
+
+      dead.push(id);
+    }
+
+    return {
+      status: dead.length ? 'dead' : pending.length ? 'pending' : 'ready',
+      pending,
+      dead,
+    };
+  }
+
+  /**
+   * Swaps every `(post:<id>)` reference for the referenced post's live URL, at
+   * the moment we publish. If any of them still can't be resolved we throw
+   * instead of substituting an empty string - a post whose whole point is to
+   * link somewhere must not go out with the link missing.
+   */
   public async updateTags(orgId: string, post: Post[]): Promise<Post[]> {
     const plainText = JSON.stringify(post);
-    const extract = Array.from(
-      plainText.match(/\(post:[a-zA-Z0-9-_]+\)/g) || []
-    );
-    if (!extract.length) {
+    const ids = this.extractPostReferences(plainText);
+    if (!ids.length) {
       return post;
     }
 
-    const ids = (extract || []).map((e) =>
-      e.replace('(post:', '').replace(')', '')
-    );
     const urls = await this._postRepository.getPostUrls(orgId, ids);
+    const unresolved = ids.filter((id) => !this.resolvedPostUrl(urls, id));
+    if (unresolved.length) {
+      throw new UnresolvedPostReference(unresolved);
+    }
+
     const newPlainText = ids.reduce((acc, value) => {
-      const findUrl = urls?.find?.((u) => u.id === value)?.releaseURL || '';
+      const findUrl = this.resolvedPostUrl(urls, value)!;
       return acc.replace(
         new RegExp(`\\(post:${value}\\)`, 'g'),
-        findUrl.split(',')[0]
+        // A function replacement so `$` in a URL isn't read as a capture group.
+        () => findUrl
       );
     }, plainText);
 
@@ -853,7 +947,7 @@ export class PostsService {
     try {
       await this._temporalService.client
         .getRawClient()
-        ?.workflow.start('postWorkflowV105', {
+        ?.workflow.start('postWorkflowV106', {
           workflowId: `post_${postId}`,
           taskQueue: 'main',
           workflowIdConflictPolicy: 'TERMINATE_EXISTING',

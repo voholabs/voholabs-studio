@@ -7,6 +7,25 @@ import { textSlicer } from '@gitroom/helpers/utils/count.length';
 import SafeImage from '@gitroom/react/helpers/safe.image';
 import { useLaunchStore } from '@gitroom/frontend/components/new-launch/store';
 import { stripHtmlValidation } from '@gitroom/helpers/utils/strip.html.validation';
+import {
+  useOldPostsLookup,
+  resolvePostReferencesForPreview,
+} from '@gitroom/frontend/components/new-launch/post.reference.extension';
+
+// Mentions and post references are swapped for markers before the HTML is
+// stripped, then drawn here - the only way to style them once the tags are gone.
+const styleMarkers = (text: string) =>
+  text
+    .replace(
+      /\[\[\[([.\s\S]*?)]]]/g,
+      (match, label) =>
+        `<span class="font-bold font-[arial]" style="color: #ae8afc">${label}</span>`
+    )
+    .replace(
+      /\{\{\{postref:([.\s\S]*?)}}}/g,
+      (match, label) =>
+        `<span class="post-reference-preview">🔗 ${label}</span>`
+    );
 
 export const GeneralPreviewComponent: FC<{
   maximumCharacters?: number;
@@ -18,11 +37,15 @@ export const GeneralPreviewComponent: FC<{
   // Outside the editor there is no "global" tab to render, so the channel is
   // always the one the post belongs to.
   const isGlobal = !previewOnly && current === 'global';
+  const lookupPost = useOldPostsLookup();
 
   const renderContent = topValue.map((p) => {
     const newContent = stripHtmlValidation(
       'normal',
-      p.content.replace(
+      // A `(post:<id>)` reference shows as the URL it will become, or - while
+      // the post it points at is still unpublished, so no URL exists yet - as a
+      // chip naming the post, the same way a mention is handled below.
+      resolvePostReferencesForPreview(p.content, lookupPost).replace(
         /<span.*?data-mention-id="([.\s\S]*?)"[.\s\S]*?>([.\s\S]*?)<\/span>/gi,
         (match, match1, match2) => {
           return `[[[${match2}]]]`;
@@ -38,15 +61,9 @@ export const GeneralPreviewComponent: FC<{
     );
 
     const finalValue =
-      newContent
-        .slice(start, end)
-        .replace(/\[\[\[([.\s\S]*?)]]]/, (match, match1) => {
-          return `<span class="font-bold font-[arial]" style="color: #ae8afc">${match1}</span>`;
-        }) +
+      styleMarkers(newContent.slice(start, end)) +
       `<mark class="bg-red-500" data-tooltip-id="tooltip" data-tooltip-content="This text will be cropped">` +
-      newContent.slice(end).replace(/\[\[\[([.\s\S]*?)]]]/, (match, match1) => {
-        return `<span class="font-bold font-[arial]" style="color: #ae8afc">${match1}</span>`;
-      }) +
+      styleMarkers(newContent.slice(end)) +
       `</mark>`;
 
     return { text: finalValue, images: p.image };

@@ -4,7 +4,7 @@ import { useMediaDirectory } from '@gitroom/react/helpers/use.media.directory';
 import { stripHtmlValidation } from '@gitroom/helpers/utils/strip.html.validation';
 import { textSlicer } from '@gitroom/helpers/utils/count.length';
 import { FC } from 'react';
-import { VideoOrImage } from '@gitroom/react/helpers/video.or.image';
+import { MediaPreview } from '@gitroom/react/helpers/video.or.image';
 import { SliderComponent } from '@gitroom/frontend/components/third-parties/slider.component';
 
 export const InstagramPreview: FC<{
@@ -65,14 +65,11 @@ export const InstagramPreview: FC<{
         <SliderComponent
           className="h-[585px] rounded-[8px] overflow-hidden"
           list={renderContent?.[0]?.images.map((image, index) => (
-            <a
+            <MediaPreview
               key={`image_${index}`}
               className="flex-1"
-              href={mediaDir.set(image.path)}
-              target="_blank"
-            >
-              <VideoOrImage autoplay={true} src={mediaDir.set(image.path)} />
-            </a>
+              src={mediaDir.set(image.path)}
+            />
           ))}
         />
       ) : (

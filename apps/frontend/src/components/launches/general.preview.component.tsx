@@ -1,7 +1,7 @@
 import { useIntegration } from '@gitroom/frontend/components/launches/helpers/use.integration';
 import { useMediaDirectory } from '@gitroom/react/helpers/use.media.directory';
 import clsx from 'clsx';
-import { VideoOrImage } from '@gitroom/react/helpers/video.or.image';
+import { MediaPreview } from '@gitroom/react/helpers/video.or.image';
 import { FC } from 'react';
 import { textSlicer } from '@gitroom/helpers/utils/count.length';
 import SafeImage from '@gitroom/react/helpers/safe.image';
@@ -128,17 +128,11 @@ export const GeneralPreviewComponent: FC<{
                   )}
                 >
                   {value.images.map((image, index) => (
-                    <a
+                    <MediaPreview
                       key={`image_${index}`}
                       className="flex-1"
-                      href={mediaDir.set(image.path)}
-                      target="_blank"
-                    >
-                      <VideoOrImage
-                        autoplay={true}
-                        src={mediaDir.set(image.path)}
-                      />
-                    </a>
+                      src={mediaDir.set(image.path)}
+                    />
                   ))}
                 </div>
               )}

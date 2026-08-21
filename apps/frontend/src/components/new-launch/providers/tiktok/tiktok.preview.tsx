@@ -5,7 +5,7 @@ import { stripHtmlValidation } from '@gitroom/helpers/utils/strip.html.validatio
 import { textSlicer } from '@gitroom/helpers/utils/count.length';
 import { FC, ReactNode } from 'react';
 import { SliderComponent } from '@gitroom/frontend/components/third-parties/slider.component';
-import { VideoOrImage } from '@gitroom/react/helpers/video.or.image';
+import { MediaPreview } from '@gitroom/react/helpers/video.or.image';
 
 const TikTokItem: FC<{ icon: ReactNode; num: string }> = ({ icon, num }) => {
   return (
@@ -61,20 +61,18 @@ export const TiktokPreview: FC<{
       <div className="relative">
         <SliderComponent
           list={renderContent?.[0]?.images.map((image, index) => (
-            <a
+            <MediaPreview
               key={`image_${index}`}
               className="flex-1"
-              href={mediaDir.set(image.path)}
-              target="_blank"
-            >
-              <VideoOrImage autoplay={true} src={mediaDir.set(image.path)} />
-            </a>
+              src={mediaDir.set(image.path)}
+            />
           ))}
           className="h-full bg-black aspect-[calc(9/16)] rounded-[3px] overflow-hidden"
         />
         <div className="absolute pointer-events-none w-full h-full start-0 top-0 px-[12px] py-[25px] justify-end items-start text-white flex flex-col">
           <div className="text-[14px] font-[500]">@{integration?.name}</div>
-          <div className="text-[13px] font-[400] whitespace-pre-line line-clamp-6 w-full"
+          <div
+            className="text-[13px] font-[400] whitespace-pre-line line-clamp-6 w-full"
             dangerouslySetInnerHTML={{ __html: renderContent?.[0]?.text || '' }}
           />
         </div>

@@ -14,6 +14,7 @@ import { GroupListTool } from '@gitroom/nestjs-libraries/chat/tools/group.list.t
 import { UploadFromUrlTool } from '@gitroom/nestjs-libraries/chat/tools/upload.from.url.tool';
 import { PostsListTool } from '@gitroom/nestjs-libraries/chat/tools/posts.list.tool';
 import { PostsDeleteTool } from '@gitroom/nestjs-libraries/chat/tools/posts.delete.tool';
+import { PostsEditTool } from '@gitroom/nestjs-libraries/chat/tools/posts.edit.tool';
 import { FindSlotTool } from '@gitroom/nestjs-libraries/chat/tools/find.slot.tool';
 import { MediaListTool } from '@gitroom/nestjs-libraries/chat/tools/media.list.tool';
 import { MediaDeleteTool } from '@gitroom/nestjs-libraries/chat/tools/media.delete.tool';
@@ -48,6 +49,7 @@ export const toolList = [
   IntegrationTriggerTool,
   IntegrationSchedulePostTool,
   PostsListTool,
+  PostsEditTool,
   PostsDeleteTool,
   PostsStatusTool,
   PostHistoryTool,

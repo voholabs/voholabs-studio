@@ -9,41 +9,9 @@ import { AllProvidersSettings } from '@gitroom/nestjs-libraries/dtos/posts/provi
 import { Integration } from '@prisma/client';
 import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
 import {
-  ValidUrlExtension,
-  ValidUrlPath,
-} from '@gitroom/helpers/utils/valid.url.path';
-
-const validUrlExtension = new ValidUrlExtension();
-const validUrlPath = new ValidUrlPath();
-
-/**
- * `linkToPostIds` is the discoverable form of a `(post:<id>)` reference - an
- * agent reading the input schema finds a field, where prose in a description
- * is easy to skim past. Any id listed there that the content does not already
- * reference is appended to it, so both forms end up as the same stored text.
- */
-const withPostLinks = (p: { content: string; linkToPostIds?: string[] }) => {
-  const missing = (p.linkToPostIds || []).filter(
-    (id) => p.content.indexOf(`(post:${id})`) === -1
-  );
-
-  if (!missing.length) {
-    return p.content;
-  }
-
-  return `${p.content}${missing.map((id) => `<p>(post:${id})</p>`).join('')}`;
-};
-
-// Same URL validation as MediaDto (valid.url.path) - each attachment must
-// point to an allowed upload domain and a supported file extension.
-const attachmentUrl = z
-  .string()
-  .refine((url) => validUrlPath.validate(url, {} as any), {
-    message: validUrlPath.defaultMessage({} as any),
-  })
-  .refine((url) => validUrlExtension.validate(url, {} as any), {
-    message: validUrlExtension.defaultMessage({} as any),
-  });
+  attachmentUrl,
+  withPostLinks,
+} from '@gitroom/nestjs-libraries/chat/tools/post.write.shared';
 
 @Injectable()
 export class IntegrationSchedulePostTool implements AgentToolInterface {

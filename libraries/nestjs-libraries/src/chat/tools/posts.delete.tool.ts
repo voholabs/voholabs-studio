@@ -14,6 +14,7 @@ export class PostsDeleteTool implements AgentToolInterface {
     return createTool({
       id: 'deletePostTool',
       description: `Delete (unschedule) a post that is on the calendar. Use postsList first to find the post.
+NOT for changing a post. To reword one, swap its media or move it, use editPostTool — it edits in place and keeps everything you do not pass. Deleting and re-creating loses the post's attachments and its history, so only delete when the user wants the post gone.
 Pass either the post "id" or its "group" — both delete the whole group, meaning the post together with its thread items and comments on that channel.
 A queued post is removed from the schedule and will not be published. A post that was already published is removed from the calendar only and stays live on the social network, unless you also pass deleteFromPlatform.
 Set deleteFromPlatform to true to additionally delete the published message on the social network itself. Only some platforms support this (Discord does); the rest report back that they cannot.

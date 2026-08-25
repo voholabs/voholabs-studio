@@ -131,7 +131,11 @@ export class PostsRepository {
     });
   }
 
-  async getPosts(orgId: string, query: GetPostsDto) {
+  async getPosts(
+    orgId: string,
+    query: GetPostsDto,
+    options?: { includeMedia?: boolean }
+  ) {
     // Use the provided start and end dates directly
     const startDate = dayjs.utc(query.startDate).toDate();
     const endDate = dayjs.utc(query.endDate).toDate();
@@ -187,6 +191,10 @@ export class PostsRepository {
         group: true,
         creationMethod: true,
         reviewed: true,
+        // Off by default: the calendar renders thousands of these and the
+        // media blob is the heaviest field on the row. Only the callers that
+        // need to know what is attached ask for it.
+        ...(options?.includeMedia ? { image: true } : {}),
         tags: {
           select: {
             tag: true,

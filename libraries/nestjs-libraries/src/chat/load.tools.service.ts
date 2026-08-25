@@ -59,7 +59,7 @@ export class LoadToolsService {
         - Move a post between draft and the schedule
         - List integrations (channels)
         - List groups (customers) and filter the channels by a group
-        - List the posts already on the calendar, and delete (unschedule) a post
+        - List the posts already on the calendar, edit a post that is on it, and delete (unschedule) a post
         - Find the next free slot in the schedule
         - List the media library, upload media, and delete media
         - Keep your own Experience: what has worked for this brand and what has not
@@ -80,6 +80,8 @@ export class LoadToolsService {
       - Treat a rewritten lesson of your own as a correction: keep their version and work out what you had wrong. Never restore what they removed.
       - Write what generalises into Experience with briefLearnTool, then close the edits off with markLearnedTool — RECORDED with the topic you used, or NO_SIGNAL when the edits were only typos or one-off details. Anything left unmarked comes back to you forever.
       - Deleting a post removes its whole group (the post plus its thread items and comments). If the post was already published, it only disappears from the calendar — it stays live on the social network, so say that to the user.
+      - To change a post that is already on the calendar, use editPostTool. Never delete and re-create a post to reword it: editPostTool keeps everything you do not pass — the attachments above all — where re-creating it would quietly drop the image or video the post was carrying and give it a new id. If you only want to change the words, pass "id" and "content" and nothing else.
+      - Editing a post that has already published only corrects the calendar. The message on the social network is untouched, and the tool says so — pass that on to the user instead of letting them think the live post changed.
 
       - We schedule posts to different integration like facebook, instagram, etc. but to the user we don't say integrations we say channels as integration is the technical name
       - When scheduling a post, you must follow the social media rules and best practices.

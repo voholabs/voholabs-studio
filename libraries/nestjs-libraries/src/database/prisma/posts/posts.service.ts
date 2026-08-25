@@ -361,8 +361,12 @@ export class PostsService {
     ];
   }
 
-  async getPosts(orgId: string, query: GetPostsDto) {
-    return this._postRepository.getPosts(orgId, query);
+  async getPosts(
+    orgId: string,
+    query: GetPostsDto,
+    options?: { includeMedia?: boolean }
+  ) {
+    return this._postRepository.getPosts(orgId, query, options);
   }
 
   async getPostsMinified(orgId: string, query: GetPostsDto) {

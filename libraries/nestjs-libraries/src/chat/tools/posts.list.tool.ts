@@ -4,6 +4,7 @@ import { Injectable } from '@nestjs/common';
 import { PostsService } from '@gitroom/nestjs-libraries/database/prisma/posts/posts.service';
 import z from 'zod';
 import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
+import { readPostMedia } from '@gitroom/nestjs-libraries/chat/tools/post.write.shared';
 
 const DEFAULT_RANGE_IN_DAYS = 30;
 
@@ -18,6 +19,8 @@ export class PostsListTool implements AgentToolInterface {
       description: `List the posts already on the calendar between two dates, so you can tell the user what is scheduled or find the post they want to change or delete.
 Dates are UTC ISO strings. If you don't pass any, it defaults to the next ${DEFAULT_RANGE_IN_DAYS} days — pass a start date in the past to look at posts that were already published.
 Every post returns both an "id" and a "group": the group holds a post together with its thread items and comments, and is what deletePostTool removes.
+Every post also returns "attachments" — the media it carries, with the same "path" the media library uses. That is how you tell whether a post already has its image or video on it, without opening anything.
+TO CHANGE A POST, use editPostTool with its "id". It edits in place and keeps whatever you do not pass, attachments included. Deleting and re-creating a post is not the way to reword it: it loses the media, the post's history and its id.
 
 TO LINK ONE POST TO ANOTHER (echoing a post to another channel): every post here returns a "linkReference" like "(post:<id>)". Put that string in another post's content and it is replaced with this post's real URL at the moment that post publishes. It works while "releaseURL" is still null - a queued post has no URL yet, and that is exactly the case this is for. Never copy "releaseURL" to build an echo; use "linkReference".`,
       mcp: {
@@ -58,6 +61,18 @@ TO LINK ONE POST TO ANOTHER (echoing a post to another channel): every post here
               publishDate: z.string(),
               content: z.string(),
               releaseURL: z.string().nullable(),
+              attachments: z
+                .array(
+                  z.object({
+                    path: z
+                      .string()
+                      .describe(
+                        'The media path — the same value mediaList returns and an attachments field takes'
+                      ),
+                    thumbnail: z.string().nullable(),
+                  })
+                )
+                .describe('The images and videos attached to this post'),
               linkReference: z
                 .string()
                 .describe(
@@ -87,11 +102,15 @@ TO LINK ONE POST TO ANOTHER (echoing a post to another channel): every post here
               Date.now() + DEFAULT_RANGE_IN_DAYS * 24 * 60 * 60 * 1000
             ).toISOString();
 
-          const posts = await this._postsService.getPosts(organizationId, {
-            startDate,
-            endDate,
-            customer: inputData.customer,
-          });
+          const posts = await this._postsService.getPosts(
+            organizationId,
+            {
+              startDate,
+              endDate,
+              customer: inputData.customer,
+            },
+            { includeMedia: true }
+          );
 
           const output = (posts || []).map((post: any) => ({
             id: post.id,
@@ -100,6 +119,10 @@ TO LINK ONE POST TO ANOTHER (echoing a post to another channel): every post here
             publishDate: new Date(post.publishDate).toISOString(),
             content: post.content || '',
             releaseURL: post.releaseURL ?? null,
+            attachments: readPostMedia(post).map((media: any) => ({
+              path: media?.path || '',
+              thumbnail: media?.thumbnail ?? null,
+            })),
             linkReference: `(post:${post.id})`,
             channel: {
               id: post.integration?.id || '',

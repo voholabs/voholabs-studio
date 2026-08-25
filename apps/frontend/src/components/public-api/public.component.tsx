@@ -316,9 +316,11 @@ const CONNECTOR_NAME = 'Voholabs Studio';
 const ConnectSection = ({
   apiKey,
   mcpBase,
+  cloudflareUrl,
 }: {
   apiKey: string;
   mcpBase: string;
+  cloudflareUrl: string;
 }) => {
   const t = useT();
   const [target, setTarget] = useState<ConnectTarget>('claude');
@@ -329,14 +331,31 @@ const ConnectSection = ({
   const connectorUrl = `${mcpBase}/mcp/${apiKey}`;
   const { config, hint } = getMcpConfig(activeClient, mcpBase, apiKey);
 
-  // Agent sandboxes allowlist outbound hosts, so uploading a local file fails
-  // until this host is added — see the "uploading files" step below.
-  const allowlistHost = (() => {
+  // Agent sandboxes allowlist outbound hosts, so both directions fail until
+  // the host is added — see the "allow the domains" step below. Uploading a
+  // local file goes to us; reading a photo or video back comes from wherever
+  // media is stored, which is a different host when that is object storage.
+  const hostOf = (url: string) => {
     try {
-      return new URL(mcpBase).host;
+      return new URL(url).host;
     } catch {
-      return mcpBase;
+      return url;
     }
+  };
+
+  const allowlistHosts = (() => {
+    const app = hostOf(mcpBase);
+    if (!cloudflareUrl) {
+      // Local storage: media is served by the app itself, so one host covers it.
+      return [app];
+    }
+
+    const media = hostOf(cloudflareUrl);
+    // An R2 public bucket sits on a random subdomain and a new bucket gets a
+    // new one, so allow the whole provider rather than a name that can change.
+    const mediaEntry = media.endsWith('.r2.dev') ? '*.r2.dev' : media;
+
+    return mediaEntry && mediaEntry !== app ? [app, mediaEntry] : [app];
   })();
 
   const docsHref =
@@ -352,19 +371,38 @@ const ConnectSection = ({
   const allowlistStep = (index: number, detail: string, hint: string) => (
     <Step
       index={index}
-      title={t(
-        'allow_uploads_from_your_computer',
-        'To post files from your computer, allow the domain'
-      )}
+      title={
+        allowlistHosts.length > 1
+          ? t(
+              'to_send_and_read_files_allow_the_domains',
+              'To send and read back files, allow these domains'
+            )
+          : t(
+              'allow_uploads_from_your_computer',
+              'To post files from your computer, allow the domain'
+            )
+      }
     >
       <StepText>{detail}</StepText>
-      <CodeBlock>{allowlistHost}</CodeBlock>
+      <CodeBlock>{allowlistHosts.join('\n')}</CodeBlock>
       <div className="flex gap-[8px] flex-wrap">
         <CopyButton
-          text={allowlistHost}
-          label={t('copy_domain', 'Copy domain')}
+          text={allowlistHosts.join('\n')}
+          label={
+            allowlistHosts.length > 1
+              ? t('copy_domains', 'Copy domains')
+              : t('copy_domain', 'Copy domain')
+          }
         />
       </div>
+      {allowlistHosts.length > 1 && (
+        <StepText>
+          {t(
+            'allowlist_two_domains_why',
+            'Both are needed and they do different jobs: the first is Voholabs Studio itself, which is where a file you upload goes. The second is where your photos and videos are kept, and it is the one that lets the assistant open an image or video already in your library — to look at it, or to attach it to a post it is drafting. Allow only the first and uploads work while your existing media stays unreadable.'
+          )}
+        </StepText>
+      )}
       <StepText>{hint}</StepText>
     </Step>
   );
@@ -475,11 +513,11 @@ const ConnectSection = ({
             6,
             t(
               'allow_uploads_from_your_computer_detail',
-              'Claude blocks its own outgoing connections by default, so uploading a photo or video fails until you allow this one. In Claude: Settings → Capabilities → domain allowlist → add:'
+              'Claude blocks its own outgoing connections by default, so sending it a photo or video — and opening one already in your library — fails until you allow these. In Claude: Settings → Capabilities → domain allowlist → add both:'
             ),
             t(
               'allow_uploads_from_your_computer_hint',
-              'Skip this if you only post text, or images Claude generates or finds online. If Claude ever says it cannot reach Voholabs Studio, or offers to put your file on another website first, this is the setting to change.'
+              'Skip this if you only post text, or images Claude generates or finds online. If Claude ever says it cannot reach Voholabs Studio, cannot open one of your own images or videos, or offers to put your file on another website first, this is the setting to change.'
             )
           )}
         </div>
@@ -537,7 +575,7 @@ const ConnectSection = ({
             5,
             t(
               'allow_uploads_chatgpt_detail',
-              'Posting text and online images needs nothing extra. Uploading a file from your computer does: ChatGPT has to reach us directly, and its tools are not allowed to by default. If an upload is refused, allow this domain in your workspace network access settings — on Business and Enterprise plans an admin controls this:'
+              'Posting text and online images needs nothing extra. Sending a file from your computer does, and so does opening one already in your library: ChatGPT has to reach these hosts directly, and its tools are not allowed to by default. If either is refused, allow them in your workspace network access settings — on Business and Enterprise plans an admin controls this:'
             ),
             t(
               'allow_uploads_chatgpt_hint',
@@ -717,7 +755,7 @@ const CliSection = ({ apiKey }: { apiKey: string }) => {
 
 const PublicApiContent = () => {
   const user = useUser();
-  const { backendUrl, frontEndUrl, mcpUrl } = useVariables();
+  const { backendUrl, frontEndUrl, mcpUrl, cloudflareUrl } = useVariables();
   const toaster = useToaster();
   const fetch = useFetch();
   const decision = useDecisionModal();
@@ -753,7 +791,11 @@ const PublicApiContent = () => {
 
   return (
     <div className="flex flex-col gap-[40px]">
-      <ConnectSection apiKey={user.publicApi} mcpBase={mcpBase} />
+      <ConnectSection
+        apiKey={user.publicApi}
+        mcpBase={mcpBase}
+        cloudflareUrl={cloudflareUrl}
+      />
 
       <SectionCard
         title={t('api_key', 'API Key')}

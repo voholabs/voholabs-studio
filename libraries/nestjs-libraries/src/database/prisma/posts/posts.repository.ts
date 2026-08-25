@@ -131,10 +131,61 @@ export class PostsRepository {
     });
   }
 
+  /** The live posts of one group — what a delete is about to take away. */
+  getPostIdsInGroup(orgId: string, group: string) {
+    return this._post.model.post.findMany({
+      where: {
+        organizationId: orgId,
+        group,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+      },
+    });
+  }
+
+  /**
+   * The posts that point at any of `ids` through a `(post:<id>)` reference.
+   * A reference can sit in the content or in a setting (an article's canonical
+   * link, say), so both columns are searched.
+   */
+  getPostsReferencing(orgId: string, ids: string[]) {
+    if (!ids.length) {
+      return Promise.resolve([]);
+    }
+
+    return this._post.model.post.findMany({
+      where: {
+        organizationId: orgId,
+        deletedAt: null,
+        OR: ids.flatMap((id) => [
+          { content: { contains: `(post:${id})` } },
+          { settings: { contains: `(post:${id})` } },
+        ]),
+      },
+      select: {
+        id: true,
+        group: true,
+        content: true,
+        settings: true,
+        state: true,
+        publishDate: true,
+        integration: {
+          select: {
+            id: true,
+            name: true,
+            providerIdentifier: true,
+          },
+        },
+      },
+    });
+  }
+
   async getPosts(
     orgId: string,
     query: GetPostsDto,
-    options?: { includeMedia?: boolean }
+    options?: { includeMedia?: boolean; includeSettings?: boolean }
   ) {
     // Use the provided start and end dates directly
     const startDate = dayjs.utc(query.startDate).toDate();
@@ -191,10 +242,11 @@ export class PostsRepository {
         group: true,
         creationMethod: true,
         reviewed: true,
-        // Off by default: the calendar renders thousands of these and the
-        // media blob is the heaviest field on the row. Only the callers that
-        // need to know what is attached ask for it.
+        // Off by default: the calendar renders thousands of these and these
+        // two are the heaviest fields on the row. Only the callers that need
+        // to know what is attached, or how the post is configured, ask.
         ...(options?.includeMedia ? { image: true } : {}),
+        ...(options?.includeSettings ? { settings: true } : {}),
         tags: {
           select: {
             tag: true,

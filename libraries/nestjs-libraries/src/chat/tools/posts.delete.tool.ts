@@ -18,7 +18,9 @@ NOT for changing a post. To reword one, swap its media or move it, use editPostT
 Pass either the post "id" or its "group" — both delete the whole group, meaning the post together with its thread items and comments on that channel.
 A queued post is removed from the schedule and will not be published. A post that was already published is removed from the calendar only and stays live on the social network, unless you also pass deleteFromPlatform.
 Set deleteFromPlatform to true to additionally delete the published message on the social network itself. Only some platforms support this (Discord does); the rest report back that they cannot.
-This cannot be undone, so always confirm with the user before calling it — especially with deleteFromPlatform, which destroys the live post and any reactions or replies on it.`,
+This cannot be undone, so always confirm with the user before calling it — especially with deleteFromPlatform, which destroys the live post and any reactions or replies on it.
+
+ECHOES: if another post embeds this one's URL with "(post:<id>)", deleting this post breaks it. The reference can never resolve, so that post fails at publish time instead of going out — a silent no-show rather than a visible broken link, and it cascades to anything echoing THAT post. So this tool refuses when it finds posts that reference the one you are deleting, and lists them in "breaksEchoes". Show that list to the user. If they still want it gone, call again with breakEchoes: true and then repair or delete the posts it named.`,
       mcp: {
         annotations: {
           title: 'Delete Scheduled Post',
@@ -45,6 +47,12 @@ This cannot be undone, so always confirm with the user before calling it — esp
           .describe(
             'Also delete the already-published message on the social network itself, not just the calendar entry. Defaults to false.'
           ),
+        breakEchoes: z
+          .boolean()
+          .optional()
+          .describe(
+            'Delete even though other posts reference this one and will fail to publish because of it. Only pass this after showing the user the "breaksEchoes" list from the refusal and getting a clear yes.'
+          ),
       }),
       outputSchema: z.object({
         success: z.boolean().optional(),
@@ -58,6 +66,20 @@ This cannot be undone, so always confirm with the user before calling it — esp
           .optional()
           .describe(
             'Published posts that could not be removed from the platform; the calendar entry was still deleted'
+          ),
+        breaksEchoes: z
+          .array(
+            z.object({
+              id: z.string(),
+              content: z.string(),
+              publishDate: z.string(),
+              state: z.string(),
+              channel: z.string(),
+            })
+          )
+          .optional()
+          .describe(
+            'Posts that embed this one\'s URL. On a refusal these are what stopped it; on a forced delete these are the posts that will now fail to publish.'
           ),
         error: z.string().optional(),
       }),
@@ -86,6 +108,38 @@ This cannot be undone, so always confirm with the user before calling it — esp
             }
           }
 
+          // Anything echoing this post can never resolve its reference once the
+          // post is gone, and fails at publish time instead of going out. That
+          // is invisible unless someone is told, so find them before deleting.
+          const inGroup = await this._postsService.getPostIdsInGroup(
+            organizationId,
+            group
+          );
+
+          const dependents = await this._postsService.getPostsReferencing(
+            organizationId,
+            inGroup.map((p) => p.id)
+          );
+
+          const breaksEchoes = dependents.map((post: any) => ({
+            id: post.id,
+            content: post.content || '',
+            publishDate: new Date(post.publishDate).toISOString(),
+            state: post.state,
+            channel: post.integration?.name || '',
+          }));
+
+          if (breaksEchoes.length && !inputData.breakEchoes) {
+            return {
+              error: `This post is referenced by ${
+                breaksEchoes.length
+              } other post${
+                breaksEchoes.length === 1 ? '' : 's'
+              }, which would fail to publish once it is gone rather than going out with a broken link. Show the user the breaksEchoes list. To change this post's wording instead, use editPostTool — it keeps the id, so the echoes keep working. To delete anyway, call again with breakEchoes: true.`,
+              breaksEchoes,
+            };
+          }
+
           // Has to run first: it reads the rows deletePost soft-deletes.
           const platform = inputData.deleteFromPlatform
             ? await this._postsService.deletePostsFromPlatform(
@@ -102,6 +156,7 @@ This cannot be undone, so always confirm with the user before calling it — esp
           return {
             success: true,
             group,
+            ...(breaksEchoes.length ? { breaksEchoes } : {}),
             ...(platform
               ? {
                   deletedFromPlatform: platform.deleted,

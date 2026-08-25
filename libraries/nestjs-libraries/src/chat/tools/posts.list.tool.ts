@@ -8,6 +8,14 @@ import { readPostMedia } from '@gitroom/nestjs-libraries/chat/tools/post.write.s
 
 const DEFAULT_RANGE_IN_DAYS = 30;
 
+const parseSettings = (settings?: string | null) => {
+  try {
+    return JSON.parse(settings || '{}') || {};
+  } catch (err) {
+    return {};
+  }
+};
+
 @Injectable()
 export class PostsListTool implements AgentToolInterface {
   constructor(private _postsService: PostsService) {}
@@ -22,7 +30,10 @@ Every post returns both an "id" and a "group": the group holds a post together w
 Every post also returns "attachments" — the media it carries, with the same "path" the media library uses. That is how you tell whether a post already has its image or video on it, without opening anything.
 TO CHANGE A POST, use editPostTool with its "id". It edits in place and keeps whatever you do not pass, attachments included. Deleting and re-creating a post is not the way to reword it: it loses the media, the post's history and its id.
 
-TO LINK ONE POST TO ANOTHER (echoing a post to another channel): every post here returns a "linkReference" like "(post:<id>)". Put that string in another post's content and it is replaced with this post's real URL at the moment that post publishes. It works while "releaseURL" is still null - a queued post has no URL yet, and that is exactly the case this is for. Never copy "releaseURL" to build an echo; use "linkReference".`,
+Every post returns its "settings" too — the channel options it was scheduled with, such as which Discord channel it goes to or an X post's reply permissions and AI-disclosure flags. That is what you read back when you need to know how a post is configured, and what editPostTool merges into rather than replacing.
+
+TO LINK ONE POST TO ANOTHER (echoing a post to another channel): every post here returns a "linkReference" like "(post:<id>)". Put that string in another post's content and it is replaced with this post's real URL at the moment that post publishes. It works while "releaseURL" is still null - a queued post has no URL yet, and that is exactly the case this is for. Never copy "releaseURL" to build an echo; use "linkReference".
+"references" lists the posts THIS one points at. A chain is only as good as its links: if a post it references is deleted, the reference can never resolve and this post fails at publish time instead of going out with a broken link — a silent no-show. So edit posts rather than deleting them, and check what a delete would break before you run it (deletePostTool refuses and names them).`,
       mcp: {
         annotations: {
           title: 'List Scheduled Posts',
@@ -73,6 +84,16 @@ TO LINK ONE POST TO ANOTHER (echoing a post to another channel): every post here
                   })
                 )
                 .describe('The images and videos attached to this post'),
+              settings: z
+                .record(z.any())
+                .describe(
+                  'The channel settings this post was scheduled with (Discord channel, X reply permissions, AI disclosure, and so on)'
+                ),
+              references: z
+                .array(z.string())
+                .describe(
+                  'Ids of the posts this one embeds a live URL of. If one of them is deleted, this post fails at publish time rather than going out.'
+                ),
               linkReference: z
                 .string()
                 .describe(
@@ -109,7 +130,7 @@ TO LINK ONE POST TO ANOTHER (echoing a post to another channel): every post here
               endDate,
               customer: inputData.customer,
             },
-            { includeMedia: true }
+            { includeMedia: true, includeSettings: true }
           );
 
           const output = (posts || []).map((post: any) => ({
@@ -123,6 +144,10 @@ TO LINK ONE POST TO ANOTHER (echoing a post to another channel): every post here
               path: media?.path || '',
               thumbnail: media?.thumbnail ?? null,
             })),
+            settings: parseSettings(post.settings),
+            references: this._postsService.extractPostReferences(
+              `${post.content || ''}${post.settings || ''}`
+            ),
             linkReference: `(post:${post.id})`,
             channel: {
               id: post.integration?.id || '',

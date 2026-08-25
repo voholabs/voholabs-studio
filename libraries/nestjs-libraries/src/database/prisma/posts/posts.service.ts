@@ -364,9 +364,28 @@ export class PostsService {
   async getPosts(
     orgId: string,
     query: GetPostsDto,
-    options?: { includeMedia?: boolean }
+    options?: { includeMedia?: boolean; includeSettings?: boolean }
   ) {
     return this._postRepository.getPosts(orgId, query, options);
+  }
+
+  async getPostIdsInGroup(orgId: string, group: string) {
+    return this._postRepository.getPostIdsInGroup(orgId, group);
+  }
+
+  /**
+   * Which posts would break if `ids` went away — the other side of
+   * `getPostDependencies`, which only ever looks outward from one post. Posts
+   * that reference each other inside the same group are left out: a thread
+   * linking to itself does not survive or die independently.
+   */
+  async getPostsReferencing(orgId: string, ids: string[]) {
+    const referencing = await this._postRepository.getPostsReferencing(
+      orgId,
+      ids
+    );
+
+    return referencing.filter((post) => !ids.includes(post.id));
   }
 
   async getPostsMinified(orgId: string, query: GetPostsDto) {

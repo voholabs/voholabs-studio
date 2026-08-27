@@ -1,6 +1,14 @@
 'use client';
 
-import { FC, MouseEvent, useCallback, useRef, useState } from 'react';
+import {
+  FC,
+  MouseEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
+import { createPortal } from 'react-dom';
 import { clsx } from 'clsx';
 import { hasExtension } from '@gitroom/helpers/utils/has.extension';
 
@@ -97,9 +105,62 @@ export const VideoOrImage: FC<{
 };
 
 /**
- * Media inside a preview, as the previews want it: an image opens full size in
- * a new tab, a video stays put and plays where it is - sending it to a tab of
- * its own is what stops you from watching it in place.
+ * The whole image, over the page, at whatever size the screen allows. A preview
+ * pane is a fixed height and most images are not that shape, so this is where
+ * you actually look at one - without losing your place in the feed.
+ */
+const Lightbox: FC<{ src: string; onClose: () => void }> = ({
+  src,
+  onClose,
+}) => {
+  useEffect(() => {
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', escape);
+    return () => document.removeEventListener('keydown', escape);
+  }, [onClose]);
+
+  if (typeof document === 'undefined') {
+    return null;
+  }
+
+  return createPortal(
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-[1000] bg-black/80 flex items-center justify-center p-[20px] cursor-zoom-out"
+    >
+      <img
+        src={src}
+        // The click that opened this must not close it again on the way back up.
+        onClick={(event) => event.stopPropagation()}
+        className="max-w-full max-h-full object-contain cursor-default"
+      />
+      <button
+        onClick={onClose}
+        aria-label="Close"
+        className="absolute top-[16px] end-[16px] w-[36px] h-[36px] rounded-full bg-black/60 hover:bg-black/80 text-white text-[20px] leading-none flex items-center justify-center"
+      >
+        ×
+      </button>
+    </div>,
+    document.body
+  );
+};
+
+/**
+ * Media inside a preview, as the previews want it: a video stays put and plays
+ * where it is - sending it to a tab of its own is what stops you from watching
+ * it in place - and an image opens full size over the page.
+ *
+ * Images are contained rather than cropped. Once the wrapper actually fills its
+ * pane (see SliderComponent), `object-fit` decides what a photo that is not the
+ * pane's shape does, and cropping a 9:16 photo into a 280px-tall pane leaves a
+ * band across the middle of it. The whole image shows instead, with the
+ * lightbox a click away for a proper look at it.
  */
 export const MediaPreview: FC<{
   src: string;
@@ -108,19 +169,52 @@ export const MediaPreview: FC<{
   imageClassName?: string;
   videoClassName?: string;
 }> = (props) => {
-  const { src, className, ...rest } = props;
+  const { src, className, isContain = true, ...rest } = props;
+  const [zoomed, setZoomed] = useState(false);
+
+  const open = useCallback((event: MouseEvent<HTMLAnchorElement>) => {
+    // A modified click still means "open it in a tab of its own", and the card
+    // underneath this has a click of its own that must not fire.
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    setZoomed(true);
+  }, []);
+
+  const close = useCallback(() => setZoomed(false), []);
 
   if (hasExtension(src, 'mp4')) {
     return (
       <div className={className}>
-        <VideoOrImage autoplay={true} src={src} {...rest} />
+        <VideoOrImage
+          autoplay={true}
+          src={src}
+          isContain={isContain}
+          {...rest}
+        />
       </div>
     );
   }
 
   return (
-    <a className={className} href={src} target="_blank">
-      <VideoOrImage autoplay={true} src={src} {...rest} />
-    </a>
+    <>
+      <a
+        className={clsx(className, 'cursor-zoom-in')}
+        href={src}
+        target="_blank"
+        onClick={open}
+      >
+        <VideoOrImage
+          autoplay={true}
+          src={src}
+          isContain={isContain}
+          {...rest}
+        />
+      </a>
+      {zoomed && <Lightbox src={src} onClose={close} />}
+    </>
   );
 };

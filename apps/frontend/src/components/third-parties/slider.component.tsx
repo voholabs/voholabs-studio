@@ -24,7 +24,11 @@ export const SliderComponent: FC<{
 
   return (
     <div className={clsx(className, 'relative')}>
-      {list[show]}
+      {/* A pane is a fixed height and the slides are handed a `flex-1` that only
+          means something inside a flex row. Without one the slide sizes itself
+          to its own media, `h-full` on the media resolves to `auto`, and a
+          portrait photo overflows the pane and shows only its top band. */}
+      <div className="w-full h-full flex">{list[show]}</div>
 
       {/* Left Arrow */}
       {canGoPrevious && (

@@ -7,6 +7,7 @@ const POST_LIST_KEYS: Record<string, string> = {
   page: 'pg',
   limit: 'l',
   hasMore: 'hm',
+  counts: 'ct',
 };
 
 const POST_CALENDAR_KEYS: Record<string, string> = {
@@ -122,6 +123,9 @@ export function minifyPostsList(data: {
   page: number;
   limit: number;
   hasMore: boolean;
+  // Posts per integration id across the whole result set, so the feed can show
+  // a count next to each channel without paging through everything.
+  counts?: Record<string, number>;
 }) {
   return mapKeys(
     {

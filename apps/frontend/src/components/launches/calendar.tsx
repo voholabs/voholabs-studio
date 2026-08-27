@@ -496,18 +496,59 @@ export const MonthView = () => {
     </div>
   );
 };
+/**
+ * "Nothing is scheduled" and "nothing on this channel is scheduled" are
+ * different answers. Showing the first one while a channel filter is on sends
+ * people looking for posts that are sitting right behind the filter.
+ */
+const FeedEmptyState = () => {
+  const t = useT();
+  const { listState, listIntegration, setListIntegration, integrations } =
+    useCalendar();
+
+  const clearFilter = useCallback(
+    () => setListIntegration(null),
+    [setListIntegration]
+  );
+
+  if (listIntegration) {
+    const channel = integrations.find((i) => i.id === listIntegration);
+    return (
+      <div className="flex flex-col flex-1 items-center justify-center gap-[12px]">
+        <div className="text-textColor text-[16px]">
+          {t('no_posts_for_account', 'No posts for {{name}}', {
+            name: channel?.name || t('this_account', 'this account'),
+          })}
+        </div>
+        <div
+          onClick={clearFilter}
+          className="cursor-pointer text-[14px] px-[14px] py-[7px] rounded-[8px] border border-newTableBorder hover:bg-boxFocused"
+        >
+          {t('show_all_accounts', 'Show all accounts')}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col flex-1 items-center justify-center">
+      <div className="text-textColor text-[16px]">
+        {listState === 'scheduled'
+          ? t('no_upcoming_posts', 'No upcoming posts scheduled')
+          : listState === 'draft'
+          ? t('no_draft_posts', 'No draft posts')
+          : listState === 'published'
+          ? t('no_published_posts', 'No published posts')
+          : t('no_posts', 'No posts')}
+      </div>
+    </div>
+  );
+};
+
 export const ListView = () => {
   const t = useT();
   const user = useUser();
   const { integrations, loading, listPosts, listState } = useCalendar();
-  const emptyMessage =
-    listState === 'scheduled'
-      ? t('no_upcoming_posts', 'No upcoming posts scheduled')
-      : listState === 'draft'
-      ? t('no_draft_posts', 'No draft posts')
-      : listState === 'published'
-      ? t('no_published_posts', 'No published posts')
-      : t('no_posts', 'No posts');
 
   // Use shared post actions hook
   const { editPost, deletePost, copyDebugJson, openStatistics, openMissingRelease } = usePostActions();
@@ -538,11 +579,7 @@ export const ListView = () => {
   }
 
   if (listPosts.length === 0) {
-    return (
-      <div className="flex flex-col flex-1 items-center justify-center">
-        <div className="text-textColor text-[16px]">{emptyMessage}</div>
-      </div>
-    );
+    return <FeedEmptyState />;
   }
 
   return (
@@ -590,15 +627,6 @@ export const ReviewView = () => {
     useCalendar();
   const { editPost, deletePost } = usePostActions();
 
-  const emptyMessage =
-    listState === 'scheduled'
-      ? t('no_upcoming_posts', 'No upcoming posts scheduled')
-      : listState === 'draft'
-      ? t('no_draft_posts', 'No draft posts')
-      : listState === 'published'
-      ? t('no_published_posts', 'No published posts')
-      : t('no_posts', 'No posts');
-
   const groupedPosts = useMemo(() => {
     const groups: { [key: string]: any[] } = {};
     listPosts.forEach((post) => {
@@ -622,11 +650,7 @@ export const ReviewView = () => {
   }
 
   if (listPosts.length === 0) {
-    return (
-      <div className="flex flex-col flex-1 items-center justify-center">
-        <div className="text-textColor text-[16px]">{emptyMessage}</div>
-      </div>
-    );
+    return <FeedEmptyState />;
   }
 
   // Only the very first card of an upcoming feed is the one actually going out

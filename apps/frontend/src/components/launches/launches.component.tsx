@@ -6,6 +6,7 @@ import SafeImage from '@gitroom/react/helpers/safe.image';
 import { capitalize, groupBy, orderBy } from 'lodash';
 import { CalendarWeekProvider } from '@gitroom/frontend/components/launches/calendar.context';
 import { Filters } from '@gitroom/frontend/components/launches/filters';
+import { AccountFilter } from '@gitroom/frontend/components/launches/account.filter';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
 import clsx from 'clsx';
@@ -594,6 +595,7 @@ export const LaunchesComponent = () => {
         </div>
         <div className="bg-newBgColorInner flex-1 flex-col flex p-[20px] gap-[12px]">
           <Filters />
+          <AccountFilter />
           <div className="flex-1 flex">
             <Calendar />
           </div>

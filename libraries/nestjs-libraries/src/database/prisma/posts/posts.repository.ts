@@ -310,7 +310,11 @@ export class PostsRepository {
     const orderDirection: 'asc' | 'desc' =
       stateFilter === 'published' ? 'desc' : 'asc';
 
-    const where = {
+    // Everything the feed would show if no channel were picked. The per-channel
+    // counts are taken over this, so the number next to a channel means the same
+    // thing before and after you select one - and counts the whole result set,
+    // not just the page currently on screen.
+    const unfilteredWhere = {
       AND: [
         {
           OR: [
@@ -338,15 +342,20 @@ export class PostsRepository {
               customerId: query.customer,
             }
           : {}),
-        ...(query.integration
-          ? {
-              id: query.integration,
-            }
-          : {}),
       },
     };
 
-    const [posts, total] = await Promise.all([
+    const where = query.integration
+      ? {
+          ...unfilteredWhere,
+          integration: {
+            ...unfilteredWhere.integration,
+            id: query.integration,
+          },
+        }
+      : unfilteredWhere;
+
+    const [posts, total, countsPerIntegration] = await Promise.all([
       this._post.model.post.findMany({
         where,
         skip,
@@ -381,6 +390,11 @@ export class PostsRepository {
         },
       }),
       this._post.model.post.count({ where }),
+      this._post.model.post.groupBy({
+        by: ['integrationId'],
+        where: unfilteredWhere,
+        _count: { _all: true },
+      }),
     ]);
 
     return {
@@ -389,6 +403,10 @@ export class PostsRepository {
       page,
       limit,
       hasMore: skip + posts.length < total,
+      counts: countsPerIntegration.reduce(
+        (all, row) => ({ ...all, [row.integrationId]: row._count._all }),
+        {} as Record<string, number>
+      ),
     };
   }
 

@@ -97,6 +97,13 @@ export const CalendarContext = createContext({
   setListState: (state: ListStateFilter) => {
     /** empty **/
   },
+  // Narrows the feed to a single channel. Null is "every channel".
+  listIntegration: null as string | null,
+  setListIntegration: (id: string | null) => {
+    /** empty **/
+  },
+  // Posts per integration id across the whole feed, not just the current page.
+  listCounts: {} as Record<string, number>,
 });
 
 export interface Integrations {
@@ -169,6 +176,15 @@ export const CalendarWeekProvider: FC<{
     setListPage(0);
   }, []);
 
+  // The channel filter is a server-side one: a feed is paginated, so filtering
+  // the page we happen to hold would quietly hide the rest of that channel's
+  // posts and leave the pager counting pages that no longer exist.
+  const [listIntegration, setListIntegrationRaw] = useState<string | null>(null);
+  const setListIntegration = useCallback((next: string | null) => {
+    setListIntegrationRaw(next);
+    setListPage(0);
+  }, []);
+
   // Initialize with current date range based on URL params or defaults
   const initStartDate = searchParams.get('startDate');
   const initEndDate = searchParams.get('endDate');
@@ -216,8 +232,9 @@ export const CalendarWeekProvider: FC<{
       limit: listLimit.toString(),
       customer: filters?.customer?.toString() || '',
       state: listState,
+      ...(listIntegration ? { integration: listIntegration } : {}),
     }).toString();
-  }, [listPage, listLimit, filters.customer, listState]);
+  }, [listPage, listLimit, filters.customer, listState, listIntegration]);
 
   const loadListData = useCallback(async () => {
     const response = await fetch(`/posts/list?${listParams}`);
@@ -325,13 +342,33 @@ export const CalendarWeekProvider: FC<{
 
   const listPosts = useMemo(
     () =>
-      [...realListPosts, ...sanityItems].sort((a, b) =>
+      [
+        ...realListPosts,
+        // Sanity items never went through the query, so the channel filter has
+        // to be applied to them here.
+        ...(listIntegration
+          ? sanityItems.filter((i) => i.integration?.id === listIntegration)
+          : sanityItems),
+      ].sort((a, b) =>
         listState === 'published'
           ? String(b.publishDate).localeCompare(String(a.publishDate))
           : String(a.publishDate).localeCompare(String(b.publishDate))
       ),
-    [realListPosts, sanityItems, listState]
+    [realListPosts, sanityItems, listState, listIntegration]
   );
+
+  // The server counts rows it holds; unscheduled Sanity documents only exist in
+  // the merged feed, so their channels are counted on top of it.
+  const listCounts = useMemo(() => {
+    const counts: Record<string, number> = { ...(listData?.counts || {}) };
+    for (const item of sanityItems) {
+      const id = item.integration?.id;
+      if (id) {
+        counts[id] = (counts[id] || 0) + 1;
+      }
+    }
+    return counts;
+  }, [listData?.counts, sanityItems]);
   const listTotal = listData?.total || 0;
   const listTotalPages = Math.ceil(listTotal / listLimit);
 
@@ -390,6 +427,9 @@ export const CalendarWeekProvider: FC<{
         setListPage,
         listState,
         setListState,
+        listIntegration,
+        setListIntegration,
+        listCounts,
       }}
     >
       {children}

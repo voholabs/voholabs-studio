@@ -1088,6 +1088,17 @@ export class SanityProvider extends SocialAbstract implements SocialProvider {
         continue;
       }
 
+      // A code block. Its text lives on `code`, not `body` or `text`, so it
+      // matched no branch below and was dropped from the preview entirely.
+      if (typeof block.code === 'string' && block.code.length) {
+        blocks.push({
+          kind: 'code',
+          language: String(block.language || ''),
+          code: block.code,
+        });
+        continue;
+      }
+
       // Callouts and similar: a labelled box holding a line of prose.
       const text =
         typeof block.body === 'string'

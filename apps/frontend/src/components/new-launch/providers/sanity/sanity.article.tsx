@@ -18,7 +18,8 @@ export type SanityBlock =
   | { kind: 'list'; ordered: boolean; items: SanitySpan[][] }
   | { kind: 'image'; url: string; alt?: string; caption?: string }
   | { kind: 'callout'; style: string; text: string }
-  | { kind: 'embed'; provider: string; url: string; caption?: string };
+  | { kind: 'embed'; provider: string; url: string; caption?: string }
+  | { kind: 'code'; language?: string; code: string };
 
 // Callout styles a schema tends to use, and how they should read.
 const CALLOUT_TONE: Record<string, string> = {
@@ -28,6 +29,53 @@ const CALLOUT_TONE: Record<string, string> = {
   danger: 'border-red-500/60 bg-red-500/10',
   tip: 'border-emerald-500/60 bg-emerald-500/10',
   success: 'border-emerald-500/60 bg-emerald-500/10',
+};
+
+/**
+ * The same patterns the site's own renderer uses, so a video that plays on the
+ * published page plays here too - and one it cannot embed falls back to a link
+ * in both places rather than only one.
+ */
+const youTubeId = (url: string) =>
+  url?.match(
+    /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/|live\/|v\/))([\w-]{11})/
+  )?.[1] || null;
+
+const tikTokId = (url: string) =>
+  url?.match(
+    /tiktok\.com\/(?:@[\w.-]+\/video\/|v\/|embed\/v2\/|player\/v1\/)(\d+)/
+  )?.[1] || null;
+
+const linkedInActivityId = (url: string) =>
+  url?.match(/(?:activity[-:]|urn:li:(?:activity|share|ugcPost):)(\d+)/)?.[1] ||
+  null;
+
+const embedSource = (url: string) => {
+  const youtube = youTubeId(url);
+  if (youtube) {
+    return {
+      src: `https://www.youtube-nocookie.com/embed/${youtube}`,
+      portrait: /\/shorts\//.test(url),
+    };
+  }
+
+  const tiktok = tikTokId(url);
+  if (tiktok) {
+    return {
+      src: `https://www.tiktok.com/player/v1/${tiktok}`,
+      portrait: true,
+    };
+  }
+
+  const linkedin = linkedInActivityId(url);
+  if (linkedin) {
+    return {
+      src: `https://www.linkedin.com/embed/feed/update/urn:li:activity:${linkedin}`,
+      portrait: false,
+    };
+  }
+
+  return null;
 };
 
 const Spans: FC<{ spans: SanitySpan[] }> = ({ spans }) => (
@@ -153,7 +201,57 @@ export const SanityArticle: FC<{ blocks: SanityBlock[] }> = ({ blocks }) => {
               </div>
             );
 
-          case 'embed':
+          // A code sample, shown as written. Approving a technical post means
+          // being able to read the code in it.
+          case 'code':
+            return (
+              <pre
+                key={index}
+                className="overflow-x-auto rounded-[8px] border border-newTableBorder bg-newBgColorInner p-[12px] text-[12px] leading-[1.5]"
+              >
+                {!!block.language && (
+                  <div className="pb-[6px] text-[10px] uppercase tracking-[0.08em] text-textColor/40">
+                    {block.language}
+                  </div>
+                )}
+                <code className="whitespace-pre">{block.code}</code>
+              </pre>
+            );
+
+          case 'embed': {
+            // A YouTube, TikTok or LinkedIn post is the content, not a link to
+            // it - so it plays here the way it plays on the published page.
+            const source = embedSource(block.url);
+
+            if (source) {
+              return (
+                <figure key={index} className="flex flex-col gap-[6px]">
+                  <div
+                    className={clsx(
+                      'relative w-full overflow-hidden rounded-[10px] border border-newTableBorder',
+                      source.portrait ? 'aspect-[9/16]' : 'aspect-video'
+                    )}
+                  >
+                    <iframe
+                      src={source.src}
+                      title={block.caption || block.provider}
+                      loading="lazy"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      referrerPolicy="strict-origin-when-cross-origin"
+                      allowFullScreen
+                      className="absolute inset-0 h-full w-full border-0"
+                    />
+                  </div>
+                  {!!block.caption && (
+                    <figcaption className="text-[12px] text-textColor/55">
+                      {block.caption}
+                    </figcaption>
+                  )}
+                </figure>
+              );
+            }
+
+            // Anything not embeddable keeps the link card it had.
             return (
               <a
                 key={index}
@@ -170,6 +268,7 @@ export const SanityArticle: FC<{ blocks: SanityBlock[] }> = ({ blocks }) => {
                 </div>
               </a>
             );
+          }
 
           default:
             return (

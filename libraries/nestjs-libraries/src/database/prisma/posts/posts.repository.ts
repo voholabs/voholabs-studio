@@ -287,6 +287,14 @@ export class PostsRepository {
   }
 
   async getPostsList(orgId: string, query: GetPostsListDto) {
+    const tally = (
+      rows: { integrationId: string; _count: { _all: number } }[]
+    ) =>
+      rows.reduce(
+        (all, row) => ({ ...all, [row.integrationId]: row._count._all }),
+        {} as Record<string, number>
+      );
+
     const page = query.page || 0;
     const limit = query.limit || 20;
     const skip = page * limit;
@@ -318,15 +326,11 @@ export class PostsRepository {
         ? { reviewed: false }
         : {};
 
-    // Everything the feed would show if no channel were picked. The per-channel
-    // counts are taken over this, so the number next to a channel means the same
-    // thing before and after you select one - and counts the whole result set,
-    // not just the page currently on screen.
-    //
-    // The reviewed mark sits here with state and customer rather than with the
-    // channel: picking "Not reviewed" should make each chip count that channel's
-    // unreviewed posts, so the number still describes the feed you are looking at.
-    const unfilteredWhere = {
+    // Everything the feed would show if neither a channel nor a review state
+    // were picked. Which channels get a chip is decided over this, so the row of
+    // chips is the same row whatever else is filtered - a chip that vanishes
+    // because you asked for "Reviewed" takes the way back out with it.
+    const channelScopeWhere = {
       AND: [
         {
           OR: [
@@ -337,7 +341,6 @@ export class PostsRepository {
         },
       ],
       ...stateAndDate,
-      ...reviewedWhere,
       // Published posts were already posted (publishDate in the past), so fetch
       // all of them; everything else stays upcoming. Ordering handles the rest.
       ...(stateFilter === 'published'
@@ -358,6 +361,11 @@ export class PostsRepository {
       },
     };
 
+    // The per-channel counts still ignore the channel choice - so a number means
+    // the same thing before and after you select one - but they do follow the
+    // review state, so the number describes the feed you are looking at.
+    const unfilteredWhere = { ...channelScopeWhere, ...reviewedWhere };
+
     const where = query.integration
       ? {
           ...unfilteredWhere,
@@ -368,7 +376,7 @@ export class PostsRepository {
         }
       : unfilteredWhere;
 
-    const [posts, total, countsPerIntegration] = await Promise.all([
+    const [posts, total, countsPerIntegration, channelRows] = await Promise.all([
       this._post.model.post.findMany({
         where,
         skip,
@@ -408,6 +416,16 @@ export class PostsRepository {
         where: unfilteredWhere,
         _count: { _all: true },
       }),
+      // Which channels have anything at all in this view, ignoring the review
+      // state. With no review filter on it is the same question as the counts
+      // above, so do not ask the database twice.
+      reviewedFilter === 'all'
+        ? null
+        : this._post.model.post.groupBy({
+            by: ['integrationId'],
+            where: channelScopeWhere,
+            _count: { _all: true },
+          }),
     ]);
 
     return {
@@ -416,10 +434,8 @@ export class PostsRepository {
       page,
       limit,
       hasMore: skip + posts.length < total,
-      counts: countsPerIntegration.reduce(
-        (all, row) => ({ ...all, [row.integrationId]: row._count._all }),
-        {} as Record<string, number>
-      ),
+      counts: tally(countsPerIntegration),
+      channelCounts: tally(channelRows || countsPerIntegration),
     };
   }
 

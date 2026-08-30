@@ -61,6 +61,7 @@ export const AccountFilter = () => {
     display,
     integrations,
     listCounts,
+    listChannelCounts,
     listIntegration,
     setListIntegration,
   } = useCalendar();
@@ -68,16 +69,24 @@ export const AccountFilter = () => {
   // A channel earns a chip by having something in the current feed - otherwise
   // an account with nothing scheduled is a dead button. The selected one stays
   // whatever its count, so the way back to "all" never disappears.
+  //
+  // Membership is decided ignoring the review state, and only the number below
+  // follows it: a chip that disappeared because you asked for "Reviewed" would
+  // take the whole row with it once fewer than two channels were left, and the
+  // way back out with it. A channel with none shows a zero and stays put.
   const channels = useMemo(
     () =>
       integrations
         .filter(
           (integration) =>
-            (listCounts[integration.id] || 0) > 0 ||
+            (listChannelCounts[integration.id] || 0) > 0 ||
             integration.id === listIntegration
         )
-        .sort((a, b) => (listCounts[b.id] || 0) - (listCounts[a.id] || 0)),
-    [integrations, listCounts, listIntegration]
+        .sort(
+          (a, b) =>
+            (listChannelCounts[b.id] || 0) - (listChannelCounts[a.id] || 0)
+        ),
+    [integrations, listChannelCounts, listIntegration]
   );
 
   const total = useMemo(

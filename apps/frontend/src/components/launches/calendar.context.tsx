@@ -106,6 +106,8 @@ export const CalendarContext = createContext({
   },
   // Posts per integration id across the whole feed, not just the current page.
   listCounts: {} as Record<string, number>,
+  // The same, ignoring the review state - which channels get a chip at all.
+  listChannelCounts: {} as Record<string, number>,
   listReviewed: 'all' as ListReviewedFilter,
   setListReviewed: (reviewed: ListReviewedFilter) => {
     /** empty **/
@@ -357,11 +359,21 @@ export const CalendarWeekProvider: FC<{
   // Blog posts that exist in Sanity but are not scheduled yet have no row of
   // their own, so they are merged in here - once, at the source - and every
   // feed that reads listPosts shows them alongside real posts.
-  const sanityItems = useSanityFeedItems(
+  const allSanityItems = useSanityFeedItems(
     integrations,
     realListPosts,
-    listState,
-    filters.display === 'review' ? listReviewed : 'all'
+    listState
+  );
+
+  // These rows exist only in Sanity, so there is nothing of ours to carry a
+  // reviewed mark - they are all unreviewed by construction. "Reviewed" drops
+  // them rather than letting them claim a mark they cannot have.
+  const sanityItems = useMemo(
+    () =>
+      filters.display === 'review' && listReviewed === 'reviewed'
+        ? []
+        : allSanityItems,
+    [allSanityItems, filters.display, listReviewed]
   );
 
   const listPosts = useMemo(
@@ -393,6 +405,22 @@ export const CalendarWeekProvider: FC<{
     }
     return counts;
   }, [listData?.counts, sanityItems]);
+
+  // Which channels get a chip. Sanity rows carry no mark of ours, so they are
+  // counted here whatever the review filter says - the same reason they are
+  // dropped from "Reviewed" rather than claiming one.
+  const listChannelCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      ...(listData?.channelCounts || listData?.counts || {}),
+    };
+    for (const item of allSanityItems) {
+      const id = item.integration?.id;
+      if (id) {
+        counts[id] = (counts[id] || 0) + 1;
+      }
+    }
+    return counts;
+  }, [listData?.channelCounts, listData?.counts, allSanityItems]);
   const listTotal = listData?.total || 0;
   const listTotalPages = Math.ceil(listTotal / listLimit);
 
@@ -454,6 +482,7 @@ export const CalendarWeekProvider: FC<{
         listIntegration,
         setListIntegration,
         listCounts,
+        listChannelCounts,
         listReviewed,
         setListReviewed,
       }}

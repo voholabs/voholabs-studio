@@ -65,6 +65,15 @@ export const SanityPreview: FC<{ maximumCharacters?: number }> = () => {
     return marker?.[1] || '';
   }, [settings, value]);
 
+  // What the feed already knew about this document before asking Sanity for
+  // the article itself. Enough to draw the card; the body arrives after.
+  const seed = useMemo(
+    () => settings?.getValues?.()?.sanitySeed as
+      | { title?: string; image?: string; status?: 'draft' | 'published' }
+      | undefined,
+    [settings]
+  );
+
   const { data, isLoading } = useSanityDocument(integration?.id, documentId);
 
   if (!documentId) {
@@ -75,10 +84,27 @@ export const SanityPreview: FC<{ maximumCharacters?: number }> = () => {
     );
   }
 
+  // A feed of blog cards fires one of these per card, so the wait is measured
+  // in the whole queue rather than one request. Everything already in hand is
+  // drawn straight away and only the article body waits.
   if (isLoading) {
     return (
-      <div className="p-[16px] text-[14px] text-textColor/60">
-        {t('sanity_loading_document', 'Reading this post from Sanity…')}
+      <div className="p-[16px] flex flex-col gap-[12px]">
+        {!!seed?.image && (
+          <img
+            src={seed.image}
+            alt=""
+            className="w-full max-h-[260px] object-cover rounded-[10px]"
+          />
+        )}
+        {!!seed?.title && (
+          <div className="text-[20px] font-[700] leading-[1.3]">
+            {seed.title}
+          </div>
+        )}
+        <div className="text-[14px] text-textColor/60">
+          {t('sanity_loading_document', 'Reading this post from Sanity…')}
+        </div>
       </div>
     );
   }
@@ -125,16 +151,16 @@ export const SanityPreview: FC<{ maximumCharacters?: number }> = () => {
         </div>
       )}
 
-      {!!inspection.image && (
+      {!!(inspection.image || seed?.image) && (
         <img
-          src={inspection.image}
+          src={inspection.image || seed?.image}
           alt=""
           className="w-full max-h-[260px] object-cover rounded-[10px]"
         />
       )}
 
       <div className="text-[20px] font-[700] leading-[1.3]">
-        {inspection.title || (
+        {inspection.title || seed?.title || (
           <span className="text-red-500">
             {t('sanity_untitled', 'Untitled document')}
           </span>

@@ -269,7 +269,19 @@ export const ReviewPostCard: FC<{
 
     return {
       posts: [{ id: post.id, content: post.content, image: [] }],
-      settings: { documentId: post.sanityDocument.id },
+      settings: {
+        documentId: post.sanityDocument.id,
+        // The feed listing already carried the cover image, title and status
+        // for every document. Handing them straight to the preview means a
+        // blog card is readable the moment it appears, instead of sitting on
+        // "Reading this post from Sanity" while its own per-card request
+        // queues behind every other card's.
+        sanitySeed: {
+          title: post.sanityDocument.title || '',
+          image: post.sanityDocument.image || '',
+          status: post.sanityDocument.status,
+        },
+      },
     };
   }, [isSanityDocument, fetchedData, post]);
 

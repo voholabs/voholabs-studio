@@ -3,8 +3,10 @@
 import {
   useCalendar,
   ListStateFilter,
+  ListReviewedFilter,
   isFeedDisplay,
 } from '@gitroom/frontend/components/launches/calendar.context';
+import { ReviewedCheckIcon } from '@gitroom/frontend/components/launches/reviewed.checkbox';
 import clsx from 'clsx';
 import dayjs from 'dayjs';
 import { useCallback } from 'react';
@@ -297,6 +299,24 @@ export const Filters = () => {
     { value: 'published', label: t('published', 'Published') },
   ];
 
+  const setListReviewedFilter = useCallback(
+    (next: ListReviewedFilter) => () => {
+      if (calendar.listReviewed === next) return;
+      calendar.setListReviewed(next);
+    },
+    [calendar]
+  );
+
+  const listReviewedOptions: {
+    value: ListReviewedFilter;
+    label: string;
+    icon?: boolean;
+  }[] = [
+    { value: 'all', label: t('any_review_state', 'Any') },
+    { value: 'reviewed', label: t('reviewed', 'Reviewed'), icon: true },
+    { value: 'unreviewed', label: t('not_reviewed', 'Not reviewed') },
+  ];
+
   const previousPage = useCallback(() => {
     if (calendar.listPage > 0) {
       calendar.setListPage(calendar.listPage - 1);
@@ -446,6 +466,34 @@ export const Filters = () => {
               </div>
             ))}
           </div>
+          {/* Only the review view shows the mark on every row, so that is the
+              only place where filtering on it reads as a filter and not as a
+              rule you cannot see. */}
+          {isReviewView && (
+            <div
+              className="flex flex-row p-[4px] border border-newTableBorder rounded-[8px] text-[14px] font-[500]"
+              data-tooltip-id="tooltip"
+              data-tooltip-content={t(
+                'filter_by_reviewed',
+                'Filter by your reviewed mark'
+              )}
+            >
+              {listReviewedOptions.map((option) => (
+                <div
+                  key={option.value}
+                  onClick={setListReviewedFilter(option.value)}
+                  className={clsx(
+                    'pt-[6px] pb-[5px] cursor-pointer px-[12px] text-center rounded-[6px] flex items-center justify-center gap-[6px] whitespace-nowrap',
+                    calendar.listReviewed === option.value &&
+                      'text-textItemFocused bg-boxFocused'
+                  )}
+                >
+                  {option.icon && <ReviewedCheckIcon />}
+                  {option.label}
+                </div>
+              ))}
+            </div>
+          )}
           <div className="flex-1" />
         </div>
       )}

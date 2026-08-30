@@ -8,6 +8,7 @@ const POST_LIST_KEYS: Record<string, string> = {
   limit: 'l',
   hasMore: 'hm',
   counts: 'ct',
+  channelCounts: 'cc',
 };
 
 const POST_CALENDAR_KEYS: Record<string, string> = {
@@ -126,6 +127,8 @@ export function minifyPostsList(data: {
   // Posts per integration id across the whole result set, so the feed can show
   // a count next to each channel without paging through everything.
   counts?: Record<string, number>;
+  // The same, but ignoring the review state - which channels get a chip at all.
+  channelCounts?: Record<string, number>;
 }) {
   return mapKeys(
     {

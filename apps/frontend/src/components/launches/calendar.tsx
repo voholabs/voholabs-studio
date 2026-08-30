@@ -503,29 +503,83 @@ export const MonthView = () => {
  */
 const FeedEmptyState = () => {
   const t = useT();
-  const { listState, listIntegration, setListIntegration, integrations } =
-    useCalendar();
+  const {
+    listState,
+    listIntegration,
+    setListIntegration,
+    listReviewed,
+    setListReviewed,
+    display,
+    integrations,
+  } = useCalendar();
 
   const clearFilter = useCallback(
     () => setListIntegration(null),
     [setListIntegration]
   );
 
+  const clearReviewed = useCallback(
+    () => setListReviewed('all'),
+    [setListReviewed]
+  );
+
+  // The reviewed pills only exist in review, and only review sends the
+  // parameter - so in the list view the mark is not what emptied the feed.
+  const reviewedIsOn = display === 'review' && listReviewed !== 'all';
+
+  const clearReviewedButton = (
+    <div
+      onClick={clearReviewed}
+      className="cursor-pointer text-[14px] px-[14px] py-[7px] rounded-[8px] border border-newTableBorder hover:bg-boxFocused"
+    >
+      {t('show_any_review_state', 'Show any review state')}
+    </div>
+  );
+
   if (listIntegration) {
     const channel = integrations.find((i) => i.id === listIntegration);
+    const name = channel?.name || t('this_account', 'this account');
     return (
       <div className="flex flex-col flex-1 items-center justify-center gap-[12px]">
         <div className="text-textColor text-[16px]">
-          {t('no_posts_for_account', 'No posts for {{name}}', {
-            name: channel?.name || t('this_account', 'this account'),
-          })}
+          {/* Both filters can be hiding the posts, and clearing only one of
+              them would leave the feed just as empty with no explanation. */}
+          {reviewedIsOn
+            ? listReviewed === 'reviewed'
+              ? t(
+                  'no_reviewed_posts_for_account',
+                  'Nothing reviewed for {{name}}',
+                  { name }
+                )
+              : t(
+                  'no_unreviewed_posts_for_account',
+                  'Nothing left to review for {{name}}',
+                  { name }
+                )
+            : t('no_posts_for_account', 'No posts for {{name}}', { name })}
         </div>
-        <div
-          onClick={clearFilter}
-          className="cursor-pointer text-[14px] px-[14px] py-[7px] rounded-[8px] border border-newTableBorder hover:bg-boxFocused"
-        >
-          {t('show_all_accounts', 'Show all accounts')}
+        <div className="flex items-center gap-[8px]">
+          <div
+            onClick={clearFilter}
+            className="cursor-pointer text-[14px] px-[14px] py-[7px] rounded-[8px] border border-newTableBorder hover:bg-boxFocused"
+          >
+            {t('show_all_accounts', 'Show all accounts')}
+          </div>
+          {reviewedIsOn && clearReviewedButton}
         </div>
+      </div>
+    );
+  }
+
+  if (reviewedIsOn) {
+    return (
+      <div className="flex flex-col flex-1 items-center justify-center gap-[12px]">
+        <div className="text-textColor text-[16px]">
+          {listReviewed === 'reviewed'
+            ? t('no_reviewed_posts', 'No posts marked as reviewed')
+            : t('no_unreviewed_posts', 'Nothing left to review')}
+        </div>
+        {clearReviewedButton}
       </div>
     );
   }
@@ -623,9 +677,15 @@ export const ListView = () => {
  */
 export const ReviewView = () => {
   const t = useT();
-  const { integrations, loading, listPosts, listState, reloadCalendarView } =
-    useCalendar();
+  const {
+    integrations,
+    loading,
+    listPosts,
+    listState,
+    reloadCalendarView,
+  } = useCalendar();
   const { editPost, deletePost } = usePostActions();
+
 
   const groupedPosts = useMemo(() => {
     const groups: { [key: string]: any[] } = {};

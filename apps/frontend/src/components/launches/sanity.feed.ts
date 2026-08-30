@@ -22,7 +22,8 @@ export const sanityDocumentIdOf = (content?: string) =>
 export const useSanityFeedItems = (
   integrations: Integrations[],
   listPosts: any[],
-  listState: string
+  listState: string,
+  listReviewed: string = 'all'
 ) => {
   const fetch = useFetch();
 
@@ -76,6 +77,9 @@ export const useSanityFeedItems = (
 
     return data
       .filter(({ document }) => !alreadyScheduled.has(document.id))
+      // These rows exist only in Sanity, so there is nothing of ours to carry a
+      // reviewed mark - they are all unreviewed by construction.
+      .filter(() => listReviewed !== 'reviewed')
       .filter(({ document }) => {
         // "Scheduled" means we hold a publish time for it, which by definition
         // none of these have.
@@ -103,5 +107,5 @@ export const useSanityFeedItems = (
         // Marks the row as "in Sanity, not scheduled here".
         sanityDocument: document,
       }));
-  }, [data, listPosts, listState]);
+  }, [data, listPosts, listState, listReviewed]);
 };

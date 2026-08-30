@@ -10,6 +10,8 @@ import { Transform } from 'class-transformer';
 
 export type PostListStateFilter = 'all' | 'scheduled' | 'draft' | 'published';
 
+export type PostListReviewedFilter = 'all' | 'reviewed' | 'unreviewed';
+
 export class GetPostsListDto {
   @IsOptional()
   @IsNumber()
@@ -38,4 +40,11 @@ export class GetPostsListDto {
   @IsOptional()
   @IsIn(['all', 'scheduled', 'draft', 'published'])
   state?: PostListStateFilter = 'all';
+
+  // The reviewed mark is a note to self, so it cuts across every state: you
+  // want "everything I have not eyeballed yet" regardless of whether it is a
+  // draft or already queued.
+  @IsOptional()
+  @IsIn(['all', 'reviewed', 'unreviewed'])
+  reviewed?: PostListReviewedFilter = 'all';
 }

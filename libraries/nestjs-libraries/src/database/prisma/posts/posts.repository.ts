@@ -310,10 +310,22 @@ export class PostsRepository {
     const orderDirection: 'asc' | 'desc' =
       stateFilter === 'published' ? 'desc' : 'asc';
 
+    const reviewedFilter = query.reviewed || 'all';
+    const reviewedWhere =
+      reviewedFilter === 'reviewed'
+        ? { reviewed: true }
+        : reviewedFilter === 'unreviewed'
+        ? { reviewed: false }
+        : {};
+
     // Everything the feed would show if no channel were picked. The per-channel
     // counts are taken over this, so the number next to a channel means the same
     // thing before and after you select one - and counts the whole result set,
     // not just the page currently on screen.
+    //
+    // The reviewed mark sits here with state and customer rather than with the
+    // channel: picking "Not reviewed" should make each chip count that channel's
+    // unreviewed posts, so the number still describes the feed you are looking at.
     const unfilteredWhere = {
       AND: [
         {
@@ -325,6 +337,7 @@ export class PostsRepository {
         },
       ],
       ...stateAndDate,
+      ...reviewedWhere,
       // Published posts were already posted (publishDate in the past), so fetch
       // all of them; everything else stays upcoming. Ordering handles the rest.
       ...(stateFilter === 'published'

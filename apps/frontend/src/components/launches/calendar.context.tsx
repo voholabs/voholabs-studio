@@ -29,6 +29,8 @@ extend(weekOfYear);
 
 export type ListStateFilter = 'all' | 'scheduled' | 'draft' | 'published';
 
+export type ListReviewedFilter = 'all' | 'reviewed' | 'unreviewed';
+
 export type CalendarDisplay = 'week' | 'month' | 'day' | 'list' | 'review';
 
 /**
@@ -104,6 +106,10 @@ export const CalendarContext = createContext({
   },
   // Posts per integration id across the whole feed, not just the current page.
   listCounts: {} as Record<string, number>,
+  listReviewed: 'all' as ListReviewedFilter,
+  setListReviewed: (reviewed: ListReviewedFilter) => {
+    /** empty **/
+  },
 });
 
 export interface Integrations {
@@ -175,6 +181,12 @@ export const CalendarWeekProvider: FC<{
     setListStateRaw(next);
     setListPage(0);
   }, []);
+  const [listReviewed, setListReviewedRaw] =
+    useState<ListReviewedFilter>('all');
+  const setListReviewed = useCallback((next: ListReviewedFilter) => {
+    setListReviewedRaw(next);
+    setListPage(0);
+  }, []);
 
   // The channel filter is a server-side one: a feed is paginated, so filtering
   // the page we happen to hold would quietly hide the rest of that channel's
@@ -233,8 +245,19 @@ export const CalendarWeekProvider: FC<{
       customer: filters?.customer?.toString() || '',
       state: listState,
       ...(listIntegration ? { integration: listIntegration } : {}),
+      // Only review shows the mark on every row and offers the pills, so the
+      // list view must not inherit a filter it gives you no way to see or undo.
+      reviewed: filters.display === 'review' ? listReviewed : 'all',
     }).toString();
-  }, [listPage, listLimit, filters.customer, listState, listIntegration]);
+  }, [
+    listPage,
+    listLimit,
+    filters.customer,
+    filters.display,
+    listState,
+    listIntegration,
+    listReviewed,
+  ]);
 
   const loadListData = useCallback(async () => {
     const response = await fetch(`/posts/list?${listParams}`);
@@ -337,7 +360,8 @@ export const CalendarWeekProvider: FC<{
   const sanityItems = useSanityFeedItems(
     integrations,
     realListPosts,
-    listState
+    listState,
+    filters.display === 'review' ? listReviewed : 'all'
   );
 
   const listPosts = useMemo(
@@ -430,6 +454,8 @@ export const CalendarWeekProvider: FC<{
         listIntegration,
         setListIntegration,
         listCounts,
+        listReviewed,
+        setListReviewed,
       }}
     >
       {children}

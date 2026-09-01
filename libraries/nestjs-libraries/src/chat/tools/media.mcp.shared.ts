@@ -1,4 +1,3 @@
-import { MCPClient } from '@mastra/mcp';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 
 /**
@@ -38,36 +37,78 @@ export const scrubMeterKey = (text: string, key: string) =>
   text.split(key).join('[meter-key]');
 
 /**
- * Opens a connection to the meter as the organization, runs `fn`, and always
- * closes it again. A fresh client per call, exactly like the Sanity proxy:
- * `MCPClient` caches by id and refuses two live instances with the same
- * configuration, and a long-lived per-org client would keep an authenticated
- * session open for every customer who has ever asked a question. The id is
- * random plus nothing sensitive - never the key.
+ * Talks to the meter as raw JSON-RPC rather than through an MCP client
+ * library.
+ *
+ * The library validates arguments against the upstream's own inputSchema
+ * before sending them, and those schemas declare JSON Schema draft 2020-12,
+ * which its validator cannot resolve - so every tool that takes an argument
+ * failed with "no schema with key or ref" before the call ever left Studio,
+ * while argument-less ones worked. Validating here bought nothing anyway: the
+ * meter and the vendor behind it both validate, and they are the ones whose
+ * schemas these are.
+ *
+ * Responses arrive as an SSE stream (`data:` lines), which is why the body is
+ * scanned rather than parsed whole.
  */
-export const withMediaMeterMcp = async <T>(
+const rpc = async (
   key: string,
-  fn: (tools: Record<string, any>) => Promise<T>
-): Promise<T> => {
-  const client = new MCPClient({
-    id: `media-meter-${makeId(10)}`,
-    servers: {
-      mediaMeter: {
-        url: new URL(`${mediaMeterUrl()}/mcp/${key}`),
-      },
+  method: string,
+  params: Record<string, unknown>
+): Promise<any> => {
+  const id = makeId(10);
+  const response = await fetch(`${mediaMeterUrl()}/mcp/${key}`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      accept: 'application/json, text/event-stream',
     },
-    // Media generation kicks off jobs and returns; 60s covers the slowest
-    // synchronous calls (imports, catalog) without holding a worker forever.
-    timeout: 60000,
+    body: JSON.stringify({ jsonrpc: '2.0', id, method, params }),
+    signal: AbortSignal.timeout(60000),
   });
 
-  try {
-    const toolsets = await client.listToolsets();
-    return await fn(toolsets['mediaMeter'] || {});
-  } finally {
-    await client.disconnect().catch(() => {
-      // A failed disconnect is not the caller's problem and must not mask the
-      // real result or the real error.
-    });
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`media service returned ${response.status}`);
   }
+
+  const frames = text.startsWith('data:')
+    ? text
+        .split('\n')
+        .filter((line) => line.startsWith('data:'))
+        .map((line) => line.slice(5).trim())
+    : [text];
+
+  for (const frame of frames) {
+    let parsed: any;
+    try {
+      parsed = JSON.parse(frame);
+    } catch {
+      continue;
+    }
+    if (parsed?.id !== id) continue;
+    if (parsed.error) {
+      throw new Error(
+        typeof parsed.error?.message === 'string'
+          ? parsed.error.message
+          : 'media service rejected the request'
+      );
+    }
+    return parsed.result;
+  }
+
+  throw new Error('media service returned no usable response');
 };
+
+/** The upstream catalog, with every tool's schema exactly as the vendor wrote it. */
+export const listMediaTools = async (key: string): Promise<any[]> => {
+  const result = await rpc(key, 'tools/list', {});
+  return Array.isArray(result?.tools) ? result.tools : [];
+};
+
+/** Runs one upstream tool. Arguments are passed through untouched. */
+export const callMediaTool = async (
+  key: string,
+  name: string,
+  args: Record<string, unknown>
+): Promise<any> => rpc(key, 'tools/call', { name, arguments: args });

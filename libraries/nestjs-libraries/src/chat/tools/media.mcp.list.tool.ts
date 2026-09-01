@@ -8,7 +8,7 @@ import {
   MEDIA_MCP_NOT_CONFIGURED,
   MEDIA_MCP_UNAVAILABLE,
   scrubMeterKey,
-  withMediaMeterMcp,
+  listMediaTools,
 } from '@gitroom/nestjs-libraries/chat/tools/media.mcp.shared';
 import {
   organizationIdFromContext,
@@ -70,18 +70,20 @@ export class MediaMcpListTool implements AgentToolInterface {
         }
 
         try {
-          return await withMediaMeterMcp(resolution.key, async (tools) => ({
+          const tools = await listMediaTools(resolution.key);
+
+          return {
             output: {
               // The upstream's names, descriptions and schemas pass through
               // intact: discovery is the whole point, and the vendor's own
               // descriptions carry usage rules the agent needs verbatim.
-              tools: Object.entries(tools).map(([name, tool]) => ({
-                name,
-                description: (tool as any)?.description || '',
-                inputSchema: readJsonSchema((tool as any)?.inputSchema),
+              tools: tools.map((tool: any) => ({
+                name: tool?.name || '',
+                description: tool?.description || '',
+                inputSchema: readJsonSchema(tool?.inputSchema),
               })),
             },
-          }));
+          };
         } catch (err) {
           // The key itself is never in the message, and never logged.
           return {

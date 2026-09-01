@@ -7,8 +7,8 @@ import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
 import {
   MEDIA_MCP_NOT_CONFIGURED,
   MEDIA_MCP_UNAVAILABLE,
+  callMediaTool,
   scrubMeterKey,
-  withMediaMeterMcp,
 } from '@gitroom/nestjs-libraries/chat/tools/media.mcp.shared';
 import { organizationIdFromContext } from '@gitroom/nestjs-libraries/chat/tools/sanity.mcp.shared';
 
@@ -63,22 +63,16 @@ export class MediaMcpCallTool implements AgentToolInterface {
         }
 
         try {
-          return await withMediaMeterMcp(resolution.key, async (tools) => {
-            const tool = tools[inputData.name];
+          // An out-of-credit call comes back as a normal tool result with
+          // isError and text written for a person - it passes through here
+          // untouched, like every other result.
+          const output = await callMediaTool(
+            resolution.key,
+            inputData.name,
+            inputData.arguments || {}
+          );
 
-            if (!tool?.execute) {
-              return {
-                output: `The AI media service does not expose a tool called "${inputData.name}". Call mediaMcpList for the current list.`,
-              };
-            }
-
-            // An out-of-credit call comes back as a normal tool result with
-            // isError and text written for a person - it passes through here
-            // untouched, like every other result.
-            const output = await tool.execute(inputData.arguments || {}, {});
-
-            return { output };
-          });
+          return { output };
         } catch (err) {
           // The key itself is never in the message, and never logged.
           return {

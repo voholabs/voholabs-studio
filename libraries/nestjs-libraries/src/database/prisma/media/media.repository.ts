@@ -2,6 +2,15 @@ import { PrismaRepository } from '@gitroom/nestjs-libraries/database/prisma/pris
 import { Injectable } from '@nestjs/common';
 import { SaveMediaInformationDto } from '@gitroom/nestjs-libraries/dtos/media/save.media.information.dto';
 
+const MEDIA_LOOKUP_SELECT = {
+  id: true,
+  name: true,
+  originalName: true,
+  path: true,
+  thumbnail: true,
+  type: true,
+} as const;
+
 @Injectable()
 export class MediaRepository {
   constructor(private _media: PrismaRepository<'media'>) {}
@@ -34,6 +43,48 @@ export class MediaRepository {
       where: {
         id,
       },
+    });
+  }
+
+  /**
+   * Look media up by id or by path, always inside one organization.
+   *
+   * `getMediaById` above is a bare findUnique with no tenancy filter, so it is
+   * not safe to build an organization-facing lookup on. These two take the org
+   * explicitly and are what the MCP media tools use.
+   *
+   * Lookup by path exists because a post's attachments do not carry media-library
+   * ids: `image` entries are stored as `{ path }` (or `{ id, path }` where that id
+   * is a random per-post id from makeId, not a Media row). The path is the only
+   * stable link back to the library row, and so to its name and thumbnail.
+   */
+  getMediaByIdsForOrg(org: string, ids: string[]) {
+    if (!ids.length) {
+      return Promise.resolve([]);
+    }
+
+    return this._media.model.media.findMany({
+      where: {
+        id: { in: ids },
+        organizationId: org,
+        deletedAt: null,
+      },
+      select: MEDIA_LOOKUP_SELECT,
+    });
+  }
+
+  getMediaByPathsForOrg(org: string, paths: string[]) {
+    if (!paths.length) {
+      return Promise.resolve([]);
+    }
+
+    return this._media.model.media.findMany({
+      where: {
+        path: { in: paths },
+        organizationId: org,
+        deletedAt: null,
+      },
+      select: MEDIA_LOOKUP_SELECT,
     });
   }
 

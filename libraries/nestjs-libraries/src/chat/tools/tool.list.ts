@@ -17,6 +17,7 @@ import { PostsDeleteTool } from '@gitroom/nestjs-libraries/chat/tools/posts.dele
 import { PostsEditTool } from '@gitroom/nestjs-libraries/chat/tools/posts.edit.tool';
 import { FindSlotTool } from '@gitroom/nestjs-libraries/chat/tools/find.slot.tool';
 import { MediaListTool } from '@gitroom/nestjs-libraries/chat/tools/media.list.tool';
+import { MediaPreviewTool } from '@gitroom/nestjs-libraries/chat/tools/media.preview.tool';
 import { MediaDeleteTool } from '@gitroom/nestjs-libraries/chat/tools/media.delete.tool';
 import { MediaUploadTool } from '@gitroom/nestjs-libraries/chat/tools/media.upload.tool';
 import { MediaUploadLinkTool } from '@gitroom/nestjs-libraries/chat/tools/media.upload.link.tool';
@@ -57,6 +58,7 @@ export const toolList = [
   AnalyticsPostTool,
   FindSlotTool,
   MediaListTool,
+  MediaPreviewTool,
   MediaDeleteTool,
   MediaUploadTool,
   MediaUploadLinkTool,

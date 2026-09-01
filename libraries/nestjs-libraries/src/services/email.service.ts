@@ -5,6 +5,7 @@ import { EmptyProvider } from '@gitroom/nestjs-libraries/emails/empty.provider';
 import { NodeMailerProvider } from '@gitroom/nestjs-libraries/emails/node.mailer.provider';
 import { TemporalService } from 'nestjs-temporal-core';
 import { timer } from '@gitroom/helpers/utils/timer';
+import * as Sentry from '@sentry/nestjs';
 
 @Injectable()
 export class EmailService {
@@ -145,6 +146,10 @@ export class EmailService {
         }
       }
     }
-    console.log(`Email to ${to} failed after 3 attempts:`, lastErr);
+    console.error(`Email to ${to} failed after 3 attempts:`, lastErr);
+    Sentry.captureException(lastErr, {
+      tags: { area: 'email', provider: this.emailService.name },
+      extra: { to, subject },
+    });
   }
 }

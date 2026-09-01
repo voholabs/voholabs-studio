@@ -14,20 +14,23 @@ export class ResendProvider implements EmailInterface {
     emailFromAddress: string,
     replyTo?: string
   ) {
-    try {
-      const sends = await resend.emails.send({
-        from: `${emailFromName} <${emailFromAddress}>`,
-        to,
-        subject,
-        html,
-        ...(replyTo && { reply_to: replyTo }),
-      });
+    const sends = await resend.emails.send({
+      from: `${emailFromName} <${emailFromAddress}>`,
+      to,
+      subject,
+      html,
+      ...(replyTo && { reply_to: replyTo }),
+    });
 
-      return sends;
-    } catch (err) {
-      console.log(err);
+    // The Resend SDK resolves with `{ data: null, error }` instead of throwing,
+    // so an unverified domain or a bad key looks identical to a delivered email
+    // unless we surface it ourselves.
+    if (sends.error) {
+      throw new Error(
+        `Resend refused the email: ${sends.error.name} - ${sends.error.message}`
+      );
     }
 
-    return { sent: false };
+    return sends;
   }
 }

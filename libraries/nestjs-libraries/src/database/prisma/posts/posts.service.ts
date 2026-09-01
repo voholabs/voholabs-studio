@@ -364,7 +364,11 @@ export class PostsService {
   async getPosts(
     orgId: string,
     query: GetPostsDto,
-    options?: { includeMedia?: boolean; includeSettings?: boolean }
+    options?: {
+      includeMedia?: boolean;
+      includeSettings?: boolean;
+      includeThread?: boolean;
+    }
   ) {
     return this._postRepository.getPosts(orgId, query, options);
   }

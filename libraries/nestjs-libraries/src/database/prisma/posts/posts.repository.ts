@@ -22,6 +22,10 @@ dayjs.extend(weekOfYear);
 dayjs.extend(isSameOrAfter);
 dayjs.extend(utc);
 
+// Five links covers the threads people actually write; past that the tail
+// is omitted rather than the query growing without bound.
+const THREAD_DEPTH = 5;
+
 @Injectable()
 export class PostsRepository {
   constructor(
@@ -185,8 +189,31 @@ export class PostsRepository {
   async getPosts(
     orgId: string,
     query: GetPostsDto,
-    options?: { includeMedia?: boolean; includeSettings?: boolean }
+    options?: {
+      includeMedia?: boolean;
+      includeSettings?: boolean;
+      includeThread?: boolean;
+    }
   ) {
+    // A thread is a chain of child posts, one per link. Walking it row by row
+    // costs a query per item; asking for a few levels up front costs one, and
+    // threads are short. Anything deeper than this simply is not returned.
+    const threadSelect = (depth: number): any => ({
+      id: true,
+      content: true,
+      state: true,
+      publishDate: true,
+      releaseURL: true,
+      image: true,
+      ...(depth > 0
+        ? {
+            childrenPost: {
+              where: { deletedAt: null },
+              select: threadSelect(depth - 1),
+            },
+          }
+        : {}),
+    });
     // Use the provided start and end dates directly
     const startDate = dayjs.utc(query.startDate).toDate();
     const endDate = dayjs.utc(query.endDate).toDate();
@@ -247,6 +274,14 @@ export class PostsRepository {
         // to know what is attached, or how the post is configured, ask.
         ...(options?.includeMedia ? { image: true } : {}),
         ...(options?.includeSettings ? { settings: true } : {}),
+        ...(options?.includeThread
+          ? {
+              childrenPost: {
+                where: { deletedAt: null },
+                select: threadSelect(THREAD_DEPTH),
+              },
+            }
+          : {}),
         tags: {
           select: {
             tag: true,

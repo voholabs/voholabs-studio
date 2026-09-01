@@ -2,9 +2,11 @@ import { AgentToolInterface } from '@gitroom/nestjs-libraries/chat/agent.tool.in
 import { createTool } from '@mastra/core/tools';
 import { Injectable } from '@nestjs/common';
 import { PostsService } from '@gitroom/nestjs-libraries/database/prisma/posts/posts.service';
+import { MediaService } from '@gitroom/nestjs-libraries/database/prisma/media/media.service';
 import z from 'zod';
 import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
 import { readPostMedia } from '@gitroom/nestjs-libraries/chat/tools/post.write.shared';
+import { guessMimeFromPath } from '@gitroom/nestjs-libraries/chat/tools/media.preview.helper';
 
 const DEFAULT_RANGE_IN_DAYS = 30;
 
@@ -18,7 +20,10 @@ const parseSettings = (settings?: string | null) => {
 
 @Injectable()
 export class PostsListTool implements AgentToolInterface {
-  constructor(private _postsService: PostsService) {}
+  constructor(
+    private _postsService: PostsService,
+    private _mediaService: MediaService
+  ) {}
   name = 'postsList';
 
   run() {
@@ -28,6 +33,8 @@ export class PostsListTool implements AgentToolInterface {
 Dates are UTC ISO strings. If you don't pass any, it defaults to the next ${DEFAULT_RANGE_IN_DAYS} days — pass a start date in the past to look at posts that were already published.
 Every post returns both an "id" and a "group": the group holds a post together with its thread items and comments, and is what deletePostTool removes.
 Every post also returns "attachments" — the media it carries, with the same "path" the media library uses. That is how you tell whether a post already has its image or video on it, without opening anything.
+A thread comes back whole: "comments" lists the items that follow the post, in order, each with its own text and attachments. Their position in that list is the "commentIndex" replacePostAsset takes, so this is where you find which item carries the image you were asked to change.
+TO SEE those images rather than just know they exist, pass their "path" values to mediaPreview and it returns the pictures themselves in one call, in slide order. Do that instead of downloading the URLs yourself. Each attachment also carries "mediaId", "originalName" and a "mimeType" hint so you can tell a video from an image before asking.
 TO CHANGE A POST, use editPostTool with its "id". It edits in place and keeps whatever you do not pass, attachments included. Deleting and re-creating a post is not the way to reword it: it loses the media, the post's history and its id.
 
 Every post returns its "settings" too — the channel options it was scheduled with, such as which Discord channel it goes to or an X post's reply permissions and AI-disclosure flags. That is what you read back when you need to know how a post is configured, and what editPostTool merges into rather than replacing.
@@ -78,12 +85,46 @@ TO LINK ONE POST TO ANOTHER (echoing a post to another channel): every post here
                     path: z
                       .string()
                       .describe(
-                        'The media path — the same value mediaList returns and an attachments field takes'
+                        "The media path — the same value mediaList returns and an attachments field takes. Pass this to mediaPreview to see the image, or hand it to an external image/video tool's import-by-URL step to edit it. The edited result must come back through uploadFromUrlTool before it can be attached — attach the path uploadFromUrlTool returns, never the external tool's own URL."
                       ),
                     thumbnail: z.string().nullable(),
+                    mediaId: z
+                      .string()
+                      .nullable()
+                      .describe(
+                        'The media library id, when this attachment still resolves to a library row. Null for one that has since been deleted from the library — the path still previews.'
+                      ),
+                    originalName: z.string().nullable(),
+                    mimeType: z
+                      .string()
+                      .nullable()
+                      .describe(
+                        'Best-effort type from the file extension, for telling an image from a video before previewing. mediaPreview checks the real bytes.'
+                      ),
                   })
                 )
                 .describe('The images and videos attached to this post'),
+              comments: z
+                .array(
+                  z.object({
+                    id: z.string(),
+                    content: z.string(),
+                    attachments: z
+                      .array(
+                        z.object({
+                          path: z.string(),
+                          thumbnail: z.string().nullable(),
+                          mediaId: z.string().nullable(),
+                          originalName: z.string().nullable(),
+                          mimeType: z.string().nullable(),
+                        })
+                      )
+                      .describe('The images and videos on this thread item'),
+                  })
+                )
+                .describe(
+                  "The thread items that follow this post, in order. Their position here IS the \"commentIndex\" replacePostAsset takes, and the list editPostTool's \"comments\" field replaces wholesale. Empty for a post that is not a thread."
+                ),
               settings: z
                 .record(z.any())
                 .describe(
@@ -130,8 +171,61 @@ TO LINK ONE POST TO ANOTHER (echoing a post to another channel): every post here
               endDate,
               customer: inputData.customer,
             },
-            { includeMedia: true, includeSettings: true }
+            { includeMedia: true, includeSettings: true, includeThread: true }
           );
+
+          // One lookup for every attachment across the whole page, rather than
+          // a query per post. Attachments are stored as bare paths (a post's
+          // `image` entries carry no media-library id), so the path is what
+          // links them back to the library row and its name.
+          // A thread arrives as a chain of single children; flatten it to the
+          // list an agent can index into, which is what replacePostAsset's
+          // commentIndex counts and what editPostTool's "comments" replaces.
+          const threadOf = (post: any): any[] => {
+            const items: any[] = [];
+            let node = post?.childrenPost?.[0];
+            while (node) {
+              items.push(node);
+              node = node?.childrenPost?.[0];
+            }
+            return items;
+          };
+
+          const allPaths = Array.from(
+            new Set(
+              (posts || []).flatMap((post: any) =>
+                [post, ...threadOf(post)].flatMap((entry: any) =>
+                  readPostMedia(entry)
+                    .map((media: any) => media?.path)
+                    .filter(Boolean)
+                )
+              )
+            )
+          ) as string[];
+
+          const mediaByPath = new Map<string, any>(
+            (
+              await this._mediaService.getMediaByPathsForOrg(
+                organizationId,
+                allPaths
+              )
+            ).map((row: any) => [row.path, row])
+          );
+
+          const describeAttachments = (entry: any) =>
+            readPostMedia(entry).map((media: any) => {
+              const path = media?.path || '';
+              const row = mediaByPath.get(path);
+              return {
+                path,
+                // A video's thumbnail is stored on the post entry; fall back to
+                // the library row for anything scheduled before that was kept.
+                thumbnail: media?.thumbnail ?? row?.thumbnail ?? null,
+                mediaId: row?.id ?? null,
+                originalName: row?.originalName ?? null,
+                mimeType: guessMimeFromPath(path),
+              };
+            });
 
           const output = (posts || []).map((post: any) => ({
             id: post.id,
@@ -140,9 +234,11 @@ TO LINK ONE POST TO ANOTHER (echoing a post to another channel): every post here
             publishDate: new Date(post.publishDate).toISOString(),
             content: post.content || '',
             releaseURL: post.releaseURL ?? null,
-            attachments: readPostMedia(post).map((media: any) => ({
-              path: media?.path || '',
-              thumbnail: media?.thumbnail ?? null,
+            attachments: describeAttachments(post),
+            comments: threadOf(post).map((item: any) => ({
+              id: item.id,
+              content: item.content || '',
+              attachments: describeAttachments(item),
             })),
             settings: parseSettings(post.settings),
             references: this._postsService.extractPostReferences(

@@ -8,25 +8,11 @@ import z from 'zod';
 import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
 import {
   attachmentUrl,
+  describeMedia,
+  mediaOutput,
   readPostMedia,
   withPostLinks,
 } from '@gitroom/nestjs-libraries/chat/tools/post.write.shared';
-
-const mediaOutput = z.object({
-  id: z.string().nullable(),
-  path: z.string(),
-  thumbnail: z.string().nullable(),
-});
-
-// What the agent gets back for one attachment. `path` is the same currency the
-// rest of the surface uses: it is what mediaList returns and what an
-// attachments field takes, so a video read here can be handed straight back.
-const describeMedia = (post: any) =>
-  readPostMedia(post).map((m: any) => ({
-    id: m?.id ?? null,
-    path: m?.path || '',
-    thumbnail: m?.thumbnail ?? null,
-  }));
 
 @Injectable()
 export class PostsEditTool implements AgentToolInterface {
@@ -70,7 +56,7 @@ To remove media rather than replace it, pass "clearAttachments" — an empty "at
           .array(attachmentUrl)
           .optional()
           .describe(
-            'Replaces the media on the post with these (URLs / media library paths). OMIT THIS to keep the media that is already attached — that is what you want when you are only rewriting the text. An empty array is ignored; use clearAttachments to remove media.'
+            'Replaces the ENTIRE media list of the post with exactly these (URLs / media library paths). A partial list drops everything you left out: send one path to a three-image post and the other two images are gone. To swap a single image or video and keep the rest, use replacePostAsset instead of this field. OMIT THIS to keep the media that is already attached — that is what you want when you are only rewriting the text. An empty array is ignored; use clearAttachments to remove media.'
           ),
         clearAttachments: z
           .boolean()
@@ -104,7 +90,7 @@ To remove media rather than replace it, pass "clearAttachments" — an empty "at
           )
           .optional()
           .describe(
-            'Replaces every thread item / comment that follows the post. Omit to leave them alone; pass an empty array to delete them all. Items map by position onto the existing ones, so a comment keeps its media unless you say otherwise.'
+            'Replaces every thread item / comment that follows the post: the list you pass becomes the whole thread, so you must resend EVERY item with its exact current content even when changing only one — leave one out and it is deleted. To change just one item\'s image or video, replacePostAsset with commentIndex does it without resending anything. Omit to leave the thread alone; pass an empty array to delete it all. Items map by position onto the existing ones, so a comment keeps its media unless you say otherwise.'
           ),
         date: z
           .string()

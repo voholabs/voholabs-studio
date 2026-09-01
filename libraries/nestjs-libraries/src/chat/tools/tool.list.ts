@@ -15,8 +15,10 @@ import { UploadFromUrlTool } from '@gitroom/nestjs-libraries/chat/tools/upload.f
 import { PostsListTool } from '@gitroom/nestjs-libraries/chat/tools/posts.list.tool';
 import { PostsDeleteTool } from '@gitroom/nestjs-libraries/chat/tools/posts.delete.tool';
 import { PostsEditTool } from '@gitroom/nestjs-libraries/chat/tools/posts.edit.tool';
+import { PostsReplaceAssetTool } from '@gitroom/nestjs-libraries/chat/tools/posts.replace.asset.tool';
 import { FindSlotTool } from '@gitroom/nestjs-libraries/chat/tools/find.slot.tool';
 import { MediaListTool } from '@gitroom/nestjs-libraries/chat/tools/media.list.tool';
+import { MediaPreviewTool } from '@gitroom/nestjs-libraries/chat/tools/media.preview.tool';
 import { MediaDeleteTool } from '@gitroom/nestjs-libraries/chat/tools/media.delete.tool';
 import { MediaUploadTool } from '@gitroom/nestjs-libraries/chat/tools/media.upload.tool';
 import { MediaUploadLinkTool } from '@gitroom/nestjs-libraries/chat/tools/media.upload.link.tool';
@@ -33,6 +35,8 @@ import { BriefHistoryTool } from '@gitroom/nestjs-libraries/chat/tools/brief.his
 import { MarkLearnedTool } from '@gitroom/nestjs-libraries/chat/tools/mark.learned.tool';
 import { SanityMcpListTool } from '@gitroom/nestjs-libraries/chat/tools/sanity.mcp.list.tool';
 import { SanityMcpCallTool } from '@gitroom/nestjs-libraries/chat/tools/sanity.mcp.call.tool';
+import { MediaMcpListTool } from '@gitroom/nestjs-libraries/chat/tools/media.mcp.list.tool';
+import { MediaMcpCallTool } from '@gitroom/nestjs-libraries/chat/tools/media.mcp.call.tool';
 
 export const toolList = [
   AccountInfoTool,
@@ -50,6 +54,7 @@ export const toolList = [
   IntegrationSchedulePostTool,
   PostsListTool,
   PostsEditTool,
+  PostsReplaceAssetTool,
   PostsDeleteTool,
   PostsStatusTool,
   PostHistoryTool,
@@ -57,6 +62,7 @@ export const toolList = [
   AnalyticsPostTool,
   FindSlotTool,
   MediaListTool,
+  MediaPreviewTool,
   MediaDeleteTool,
   MediaUploadTool,
   MediaUploadLinkTool,
@@ -66,6 +72,12 @@ export const toolList = [
   // organization.
   SanityMcpListTool,
   SanityMcpCallTool,
+  // AI media editing, proxied through the org's metered key on mcp-meter.
+  // Register unconditionally for the same reason as Sanity's: the tool map is
+  // built once at boot, so the tools explain themselves when the meter is not
+  // configured instead of vanishing.
+  MediaMcpListTool,
+  MediaMcpCallTool,
   // Media generation belongs to the vendor, so the agent does not get these:
   //   GenerateImageTool      - vendor's job
   //   GenerateVideoTool      - exposes no models on this account anyway

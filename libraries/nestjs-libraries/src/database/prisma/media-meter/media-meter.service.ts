@@ -173,10 +173,21 @@ export class MediaMeterService {
       return { state: 'not_configured' };
     }
 
+    // Mint on view, not only on first edit. A workspace that has not touched
+    // media editing yet still has an allowance waiting for it, and telling
+    // someone asking about their credit that they are "not connected" is both
+    // discouraging and untrue - they would get the full amount the moment they
+    // tried. resolveKey is the same path the tools take, so opening Settings
+    // and running an edit can never disagree about which key is theirs.
+    const resolved = await this.resolveKey(orgId);
+    if (resolved.state !== 'ok') {
+      return { state: resolved.state };
+    }
+
     const organization = await this._mediaMeterRepository.getMeterKeyId(orgId);
     const keyId = organization?.mediaMeterKeyId;
     if (!keyId) {
-      return { state: 'not_configured' };
+      return { state: 'unavailable' };
     }
 
     // "unavailable" is cached too, so a dead meter costs one timeout per TTL

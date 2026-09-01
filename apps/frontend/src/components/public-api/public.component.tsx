@@ -568,42 +568,21 @@ const ConnectSection = ({
                 '"No authentication" is the right choice here, even though it sounds wrong: your link already carries the key that signs you in, and ChatGPT has no field to put one in separately. Treat the link like a password — anyone holding it can post as you.'
               )}
             </StepText>
-          </Step>
-          <Step index={4} title={t('use_it_in_a_chat', 'Use it in a chat')}>
             <StepText>
               {t(
-                'use_it_in_a_chat_detail',
-                'A connector you made yourself is saved as a draft, so it will not be listed with the published ones. Open the + menu in the message box, pick Voholabs Studio, and ask it to schedule a post.'
+                'chatgpt_ready_after_saving',
+                'Save it and you are done. Start a chat and ask it to list your channels or schedule a post — there is nothing else to switch on.'
               )}
             </StepText>
           </Step>
           {/*
-            Claude needs hosts added to a sandbox allowlist; ChatGPT has no such
-            setting, so pointing people at one sent them hunting for a screen
-            that does not exist. What an admin really controls is how much of a
-            connector a member may use, which is a different failure: reading
-            works, scheduling silently does not.
+            Creating the connector is the last thing anyone has to do: it is
+            usable straight away, with no per-chat step and nothing to
+            allowlist. Claude needs hosts permitted because it runs tools in a
+            sandbox; ChatGPT reaches us from its own infrastructure, so the
+            equivalent step here only sent people looking for settings that do
+            not exist.
           */}
-          <Step
-            index={5}
-            title={t(
-              'if_it_can_read_but_not_post',
-              'If it can read but not post'
-            )}
-          >
-            <StepText>
-              {t(
-                'if_it_can_read_but_not_post_detail',
-                'On a work plan an admin decides how much of a connector each person may use, and the safe default is read-only. That looks like success at first — Voholabs Studio lists your channels and drafts a post, then will not schedule it.'
-              )}
-            </StepText>
-            <StepText>
-              {t(
-                'if_it_can_read_but_not_post_fix',
-                'Ask your admin to open Workspace settings → Apps, find Voholabs Studio and allow write actions, not just read. The same screen decides what happens to actions added later, so it is worth setting once.'
-              )}
-            </StepText>
-          </Step>
         </div>
       )}
 

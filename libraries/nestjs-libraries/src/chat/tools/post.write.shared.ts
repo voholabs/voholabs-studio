@@ -52,3 +52,19 @@ export const readPostMedia = (post: { image?: string | null }): any[] => {
     return [];
   }
 };
+
+export const mediaOutput = z.object({
+  id: z.string().nullable(),
+  path: z.string(),
+  thumbnail: z.string().nullable(),
+});
+
+// What the agent gets back for one attachment. `path` is the same currency the
+// rest of the surface uses: it is what mediaList returns and what an
+// attachments field takes, so a video read here can be handed straight back.
+export const describeMedia = (post: any) =>
+  readPostMedia(post).map((m: any) => ({
+    id: m?.id ?? null,
+    path: m?.path || '',
+    thumbnail: m?.thumbnail ?? null,
+  }));

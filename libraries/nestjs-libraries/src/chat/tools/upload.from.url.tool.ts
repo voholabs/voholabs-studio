@@ -20,8 +20,8 @@ export class UploadFromUrlTool implements AgentToolInterface {
     return createTool({
       id: 'uploadFromUrlTool',
       description: `Upload a remote image or video into the media library from a public URL.
-Use this before scheduling a post when the user provides an external media URL (not already hosted on our domain),
-so the attachment passes the upload-domain validation. Returns the hosted media { id, path } to use as an attachment, or { error } on failure.`,
+Anything produced OUTSIDE this system must come through here before it can go on a post: an AI generator's result URL, a link the user pasted, a file an external editing tool handed back. Those URLs are usually temporary — attaching one directly may appear to work, and the post is then pointing at a file that expires before it publishes. The "path" this returns is the durable hosted copy, and that path is what every attachments field (and replacePostAsset's newPath) takes.
+Returns the hosted media { id, path } to use as an attachment, or { error } on failure.`,
       mcp: {
         annotations: {
           title: 'Upload Media From URL',

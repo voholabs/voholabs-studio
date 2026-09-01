@@ -25,6 +25,15 @@ model Organization {
   // leaves the backend.
   hermesUrl           String?
   hermesApiKey        String?
+  // The organization's key id on the mcp-meter proxy that meters AI
+  // media-editing credit. Additive and nullable on purpose: db push runs with
+  // --accept-data-loss, so this column must never be renamed or made required.
+  mediaMeterKeyId     String?
+  // The meter key itself (vmk_...), encrypted with AuthService.fixedEncryption
+  // like apiKey and hermesApiKey. The meter returns it exactly once at mint
+  // time, so it is stored here or it is gone. Same rule as above: additive,
+  // nullable, never renamed, never required.
+  mediaMeterKey       String?
   autoPost            AutoPost[]
   Comments            Comments[]
   credits             Credits[]

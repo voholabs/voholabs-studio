@@ -444,9 +444,9 @@ const ConnectSection = ({
         options={[
           {
             value: 'claude',
-            label: t('claude_cowork_desktop_web', 'Claude (Cowork & app)'),
+            label: t('claude_cowork', 'Claude (Cowork)'),
           },
-          { value: 'chatgpt', label: t('chatgpt', 'ChatGPT') },
+          { value: 'chatgpt', label: t('chatgpt_work', 'ChatGPT (Work)') },
           {
             value: 'developer',
             label: t('developer_tools', 'Developer tools'),
@@ -577,17 +577,33 @@ const ConnectSection = ({
               )}
             </StepText>
           </Step>
-          {allowlistStep(
-            5,
-            t(
-              'allow_uploads_chatgpt_detail',
-              'Posting text and online images needs nothing extra. Sending a file from your computer does, and so does opening one already in your library: ChatGPT has to reach these hosts directly, and its tools are not allowed to by default. If either is refused, allow them in your workspace network access settings — on Business and Enterprise plans an admin controls this:'
-            ),
-            t(
-              'allow_uploads_chatgpt_hint',
-              'On plans where you cannot change that setting, ChatGPT will print an upload command instead — run it in your own terminal and paste back what it returns. Either way, never let it put your file on another website first.'
-            )
-          )}
+          {/*
+            Claude needs hosts added to a sandbox allowlist; ChatGPT has no such
+            setting, so pointing people at one sent them hunting for a screen
+            that does not exist. What an admin really controls is how much of a
+            connector a member may use, which is a different failure: reading
+            works, scheduling silently does not.
+          */}
+          <Step
+            index={5}
+            title={t(
+              'if_it_can_read_but_not_post',
+              'If it can read but not post'
+            )}
+          >
+            <StepText>
+              {t(
+                'if_it_can_read_but_not_post_detail',
+                'On a work plan an admin decides how much of a connector each person may use, and the safe default is read-only. That looks like success at first — Voholabs Studio lists your channels and drafts a post, then will not schedule it.'
+              )}
+            </StepText>
+            <StepText>
+              {t(
+                'if_it_can_read_but_not_post_fix',
+                'Ask your admin to open Workspace settings → Apps, find Voholabs Studio and allow write actions, not just read. The same screen decides what happens to actions added later, so it is worth setting once.'
+              )}
+            </StepText>
+          </Step>
         </div>
       )}
 

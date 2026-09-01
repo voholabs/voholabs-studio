@@ -362,7 +362,7 @@ const ConnectSection = ({
     target === 'claude'
       ? 'https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp'
       : target === 'chatgpt'
-      ? 'https://platform.openai.com/docs/mcp'
+      ? 'https://developers.openai.com/api/docs/guides/developer-mode'
       : 'https://docs.postiz.com/mcp/introduction';
 
   // Uploading a local file is the one flow where the assistant itself has to
@@ -528,7 +528,7 @@ const ConnectSection = ({
           <StepText>
             {t(
               'chatgpt_connector_intro',
-              'Custom connectors in ChatGPT need developer mode, which is available on paid plans.'
+              'ChatGPT needs developer mode to add a connector of your own. It is on Plus, Pro, Business, Enterprise and Edu, and only on the web — the phone apps cannot add one.'
             )}
           </StepText>
           {linkStep(1)}
@@ -539,7 +539,7 @@ const ConnectSection = ({
             <StepText>
               {t(
                 'turn_on_developer_mode_detail',
-                'In ChatGPT: Settings → Apps & Connectors → Advanced settings → switch on Developer mode.'
+                'On the web: Settings → Security and login → switch on Developer mode. On a work plan the switch only appears once an admin has allowed it, so ask yours if it is missing.'
               )}
             </StepText>
           </Step>
@@ -550,7 +550,7 @@ const ConnectSection = ({
             <StepText>
               {t(
                 'create_the_connector_detail',
-                'Go to Settings → Apps & Connectors → Create, then fill in:'
+                'Open Plugins, press the + button, and choose to add a remote MCP server. Then fill in:'
               )}
             </StepText>
             <Field label={t('name_label', 'Name:')} value={CONNECTOR_NAME} />
@@ -562,12 +562,18 @@ const ConnectSection = ({
               label={t('authentication_label', 'Authentication:')}
               value={t('no_authentication', 'No authentication')}
             />
+            <StepText>
+              {t(
+                'no_authentication_is_correct',
+                '"No authentication" is the right choice here, even though it sounds wrong: your link already carries the key that signs you in, and ChatGPT has no field to put one in separately. Treat the link like a password — anyone holding it can post as you.'
+              )}
+            </StepText>
           </Step>
           <Step index={4} title={t('use_it_in_a_chat', 'Use it in a chat')}>
             <StepText>
               {t(
                 'use_it_in_a_chat_detail',
-                'Open the + menu in the message box, pick Voholabs Studio, and ask it to schedule a post.'
+                'A connector you made yourself is saved as a draft, so it will not be listed with the published ones. Open the + menu in the message box, pick Voholabs Studio, and ask it to schedule a post.'
               )}
             </StepText>
           </Step>

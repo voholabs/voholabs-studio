@@ -72,12 +72,14 @@ const rpc = async (
     throw new Error(`media service returned ${response.status}`);
   }
 
-  const frames = text.startsWith('data:')
-    ? text
-        .split('\n')
-        .filter((line) => line.startsWith('data:'))
-        .map((line) => line.slice(5).trim())
-    : [text];
+  // An SSE body opens with `event: message`, not with the data line, so sniff
+  // for data lines anywhere rather than at the very start; fall back to
+  // treating the whole body as one JSON document.
+  const dataLines = text
+    .split('\n')
+    .filter((line) => line.startsWith('data:'))
+    .map((line) => line.slice(5).trim());
+  const frames = dataLines.length ? dataLines : [text];
 
   for (const frame of frames) {
     let parsed: any;

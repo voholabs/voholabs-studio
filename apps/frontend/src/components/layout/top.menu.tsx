@@ -171,6 +171,11 @@ export const useMenuItem = () => {
       ),
       path: '/agents',
       requireAi: true,
+      // Hidden from the menu for now, not removed. The page and the /agents
+      // route still work and are still reachable by URL - this only unlists it,
+      // the same way Integrations below is unlisted. Drop this line to bring it
+      // back.
+      hide: true,
     },
     // Integrations (/third-party) is deliberately absent. The page and both of
     // its providers still work and the route is still reachable by URL; it is

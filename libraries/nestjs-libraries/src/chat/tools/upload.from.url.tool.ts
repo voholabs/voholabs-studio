@@ -4,10 +4,8 @@ import { z } from 'zod';
 import { Injectable } from '@nestjs/common';
 import { MediaService } from '@gitroom/nestjs-libraries/database/prisma/media/media.service';
 import { UploadFactory } from '@gitroom/nestjs-libraries/upload/upload.factory';
-import { getMaxSize } from '@gitroom/nestjs-libraries/upload/custom.upload.validation';
 import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
-import { ssrfSafeDispatcher } from '@gitroom/nestjs-libraries/dtos/webhooks/ssrf.safe.dispatcher';
-import { storeBufferAsMedia } from '@gitroom/nestjs-libraries/chat/tools/media.upload.helper';
+import { storeUrlAsMedia } from '@gitroom/nestjs-libraries/chat/tools/media.upload.helper';
 
 @Injectable()
 export class UploadFromUrlTool implements AgentToolInterface {
@@ -54,54 +52,21 @@ Returns the hosted media { id, path } to use as an attachment, or { error } on f
             (context?.requestContext as any)?.get('organization') as string
           );
 
-          const response = await fetch(inputData.url, {
-            // @ts-ignore — undici option, not in lib.dom fetch types
-            dispatcher: ssrfSafeDispatcher,
-          });
-
-          if (!response.ok) {
-            return { error: 'Failed to fetch URL' };
-          }
-
-          // Guard against OOM: bail out before buffering the whole body into
-          // memory. Content-Length may be absent or wrong, so we re-check the
-          // real size after download too. The type isn't known yet (sniffed
-          // below), so the pre-check uses the largest allowed cap (video).
-          const maxDownloadSize = getMaxSize('video/mp4');
-          const declaredSize = Number(response.headers.get('content-length'));
-          if (declaredSize && declaredSize > maxDownloadSize) {
-            return {
-              error: `File is too large: ${declaredSize} bytes (max ${maxDownloadSize} bytes).`,
-            };
-          }
-
-          const buffer = Buffer.from(await response.arrayBuffer());
-
-          // Sniffing, size limits and storage are shared with uploadMediaTool
-          // and are keyed off the bytes, not the URL or the declared type.
-          return await storeBufferAsMedia({
+          // The whole fetch-sniff-store pipeline (SSRF-safe fetch, size caps,
+          // byte sniffing, storage) is shared with the copy-on-attach path in
+          // post.write.shared, so there is exactly one implementation of
+          // "make a remote file durable".
+          return await storeUrlAsMedia({
             storage: this.storage,
             mediaService: this._mediaService,
             organizationId: org.id,
-            buffer,
+            url: inputData.url,
           });
         } catch (err) {
-          // undici's fetch rejects with a generic TypeError('fetch failed')
-          // and hides the real reason (DNS, TLS, SSRF block, ...) in
-          // err.cause, so surface it for the agent. Error.cause isn't in the
-          // es2020 lib typings this repo compiles against, hence the cast.
-          const cause =
-            err instanceof Error
-              ? (err as Error & { cause?: unknown }).cause
-              : undefined;
-          const causeText =
-            cause instanceof Error && cause.message
-              ? ` (${cause.message})`
-              : '';
           return {
             error: `Failed to upload media from URL: ${
               err instanceof Error ? err.message : 'Unexpected error'
-            }${causeText}`,
+            }`,
           };
         }
       },

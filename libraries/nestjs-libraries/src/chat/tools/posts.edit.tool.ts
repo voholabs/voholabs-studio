@@ -9,14 +9,19 @@ import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
 import {
   attachmentUrl,
   describeMedia,
+  hostExternalAttachments,
   mediaOutput,
   readPostMedia,
   withPostLinks,
 } from '@gitroom/nestjs-libraries/chat/tools/post.write.shared';
+import { MediaService } from '@gitroom/nestjs-libraries/database/prisma/media/media.service';
 
 @Injectable()
 export class PostsEditTool implements AgentToolInterface {
-  constructor(private _postsService: PostsService) {}
+  constructor(
+    private _postsService: PostsService,
+    private _mediaService: MediaService
+  ) {}
   name = 'editPostTool';
 
   run() {
@@ -56,7 +61,7 @@ To remove media rather than replace it, pass "clearAttachments" — an empty "at
           .array(attachmentUrl)
           .optional()
           .describe(
-            'Replaces the ENTIRE media list of the post with exactly these (URLs / media library paths). A partial list drops everything you left out: send one path to a three-image post and the other two images are gone. To swap a single image or video and keep the rest, use replacePostAsset instead of this field. OMIT THIS to keep the media that is already attached — that is what you want when you are only rewriting the text. An empty array is ignored; use clearAttachments to remove media.'
+            'An external URL passed here is automatically copied into the media library before saving, so the post stores a durable path instead of a link that can expire. Replaces the ENTIRE media list of the post with exactly these (URLs / media library paths). A partial list drops everything you left out: send one path to a three-image post and the other two images are gone. To swap a single image or video and keep the rest, use replacePostAsset instead of this field. OMIT THIS to keep the media that is already attached — that is what you want when you are only rewriting the text. An empty array is ignored; use clearAttachments to remove media.'
           ),
         clearAttachments: z
           .boolean()
@@ -198,6 +203,22 @@ To remove media rather than replace it, pass "clearAttachments" — an empty "at
             };
           }
 
+          // Copy-on-attach: any attachment not already on our own storage is
+          // fetched and re-hosted before anything is written, so a temporary
+          // external URL can never be saved onto a post. Throws (caught
+          // below) when a URL cannot be copied — the post is untouched then.
+          const hosted = await hostExternalAttachments({
+            mediaService: this._mediaService,
+            organizationId,
+            paths: [
+              ...(inputData.attachments || []),
+              ...(inputData.comments || []).flatMap(
+                (comment) => comment.attachments || []
+              ),
+            ],
+          });
+          const rehost = (path: string) => hosted.get(path) ?? path;
+
           // An empty attachments array reads as "no attachments" but almost
           // always means "I had nothing to say about the media". Treat it as
           // no change, so rewriting the text of a post can never strip its
@@ -211,7 +232,7 @@ To remove media rather than replace it, pass "clearAttachments" — an empty "at
               : item.attachments?.length
               ? item.attachments.map((path: string) => ({
                   id: makeId(10),
-                  path,
+                  path: rehost(path),
                 }))
               : undefined;
 

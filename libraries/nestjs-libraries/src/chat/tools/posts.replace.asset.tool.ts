@@ -9,13 +9,18 @@ import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
 import {
   attachmentUrl,
   describeMedia,
+  hostExternalAttachments,
   mediaOutput,
   readPostMedia,
 } from '@gitroom/nestjs-libraries/chat/tools/post.write.shared';
+import { MediaService } from '@gitroom/nestjs-libraries/database/prisma/media/media.service';
 
 @Injectable()
 export class PostsReplaceAssetTool implements AgentToolInterface {
-  constructor(private _postsService: PostsService) {}
+  constructor(
+    private _postsService: PostsService,
+    private _mediaService: MediaService
+  ) {}
   name = 'replacePostAsset';
 
   run() {
@@ -58,7 +63,7 @@ The output reports the post as it now stands, same shape as editPostTool, so you
             'Zero-based position of the attachment on the target. Only needed when currentPath appears there more than once; when passed, the attachment at this position must actually have currentPath, so a stale index fails instead of replacing the wrong asset.'
           ),
         newPath: attachmentUrl.describe(
-          'The media-library path of the replacement (from mediaList, uploadMediaTool or uploadFromUrlTool) — never a raw external URL. Upload those with uploadFromUrlTool first and pass the "path" it returns, or the post ends up pointing at a file that can expire.'
+          'The media-library path of the replacement (from mediaList, uploadMediaTool or uploadFromUrlTool). An external URL passed here is automatically copied into the media library before the swap, so the post never stores a link that can expire — the output shows the hosted path it became.'
         ),
         commentIndex: z
           .number()
@@ -205,6 +210,17 @@ The output reports the post as it now stands, same shape as editPostTool, so you
             };
           }
 
+          // Copy-on-attach: if the replacement is an external URL, re-host it
+          // before anything is written, so the post never stores a link that
+          // can expire. Throws (caught below) when it cannot be copied — the
+          // post is untouched at that point.
+          const hosted = await hostExternalAttachments({
+            mediaService: this._mediaService,
+            organizationId,
+            paths: [inputData.newPath],
+          });
+          const newPath = hosted.get(inputData.newPath) ?? inputData.newPath;
+
           const value = items.map((item: any, index: number) => {
             const isTarget =
               targetPosition === undefined
@@ -219,7 +235,7 @@ The output reports the post as it now stands, same shape as editPostTool, so you
               ...item,
               image: item.image.map((m: any, mediaIndex: number) =>
                 mediaIndex === replaceAt
-                  ? { id: makeId(10), path: inputData.newPath }
+                  ? { id: makeId(10), path: newPath }
                   : m
               ),
             };

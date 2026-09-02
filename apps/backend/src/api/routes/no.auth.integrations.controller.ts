@@ -5,8 +5,10 @@ import {
   HttpException,
   Param,
   Post,
+  Res,
   UseFilters,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
 import { ConnectIntegrationDto } from '@gitroom/nestjs-libraries/dtos/integrations/connect.integration.dto';
 import { IntegrationManager } from '@gitroom/nestjs-libraries/integrations/integration.manager';
@@ -23,6 +25,7 @@ import {
 } from '@gitroom/backend/services/auth/permissions/permission.exception.class';
 import { RefreshIntegrationService } from '@gitroom/nestjs-libraries/integrations/refresh.integration.service';
 import { OrganizationService } from '@gitroom/nestjs-libraries/database/prisma/organizations/organization.service';
+import { IntegrationPictureService } from '@gitroom/nestjs-libraries/integrations/integration.picture.service';
 
 @ApiTags('Integrations')
 @Controller('/integrations')
@@ -31,8 +34,42 @@ export class NoAuthIntegrationsController {
     private _integrationManager: IntegrationManager,
     private _integrationService: IntegrationService,
     private _refreshIntegrationService: RefreshIntegrationService,
-    private _organizationService: OrganizationService
+    private _organizationService: OrganizationService,
+    private _integrationPictureService: IntegrationPictureService
   ) {}
+
+  /**
+   * A channel's avatar, proxied from the network.
+   *
+   * Unauthenticated on purpose, and it has to be: the same picture is rendered
+   * on the public preview page. Nothing here is private - it is the same image
+   * the network already serves to anyone - and the only thing the id reveals is
+   * that a channel exists.
+   *
+   * On a miss it falls through to the placeholder rather than erroring, so a
+   * revoked token or a deleted account shows the default avatar instead of a
+   * broken image.
+   */
+  @Get('/:id/picture')
+  async getIntegrationPicture(
+    @Param('id') id: string,
+    @Res() res: Response
+  ) {
+    const picture = await this._integrationPictureService.getPicture(id);
+
+    if (!picture) {
+      res.redirect(302, `${process.env.FRONTEND_URL}/no-picture.jpg`);
+      return;
+    }
+
+    res.setHeader('Content-Type', picture.contentType);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    // The proxy already caches in Redis for a day; letting the browser hold it
+    // for an hour keeps a calendar full of channels from re-asking on every
+    // navigation, while still picking up a changed avatar the same day.
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(picture.buffer);
+  }
 
   @Get('/')
   getIntegrations() {

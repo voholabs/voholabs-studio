@@ -32,6 +32,7 @@ import {
 } from '@gitroom/backend/services/auth/permissions/permission.exception.class';
 import { uniqBy } from 'lodash';
 import { RefreshIntegrationService } from '@gitroom/nestjs-libraries/integrations/refresh.integration.service';
+import { IntegrationPictureService } from '@gitroom/nestjs-libraries/integrations/integration.picture.service';
 
 @ApiTags('Integrations')
 @Controller('/integrations')
@@ -40,7 +41,8 @@ export class IntegrationsController {
     private _integrationManager: IntegrationManager,
     private _integrationService: IntegrationService,
     private _postService: PostsService,
-    private _refreshIntegrationService: RefreshIntegrationService
+    private _refreshIntegrationService: RefreshIntegrationService,
+    private _integrationPictureService: IntegrationPictureService
   ) {}
 
   @Post('/provider/:id/connect')
@@ -172,7 +174,17 @@ export class IntegrationsController {
         )
       : { name: '' };
 
-    return this._integrationService.updateNameAndUrl(id, name, url);
+    const updated = await this._integrationService.updateNameAndUrl(
+      id,
+      name,
+      url
+    );
+
+    // The avatar is served from a day-long cache, so without this the user
+    // would push a new picture and keep seeing the old one.
+    await this._integrationPictureService.invalidate(id);
+
+    return updated;
   }
 
   @Get('/:id')

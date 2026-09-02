@@ -150,6 +150,20 @@ export class LinkedinPageProvider
     }));
   }
 
+  // Same source reConnect uses, exposed on its own so the avatar proxy can
+  // re-resolve a page logo without going through a full reconnect.
+  async currentProfilePicture(accessToken: string, internalId?: string) {
+    if (!internalId) {
+      return undefined;
+    }
+
+    const information = await this.fetchPageInformation(accessToken, {
+      page: internalId,
+    });
+
+    return information?.picture || undefined;
+  }
+
   async reConnect(
     id: string,
     requiredId: string,

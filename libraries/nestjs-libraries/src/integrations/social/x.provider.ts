@@ -279,6 +279,25 @@ export class XProvider extends SocialAbstract implements SocialProvider {
     return false;
   }
 
+  // Asked by the avatar proxy, not on a schedule: the network is the source of
+  // truth for a profile picture, so a changed avatar shows up here rather than
+  // being frozen at the moment the channel was connected.
+  async currentProfilePicture(accessToken: string) {
+    const [accessTokenSplit, accessSecretSplit] = accessToken.split(':');
+    const client = new TwitterApi({
+      appKey: process.env.X_API_KEY!,
+      appSecret: process.env.X_API_SECRET!,
+      accessToken: accessTokenSplit,
+      accessSecret: accessSecretSplit,
+    });
+
+    const {
+      data: { profile_image_url },
+    } = await client.v2.me({ 'user.fields': ['profile_image_url'] });
+
+    return profile_image_url || undefined;
+  }
+
   async refreshToken(): Promise<AuthTokenDetails> {
     return {
       id: '',

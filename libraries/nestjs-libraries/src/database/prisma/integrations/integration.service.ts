@@ -110,22 +110,20 @@ export class IntegrationService {
     timezone?: number,
     customInstanceDetails?: string
   ) {
-    const uploadedPicture = picture
-      ? picture?.indexOf('imagedelivery.net') > -1
-        ? picture
-        : // Re-uploading the avatar is best-effort: a broken/expired/dead
-          // picture URL (e.g. a 404'd /uploads asset) must not throw
-          // "Unsupported file type." and abort a token refresh or channel
-          // save. Fall back to the existing picture URL on any failure.
-          await this.storage.uploadSimple(picture).catch(() => picture)
-      : undefined;
+    // The avatar is NOT copied into our storage any more. A copy went stale the
+    // moment someone changed their picture on the network, and because the
+    // bucket expires objects the copy eventually vanished and the channel showed
+    // a broken image - with nothing to heal it, since the network was never
+    // asked again. What is stored instead is the network's own URL, which the
+    // /picture proxy re-resolves and caches. See IntegrationPictureService.
+    const pictureSource = picture || undefined;
 
     return this._integrationRepository.createOrUpdateIntegration(
       additionalSettings,
       oneTimeToken,
       org,
       name,
-      uploadedPicture,
+      pictureSource,
       type,
       internalId,
       provider,

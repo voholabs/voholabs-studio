@@ -108,7 +108,12 @@ export class MediaMeterService {
     const minted = await this.mintKey(
       meterUrl,
       adminToken,
-      organization?.name ? `${organization.name} (${orgId})` : orgId
+      organization?.name ? `${organization.name} (${orgId})` : orgId,
+      // The meter walks this forward to the current boundary itself, so handing
+      // it the original date rather than a computed period start keeps the true
+      // anniversary - including month-end ones, which drift if you advance them
+      // a month at a time.
+      organization?.subscription?.createdAt ?? organization?.createdAt ?? null
     );
     if (!minted) {
       return { state: 'unavailable' };
@@ -132,7 +137,8 @@ export class MediaMeterService {
   private async mintKey(
     meterUrl: string,
     adminToken: string,
-    label: string
+    label: string,
+    periodStart: Date | null
   ): Promise<{ id: string; key: string } | null> {
     try {
       const response = await fetch(
@@ -145,8 +151,12 @@ export class MediaMeterService {
           },
           // No creditLimit on purpose: the meter's own default (500 credits at
           // time of writing) is the policy, and restating it here would freeze
-          // it in a second place.
-          body: JSON.stringify({ label }),
+          // it in a second place. periodStart is ours to set, though - only we
+          // know when this customer's subscription renews.
+          body: JSON.stringify({
+            label,
+            ...(periodStart ? { periodStart: periodStart.toISOString() } : {}),
+          }),
           signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
         }
       );

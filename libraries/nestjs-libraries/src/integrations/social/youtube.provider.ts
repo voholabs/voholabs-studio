@@ -387,6 +387,20 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
     }
   }
 
+  // Same source reConnect uses, exposed on its own so the avatar proxy can
+  // re-resolve a channel's picture without a full reconnect.
+  async currentProfilePicture(accessToken: string, internalId?: string) {
+    if (!internalId) {
+      return undefined;
+    }
+
+    const information = await this.fetchPageInformation(accessToken, {
+      id: internalId,
+    });
+
+    return information?.picture || undefined;
+  }
+
   async reConnect(
     id: string,
     requiredId: string,

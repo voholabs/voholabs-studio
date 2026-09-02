@@ -20,6 +20,20 @@ export interface IAuthenticator {
     requiredId: string,
     accessToken: string
   ): Promise<Omit<AuthTokenDetails, 'refreshToken' | 'expiresIn'>>;
+
+  /**
+   * The channel's avatar URL as the network reports it RIGHT NOW.
+   *
+   * Avatars are not copied into our storage - they are proxied and re-resolved,
+   * so that changing a picture on the network shows up here, and so that a
+   * signed URL (LinkedIn's expire) can be replaced rather than left to rot.
+   * Optional: a provider that does not implement it falls back to the last
+   * source URL we stored, which is still better than a copy that never updates.
+   */
+  currentProfilePicture?(
+    accessToken: string,
+    internalId: string
+  ): Promise<string | undefined>;
   generateAuthUrl(
     clientInformation?: ClientInformation
   ): Promise<GenerateAuthUrlResponse>;

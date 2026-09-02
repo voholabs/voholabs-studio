@@ -92,6 +92,23 @@ export class LinkedinProvider extends SocialAbstract implements SocialProvider {
     return undefined;
   }
 
+  // See the note on the X provider: the avatar proxy re-resolves this instead
+  // of us keeping a copy. It matters more here than elsewhere, because
+  // LinkedIn's picture URLs are signed and expire on their own clock.
+  // Second parameter is unused here but kept so LinkedinPageProvider, which
+  // extends this class, can override it with the page id it needs.
+  async currentProfilePicture(accessToken: string, internalId?: string) {
+    const { picture } = await (
+      await fetch('https://api.linkedin.com/v2/userinfo', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
+    ).json();
+
+    return picture || undefined;
+  }
+
   async refreshToken(refresh_token: string): Promise<AuthTokenDetails> {
     const {
       access_token: accessToken,

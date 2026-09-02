@@ -334,7 +334,16 @@ model Integration {
   internalId            String
   organizationId        String
   name                  String
+  // What every consumer renders. This is our own /picture proxy URL, not the
+  // asset: it never changes for the life of the channel, so nothing here rots
+  // the way the old copied-to-R2 URL did.
   picture               String?
+  // Where the proxy actually goes to get the image - the network's own avatar
+  // URL, as returned by the provider. Additive and nullable on purpose: db
+  // push runs with --accept-data-loss, so this column must never be renamed or
+  // made required. Null on rows that predate it; the proxy re-resolves those
+  // from the provider on first request.
+  pictureSource         String?
   providerIdentifier    String
   type                  String
   token                 String

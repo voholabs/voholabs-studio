@@ -34,7 +34,7 @@ Dates are UTC ISO strings. If you don't pass any, it defaults to the next ${DEFA
 Every post returns both an "id" and a "group": the group holds a post together with its thread items and comments, and is what deletePostTool removes.
 Every post also returns "attachments" — the media it carries, with the same "path" the media library uses. That is how you tell whether a post already has its image or video on it, without opening anything.
 A thread comes back whole: "comments" lists the items that follow the post, in order, each with its own text and attachments. Their position in that list is the "commentIndex" replacePostAsset takes, so this is where you find which item carries the image you were asked to change.
-TO SEE those images rather than just know they exist, pass their "path" values to mediaPreview and it returns the pictures themselves in one call, in slide order. Do that instead of downloading the URLs yourself. Each attachment also carries "mediaId", "originalName" and a "mimeType" hint so you can tell a video from an image before asking.
+TO GET AT the media rather than just know it exists, pass the "path" values to mediaPreview: it returns a loadable resource link per item, in slide order, for video as well as images. Load those URLs yourself to see or use the asset — nothing is inlined and nothing is re-encoded, so what you load is the real thing at full quality. Each attachment also carries "mediaId", "originalName" and a "mimeType" hint, so you can tell a video from an image before you load anything.
 TO CHANGE A POST, use editPostTool with its "id". It edits in place and keeps whatever you do not pass, attachments included. Deleting and re-creating a post is not the way to reword it: it loses the media, the post's history and its id.
 
 Every post returns its "settings" too — the channel options it was scheduled with, such as which Discord channel it goes to or an X post's reply permissions and AI-disclosure flags. That is what you read back when you need to know how a post is configured, and what editPostTool merges into rather than replacing.
@@ -85,21 +85,21 @@ TO LINK ONE POST TO ANOTHER (echoing a post to another channel): every post here
                     path: z
                       .string()
                       .describe(
-                        "The media path — the same value mediaList returns and an attachments field takes. Pass this to mediaPreview to see the image, or hand it to an external image/video tool's import-by-URL step to edit it. The edited result must come back through uploadFromUrlTool before it can be attached — attach the path uploadFromUrlTool returns, never the external tool's own URL."
+                        "The media path — the same value mediaList returns and an attachments field takes. Pass this to mediaPreview for a loadable reference to the asset, or hand it to an external image/video tool's import-by-URL step to edit it. The edited result must come back through uploadFromUrlTool before it can be attached — attach the path uploadFromUrlTool returns, never the external tool's own URL."
                       ),
                     thumbnail: z.string().nullable(),
                     mediaId: z
                       .string()
                       .nullable()
                       .describe(
-                        'The media library id, when this attachment still resolves to a library row. Null for one that has since been deleted from the library — the path still previews.'
+                        'The media library id, when this attachment still resolves to a library row. Null for one that has since been deleted from the library — the path is still loadable.'
                       ),
                     originalName: z.string().nullable(),
                     mimeType: z
                       .string()
                       .nullable()
                       .describe(
-                        'Best-effort type from the file extension, for telling an image from a video before previewing. mediaPreview checks the real bytes.'
+                        'Best-effort type from the file extension, for telling an image from a video before loading it. The authoritative type is the Content-Type you get when you load the URL.'
                       ),
                   })
                 )

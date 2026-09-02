@@ -6,14 +6,20 @@ import z from 'zod';
 import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
 import { ValidUrlPath } from '@gitroom/helpers/utils/valid.url.path';
 import {
-  fetchImageAsBase64,
-  MAX_PREVIEW_ITEMS,
-  TOTAL_BYTE_BUDGET,
+  guessMimeFromPath,
+  MAX_REFERENCE_ITEMS,
+  mediaKind,
+  referenceName,
 } from '@gitroom/nestjs-libraries/chat/tools/media.preview.helper';
 
 const validUrlPath = new ValidUrlPath();
 
-type Requested = { key: string; path: string | null; error?: string };
+type Resolved = {
+  key: string;
+  path: string | null;
+  row?: any;
+  error?: string;
+};
 
 @Injectable()
 export class MediaPreviewTool implements AgentToolInterface {
@@ -23,13 +29,14 @@ export class MediaPreviewTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'mediaPreview',
-      description: `Look at images that are already in the media library or attached to a post — this returns the pictures themselves, not links to them.
-Use it the moment you need to SEE a post's images: pass the "path" of each attachment from postsList (or media ids from mediaList) and the images come back in this one call, in the order you asked for them, so a carousel stays in its slide order. There is no need to download anything first.
-Previews PNG, JPEG, GIF and WebP. Anything else — including mp4 video — comes back as a per-item note saying what the file actually is, with the rest of the batch still returned.
-Up to ${MAX_PREVIEW_ITEMS} images per call. It only reads: nothing is uploaded, changed or deleted.`,
+      description: `Get loadable references to media that is in the media library or attached to a post — images AND video alike.
+Pass the "path" of each attachment from postsList (or media ids from mediaList) and each one comes back as an MCP resource link carrying the asset's URL, name and type, in the order you asked for, so a carousel keeps its slide order. Load the ones you need from those URLs.
+Nothing is returned inline and nothing is re-encoded: you get the real asset at full quality, whatever its size, and video works the same way as an image. Use "kind" to tell them apart before loading — do not try to look at a video as a picture.
+If loading a URL is refused with a 403 or a blocked network, that is the sandbox domain allowlist, not a missing file: tell the user to add that host in Settings → Capabilities. Never report an asset as unavailable when you were simply not allowed to fetch it.
+It only reads: nothing is uploaded, changed or deleted.`,
       mcp: {
         annotations: {
-          title: 'Preview Media',
+          title: 'Get Media References',
           readOnlyHint: true,
           destructiveHint: false,
           idempotentHint: true,
@@ -41,42 +48,45 @@ Up to ${MAX_PREVIEW_ITEMS} images per call. It only reads: nothing is uploaded, 
           .array(z.string())
           .optional()
           .describe(
-            'Media paths to preview, in the order you want them back. This is the usual way in: it is the same "path" postsList returns for each attachment and mediaList returns for each asset.'
+            'Media paths, in the order you want them back. This is the usual way in: it is the same "path" postsList returns for each attachment and mediaList returns for each asset.'
           ),
         ids: z
           .array(z.string())
           .optional()
           .describe(
-            'Media library ids to preview, as an alternative to paths. Note these are mediaList ids — a post attachment does not carry one, so use "paths" for anything read off a post.'
+            'Media library ids, as an alternative to paths. Note these are mediaList ids — a post attachment does not carry one, so use "paths" for anything read off a post.'
           ),
       }),
       // Passthrough is load-bearing: the tool returns `{ structuredContent,
-      // content }` so the MCP server emits real image blocks, and a plain
-      // object schema would strip both keys before they ever got there.
-      // The declared fields below are what a client sees as the output shape.
+      // content }` so the MCP server emits real resource_link blocks, and a
+      // plain object schema would strip both keys before they got there.
       outputSchema: z
         .object({
-          images: z
+          media: z
             .array(
               z.object({
-                key: z
+                key: z.string().describe('The path or id that was asked for'),
+                url: z
                   .string()
-                  .describe('The path or id that was asked for'),
-                path: z.string().nullable(),
-                originalName: z.string().nullable(),
-                mimeType: z.string().optional(),
-                bytes: z.number().optional(),
-                previewed: z
-                  .boolean()
+                  .nullable()
+                  .describe('Load this to get the asset itself, at full quality'),
+                mediaId: z.string().nullable(),
+                name: z.string().nullable(),
+                mimeType: z
+                  .string()
+                  .nullable()
                   .describe(
-                    'Whether this item is present as an image in the content of this response'
+                    'Best-effort type from the file extension. The authoritative type is the Content-Type of the response when you load the URL.'
                   ),
+                kind: z
+                  .string()
+                  .describe('"image", "video" or "unknown" — check before loading'),
                 error: z.string().optional(),
               })
             )
             .optional()
             .describe(
-              'One entry per requested item, in the order requested. Items with previewed=true appear as images, in this same order.'
+              'One entry per requested item, in the order requested. Entries with a url also appear as resource links in the content of this response.'
             ),
           error: z.string().optional(),
         })
@@ -103,22 +113,24 @@ Up to ${MAX_PREVIEW_ITEMS} images per call. It only reads: nothing is uploaded, 
             return {
               structuredContent: {
                 error:
-                  'Pass either "paths" or "ids", not both, so the order of the images is unambiguous.',
+                  'Pass either "paths" or "ids", not both, so the order of the references is unambiguous.',
               },
             };
           }
 
           const requestedKeys: string[] = paths.length ? paths : ids;
-          if (requestedKeys.length > MAX_PREVIEW_ITEMS) {
+          if (requestedKeys.length > MAX_REFERENCE_ITEMS) {
             return {
               structuredContent: {
-                error: `Too many items: ${requestedKeys.length} (max ${MAX_PREVIEW_ITEMS} per call). Ask for them in smaller batches.`,
+                error: `Too many items: ${requestedKeys.length} (max ${MAX_REFERENCE_ITEMS} per call).`,
               },
             };
           }
 
-          // One query for the whole batch, always scoped to this organization —
-          // that scoping is what stops the tool being a general URL fetcher.
+          // One query for the whole batch, always scoped to this organization.
+          // Nothing is fetched here, but the scoping still matters: it is what
+          // keeps the tool from turning any URL an agent invents into a
+          // reference that looks like it came from the user's library.
           const rows = paths.length
             ? await this._mediaService.getMediaByPathsForOrg(
                 organizationId,
@@ -133,16 +145,15 @@ Up to ${MAX_PREVIEW_ITEMS} images per call. It only reads: nothing is uploaded, 
             ])
           );
 
-          const requested: Requested[] = requestedKeys.map((key) => {
+          const resolved: Resolved[] = requestedKeys.map((key) => {
             const row = byKey.get(key);
             if (row) {
-              return { key, path: row.path };
+              return { key, path: row.path, row };
             }
 
-            // Not in the library. An id we cannot resolve is simply not this
-            // organization's. A path might still be a legitimate older
-            // attachment, so it is allowed through only if it points at the
-            // configured upload domain — never at an arbitrary host.
+            // An id we cannot resolve is simply not this organization's. A path
+            // might still be a legitimate older attachment, so it is allowed
+            // through only if it points at the configured upload domain.
             if (!paths.length) {
               return {
                 key,
@@ -156,77 +167,61 @@ Up to ${MAX_PREVIEW_ITEMS} images per call. It only reads: nothing is uploaded, 
                 key,
                 path: null,
                 error:
-                  'This path is not in your media library and is not on an allowed upload domain, so it was not fetched.',
+                  'This path is not in your media library and is not on an allowed upload domain.',
               };
             }
 
             return { key, path: key };
           });
 
-          const images: any[] = [];
+          const media: any[] = [];
           const content: any[] = [];
-          let spent = 0;
 
-          // Sequential on purpose: the byte budget is a running total, and
-          // firing every fetch at once would blow past it before any of them
-          // returned.
-          for (const item of requested) {
-            const row = byKey.get(item.key);
-            const originalName = row?.originalName ?? null;
-
+          for (const item of resolved) {
             if (!item.path) {
-              images.push({
+              media.push({
                 key: item.key,
-                path: null,
-                originalName,
-                previewed: false,
+                url: null,
+                mediaId: null,
+                name: null,
+                mimeType: null,
+                kind: 'unknown',
                 error: item.error,
               });
               continue;
             }
 
-            const result = await fetchImageAsBase64(
-              item.path,
-              TOTAL_BYTE_BUDGET - spent
-            );
+            const mimeType = guessMimeFromPath(item.path);
+            const name = referenceName(item.row?.originalName, item.path);
+            const kind = mediaKind(item.row?.type, mimeType);
 
-            if (result.error) {
-              images.push({
-                key: item.key,
-                path: item.path,
-                originalName,
-                previewed: false,
-                error: result.error,
-              });
-              continue;
-            }
-
-            spent += result.bytes || 0;
             content.push({
-              type: 'image',
-              data: result.base64,
-              mimeType: result.mimeType,
+              type: 'resource_link',
+              uri: item.path,
+              name,
+              ...(mimeType ? { mimeType } : {}),
             });
-            images.push({
+
+            media.push({
               key: item.key,
-              path: item.path,
-              originalName,
-              mimeType: result.mimeType,
-              bytes: result.bytes,
-              previewed: true,
+              url: item.path,
+              mediaId: item.row?.id ?? null,
+              name,
+              mimeType,
+              kind,
             });
           }
 
           // `content` is handed straight to the client as MCP content blocks;
-          // `structuredContent` stays the readable JSON. Keeping the base64 out
-          // of the latter is what stops every image being sent twice.
+          // `structuredContent` is the same list in readable form, so a client
+          // that ignores resource links still has every URL.
           return content.length
-            ? { structuredContent: { images }, content }
-            : { structuredContent: { images } };
+            ? { structuredContent: { media }, content }
+            : { structuredContent: { media } };
         } catch (err) {
           return {
             structuredContent: {
-              error: `Failed to preview media: ${
+              error: `Failed to get media references: ${
                 err instanceof Error ? err.message : 'Unexpected error'
               }`,
             },

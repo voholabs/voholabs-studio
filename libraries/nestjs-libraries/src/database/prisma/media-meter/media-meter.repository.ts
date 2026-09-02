@@ -15,7 +15,17 @@ export class MediaMeterRepository {
   getMeterCredentials(orgId: string) {
     return this._organization.model.organization.findUnique({
       where: { id: orgId },
-      select: { name: true, mediaMeterKeyId: true, mediaMeterKey: true },
+      select: {
+        name: true,
+        mediaMeterKeyId: true,
+        mediaMeterKey: true,
+        // The media allowance renews on the same day as the rest of the
+        // subscription, so the meter is anchored on the subscription's own
+        // start date. An org without one falls back to its own creation date,
+        // which is the only other anniversary it has.
+        createdAt: true,
+        subscription: { select: { createdAt: true } },
+      },
     });
   }
 

@@ -1,5 +1,7 @@
 'use client';
 
+import dayjs from 'dayjs';
+
 import { FC, ReactNode, useCallback } from 'react';
 import useSWR from 'swr';
 import clsx from 'clsx';
@@ -111,6 +113,17 @@ const UsageBar: FC<{ usage: MediaMeterUsage }> = ({ usage }) => {
         {t('media_usage_remaining_of', 'of')} {formatCredits(limit)}{' '}
         {t('media_usage_credits_remaining', 'credits remaining')}
       </div>
+
+      {/*
+        Only shown once the allowance actually renews. Saying nothing is better
+        than implying credit is gone for good, and better than inventing a date.
+      */}
+      {!!usage.resetAt && (
+        <div className="text-[13px] text-customColor18 mt-[6px]">
+          {t('media_usage_resets_on', 'Renews on')}{' '}
+          {dayjs(usage.resetAt).format('D MMM')}
+        </div>
+      )}
     </div>
   );
 };

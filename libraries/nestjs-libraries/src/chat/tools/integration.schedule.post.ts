@@ -10,14 +10,17 @@ import { Integration } from '@prisma/client';
 import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
 import {
   attachmentUrl,
+  hostExternalAttachments,
   withPostLinks,
 } from '@gitroom/nestjs-libraries/chat/tools/post.write.shared';
+import { MediaService } from '@gitroom/nestjs-libraries/database/prisma/media/media.service';
 
 @Injectable()
 export class IntegrationSchedulePostTool implements AgentToolInterface {
   constructor(
     private _postsService: PostsService,
-    private _integrationService: IntegrationService
+    private _integrationService: IntegrationService,
+    private _mediaService: MediaService
   ) {}
   name = 'integrationSchedulePostTool';
 
@@ -93,7 +96,9 @@ so you CAN schedule "here is my new X post: <link>" before the X post exists.
                       ),
                     attachments: z
                       .array(attachmentUrl)
-                      .describe('The image of the post (URLS)'),
+                      .describe(
+                        'The images/videos of the post (URLs or media-library paths). An external URL is automatically copied into the media library before saving, so the post stores a durable path instead of a link that can expire.'
+                      ),
                     linkToPostIds: z
                       .array(z.string())
                       .optional()
@@ -210,6 +215,35 @@ so you CAN schedule "here is my new X post: <link>" before the X post exists.
           }
         }
 
+        // Copy-on-attach: re-host every attachment that is not already on our
+        // own storage, so a temporary external URL can never be saved onto a
+        // post. Done after validation (a rejected call uploads nothing) and
+        // before any createPost (a failed copy leaves every post unwritten).
+        // Deduped across the whole call, so a URL shared by several posts is
+        // fetched once.
+        let rehost: (path: string) => string;
+        try {
+          const hosted = await hostExternalAttachments({
+            mediaService: this._mediaService,
+            organizationId,
+            paths: inputData.socialPost.flatMap((platform) =>
+              platform.postsAndComments.flatMap(
+                (item) => item.attachments || []
+              )
+            ),
+          });
+          rehost = (path: string) => hosted.get(path) ?? path;
+        } catch (err) {
+          return {
+            output: {
+              errors:
+                err instanceof Error
+                  ? err.message
+                  : 'Failed to copy an external attachment into the media library.',
+            },
+          };
+        }
+
         for (const post of inputData.socialPost) {
           const integration = integrations[post.integrationId];
 
@@ -239,9 +273,9 @@ so you CAN schedule "here is my new X post: <link>" before the X post exists.
                   content: withPostLinks(p),
                   id: makeId(10),
                   delay: 0,
-                  image: p.attachments.map((p: any) => ({
+                  image: p.attachments.map((path: any) => ({
                     id: makeId(10),
-                    path: p,
+                    path: rehost(path),
                   })),
                 })),
               },

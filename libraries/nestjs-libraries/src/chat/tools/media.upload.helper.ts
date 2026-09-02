@@ -1,6 +1,7 @@
 import { MediaService } from '@gitroom/nestjs-libraries/database/prisma/media/media.service';
 import { UploadFactory } from '@gitroom/nestjs-libraries/upload/upload.factory';
 import { getMaxSize } from '@gitroom/nestjs-libraries/upload/custom.upload.validation';
+import { ssrfSafeDispatcher } from '@gitroom/nestjs-libraries/dtos/webhooks/ssrf.safe.dispatcher';
 import { Readable } from 'stream';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { fromBuffer } = require('file-type');
@@ -76,4 +77,74 @@ export const storeBufferAsMedia = async (params: {
   );
 
   return { id: saved.id, path: saved.path };
+};
+
+/**
+ * Fetch a public URL and store it in the media library. This is the ONE
+ * implementation of "make a remote file durable": uploadFromUrlTool exposes it
+ * directly, and the copy-on-attach path in post.write.shared runs every
+ * external attachment through it before a post is saved.
+ *
+ * The fetch goes through ssrfSafeDispatcher — an attachment URL is
+ * attacker-influenced input, so it must never be allowed to reach internal
+ * addresses. Never returns a hosted path for anything that failed: the result
+ * either carries { id, path } or { error }, and it never throws.
+ */
+export const storeUrlAsMedia = async (params: {
+  storage: Storage;
+  mediaService: MediaService;
+  organizationId: string;
+  url: string;
+}): Promise<StoredMedia> => {
+  const { storage, mediaService, organizationId, url } = params;
+
+  try {
+    const response = await fetch(url, {
+      // @ts-ignore — undici option, not in lib.dom fetch types
+      dispatcher: ssrfSafeDispatcher,
+    });
+
+    if (!response.ok) {
+      return { error: `Failed to fetch URL (HTTP ${response.status})` };
+    }
+
+    // Guard against OOM: bail out before buffering the whole body into
+    // memory. Content-Length may be absent or wrong, so storeBufferAsMedia
+    // re-checks the real size after download too. The type isn't known yet
+    // (sniffed there), so the pre-check uses the largest allowed cap (video).
+    const maxDownloadSize = getMaxSize('video/mp4');
+    const declaredSize = Number(response.headers.get('content-length'));
+    if (declaredSize && declaredSize > maxDownloadSize) {
+      return {
+        error: `File is too large: ${declaredSize} bytes (max ${maxDownloadSize} bytes).`,
+      };
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+
+    // Sniffing, size limits and storage are keyed off the bytes, not the URL
+    // or the declared type.
+    return await storeBufferAsMedia({
+      storage,
+      mediaService,
+      organizationId,
+      buffer,
+    });
+  } catch (err) {
+    // undici's fetch rejects with a generic TypeError('fetch failed') and
+    // hides the real reason (DNS, TLS, SSRF block, ...) in err.cause, so
+    // surface it. Error.cause isn't in the es2020 lib typings this repo
+    // compiles against, hence the cast.
+    const cause =
+      err instanceof Error
+        ? (err as Error & { cause?: unknown }).cause
+        : undefined;
+    const causeText =
+      cause instanceof Error && cause.message ? ` (${cause.message})` : '';
+    return {
+      error: `Failed to fetch URL: ${
+        err instanceof Error ? err.message : 'Unexpected error'
+      }${causeText}`,
+    };
+  }
 };

@@ -30,7 +30,8 @@ export class MediaPreviewTool implements AgentToolInterface {
     return createTool({
       id: 'mediaPreview',
       description: `Get loadable references to media that is in the media library or attached to a post — images AND video alike.
-Pass the "path" of each attachment from postsList (or media ids from mediaList) and each one comes back as an MCP resource link carrying the asset's URL, name and type, in the order you asked for, so a carousel keeps its slide order. Load the ones you need from those URLs.
+Pass the "path" of each attachment from postsList (or media ids from mediaList) and each one comes back as an MCP resource link carrying the asset's URL, name and type, in the order you asked for, so a carousel keeps its slide order.
+This call only gets you a URL — it is not the same as showing the user the asset, and stopping here (e.g. printing the name or the link as text) leaves the user with nothing to look at. You still have to actually display it: download the bytes from the URL yourself, then show or attach the downloaded image/video in your response using whatever mechanism your client renders images with. A raw URL dropped into a markdown image tag frequently fails to load for the user (many clients, ChatGPT included, do not fetch and inline an arbitrary external URL on their own) — download first, then show what you downloaded, never the bare link.
 Nothing is returned inline and nothing is re-encoded: you get the real asset at full quality, whatever its size, and video works the same way as an image. Use "kind" to tell them apart before loading — do not try to look at a video as a picture.
 If loading a URL is refused with a 403 or a blocked network, that is the sandbox domain allowlist, not a missing file: tell the user to add that host in Settings → Capabilities. Never report an asset as unavailable when you were simply not allowed to fetch it.
 It only reads: nothing is uploaded, changed or deleted.`,

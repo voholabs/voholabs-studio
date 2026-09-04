@@ -164,6 +164,38 @@ export const TrashIcon: FC<IconProps> = ({
   </svg>
 );
 
+// Copy Icon
+export const CopyIcon: FC<IconProps> = ({
+  size = 20,
+  className,
+  ...props
+}) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 20 20"
+    fill="none"
+    className={className}
+    {...props}
+  >
+    <path
+      d="M13.3333 7.5H8.33333C7.8731 7.5 7.5 7.8731 7.5 8.33333V13.3333C7.5 13.7936 7.8731 14.1667 8.33333 14.1667H13.3333C13.7936 14.1667 14.1667 13.7936 14.1667 13.3333V8.33333C14.1667 7.8731 13.7936 7.5 13.3333 7.5Z"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M4.99992 12.5H4.16659C3.94557 12.5 3.73361 12.4122 3.57733 12.2559C3.42105 12.0996 3.33325 11.8877 3.33325 11.6667V4.16667C3.33325 3.94565 3.42105 3.73369 3.57733 3.57741C3.73361 3.42113 3.94557 3.33333 4.16659 3.33333H11.6666C11.8876 3.33333 12.0996 3.42113 12.2558 3.57741C12.4121 3.73369 12.4999 3.94565 12.4999 4.16667V5"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
 export const DelayIcon: FC<IconProps> = ({
   size = 20,
   className,

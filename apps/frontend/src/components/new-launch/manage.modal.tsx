@@ -36,9 +36,11 @@ import {
   SettingsIcon,
   ChevronDownIcon,
   CloseIcon,
+  CopyIcon,
   TrashIcon,
   DropdownArrowSmallIcon,
 } from '@gitroom/frontend/components/ui/icons';
+import copy from 'copy-to-clipboard';
 import { useHasScroll } from '@gitroom/frontend/components/ui/is.scroll.hook';
 import { useShortlinkPreference } from '@gitroom/frontend/components/settings/shortlink-preference.component';
 import dayjs from 'dayjs';
@@ -587,8 +589,23 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
             </div>
           </div>
           <div className="w-[580px] flex flex-col">
-            <div className="bg-newBgColor h-[65px] rounded-e-[20px] !rounded-b-[0] flex items-center px-[20px] text-[20px] font-[600]">
+            <div className="bg-newBgColor h-[65px] rounded-e-[20px] !rounded-b-[0] flex items-center px-[20px] text-[20px] font-[600] gap-[8px]">
               <div className="flex-1">{t('post_preview', 'Post Preview')}</div>
+              {!!existingData?.posts?.[0]?.id && (
+                <div
+                  className="cursor-pointer"
+                  title={t('copy_post_id', 'Copy post ID')}
+                  onClick={() => {
+                    copy(existingData.posts[0].id);
+                    toaster.show(
+                      t('post_id_copied', 'Post ID copied to clipboard'),
+                      'success'
+                    );
+                  }}
+                >
+                  <CopyIcon size={18} className="text-[#A3A3A3]" />
+                </div>
+              )}
               <div className="cursor-pointer">
                 <CloseIcon onClick={askClose} className="text-[#A3A3A3]" />
               </div>

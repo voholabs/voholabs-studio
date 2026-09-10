@@ -613,6 +613,66 @@ export class PostsService {
     return list;
   }
 
+  /**
+   * Sanity posts that published before the article's own address was worked out
+   * hold a link to the Studio document instead. That is what a `(post:<id>)`
+   * echo pointing at one of them gets replaced with, so a queued echo to an
+   * already published article still goes out wrong until this is run.
+   *
+   * Dry by default: it reports what it would change and writes nothing.
+   */
+  async repairSanityReleaseUrls(dryRun = true) {
+    const provider = this._integrationManager.getSocialIntegration(
+      'sanity'
+    ) as any;
+
+    if (typeof provider?.liveUrlForDocument !== 'function') {
+      return { scanned: 0, changed: 0, dryRun, posts: [] as any[] };
+    }
+
+    const posts = await this._postRepository.getPublishedPostsByProvider(
+      'sanity'
+    );
+
+    const changes: { id: string; from: string; to: string }[] = [];
+
+    for (const post of posts) {
+      const documentId = (() => {
+        try {
+          return JSON.parse(post.settings || '{}')?.documentId || '';
+        } catch (err) {
+          return '';
+        }
+      })();
+
+      if (!documentId) {
+        continue;
+      }
+
+      // One bad channel must not stop the rest of the repair.
+      const url = await provider
+        .liveUrlForDocument(post.integration.token, documentId)
+        .catch(() => '');
+
+      if (!url || url === post.releaseURL) {
+        continue;
+      }
+
+      changes.push({ id: post.id, from: post.releaseURL || '', to: url });
+
+      if (!dryRun) {
+        await this._postRepository.setReleaseURL(post.id, url);
+      }
+    }
+
+    return {
+      scanned: posts.length,
+      changed: changes.length,
+      dryRun,
+      posts: changes,
+    };
+  }
+
   async getOldPosts(orgId: string, date: string) {
     return this._postRepository.getOldPosts(orgId, date);
   }

@@ -14,6 +14,7 @@ import { AdminStatsService } from '@gitroom/nestjs-libraries/database/prisma/adm
 import { SubscriptionService } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/subscription.service';
 import { OrganizationService } from '@gitroom/nestjs-libraries/database/prisma/organizations/organization.service';
 import { UsersService } from '@gitroom/nestjs-libraries/database/prisma/users/users.service';
+import { PostsService } from '@gitroom/nestjs-libraries/database/prisma/posts/posts.service';
 import { WhitelistDto } from '@gitroom/nestjs-libraries/dtos/admin/whitelist.dto';
 import dayjs from 'dayjs';
 
@@ -25,7 +26,8 @@ export class AdminController {
     private _adminStatsService: AdminStatsService,
     private _subscriptionService: SubscriptionService,
     private _organizationService: OrganizationService,
-    private _userService: UsersService
+    private _userService: UsersService,
+    private _postsService: PostsService
   ) {}
 
   private assertSuperAdmin(user: User) {
@@ -117,6 +119,18 @@ export class AdminController {
   async listPlatforms(@GetUserFromRequest() user: User) {
     this.assertSuperAdmin(user);
     return this._errorsService.listPlatforms();
+  }
+
+  // One off repair: Sanity posts published before the article's own URL was
+  // stored point at the Studio document, and any `(post:<id>)` echo to one of
+  // them links there too. Reports what it would change unless `apply` is set.
+  @Post('/repair-sanity-urls')
+  async repairSanityUrls(
+    @GetUserFromRequest() user: User,
+    @Body() body: { apply?: boolean }
+  ) {
+    this.assertSuperAdmin(user);
+    return this._postsService.repairSanityReleaseUrls(!body?.apply);
   }
 
   @Get('/stats')

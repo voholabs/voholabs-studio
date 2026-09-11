@@ -1582,7 +1582,7 @@ export class SanityProvider extends SocialAbstract implements SocialProvider {
     const draftId = `${DRAFT_PREFIX}${documentId}`;
     const rows = await this.queryInActivity<any[]>(
       credentials,
-      `*[_id == $id || _id == $draftId]{_id, _type}`,
+      `*[_id == $id || _id == $draftId]{_id, _type, "slug": slug.current}`,
       { id: documentId, draftId }
     );
 
@@ -1591,6 +1591,9 @@ export class SanityProvider extends SocialAbstract implements SocialProvider {
     );
     const draft = (rows || []).find((r) => r._id.startsWith(DRAFT_PREFIX));
     const type = draft?._type || published?._type || '';
+    // The draft is what goes live, so its slug is the one the article ends up
+    // being read at.
+    const slug = String(draft?.slug || published?.slug || '');
 
     if (!draft && !published) {
       throw new Error(
@@ -1632,9 +1635,110 @@ export class SanityProvider extends SocialAbstract implements SocialProvider {
         id: postDetails?.[0].id,
         status: 'completed',
         postId: documentId,
-        releaseURL: this.editUrl(credentials, documentId, type),
+        // The Studio link is the fallback for when the site cannot be reached
+        // or the article has no slug: a link to somewhere real beats no link
+        // at all, and it is what this returned before.
+        releaseURL:
+          (await this.liveUrl(credentials, documentId, type, slug, true)) ||
+          this.editUrl(credentials, documentId, type),
       },
     ];
+  }
+
+  /**
+   * Where an article can be read on the web, or '' when that cannot be worked
+   * out. This is what a publish is remembered by: the calendar links to it and,
+   * more importantly, a `(post:<id>)` echo on another channel is replaced with
+   * it - so it has to be the article as a reader sees it, on the site, not the
+   * Studio document that only the author can open.
+   */
+  private async liveUrl(
+    credentials: SanityCredentials,
+    documentId: string,
+    type: string,
+    slug: string,
+    inActivity: boolean
+  ) {
+    if (!slug) {
+      return '';
+    }
+
+    try {
+      // Which path the blog sits under is discovered by asking the site about
+      // an article it already serves. The one just published is the wrong thing
+      // to ask about - a statically built site has not rebuilt yet, so it would
+      // 404 and the probe would conclude the blog cannot be found.
+      const sample = await this.probeSlug(
+        credentials,
+        type,
+        documentId,
+        inActivity
+      );
+
+      const prefix = await this.resolveSitePrefix(credentials, sample || slug);
+
+      return prefix ? `${prefix}${slug}` : '';
+    } catch (err: any) {
+      console.log(
+        `[sanity] could not work out the live URL for ${documentId}: ${
+          err?.message || err
+        }`
+      );
+      return '';
+    }
+  }
+
+  /**
+   * A slug that is definitely live on the site: another published document of
+   * the same type, which is by definition served from the same path as the one
+   * being asked about.
+   */
+  private async probeSlug(
+    credentials: SanityCredentials,
+    type: string,
+    documentId: string,
+    inActivity: boolean
+  ) {
+    if (!type) {
+      return '';
+    }
+
+    const groq = `*[_type == $type && _id != $id && !(_id in path("drafts.**")) && defined(slug.current)] | order(_updatedAt desc) [0...1]{"slug": slug.current}`;
+    const params = { type, id: documentId };
+
+    const rows = inActivity
+      ? await this.queryInActivity<any[]>(credentials, groq, params)
+      : await this.query<any[]>(credentials, groq, params);
+
+    return String(rows?.[0]?.slug || '');
+  }
+
+  /**
+   * The live URL of a document that is already published, from outside a
+   * Temporal activity. Posts published before the live URL was worked out hold
+   * the Studio link instead, and this is what repairs them.
+   */
+  async liveUrlForDocument(token: string, documentId: string) {
+    const credentials = this.decode(token);
+    const id = this.publishedId(documentId || '');
+
+    if (!id) {
+      return '';
+    }
+
+    const rows = await this.query<any[]>(
+      credentials,
+      `*[_id == $id]{_type, "slug": slug.current}`,
+      { id }
+    );
+
+    return this.liveUrl(
+      credentials,
+      id,
+      String(rows?.[0]?._type || ''),
+      String(rows?.[0]?.slug || ''),
+      false
+    );
   }
 
   /**

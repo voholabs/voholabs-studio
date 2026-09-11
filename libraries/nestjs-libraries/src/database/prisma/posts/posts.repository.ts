@@ -543,6 +543,50 @@ export class PostsRepository {
     });
   }
 
+  /**
+   * Every published post on one kind of channel, with what is needed to work
+   * out where the thing it published actually lives. Feeds the repair of Sanity
+   * posts whose releaseURL is the Studio document instead of the article.
+   */
+  getPublishedPostsByProvider(providerIdentifier: string) {
+    return this._post.model.post.findMany({
+      where: {
+        deletedAt: null,
+        parentPostId: null,
+        state: 'PUBLISHED',
+        integration: {
+          providerIdentifier,
+        },
+      },
+      select: {
+        id: true,
+        releaseURL: true,
+        settings: true,
+        integration: {
+          select: {
+            id: true,
+            token: true,
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * Corrects where a post says it went, without touching anything else about
+   * it - unlike `updatePost`, which is the publish itself.
+   */
+  setReleaseURL(id: string, releaseURL: string) {
+    return this._post.model.post.update({
+      where: {
+        id,
+      },
+      data: {
+        releaseURL,
+      },
+    });
+  }
+
   updatePost(id: string, postId: string, releaseURL: string) {
     return this._post.model.post.update({
       where: {

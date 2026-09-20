@@ -62,13 +62,13 @@ export const RequiredTerms: FC<{
           <li>
             {t(
               'terms_gate_point_risk',
-              'The service is free, provided as is, and you use it at your own risk.'
+              'The service is free, provided as is, and you use it entirely at your own risk. We are not liable to you for anything that happens because you used it.'
             )}
           </li>
           <li>
             {t(
               'terms_gate_point_accounts',
-              'Your social accounts and everything posted from your workspace are your responsibility, including posts made by team members, API keys and AI agents. We are not liable for a restricted, suspended or banned account, or for lost reach or revenue.'
+              'Your social accounts and everything posted from your workspace are your responsibility, including posts made by team members, API keys and AI agents. That includes an account, a page, a login or data that is leaked, hacked, lost, restricted, suspended or banned, and any money, reach or business you lose.'
             )}
           </li>
           <li>
@@ -86,7 +86,7 @@ export const RequiredTerms: FC<{
           <li>
             {t(
               'terms_gate_point_business',
-              'Studio is for business use, and our liability to you is limited as the Terms set out.'
+              'Studio is for business use. If you need a provider that accepts liability or promises a service level, use a paid service that sells one, and insure your business.'
             )}
           </li>
         </ul>

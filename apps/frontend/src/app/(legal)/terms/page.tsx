@@ -26,9 +26,17 @@ export const metadata: Metadata = {
 //     the Unfair Contract Terms Act 1977 a court judges each term as a whole
 //     and does not rewrite one that goes too far, so every exclusion has to be
 //     able to stand or fall by itself. Do not merge them into one paragraph.
-//   - The cap is deliberately not zero. A term that leaves the other side with
-//     no remedy at all is the kind a court is most ready to strike out.
-//   - The carve-outs in 14.1 must stay first and must stay unconditional.
+//   - The position is no liability at all (14.2). A total exclusion between
+//     businesses has been upheld: Goodlife Foods v Hall Fire Protection [2018]
+//     EWCA Civ 1371, on the strength of the customer knowing about the term,
+//     being the one who could insure, and paying a low price. Here the price is
+//     nothing, the term is on the sign-up screen, and 14.13 says the rest.
+//   - 14.10 is the net under it: a cap that only applies if a court will not
+//     enforce the exclusion. It is deliberately not zero, because by then a
+//     zero has already failed once.
+//   - The carve-outs in 14.1 must stay first and must stay unconditional. They
+//     are the two things no contract can exclude, and leaving them out is what
+//     gets a whole exclusion struck down.
 //   - The summary box is part of the contract. Prominence is one of the things
 //     a court looks at when it decides whether a term was reasonable.
 //   - TikTok and YouTube reviewers check this page: keep the page title, the
@@ -71,8 +79,15 @@ export default function TermsPage() {
         title="The short version"
         items={[
           <>
-            Voholabs Studio is free. It is provided as is, and you use it at
-            your own risk.
+            Voholabs Studio is free. It is provided as is, and you use it
+            entirely at your own risk.
+          </>,
+          <>
+            We are not liable to you for anything that happens because you used
+            it. That includes an account, a page, a login or data that is
+            leaked, hacked, lost, restricted, suspended or banned, and any
+            money, reach or business you lose. The only exceptions are the ones
+            the law does not let anybody exclude, set out in section 14.
           </>,
           <>
             We host a scheduling tool. We are not your publisher, your agent or
@@ -105,9 +120,9 @@ export default function TermsPage() {
           </>,
           <>Studio is for businesses and professionals, not for consumers.</>,
           <>
-            If we are ever liable to you, the most we will pay in total is the
-            greater of £100 and what you paid us for Studio in the previous 12
-            months. Section 14 sets out what the law does not let us limit.
+            If you need a provider that accepts liability or promises a service
+            level, use a paid service that sells one, and insure your business.
+            Studio is free because it carries none of that.
           </>,
         ]}
       >
@@ -608,16 +623,32 @@ export default function TermsPage() {
         </p>
       </LegalSection>
 
-      <LegalSection id="liability" title="14. Limits on our liability">
+      <LegalSection id="liability" title="14. We are not liable to you">
         <p>
-          <strong>14.1 What we do not limit.</strong> Nothing in these terms
+          <strong>14.1 The only exceptions.</strong> Nothing in these terms
           excludes or limits our liability for death or personal injury caused
           by our negligence, for our fraud or fraudulent misrepresentation, or
-          for any other liability that the law does not allow us to exclude or
-          limit. Everything else in this section is subject to this paragraph.
+          for any liability that the law does not allow anybody to exclude or
+          limit. Everything else in this section is subject to this paragraph,
+          and these are the only exceptions to it.
         </p>
         <p>
-          <strong>14.2 Your social accounts and other platforms.</strong> We are
+          <strong>14.2 No liability.</strong> We are not liable to you for any
+          loss or damage of any kind, however it is caused, that arises out of
+          or in connection with the service or these terms. You use the service
+          entirely at your own risk.
+        </p>
+        <p>
+          <strong>14.3 Leaks, hacks and security.</strong> We are not liable for
+          any loss arising from unauthorised access to, or the leak, disclosure,
+          theft, loss, alteration or misuse of, your Studio account, your
+          connected social accounts and pages, your passwords, API keys and
+          access tokens, your content, your media or your data, whether that
+          happens through an attack on the service, a failure of our security,
+          a mistake by us, a provider we rely on, or anything on your side.
+        </p>
+        <p>
+          <strong>14.4 Your social accounts and other platforms.</strong> We are
           not liable for any loss arising from a platform rate-limiting,
           restricting, labelling, reducing the reach of, suspending, banning or
           closing any account, page, channel, profile or advertising account, or
@@ -628,13 +659,13 @@ export default function TermsPage() {
           limited, suspended or withdrawn.
         </p>
         <p>
-          <strong>14.3 Publishing.</strong> We are not liable for any loss
+          <strong>14.5 Publishing.</strong> We are not liable for any loss
           arising from a post that fails, is delayed, is published more than
           once, at the wrong time, to the wrong channel, with missing or wrong
           media or formatting, or after it was edited, unscheduled or deleted.
         </p>
         <p>
-          <strong>14.4 People and tools acting through your workspace.</strong>{' '}
+          <strong>14.6 People and tools acting through your workspace.</strong>{' '}
           We are not liable for any loss arising from anything done by a team
           member, a former team member, or anyone or anything using your
           password, API key, webhook, MCP connection or connected AI assistant,
@@ -642,7 +673,7 @@ export default function TermsPage() {
           does with data it obtains.
         </p>
         <p>
-          <strong>14.5 Availability and data.</strong> We are not liable for any
+          <strong>14.7 Availability and data.</strong> We are not liable for any
           loss arising from the service being unavailable, slow, changed,
           limited or withdrawn, from uploads being refused at the storage cap,
           from an account being suspended or closed under section 11, or from
@@ -650,25 +681,12 @@ export default function TermsPage() {
           service.
         </p>
         <p>
-          <strong>14.6 Types of loss.</strong> We are not liable, whether the
+          <strong>14.8 Types of loss.</strong> We are not liable, whether the
           loss is direct or indirect, for loss of profit; loss of revenue or
           sales; loss of business, contracts or opportunity; loss of anticipated
           savings; loss of goodwill or reputation; wasted staff or management
-          time; fines or penalties imposed on you; or any indirect or
-          consequential loss.
-        </p>
-        <p>
-          <strong>14.7 Cap.</strong> Our total liability to you for all claims
-          arising out of or in connection with these terms and the service,
-          added together, is limited to the greater of (a) the fees you paid us
-          for Voholabs Studio in the 12 months before the first event that gave
-          rise to a claim and (b) £100.
-        </p>
-        <p>
-          <strong>14.8 Time limit.</strong> You must start any claim against us
-          within 12 months of the date you first knew, or ought reasonably to
-          have known, of the facts that give rise to it. After that the claim is
-          barred.
+          time; fines or penalties imposed on you; claims made against you by
+          anybody else; or any indirect or consequential loss.
         </p>
         <p>
           <strong>14.9 Events outside our control.</strong> We are not liable
@@ -677,21 +695,41 @@ export default function TermsPage() {
           platform providers, attacks on the service, and acts of government.
         </p>
         <p>
-          <strong>14.10 How this section works.</strong> Paragraphs 14.2 to 14.9
-          apply to liability of every kind, whether in contract, tort (including
-          negligence), breach of statutory duty, misrepresentation or otherwise.
-          Each paragraph, and each item within it, is a separate term. If a
-          court finds one of them unenforceable, the others continue to apply.
+          <strong>14.10 If a court decides otherwise.</strong> If, despite
+          paragraphs 14.2 to 14.9, we are found liable to you for anything, our
+          total liability to you for all claims arising out of or in connection
+          with these terms and the service, added together, is limited to the
+          greater of (a) the fees you paid us for Voholabs Studio in the 12
+          months before the first event that gave rise to a claim and (b) £100.
+          This paragraph does not mean we accept any liability. It applies only
+          where a court will not enforce one of the paragraphs above it.
         </p>
         <p>
-          <strong>14.11 Why these limits are fair.</strong> The service is free.
-          We earn nothing from it that could pay for the risks of your business,
-          and we could not offer it at all if we carried them. You are better
-          placed than we are to manage those risks: you can check that posts
-          went out, keep copies of your content, control who and what has access
-          to your workspace, choose a paid service that offers a service level,
-          and insure your business. You accept that these limits are reasonable
-          on that basis.
+          <strong>14.11 Time limit.</strong> You must start any claim against us
+          within 12 months of the date you first knew, or ought reasonably to
+          have known, of the facts that give rise to it. After that the claim is
+          barred.
+        </p>
+        <p>
+          <strong>14.12 How this section works.</strong> Paragraphs 14.2 to
+          14.11 apply to liability of every kind, whether in contract, tort
+          (including negligence), breach of statutory duty, misrepresentation or
+          otherwise, and to us, our directors, staff and contractors. Each
+          paragraph, and each item within it, is a separate term. If a court
+          finds one of them unenforceable, the others continue to apply.
+        </p>
+        <p>
+          <strong>14.13 Why this is fair.</strong> The service is free. We earn
+          nothing from it that could pay for the risks of your business, and we
+          could not offer it at all if we carried them. You were told this
+          plainly before you could create an account, and you agreed to it. You
+          are the one who can manage and insure these risks: you can check that
+          posts went out, keep copies of your content, control who and what has
+          access to your workspace and your social accounts, use two-factor
+          authentication on those accounts, and insure your business. If you
+          need a provider that accepts liability or promises a service level,
+          paid schedulers sell exactly that, and you are free to use one. You
+          accept that this section is reasonable on that basis.
         </p>
       </LegalSection>
 

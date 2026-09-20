@@ -178,6 +178,10 @@ export class IntegrationRepository {
         data: {
           internalId: `deleted_${params.internalId}_${makeId(10)}`,
           deletedAt: new Date(),
+          // A deleted row keeps no credentials, see deleteChannel.
+          token: '',
+          refreshToken: null,
+          tokenExpiration: null,
         },
       });
     }
@@ -553,6 +557,8 @@ export class IntegrationRepository {
     });
   }
 
+  // The row stays, because past posts point at it. Its credentials do not.
+  // Connecting the same account again writes new ones.
   deleteChannel(org: string, id: string) {
     return this._integration.model.integration.update({
       where: {
@@ -561,6 +567,9 @@ export class IntegrationRepository {
       },
       data: {
         deletedAt: new Date(),
+        token: '',
+        refreshToken: null,
+        tokenExpiration: null,
       },
     });
   }

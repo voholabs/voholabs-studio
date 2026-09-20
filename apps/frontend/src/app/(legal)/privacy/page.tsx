@@ -127,8 +127,10 @@ export default function PrivacyPage() {
         <p>
           You can remove a TikTok channel at any time from the launches screen
           in Voholabs Studio (see section 10). Doing so revokes our access token
-          with TikTok and deletes the stored tokens and cached TikTok profile
-          and analytics data within 30 days. You can also revoke access directly
+          with TikTok and erases the stored tokens straight away. Cached TikTok
+          analytics expire within an hour. The channel's name and picture stay
+          attached to posts you published through it until you delete those
+          posts or your account. You can also revoke access directly
           from the TikTok app under Settings and privacy. Content already
           published to TikTok remains on TikTok and is governed by TikTok&apos;s
           own policies.
@@ -200,8 +202,10 @@ export default function PrivacyPage() {
         </p>
         <p>
           You can remove a YouTube channel at any time from the launches screen
-          in Voholabs Studio (see section 10). Doing so deletes the stored
-          tokens and cached YouTube profile and analytics data within 30 days.
+          in Voholabs Studio (see section 10). Doing so erases the stored
+          tokens straight away. Cached YouTube analytics expire within an hour.
+          The channel's name and picture stay attached to posts you published
+          through it until you delete those posts or your account.
           You can also revoke our access directly from your{' '}
           <a
             className="underline"
@@ -314,9 +318,11 @@ export default function PrivacyPage() {
         </p>
         <p>
           You can remove a Facebook, Instagram or Threads channel at any time
-          from the launches screen in Voholabs Studio, which deletes the stored
-          tokens and cached profile and analytics data within 30 days — see
-          section 10 for full deletion instructions. You can also revoke our
+          from the launches screen in Voholabs Studio, which erases the stored
+          tokens straight away. Cached analytics expire within an hour, and the
+          channel's name and picture stay attached to posts you published
+          through it until you delete those posts or your account. See section
+          10 for full deletion instructions. You can also revoke our
           access directly from{' '}
           <a
             className="underline"
@@ -375,8 +381,10 @@ export default function PrivacyPage() {
               perform our contract with you.
             </>,
             <>
-              To send service and account notifications. Marketing email is sent
-              only with your consent and can be withdrawn at any time.
+              To send service and account notifications, and to contact you about
+              Voholabs services using the details you gave us when you signed
+              up. You can opt out of that contact at any time by replying or
+              using the link in the message.
             </>,
           ]}
         />
@@ -417,9 +425,10 @@ export default function PrivacyPage() {
               Account and content data: for as long as your account is active.
             </>,
             <>
-              Connected channel tokens and cached platform data: until you
-              disconnect the channel or delete your account, then deleted within
-              30 days.
+              Connected channel tokens: until you disconnect the channel or
+              delete your account, when they are erased. Cached analytics: up
+              to an hour. A channel's name and picture: until you delete the
+              posts published through it or your account.
             </>,
             <>Billing records: six years, as required by UK tax law.</>,
             <>Technical and error logs: up to 90 days.</>,
@@ -438,9 +447,10 @@ export default function PrivacyPage() {
               <strong>Remove a single channel yourself.</strong> Open the
               launches screen, click the preferences menu on the channel you
               want to remove, and choose <em>Delete Channel</em>. This
-              immediately removes our stored access and refresh tokens for that
-              channel and deletes the cached profile and analytics data we
-              obtained from it within 30 days. If the channel still has posts
+              immediately erases our stored access and refresh tokens for that
+              channel. Cached analytics for it expire within an hour, and its
+              name and picture stay attached to posts you published through it
+              until you delete those posts or your account. If the channel still has posts
               attached, delete those posts from the calendar first.
             </>,
             <>
@@ -481,8 +491,8 @@ export default function PrivacyPage() {
           ]}
         />
         <p>
-          Deletion covers our live systems immediately and encrypted backups
-          within 30 days, after which the data cannot be restored. We keep only
+          Deletion covers our live systems. Copies that remain in backups are
+          overwritten as those backups expire. We keep only
           what law requires us to keep — billing records for six years under UK
           tax law. Content you already published to a social platform stays on
           that platform; deleting it there is done from the platform itself.
@@ -491,8 +501,9 @@ export default function PrivacyPage() {
 
       <LegalSection id="security" title="11. Security">
         <p>
-          Access tokens are encrypted at rest. Traffic to and from the service
-          is encrypted in transit with TLS. Access to production systems is
+          Traffic to and from the service is encrypted in transit with TLS. Access
+          tokens are stored in our database so that we can publish for you, and
+          you can revoke them at the platform at any time. Access to production systems is
           restricted to the personnel who need it. No system is perfectly
           secure, but we take reasonable and appropriate technical and
           organisational measures to protect your data, and we will notify you

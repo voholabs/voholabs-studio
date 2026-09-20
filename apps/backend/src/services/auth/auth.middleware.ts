@@ -1,3 +1,7 @@
+import {
+  needsTerms,
+  termsOpenPaths,
+} from '@gitroom/nestjs-libraries/database/prisma/users/terms';
 import { Injectable, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { AuthService } from '@gitroom/helpers/auth/auth.service';
@@ -136,6 +140,20 @@ export class AuthMiddleware implements NestMiddleware {
     ) {
       throw new SubscriptionException({
         section: Sections.ONBOARDING,
+        action: AuthorizationActions.Read,
+      });
+    }
+
+    // A signed-in session that has not agreed to the current Terms can read
+    // itself, agree, or leave. An admin impersonating somebody returned further
+    // up and never gets here.
+    if (
+      // @ts-ignore
+      needsTerms(req.user) &&
+      !termsOpenPaths.some((open) => path.endsWith(open))
+    ) {
+      throw new SubscriptionException({
+        section: Sections.TERMS,
         action: AuthorizationActions.Read,
       });
     }

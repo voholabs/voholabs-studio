@@ -4,6 +4,9 @@ import {
   workEmailMessage,
 } from '@gitroom/nestjs-libraries/services/work.email';
 import { Provider, User } from '@prisma/client';
+import {
+  termsRequiredMessage,
+} from '@gitroom/nestjs-libraries/database/prisma/users/terms';
 import { CreateOrgUserDto } from '@gitroom/nestjs-libraries/dtos/auth/create.org.user.dto';
 import { LoginUserDto } from '@gitroom/nestjs-libraries/dtos/auth/login.user.dto';
 import { UsersService } from '@gitroom/nestjs-libraries/database/prisma/users/users.service';
@@ -64,6 +67,10 @@ export class AuthService {
         // invitation went to, whatever it is.
         if (!addToOrg && !isWorkEmail(body.email)) {
           throw new Error(workEmailMessage());
+        }
+
+        if (!body.termsAccepted) {
+          throw new Error(termsRequiredMessage());
         }
 
         const create = await this._organizationService.createOrgAndUser(
@@ -169,6 +176,12 @@ export class AuthService {
       throw new Error('Registration is disabled');
     }
 
+    // Only a new account has to agree. Somebody who already has one came
+    // through this same function to sign in and returned above.
+    if (!body.termsAccepted) {
+      throw new Error(termsRequiredMessage());
+    }
+
     const create = await this._organizationService.createOrgAndUser(
       {
         company: body.company,
@@ -177,6 +190,7 @@ export class AuthService {
         provider,
         providerId: providerUser.id,
         datafast_visitor_id: body.datafast_visitor_id,
+        termsAccepted: body.termsAccepted,
       },
       ip,
       userAgent

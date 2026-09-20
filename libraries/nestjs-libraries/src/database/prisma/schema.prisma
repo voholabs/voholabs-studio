@@ -94,6 +94,21 @@ model TagsPosts {
   @@unique([postId, tagId])
 }
 
+model TermsAcceptance {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  version    String
+  // 'signup' for the box on the sign-up form, 'gate' for the agreement screen.
+  route      String
+  ip         String?
+  userAgent  String?
+  acceptedAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([version])
+}
+
 model User {
   id                    String               @id @default(uuid())
   email                 String
@@ -124,6 +139,13 @@ model User {
   useCase               String?
   attribution           String?
   onboardedAt           DateTime?
+  // The Terms this person last agreed to: which version, when, and from where.
+  termsVersion          String?
+  termsAcceptedAt       DateTime?
+  termsAcceptedIp       String?
+  // Every time they agreed. The three fields above are the latest one; these
+  // rows are append-only.
+  termsAcceptances      TermsAcceptance[]
   comments              Comments[]
   items                 ItemUser[]
   groupBuyer            MessagesGroup[]      @relation("groupBuyer")

@@ -54,6 +54,10 @@ export class UsersService {
     return this._usersRepository.completeOnboarding(userId, body);
   }
 
+  acceptTerms(userId: string, ip?: string, userAgent?: string) {
+    return this._usersRepository.acceptTerms(userId, ip, userAgent);
+  }
+
   getEmailNotifications(userId: string) {
     return this._usersRepository.getEmailNotifications(userId);
   }

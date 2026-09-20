@@ -8,6 +8,7 @@ import {
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
+  HeadObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Request, Response } from 'express';
@@ -105,6 +106,38 @@ export async function simpleUpload(
   return CLOUDFLARE_BUCKET_URL + '/' + randomFilename;
 }
 
+// The largest single file the library takes, the same ceiling the other
+// upload routes enforce through CustomFileValidationPipe.
+const MAX_OBJECT_BYTES = 1024 * 1024 * 1024;
+const MIN_PART_BYTES = 5 * 1024 * 1024;
+const MAX_PARTS = Math.ceil(MAX_OBJECT_BYTES / MIN_PART_BYTES);
+
+// 0 when there is no bucket, or the object cannot be read.
+export async function storedObjectSize(key: string) {
+  if (!CLOUDFLARE_BUCKETNAME || !key) {
+    return 0;
+  }
+
+  try {
+    const head = await R2.send(
+      new HeadObjectCommand({ Bucket: CLOUDFLARE_BUCKETNAME, Key: key })
+    );
+    return head.ContentLength || 0;
+  } catch (err) {
+    return 0;
+  }
+}
+
+export async function deleteStoredObject(key: string) {
+  try {
+    await R2.send(
+      new DeleteObjectCommand({ Bucket: CLOUDFLARE_BUCKETNAME, Key: key })
+    );
+  } catch (err) {
+    console.log('Error', err);
+  }
+}
+
 export async function createMultipartUpload(req: Request, res: Response) {
   const { file, fileHash } = req.body;
   const safeExt = normalizeExtension(file?.name || '');
@@ -140,6 +173,14 @@ export async function prepareUploadParts(req: Request, res: Response) {
   const { partData } = req.body;
 
   const parts = partData.parts;
+
+  if (
+    !Array.isArray(parts) ||
+    parts.length > MAX_PARTS ||
+    parts.some((part: any) => !(part?.number >= 1 && part.number <= MAX_PARTS))
+  ) {
+    return res.status(400).json({ message: 'File is too large.' });
+  }
 
   const response = {
     presignedUrls: {},
@@ -231,6 +272,11 @@ export async function completeMultipartUpload(req: Request, res: Response) {
         .json({ message: 'File contents do not match declared type.' });
     }
 
+    if ((await storedObjectSize(key)) > MAX_OBJECT_BYTES) {
+      await deleteStoredObject(key);
+      return res.status(400).json({ message: 'File is too large.' });
+    }
+
     response.Location =
       process.env.CLOUDFLARE_BUCKET_URL +
       '/' +
@@ -264,6 +310,9 @@ export async function abortMultipartUpload(req: Request, res: Response) {
 export async function signPart(req: Request, res: Response) {
   const { key, uploadId } = req.body;
   const partNumber = parseInt(req.body.partNumber);
+  if (!(partNumber >= 1 && partNumber <= MAX_PARTS)) {
+    return res.status(400).json({ message: 'File is too large.' });
+  }
 
   const params = {
     Bucket: CLOUDFLARE_BUCKETNAME,

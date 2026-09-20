@@ -7,7 +7,10 @@ import { UsersService } from '@gitroom/nestjs-libraries/database/prisma/users/us
 import { getCookieUrlFromDomain } from '@gitroom/helpers/subdomain/subdomain.management';
 import { HttpForbiddenException } from '@gitroom/nestjs-libraries/services/exception.filter';
 import { MastraService } from '@gitroom/nestjs-libraries/chat/mastra.service';
-import { hasAccess } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
+import {
+  needsOnboarding,
+  onboardingOpenPaths,
+} from '@gitroom/nestjs-libraries/database/prisma/users/onboarding';
 import {
   AuthorizationActions,
   Sections,
@@ -116,13 +119,18 @@ export class AuthMiddleware implements NestMiddleware {
       throw new HttpForbiddenException();
     }
 
-    // Trial over and not whitelisted: block the whole app, the frontend moves
-    // the browser to the paywall. Super admins are never locked out.
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-expect-error
-    if (!req.user?.isSuperAdmin && !hasAccess(req.org)) {
+    // An expired trial is the free plan, not a lockout, so nothing is blocked
+    // here for its subscription. What does block the whole app is onboarding
+    // that was never finished: the frontend shows the form instead of the app,
+    // and this is what makes skipping it pointless.
+    const path = req.originalUrl.split('?')[0];
+    if (
+      // @ts-ignore
+      needsOnboarding(req.user, req.org) &&
+      !onboardingOpenPaths.some((open) => path.endsWith(open))
+    ) {
       throw new SubscriptionException({
-        section: Sections.TRIAL,
+        section: Sections.ONBOARDING,
         action: AuthorizationActions.Read,
       });
     }

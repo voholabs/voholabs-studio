@@ -12,12 +12,20 @@ import {
   UseInterceptors,
   UsePipes,
 } from '@nestjs/common';
+import { CheckPolicies } from '@gitroom/backend/services/auth/permissions/permissions.ability';
+import {
+  AuthorizationActions,
+  Sections,
+} from '@gitroom/backend/services/auth/permissions/permission.exception.class';
 import { Request, Response } from 'express';
 import { GetOrgFromRequest } from '@gitroom/nestjs-libraries/user/org.from.request';
 import { Organization } from '@prisma/client';
 import { MediaService } from '@gitroom/nestjs-libraries/database/prisma/media/media.service';
 import { ApiTags } from '@nestjs/swagger';
-import handleR2Upload from '@gitroom/nestjs-libraries/upload/r2.uploader';
+import handleR2Upload, {
+  deleteStoredObject,
+  storedObjectSize,
+} from '@gitroom/nestjs-libraries/upload/r2.uploader';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CustomFileValidationPipe } from '@gitroom/nestjs-libraries/upload/custom.upload.validation';
 import { SubscriptionService } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/subscription.service';
@@ -41,6 +49,7 @@ export class MediaController {
   }
 
   @Post('/generate-video')
+  @CheckPolicies([AuthorizationActions.Create, Sections.AI])
   generateVideo(
     @GetOrgFromRequest() org: Organization,
     @Body() body: VideoDto
@@ -50,6 +59,7 @@ export class MediaController {
   }
 
   @Post('/generate-image')
+  @CheckPolicies([AuthorizationActions.Create, Sections.AI])
   async generateImage(
     @GetOrgFromRequest() org: Organization,
     @Req() req: Request,
@@ -69,6 +79,7 @@ export class MediaController {
   }
 
   @Post('/generate-image-with-prompt')
+  @CheckPolicies([AuthorizationActions.Create, Sections.AI])
   async generateImageFromText(
     @GetOrgFromRequest() org: Organization,
     @Req() req: Request,
@@ -92,12 +103,14 @@ export class MediaController {
     @UploadedFile() file: Express.Multer.File
   ) {
     const originalName = file?.originalname || '';
+    await this._mediaService.assertStorage(org.id, file?.size);
     const uploadedFile = await this.storage.uploadFile(file);
     return this._mediaService.saveFile(
       org.id,
       uploadedFile.originalname,
       uploadedFile.path,
-      originalName
+      originalName,
+      file?.size
     );
   }
 
@@ -111,11 +124,16 @@ export class MediaController {
     if (!name) {
       return false;
     }
+    // Already in the bucket, so the size is read back rather than taken from
+    // the browser.
+    const size = await storedObjectSize(name);
+    await this._mediaService.assertStorage(org.id, size);
     return this._mediaService.saveFile(
       org.id,
       name,
       process.env.CLOUDFLARE_BUCKET_URL + '/' + name,
-      originalName || undefined
+      originalName || undefined,
+      size
     );
   }
 
@@ -136,6 +154,7 @@ export class MediaController {
     @Body('preventSave') preventSave: string = 'false'
   ) {
     const originalName = file.originalname;
+    await this._mediaService.assertStorage(org.id, file.size);
     const getFile = await this.storage.uploadFile(file);
 
     if (preventSave === 'true') {
@@ -147,7 +166,8 @@ export class MediaController {
       org.id,
       getFile.originalname,
       getFile.path,
-      originalName
+      originalName,
+      file.size
     );
   }
 
@@ -158,8 +178,17 @@ export class MediaController {
     @Res() res: Response,
     @Param('endpoint') endpoint: string
   ) {
+    // The size the browser announces only turns an oversized upload away
+    // early. What counts is the real size, checked once the file is whole.
+    if (endpoint === 'create-multipart-upload') {
+      await this._mediaService.assertStorage(
+        org.id,
+        Number(req.body?.file?.size) || 0
+      );
+    }
+
     const upload = await handleR2Upload(endpoint, req, res);
-    if (endpoint !== 'complete-multipart-upload') {
+    if (endpoint !== 'complete-multipart-upload' || res.headersSent) {
       return upload;
     }
 
@@ -167,12 +196,21 @@ export class MediaController {
     const name = upload.Location.split('/').pop();
     const originalName = req.body?.file?.name;
 
+    const size = await storedObjectSize(name);
+    try {
+      await this._mediaService.assertStorage(org.id, size);
+    } catch (err) {
+      await deleteStoredObject(name);
+      throw err;
+    }
+
     const saveFile = await this._mediaService.saveFile(
       org.id,
       name,
       // @ts-ignore
       upload.Location,
-      originalName || undefined
+      originalName || undefined,
+      size
     );
 
     res.status(200).json({ ...upload, saved: saveFile });
@@ -193,6 +231,7 @@ export class MediaController {
   }
 
   @Post('/video/function')
+  @CheckPolicies([AuthorizationActions.Create, Sections.AI])
   videoFunction(
     @Body() body: VideoFunctionDto
   ) {

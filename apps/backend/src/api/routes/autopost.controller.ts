@@ -28,7 +28,10 @@ export class AutopostController {
   }
 
   @Post('/')
-  @CheckPolicies([AuthorizationActions.Create, Sections.WEBHOOKS])
+  @CheckPolicies(
+    [AuthorizationActions.Create, Sections.WEBHOOKS],
+    [AuthorizationActions.Create, Sections.AI]
+  )
   async createAutopost(
     @GetOrgFromRequest() org: Organization,
     @Body() body: AutopostDto

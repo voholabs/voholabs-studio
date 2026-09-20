@@ -6,11 +6,9 @@ import { OrganizationService } from '@gitroom/nestjs-libraries/database/prisma/o
 import { OAuthService } from '@gitroom/nestjs-libraries/database/prisma/oauth/oauth.service';
 import { runWithContext } from './async.storage';
 import { createOAuthMiddleware } from './oauth-middleware';
-import {
-  hasAccess,
-  paywallUrl,
-  trialExpiredMessage,
-} from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
+import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
+import { paidToolNames } from '@gitroom/nestjs-libraries/chat/tools/tool.list';
+import { hasAccess } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 const fixAcceptHeader = (req: Request) => {
   const value = 'application/json, text/event-stream';
   req.headers.accept = value;
@@ -36,17 +34,33 @@ export const startMcp = async (app: INestApplication) => {
     return organizationService.getOrgByApiKey(token);
   };
 
-  // Trial over and not whitelisted: the MCP surface is a posting surface, so it
-  // is blocked exactly like the app and the public API.
-  const blockedByPaywall = (org: any, res: Response) => {
-    if (hasAccess(org)) {
+  // The free plan keeps the MCP, and the paid tools refuse on their own (see
+  // paidOnly), so nothing is turned away here for its plan. These routes are
+  // raw middleware and never reach the Nest throttler, hence a limit of their
+  // own: a fixed window per organization. Redis being down must not take the
+  // MCP with it, so a failed count lets the request through.
+  // Paying organizations run agents that post in bulk, so their ceiling is only
+  // there to stop a runaway loop. The free plan gets a tighter one.
+  const paidLimit = Number(process.env.MCP_LIMIT_PER_MINUTE || 1200);
+  const freeLimit = Number(process.env.MCP_FREE_LIMIT_PER_MINUTE || 120);
+  const rateLimited = async (org: any, res: Response) => {
+    const mcpLimit = hasAccess(org) ? paidLimit : freeLimit;
+    try {
+      const key = `mcp_limit:${org.id}:${Math.floor(Date.now() / 60000)}`;
+      const total = await ioRedis.incr(key);
+      if (total === 1) {
+        await ioRedis.expire(key, 60);
+      }
+      if (total <= mcpLimit) {
+        return false;
+      }
+    } catch (err) {
       return false;
     }
 
-    res.status(402).json({
-      error: 'payment_required',
-      error_description: trialExpiredMessage(),
-      url: paywallUrl(),
+    res.status(429).json({
+      error: 'rate_limited',
+      error_description: 'Too many requests, slow down and try again in a minute.',
     });
 
     return true;
@@ -70,6 +84,17 @@ export const startMcp = async (app: INestApplication) => {
   };
 
   const server = new MCPServer(serverConfig);
+
+  // What a free organization is served: the same server without the paid tools.
+  // The tool map cannot vary per request, a whole server can.
+  const freeServerConfig = {
+    ...serverConfig,
+    tools: Object.fromEntries(
+      Object.entries(tools).filter(([name]) => !paidToolNames.includes(name))
+    ),
+  };
+  const freeServer = new MCPServer(freeServerConfig);
+  const serverFor = (org: any) => (hasAccess(org) ? server : freeServer);
 
   const oauthMiddleware = createOAuthMiddleware({
     oauth: {
@@ -139,13 +164,13 @@ export const startMcp = async (app: INestApplication) => {
       return;
     }
 
-    if (blockedByPaywall(auth, res)) {
+    if (await rateLimited(auth, res)) {
       return;
     }
 
     fixAcceptHeader(req);
     await runWithContext({ requestId: token!, auth }, async () => {
-      await server.startHTTP({
+      await serverFor(auth).startHTTP({
         url: url,
         httpPath: url.pathname,
         options: {
@@ -197,7 +222,7 @@ export const startMcp = async (app: INestApplication) => {
     }
 
     // @ts-ignore
-    if (blockedByPaywall(req.auth, res)) {
+    if (await rateLimited(req.auth, res)) {
       return;
     }
 
@@ -206,7 +231,8 @@ export const startMcp = async (app: INestApplication) => {
     fixAcceptHeader(req);
     // @ts-ignore
     await runWithContext({ requestId: token, auth: req.auth }, async () => {
-      await server.startHTTP({
+      // @ts-ignore
+      await serverFor(req.auth).startHTTP({
         url,
         httpPath: url.pathname,
         options: {
@@ -246,7 +272,7 @@ export const startMcp = async (app: INestApplication) => {
     }
 
     // @ts-ignore
-    if (blockedByPaywall(req.auth, res)) {
+    if (await rateLimited(req.auth, res)) {
       return;
     }
 
@@ -260,7 +286,8 @@ export const startMcp = async (app: INestApplication) => {
       // @ts-ignore
       { requestId: req.params.id, auth: req.auth },
       async () => {
-        await server.startHTTP({
+        // @ts-ignore
+        await serverFor(req.auth).startHTTP({
           url,
           httpPath: url.pathname,
           options: {
@@ -298,7 +325,7 @@ export const startMcp = async (app: INestApplication) => {
     }
 
     // @ts-ignore
-    if (blockedByPaywall(req.auth, res)) {
+    if (await rateLimited(req.auth, res)) {
       return;
     }
 
@@ -308,7 +335,10 @@ export const startMcp = async (app: INestApplication) => {
       // @ts-ignore
       { requestId: req.params.id, auth: req.auth },
       async () => {
-        await new MCPServer(serverConfig).startSSE({
+        await new MCPServer(
+          // @ts-ignore
+          hasAccess(req.auth) ? serverConfig : freeServerConfig
+        ).startSSE({
           url,
           ssePath: `/sse/${req.params.id}`,
           messagePath: `/message/${req.params.id}`,

@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { Provider } from '@prisma/client';
 import { AuthService } from '@gitroom/helpers/auth/auth.service';
 import { UserDetailDto } from '@gitroom/nestjs-libraries/dtos/users/user.details.dto';
+import { OnboardingDto } from '@gitroom/nestjs-libraries/dtos/users/onboarding.dto';
 import { EmailNotificationsDto } from '@gitroom/nestjs-libraries/dtos/users/email-notifications.dto';
 
 @Injectable()
@@ -160,6 +161,26 @@ export class UsersRepository {
           : {
               disconnect: true,
             },
+      },
+    });
+  }
+
+  completeOnboarding(userId: string, body: OnboardingDto) {
+    return this._user.model.user.update({
+      where: {
+        id: userId,
+      },
+      data: {
+        name: body.name,
+        website: body.website.trim().toLowerCase(),
+        jobRole: body.role,
+        heardFrom: body.heardFrom,
+        useCase: body.useCase,
+        attribution: body.attribution || null,
+        onboardedAt: new Date(),
+      },
+      select: {
+        id: true,
       },
     });
   }

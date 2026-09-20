@@ -89,3 +89,20 @@ export const toolList = [
   // GenerateImageTool,
   UploadFromUrlTool,
 ];
+
+// Not part of the free plan: the brief, and AI media. The MCP leaves them out
+// of what it lists to a free organization, so the free plan is a complete
+// product on its own terms rather than one with locked doors in it. Each of
+// these also refuses by itself (see paidOnly), for the routes that cannot pick
+// what they list.
+export const paidToolNames = [
+  'briefListTool',
+  'briefSaveTool',
+  'briefDeleteTool',
+  'briefLearnTool',
+  'briefAssetTool',
+  'briefHistory',
+  'markLearned',
+  'mediaMcpList',
+  'mediaMcpCall',
+];

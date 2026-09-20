@@ -1,4 +1,8 @@
 import { Injectable } from '@nestjs/common';
+import {
+  isWorkEmail,
+  workEmailMessage,
+} from '@gitroom/nestjs-libraries/services/work.email';
 import { Provider, User } from '@prisma/client';
 import { CreateOrgUserDto } from '@gitroom/nestjs-libraries/dtos/auth/create.org.user.dto';
 import { LoginUserDto } from '@gitroom/nestjs-libraries/dtos/auth/login.user.dto';
@@ -54,6 +58,12 @@ export class AuthService {
 
         if (!(await this.canRegister(provider))) {
           throw new Error('Registration is disabled');
+        }
+
+        // Somebody accepting a team invitation signs up with the address the
+        // invitation went to, whatever it is.
+        if (!addToOrg && !isWorkEmail(body.email)) {
+          throw new Error(workEmailMessage());
         }
 
         const create = await this._organizationService.createOrgAndUser(

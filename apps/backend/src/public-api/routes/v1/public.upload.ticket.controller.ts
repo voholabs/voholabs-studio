@@ -54,11 +54,14 @@ export class PublicUploadTicketController {
       );
     }
 
+    await this._mediaService.assertStorage(organizationId, file.size);
     const getFile = await this.storage.uploadFile(file);
     const saved = await this._mediaService.saveFile(
       organizationId,
       getFile.originalname,
-      getFile.path
+      getFile.path,
+      undefined,
+      file.size
     );
 
     // Burn the ticket only once the file is safely stored, so a failed attempt

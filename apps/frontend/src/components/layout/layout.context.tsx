@@ -109,7 +109,9 @@ function LayoutContextInner(params: { children: ReactNode }) {
         // Trial over: there is nothing to upgrade inside the app, so move the
         // browser to the paywall instead of opening the billing dialog.
         if (body?.redirect) {
-          if (!window.location.pathname.startsWith('/trial-ended')) {
+          // Already there (the paywall, or the app root showing the onboarding
+          // form): moving again would only reload the page in a loop.
+          if (!window.location.pathname.startsWith(new URL(body.url).pathname)) {
             window.location.href = body.url;
           }
           return false;

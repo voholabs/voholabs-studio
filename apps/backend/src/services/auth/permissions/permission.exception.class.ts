@@ -12,6 +12,7 @@ export enum Sections {
   ADMIN = 'admin',
   WEBHOOKS = 'webhooks',
   TRIAL = 'trial',
+  ONBOARDING = 'onboarding',
 }
 
 export enum AuthorizationActions {

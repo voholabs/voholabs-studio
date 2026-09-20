@@ -299,6 +299,43 @@ export const useMenuItem = () => {
       requireBilling: true,
     },
     {
+      name: t('support', 'Support'),
+      icon: (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="20"
+          height="21"
+          viewBox="0 0 20 21"
+          fill="none"
+        >
+          <path
+            d="M10 18.8337C14.6024 18.8337 18.3333 15.1027 18.3333 10.5003C18.3333 5.89795 14.6024 2.16699 10 2.16699C5.39763 2.16699 1.66667 5.89795 1.66667 10.5003C1.66667 15.1027 5.39763 18.8337 10 18.8337Z"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M10 13.8337C11.841 13.8337 13.3333 12.3413 13.3333 10.5003C13.3333 8.65938 11.841 7.16699 10 7.16699C8.15905 7.16699 6.66667 8.65938 6.66667 10.5003C6.66667 12.3413 8.15905 13.8337 10 13.8337Z"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M4.10833 4.60866L7.64167 8.14199M12.3583 12.8587L15.8917 16.392M12.3583 8.14199L15.8917 4.60866M7.64167 12.8587L4.10833 16.392"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      ),
+      // The community Discord. An http path opens in a new tab.
+      path: 'https://discord.gg/2zXy7A9Fz8',
+      role: ['ADMIN', 'USER', 'SUPERADMIN'],
+    },
+    {
       name: t('settings', 'Settings'),
       icon: (
         <svg
@@ -432,7 +469,9 @@ export const TopMenu: FC = () => {
               onClick={item.onClick}
             />
           ))}
-        {!!user?.tier?.current && (
+        {/* The free plan is the product, not a rung below one, so it carries no
+            label. */}
+        {!!user?.tier?.current && user.tier.current !== 'FREE' && (
           <div
             className="w-full px-[4px] custom:text-[8px] minCustom:text-[9px] font-[700] uppercase tracking-[0.04em] text-center leading-[1.1] break-words overflow-hidden"
             style={{ color: '#E8A33D' }}

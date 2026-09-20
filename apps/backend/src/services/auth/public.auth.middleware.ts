@@ -3,11 +3,6 @@ import { Request, Response, NextFunction } from 'express';
 import { OrganizationService } from '@gitroom/nestjs-libraries/database/prisma/organizations/organization.service';
 import { OAuthService } from '@gitroom/nestjs-libraries/database/prisma/oauth/oauth.service';
 import { HttpForbiddenException } from '@gitroom/nestjs-libraries/services/exception.filter';
-import {
-  hasAccess,
-  paywallUrl,
-  trialExpiredMessage,
-} from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 
 @Injectable()
 export class PublicAuthMiddleware implements NestMiddleware {
@@ -32,14 +27,9 @@ export class PublicAuthMiddleware implements NestMiddleware {
           return;
         }
 
+        // The free plan keeps the scheduling API. The paid routes (the brief)
+        // carry their own policy.
         const org = authorization.organization;
-        if (!hasAccess(org)) {
-          res.status(HttpStatus.PAYMENT_REQUIRED).json({
-            msg: trialExpiredMessage(),
-            url: paywallUrl(),
-          });
-          return;
-        }
 
         // @ts-ignore
         req.org = { ...org, users: [{ users: { role: 'SUPERADMIN' } }] };
@@ -49,14 +39,6 @@ export class PublicAuthMiddleware implements NestMiddleware {
           res
             .status(HttpStatus.UNAUTHORIZED)
             .json({ msg: 'Invalid API key' });
-          return;
-        }
-
-        if (!hasAccess(org)) {
-          res.status(HttpStatus.PAYMENT_REQUIRED).json({
-            msg: trialExpiredMessage(),
-            url: paywallUrl(),
-          });
           return;
         }
 

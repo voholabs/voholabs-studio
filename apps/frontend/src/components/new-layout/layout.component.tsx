@@ -43,6 +43,7 @@ import { PreConditionComponent } from '@gitroom/frontend/components/layout/pre-c
 import { AttachToFeedbackIcon } from '@gitroom/frontend/components/new-layout/sentry.feedback.component';
 import { FirstBillingComponent } from '@gitroom/frontend/components/billing/first.billing.component';
 import { TrialTracker } from '@gitroom/frontend/components/layout/gtm.component';
+import { RequiredOnboarding } from '@gitroom/frontend/components/onboarding/required.onboarding';
 
 const interTight = Inter_Tight({
   weight: ['600', '500', '700'],
@@ -69,6 +70,34 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
   });
 
   if (!user) return null;
+
+  // The form stands alone, with none of the app mounted around it. Anything
+  // mounted here would call the API, be refused until the form is done, and
+  // leave that refusal cached under keys the calendar reads afterwards. For the
+  // same reason finishing is a fresh page load and not a re-render.
+  if (user.needsOnboarding) {
+    return (
+      <ContextWrapper user={user}>
+        <MantineWrapper>
+          <Toaster />
+          <div
+            className={clsx(
+              'flex flex-col min-h-screen min-w-screen text-newTextColor p-[12px]',
+              interTight.className
+            )}
+          >
+            <RequiredOnboarding
+              name={user.name}
+              email={user.email}
+              onDone={() => {
+                window.location.href = '/';
+              }}
+            />
+          </div>
+        </MantineWrapper>
+      </ContextWrapper>
+    );
+  }
 
   return (
     <ContextWrapper user={user}>

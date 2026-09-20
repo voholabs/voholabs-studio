@@ -2,7 +2,10 @@ import { AgentToolInterface } from '@gitroom/nestjs-libraries/chat/agent.tool.in
 import { createTool } from '@mastra/core/tools';
 import { Injectable } from '@nestjs/common';
 import z from 'zod';
-import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
+import {
+  checkAuth,
+  paidOnly,
+} from '@gitroom/nestjs-libraries/chat/auth.context';
 import { BriefService } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.service';
 
 @Injectable()
@@ -58,6 +61,10 @@ Group related lessons by using the same "topic": one document per channel, per f
       }),
       execute: async (inputData, context) => {
         checkAuth(inputData, context);
+        const blocked = paidOnly(context, 'The agent brief');
+        if (blocked) {
+          return { error: blocked };
+        }
         try {
           const organizationId = JSON.parse(
             (context?.requestContext as any)?.get('organization') as string

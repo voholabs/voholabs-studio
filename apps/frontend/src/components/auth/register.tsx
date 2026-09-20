@@ -227,7 +227,7 @@ export function RegisterAfter({
                   placeholder={t('label_company', 'Company')}
                 />
               </div>
-              <div className="flex gap-[10px] items-start text-[12px]">
+              <div className="flex gap-[10px] items-start text-[14px]">
                 <Checkbox name="termsAccepted" variant="hollow" />
                 <div className="flex-1 pt-[3px]">
                   {t(
@@ -243,8 +243,8 @@ export function RegisterAfter({
                   >
                     {t('terms_of_service', 'Terms of Service')}
                   </a>
-                  &nbsp;
-                  {t('and', 'and')}&nbsp;
+                  .&nbsp;
+                  {t('i_have_read_the', 'I have read the')}&nbsp;
                   <a
                     href={`/privacy`}
                     target="_blank"

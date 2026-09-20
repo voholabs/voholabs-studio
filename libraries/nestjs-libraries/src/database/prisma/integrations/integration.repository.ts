@@ -178,6 +178,10 @@ export class IntegrationRepository {
         data: {
           internalId: `deleted_${params.internalId}_${makeId(10)}`,
           deletedAt: new Date(),
+          // A deleted row keeps no way into the account, see deleteChannel.
+          token: '',
+          refreshToken: null,
+          tokenExpiration: null,
         },
       });
     }
@@ -553,6 +557,10 @@ export class IntegrationRepository {
     });
   }
 
+  // The row stays, because past posts point at it. The way into the person's
+  // account does not: the Privacy Policy says removing a channel removes our
+  // stored tokens straight away, and the platforms approved our apps on that.
+  // Connecting the same account again writes new ones.
   deleteChannel(org: string, id: string) {
     return this._integration.model.integration.update({
       where: {
@@ -561,6 +569,9 @@ export class IntegrationRepository {
       },
       data: {
         deletedAt: new Date(),
+        token: '',
+        refreshToken: null,
+        tokenExpiration: null,
       },
     });
   }

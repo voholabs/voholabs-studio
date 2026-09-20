@@ -244,13 +244,14 @@ export class UsersController {
   async acceptTerms(
     @GetUserFromRequest() user: User,
     @Req() req: Request,
-    @RealIP() ip: string
+    @RealIP() ip: string,
+    @UserAgent() userAgent: string
   ) {
     if (req.cookies.impersonate || req.headers.impersonate) {
       throw new HttpForbiddenException();
     }
 
-    await this._userService.acceptTerms(user.id, ip);
+    await this._userService.acceptTerms(user.id, ip, userAgent);
     return { success: true };
   }
 

@@ -26,14 +26,15 @@ export const metadata: Metadata = {
 //     the Unfair Contract Terms Act 1977 a court judges each term as a whole
 //     and does not rewrite one that goes too far, so every exclusion has to be
 //     able to stand or fall by itself. Do not merge them into one paragraph.
-//   - The position is no liability at all (14.2). A total exclusion between
-//     businesses has been upheld: Goodlife Foods v Hall Fire Protection [2018]
-//     EWCA Civ 1371, on the strength of the customer knowing about the term,
-//     being the one who could insure, and paying a low price. Here the price is
-//     nothing, the term is on the sign-up screen, and 14.13 says the rest.
-//   - 14.10 is the net under it: a cap that only applies if a court will not
-//     enforce the exclusion. It is deliberately not zero, because by then a
-//     zero has already failed once.
+//   - The position is no liability at all (14.2). Goodlife Foods v Hall Fire
+//     Protection [2018] EWCA Civ 1371 upheld a wide (not total) exclusion where
+//     the customer knew of it, could insure, could go elsewhere and paid
+//     little. 14.2 is most likely to hold for publishing failures, platform
+//     bans and outages, and least likely for our own negligent security.
+//   - 14.10 is an unconditional cap that stands by itself. Do not make it
+//     conditional on another paragraph failing: that reads as one scheme and
+//     as an admission. If 14.2 holds the answer is nil, if not the cap applies.
+//     It is deliberately not zero.
 //   - The carve-outs in 14.1 must stay first and must stay unconditional. They
 //     are the two things no contract can exclude, and leaving them out is what
 //     gets a whole exclusion struck down.
@@ -79,8 +80,8 @@ export default function TermsPage() {
         title="The short version"
         items={[
           <>
-            Voholabs Studio is free. It is provided as is, and you use it
-            entirely at your own risk.
+            The scheduler is free. It is provided as is, and you use it entirely
+            at your own risk.
           </>,
           <>
             We are not liable to you for anything that happens because you used
@@ -154,11 +155,17 @@ export default function TermsPage() {
           platforms you connect, whichever is higher.
         </p>
         <p>
-          If, despite your confirmation, the law treats you as a consumer, you
-          have legal rights that these terms cannot take away, and nothing in
-          these terms affects them. Any part of these terms that the law does
-          not allow to apply to a consumer does not apply to you, and the rest
-          still does.
+          If, despite your confirmation, the law treats you as a consumer, this
+          paragraph applies instead of paragraphs 14.2 to 14.11. We will provide
+          the service with reasonable care and skill. If we fail to, we are
+          responsible for loss or damage you suffer that was a foreseeable
+          result of that failure. We are not responsible for business losses,
+          because the service is not offered for personal use, or for loss that
+          was not foreseeable, that you could have avoided by following section
+          8 or keeping your own copies, or that was caused by a platform or by
+          anyone acting through your workspace. Nothing in these terms affects
+          your legal rights as a consumer. You can bring a claim in the courts
+          of the part of the United Kingdom, or the country, where you live.
         </p>
       </LegalSection>
 
@@ -553,7 +560,7 @@ export default function TermsPage() {
           first.
         </p>
         <p>
-          Sections 5, 7, 12 to 15, 17 and 20 continue to apply after your
+          Sections 2, 5, 7, 11 to 18, 20 and 21 continue to apply after your
           account ends.
         </p>
       </LegalSection>
@@ -629,8 +636,9 @@ export default function TermsPage() {
           excludes or limits our liability for death or personal injury caused
           by our negligence, for our fraud or fraudulent misrepresentation, or
           for any liability that the law does not allow anybody to exclude or
-          limit. Everything else in this section is subject to this paragraph,
-          and these are the only exceptions to it.
+          limit. Everything else in this section is subject to this paragraph
+          and to section 2. These and section 2 are the only exceptions to this
+          section.
         </p>
         <p>
           <strong>14.2 No liability.</strong> We are not liable to you for any
@@ -695,14 +703,13 @@ export default function TermsPage() {
           platform providers, attacks on the service, and acts of government.
         </p>
         <p>
-          <strong>14.10 If a court decides otherwise.</strong> If, despite
-          paragraphs 14.2 to 14.9, we are found liable to you for anything, our
-          total liability to you for all claims arising out of or in connection
-          with these terms and the service, added together, is limited to the
-          greater of (a) the fees you paid us for Voholabs Studio in the 12
-          months before the first event that gave rise to a claim and (b) £100.
-          This paragraph does not mean we accept any liability. It applies only
-          where a court will not enforce one of the paragraphs above it.
+          <strong>14.10 Overall cap.</strong> If we are liable to you for any
+          reason, our total liability to you for all claims arising out of or in
+          connection with these terms and the service, added together, is
+          limited to the greater of (a) the amounts you paid us for Voholabs
+          Studio in the 12 months before the first event that gave rise to a
+          claim and (b) £100. This paragraph stands by itself and applies
+          whether or not any other paragraph of this section applies.
         </p>
         <p>
           <strong>14.11 Time limit.</strong> You must start any claim against us
@@ -719,17 +726,17 @@ export default function TermsPage() {
           finds one of them unenforceable, the others continue to apply.
         </p>
         <p>
-          <strong>14.13 Why this is fair.</strong> The service is free. We earn
-          nothing from it that could pay for the risks of your business, and we
-          could not offer it at all if we carried them. You were told this
-          plainly before you could create an account, and you agreed to it. You
-          are the one who can manage and insure these risks: you can check that
-          posts went out, keep copies of your content, control who and what has
-          access to your workspace and your social accounts, use two-factor
-          authentication on those accounts, and insure your business. If you
-          need a provider that accepts liability or promises a service level,
-          paid schedulers sell exactly that, and you are free to use one. You
-          accept that this section is reasonable on that basis.
+          <strong>14.13 Why this is fair.</strong> We charge nothing for the
+          service, and we could not offer it on that basis if we carried the
+          risks of your business. You were told this plainly, on the sign-up
+          screen or on the screen where you agreed to these terms, before you
+          could use the service. Most of these risks are in your hands: you can
+          check that posts went out, keep copies of your content, control who
+          and what has access to your workspace and your social accounts, revoke
+          our access at the platform at any time, use two-factor authentication,
+          and insure your business. If you need service levels, support or
+          contractual remedies, paid services offer them and you are free to use
+          one. You accept that this section is reasonable on that basis.
         </p>
       </LegalSection>
 
@@ -882,9 +889,11 @@ export default function TermsPage() {
               written agreement.
             </>,
             <>
-              <strong>No third-party rights.</strong> Nobody other than you and
-              us has any right to enforce these terms under the Contracts
-              (Rights of Third Parties) Act 1999.
+              <strong>No third-party rights.</strong> Our directors, staff and
+              contractors may rely on section 14 and section 15. Apart from
+              that, nobody other than you and us has any right to enforce these
+              terms under the Contracts (Rights of Third Parties) Act 1999. We
+              and you can change or end these terms without their consent.
             </>,
             <>
               <strong>No partnership or agency.</strong> Nothing in these terms

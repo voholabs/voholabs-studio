@@ -92,7 +92,11 @@ export const RequiredTerms: FC<{
         </ul>
 
         <div className="text-[14px]">
-          {t('terms_gate_read', 'The full text:')}&nbsp;
+          {t(
+            'terms_gate_read',
+            'Agreeing means you accept the Terms of Service and have read the Privacy Policy:'
+          )}
+          &nbsp;
           <a
             href="/terms"
             target="_blank"
@@ -126,7 +130,10 @@ export const RequiredTerms: FC<{
             className="flex-1 rounded-[10px] !h-[52px]"
             loading={loading}
           >
-            {t('terms_gate_agree', 'I use Studio for my business and I agree')}
+            {t(
+              'terms_gate_agree',
+              'I use Studio for my business and I agree to the Terms'
+            )}
           </Button>
           <button
             type="button"

@@ -28,7 +28,10 @@ export class SubscriptionExceptionFilter implements ExceptionFilter {
 
     // Onboarding was never finished. The app root is where the form shows, so
     // that is where the browser goes.
-    const isOnboarding = error.section === Sections.ONBOARDING;
+    // Same for the Terms: the agreement screen shows at the app root too.
+    const isOnboarding =
+      error.section === Sections.ONBOARDING ||
+      error.section === Sections.TERMS;
 
     response.status(status).json({
       statusCode: status,
@@ -50,6 +53,8 @@ const getErrorMessage = (error: {
       return trialExpiredMessage();
     case Sections.ONBOARDING:
       return 'Please finish setting up your account first.';
+    case Sections.TERMS:
+      return 'Please agree to the current Terms of Service to carry on.';
     case Sections.AI:
       return paidFeatureMessage('AI');
     case Sections.POSTS_PER_MONTH:

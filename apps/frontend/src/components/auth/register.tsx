@@ -114,8 +114,7 @@ export function RegisterAfter({
   });
   const fetchData = useFetch();
   const onSubmit: SubmitHandler<Inputs> = async (data) => {
-    // The Terms only bind somebody who agreed to them, so the account is not
-    // created without the box. The server refuses it as well.
+    // No account without the box. The server refuses it as well.
     if (!data.termsAccepted) {
       form.setError('termsAccepted', {
         message: t(

@@ -139,14 +139,12 @@ model User {
   useCase               String?
   attribution           String?
   onboardedAt           DateTime?
-  // Proof that this person agreed to the Terms: which version, when, and from
-  // where. Null means they have not agreed to anything we can show.
+  // The Terms this person last agreed to: which version, when, and from where.
   termsVersion          String?
   termsAcceptedAt       DateTime?
   termsAcceptedIp       String?
-  // Every time they agreed, kept. The three fields above are the latest one;
-  // these rows are never updated or deleted, because a claim about last year
-  // turns on what was agreed last year.
+  // Every time they agreed. The three fields above are the latest one; these
+  // rows are append-only.
   termsAcceptances      TermsAcceptance[]
   comments              Comments[]
   items                 ItemUser[]

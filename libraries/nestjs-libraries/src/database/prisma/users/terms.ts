@@ -1,6 +1,5 @@
 /**
- * The Terms somebody agreed to are only worth something if we can show which
- * version they agreed to, and when. This is that version.
+ * The version of the Terms people are asked to agree to.
  *
  * Change it whenever /terms changes in a way people have to agree to again:
  * everybody whose stored version differs is asked once more the next time they
@@ -41,9 +40,7 @@ export const termsAcceptanceLog = (
 
 // What a signed-in session that still has to agree may call: reading itself,
 // agreeing, and leaving. The onboarding form comes first, so its path is open
-// too. The public API and the MCP sign in with the organization's key, not a
-// session, and are not held to this yet: turning that on cuts off integrations
-// whose owner has not opened the app, so it needs an email notice first.
+// too.
 export const termsOpenPaths = [
   '/user/self',
   '/user/terms',

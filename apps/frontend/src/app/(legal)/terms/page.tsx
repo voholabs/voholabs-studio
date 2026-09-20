@@ -14,34 +14,15 @@ export const metadata: Metadata = {
   alternates: { canonical: '/terms' },
 };
 
-// Not written by a lawyer. A solicitor should read this page: what it is for
-// is keeping Voholabs out of a claim, and nobody has tested it for that.
-//
 // Changing this page in a way people have to agree to again means changing
 // CURRENT_TERMS_VERSION (database/prisma/users/terms.ts) in the same commit.
 // That is what asks everybody to agree to the new version.
 //
-// Drafting notes, so a later edit does not undo the protection:
-//   - Section 14 is split into separate numbered sub-clauses on purpose. Under
-//     the Unfair Contract Terms Act 1977 a court judges each term as a whole
-//     and does not rewrite one that goes too far, so every exclusion has to be
-//     able to stand or fall by itself. Do not merge them into one paragraph.
-//   - The position is no liability at all (14.2). Goodlife Foods v Hall Fire
-//     Protection [2018] EWCA Civ 1371 upheld a wide (not total) exclusion where
-//     the customer knew of it, could insure, could go elsewhere and paid
-//     little. 14.2 is most likely to hold for publishing failures, platform
-//     bans and outages, and least likely for our own negligent security.
-//   - 14.10 is an unconditional cap that stands by itself. Do not make it
-//     conditional on another paragraph failing: that reads as one scheme and
-//     as an admission. If 14.2 holds the answer is nil, if not the cap applies.
-//     It is deliberately not zero.
-//   - The carve-outs in 14.1 must stay first and must stay unconditional. They
-//     are the two things no contract can exclude, and leaving them out is what
-//     gets a whole exclusion struck down.
-//   - The summary box is part of the contract. Prominence is one of the things
-//     a court looks at when it decides whether a term was reasonable.
-//   - TikTok and YouTube reviewers check this page: keep the page title, the
-//     YouTube Terms of Service link and the Google Privacy Policy link.
+// Editing notes:
+//   - Keep section 14 as separate numbered paragraphs, with 14.1 first.
+//   - Keep the summary box: it is part of the terms.
+//   - Platform reviewers check this page: keep the page title, the YouTube
+//     Terms of Service link and the Google Privacy Policy link.
 
 const Ext = ({ href, children }: { href: string; children: ReactNode }) => (
   <a className="underline" href={href} target="_blank" rel="noreferrer">

@@ -178,7 +178,7 @@ export class IntegrationRepository {
         data: {
           internalId: `deleted_${params.internalId}_${makeId(10)}`,
           deletedAt: new Date(),
-          // A deleted row keeps no way into the account, see deleteChannel.
+          // A deleted row keeps no credentials, see deleteChannel.
           token: '',
           refreshToken: null,
           tokenExpiration: null,
@@ -557,9 +557,7 @@ export class IntegrationRepository {
     });
   }
 
-  // The row stays, because past posts point at it. The way into the person's
-  // account does not: the Privacy Policy says removing a channel removes our
-  // stored tokens straight away, and the platforms approved our apps on that.
+  // The row stays, because past posts point at it. Its credentials do not.
   // Connecting the same account again writes new ones.
   deleteChannel(org: string, id: string) {
     return this._integration.model.integration.update({

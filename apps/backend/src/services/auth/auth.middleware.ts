@@ -144,11 +144,9 @@ export class AuthMiddleware implements NestMiddleware {
       });
     }
 
-    // The agreement screen is only a screen. This is what makes it count: a
-    // signed-in session that has not agreed to the current Terms can read
-    // itself, agree, or leave, and nothing else. An admin impersonating
-    // somebody returned further up and never gets here. The public API and the
-    // MCP authenticate elsewhere and are not covered: see termsOpenPaths.
+    // A signed-in session that has not agreed to the current Terms can read
+    // itself, agree, or leave. An admin impersonating somebody returned further
+    // up and never gets here.
     if (
       // @ts-ignore
       needsTerms(req.user) &&

@@ -11,9 +11,7 @@ import { Logo } from '@gitroom/frontend/components/new-layout/logo';
  * Terms: every account from before we kept a record, and everybody again when
  * the Terms change. A new account never sees it, it ticked the box signing up.
  *
- * It says the short version of the Terms out loud. A limit on what we are
- * answerable for only holds if the person was told about it plainly, so the
- * points that matter are on the screen and not only behind the link.
+ * It shows the short version of the Terms, with links to the full text.
  */
 export const RequiredTerms: FC<{
   onDone: () => void;

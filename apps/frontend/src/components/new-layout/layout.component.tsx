@@ -100,9 +100,9 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
     );
   }
 
-  // Same again for the Terms: nobody gets into the app without having agreed to
-  // the current version, which is what makes them binding. It comes after the
-  // onboarding form, and nobody sees it while an admin is impersonating them.
+  // Same again for the Terms: the app waits until the current version has been
+  // agreed to. It comes after the onboarding form, and nobody sees it while an
+  // admin is impersonating them.
   if (user.needsTerms) {
     return (
       <ContextWrapper user={user}>

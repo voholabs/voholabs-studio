@@ -14,9 +14,12 @@ export const metadata: Metadata = {
   alternates: { canonical: '/terms' },
 };
 
-// DRAFT FOR OWNER AND SOLICITOR REVIEW. Anything in [SQUARE BRACKETS] is a fact
-// or a decision only the owner can supply. Do not publish until every bracket
-// is resolved and a solicitor has read the page.
+// Not written by a lawyer. A solicitor should read this page: what it is for
+// is keeping Voholabs out of a claim, and nobody has tested it for that.
+//
+// Changing this page in a way people have to agree to again means changing
+// CURRENT_TERMS_VERSION (database/prisma/users/terms.ts) in the same commit.
+// That is what asks everybody to agree to the new version.
 //
 // Drafting notes, so a later edit does not undo the protection:
 //   - Section 14 is split into separate numbered sub-clauses on purpose. Under
@@ -47,14 +50,17 @@ export default function TermsPage() {
   return (
     <LegalPage
       title="Voholabs Studio Terms of Service"
-      updated="[DATE OF PUBLICATION]"
+      updated="20 September 2026"
       intro={
         <>
           These terms are the agreement between you and us for Voholabs Studio,
           the social media scheduling tool at studio.voholabs.com. By creating
           an account, signing in, or using the service in any way, including
           through the API, a webhook, an MCP connection or an AI assistant, you
-          agree to them. If you use the service for a company or other
+          agree to them. You confirm that by ticking the box when you sign up,
+          or on the screen we show when these terms change, and we keep a
+          record of the version you agreed to, when, and from which IP address.
+          If you use the service for a company or other
           organisation, you agree to them on its behalf and confirm you are
           allowed to do so. If you do not agree, do not use the service.
         </>
@@ -111,11 +117,10 @@ export default function TermsPage() {
 
       <LegalSection id="about" title="1. About us">
         <p>
-          Voholabs Studio is provided by [LEGAL ENTITY NAME, shown on this site
-          today as Voholabs Ltd: confirm the exact registered name], a company
-          registered in England and Wales with company number [COMPANY NUMBER],
-          whose registered office is at [REGISTERED OFFICE ADDRESS]. [VAT
-          NUMBER, IF REGISTERED.] In these terms &quot;we&quot;, &quot;us&quot;
+          Voholabs Studio is provided by Voholabs Ltd, a company registered in
+          England and Wales with company number 17214002, whose registered
+          office is at 71-75 Shelton Street, Covent Garden, London, WC2H 9JQ,
+          United Kingdom. In these terms &quot;we&quot;, &quot;us&quot;
           and &quot;Voholabs&quot; mean that company. You can contact us at{' '}
           <Mail />.
         </p>
@@ -514,18 +519,17 @@ export default function TermsPage() {
           <strong>By you.</strong> You can stop using the service at any time.
           There is currently no button that deletes a whole account. To close
           yours, email <Mail /> from the address registered on the account with
-          the subject <em>Delete my account</em>. We reply within [5] working
-          days and erase the account and its data within 30 days of verifying
-          the request, as set out in{' '}
+          the subject <em>Delete my account</em>. We erase the account and its
+          data within 30 days of verifying the request, as set out in the{' '}
           <a className="underline" href="/privacy#data-deletion">
-            section 11 of the Privacy Policy
+            data deletion section of the Privacy Policy
           </a>
           .
         </p>
         <p>
           <strong>Your data when an account ends.</strong> We erase your
           account, onboarding answers, posts, media and connected channels from
-          our live systems. Copies may remain in backups for up to [30] days
+          our live systems. Copies may remain in backups for a limited time
           until they are overwritten. We keep what the law requires us to keep,
           and a record of the request. Content already published to a social
           network stays on that network. You can copy your posts and media out
@@ -859,7 +863,8 @@ export default function TermsPage() {
 
       <LegalSection id="contact" title="21. Contact">
         <p>
-          [LEGAL ENTITY NAME], [REGISTERED OFFICE ADDRESS]. Email: <Mail />. For
+          Voholabs Ltd, 71-75 Shelton Street, Covent Garden, London, WC2H 9JQ,
+          United Kingdom. Email: <Mail />. For
           takedown requests use the subject <em>Takedown</em>. For account
           deletion use the subject <em>Delete my account</em>.
         </p>

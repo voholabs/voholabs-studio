@@ -21,6 +21,7 @@ export const UserContext = createContext<
       // End of the free trial, `null` when whitelisted forever
       trialEndsAt: string | null;
       needsOnboarding: boolean;
+      needsTerms: boolean;
       streakSince: string | null;
     })
 >(undefined);

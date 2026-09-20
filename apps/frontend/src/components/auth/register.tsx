@@ -5,6 +5,7 @@ import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import Link from 'next/link';
 import { Button } from '@gitroom/react/form/button';
 import { Input } from '@gitroom/react/form/input';
+import { Checkbox } from '@gitroom/react/form/checkbox';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { classValidatorResolver } from '@hookform/resolvers/class-validator';
 import { CreateOrgUserDto } from '@gitroom/nestjs-libraries/dtos/auth/create.org.user.dto';
@@ -36,6 +37,7 @@ type Inputs = {
   company: string;
   providerToken: string;
   provider: string;
+  termsAccepted: boolean;
 };
 export function Register() {
   const getQuery = useSearchParams();
@@ -107,10 +109,23 @@ export function RegisterAfter({
     defaultValues: {
       providerToken: token,
       provider: provider,
+      termsAccepted: false,
     },
   });
   const fetchData = useFetch();
   const onSubmit: SubmitHandler<Inputs> = async (data) => {
+    // The Terms only bind somebody who agreed to them, so the account is not
+    // created without the box. The server refuses it as well.
+    if (!data.termsAccepted) {
+      form.setError('termsAccepted', {
+        message: t(
+          'please_agree_to_the_terms',
+          'Please agree to the Terms of Service and Privacy Policy to continue'
+        ),
+      });
+      return;
+    }
+
     setLoading(true);
     await fetchData('/auth/register', {
       method: 'POST',
@@ -212,29 +227,43 @@ export function RegisterAfter({
                   placeholder={t('label_company', 'Company')}
                 />
               </div>
-              <div className={clsx('text-[12px]')}>
-                {t(
-                  'by_registering_you_agree_to_our',
-                  'By registering you agree to our'
-                )}
-                &nbsp;
-                <a
-                  href={`/terms`}
-                  className="underline hover:font-bold"
-                  rel="nofollow"
-                >
-                  {t('terms_of_service', 'Terms of Service')}
-                </a>
-                &nbsp;
-                {t('and', 'and')}&nbsp;
-                <a
-                  href={`/privacy`}
-                  rel="nofollow"
-                  className="underline hover:font-bold"
-                >
-                  {t('privacy_policy', 'Privacy Policy')}
-                </a>
-                &nbsp;
+              <div className="flex gap-[10px] items-start text-[12px]">
+                <Checkbox name="termsAccepted" variant="hollow" />
+                <div className="flex-1 pt-[3px]">
+                  {t(
+                    'i_agree_to_the',
+                    'I use Voholabs Studio for my business and I agree to the'
+                  )}
+                  &nbsp;
+                  <a
+                    href={`/terms`}
+                    target="_blank"
+                    className="underline hover:font-bold"
+                    rel="nofollow noreferrer"
+                  >
+                    {t('terms_of_service', 'Terms of Service')}
+                  </a>
+                  &nbsp;
+                  {t('and', 'and')}&nbsp;
+                  <a
+                    href={`/privacy`}
+                    target="_blank"
+                    rel="nofollow noreferrer"
+                    className="underline hover:font-bold"
+                  >
+                    {t('privacy_policy', 'Privacy Policy')}
+                  </a>
+                  .&nbsp;
+                  {t(
+                    'terms_short_risk_line',
+                    'The service is free, provided as is, and used at your own risk.'
+                  )}
+                  {!!form.formState.errors.termsAccepted && (
+                    <div className="text-red-400 mt-[4px]">
+                      {form.formState.errors.termsAccepted.message}
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="text-center mt-6">
                 <div className="w-full flex">

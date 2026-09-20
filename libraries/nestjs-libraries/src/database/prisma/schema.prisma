@@ -124,6 +124,11 @@ model User {
   useCase               String?
   attribution           String?
   onboardedAt           DateTime?
+  // Proof that this person agreed to the Terms: which version, when, and from
+  // where. Null means they have not agreed to anything we can show.
+  termsVersion          String?
+  termsAcceptedAt       DateTime?
+  termsAcceptedIp       String?
   comments              Comments[]
   items                 ItemUser[]
   groupBuyer            MessagesGroup[]      @relation("groupBuyer")

@@ -44,6 +44,7 @@ import { AttachToFeedbackIcon } from '@gitroom/frontend/components/new-layout/se
 import { FirstBillingComponent } from '@gitroom/frontend/components/billing/first.billing.component';
 import { TrialTracker } from '@gitroom/frontend/components/layout/gtm.component';
 import { RequiredOnboarding } from '@gitroom/frontend/components/onboarding/required.onboarding';
+import { RequiredTerms } from '@gitroom/frontend/components/onboarding/required.terms';
 
 const interTight = Inter_Tight({
   weight: ['600', '500', '700'],
@@ -89,6 +90,31 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
             <RequiredOnboarding
               name={user.name}
               email={user.email}
+              onDone={() => {
+                window.location.href = '/';
+              }}
+            />
+          </div>
+        </MantineWrapper>
+      </ContextWrapper>
+    );
+  }
+
+  // Same again for the Terms: nobody gets into the app without having agreed to
+  // the current version, which is what makes them binding. It comes after the
+  // onboarding form, and nobody sees it while an admin is impersonating them.
+  if (user.needsTerms) {
+    return (
+      <ContextWrapper user={user}>
+        <MantineWrapper>
+          <Toaster />
+          <div
+            className={clsx(
+              'flex flex-col min-h-screen min-w-screen text-newTextColor p-[12px]',
+              interTight.className
+            )}
+          >
+            <RequiredTerms
               onDone={() => {
                 window.location.href = '/';
               }}

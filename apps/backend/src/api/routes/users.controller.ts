@@ -22,6 +22,7 @@ import { getCookieUrlFromDomain } from '@gitroom/helpers/subdomain/subdomain.man
 import { pricing } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/pricing';
 import { ApiTags } from '@nestjs/swagger';
 import { UsersService } from '@gitroom/nestjs-libraries/database/prisma/users/users.service';
+import { needsTerms } from '@gitroom/nestjs-libraries/database/prisma/users/terms';
 import { UserDetailDto } from '@gitroom/nestjs-libraries/dtos/users/user.details.dto';
 import { OnboardingDto } from '@gitroom/nestjs-libraries/dtos/users/onboarding.dto';
 import { EmailNotificationsDto } from '@gitroom/nestjs-libraries/dtos/users/email-notifications.dto';
@@ -147,6 +148,8 @@ export class UsersController {
       // The app is replaced by the onboarding form until this is false.
       // @ts-ignore
       needsOnboarding: !!user.needsOnboarding,
+      // The app is replaced by a one-screen agreement until this is false.
+      needsTerms: !impersonate && needsTerms(user),
       // @ts-ignore
       role: organization?.users[0]?.role,
       // @ts-ignore
@@ -230,6 +233,24 @@ export class UsersController {
     @Body() body: OnboardingDto
   ) {
     await this._userService.completeOnboarding(user.id, body);
+    return { success: true };
+  }
+
+  // Agreeing to the current Terms. Signing up does this already; this is for
+  // everybody who had an account before we kept a record, and for every time
+  // the Terms change. Never while impersonating: only the person themselves
+  // can agree.
+  @Post('/terms')
+  async acceptTerms(
+    @GetUserFromRequest() user: User,
+    @Req() req: Request,
+    @RealIP() ip: string
+  ) {
+    if (req.cookies.impersonate || req.headers.impersonate) {
+      throw new HttpForbiddenException();
+    }
+
+    await this._userService.acceptTerms(user.id, ip);
     return { success: true };
   }
 

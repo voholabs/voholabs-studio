@@ -1,4 +1,5 @@
 import { PrismaRepository } from '@gitroom/nestjs-libraries/database/prisma/prisma.service';
+import { termsAcceptance } from '@gitroom/nestjs-libraries/database/prisma/users/terms';
 import { Role, ShortLinkPreference, SubscriptionTier } from '@prisma/client';
 import { Injectable } from '@nestjs/common';
 import { AuthService } from '@gitroom/helpers/auth/auth.service';
@@ -305,6 +306,7 @@ export class OrganizationRepository {
                 timezone: 0,
                 ip,
                 agent: userAgent,
+                ...(body.termsAccepted ? termsAcceptance(ip) : {}),
               },
             },
           },

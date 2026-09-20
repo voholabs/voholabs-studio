@@ -1,4 +1,5 @@
 import { PrismaRepository } from '@gitroom/nestjs-libraries/database/prisma/prisma.service';
+import { termsAcceptance } from '@gitroom/nestjs-libraries/database/prisma/users/terms';
 import { Injectable } from '@nestjs/common';
 import { Provider } from '@prisma/client';
 import { AuthService } from '@gitroom/helpers/auth/auth.service';
@@ -179,6 +180,18 @@ export class UsersRepository {
         attribution: body.attribution || null,
         onboardedAt: new Date(),
       },
+      select: {
+        id: true,
+      },
+    });
+  }
+
+  acceptTerms(userId: string, ip?: string) {
+    return this._user.model.user.update({
+      where: {
+        id: userId,
+      },
+      data: termsAcceptance(ip),
       select: {
         id: true,
       },

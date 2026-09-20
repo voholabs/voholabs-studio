@@ -1,20 +1,45 @@
 import { Metadata } from 'next';
 import { ReactNode } from 'react';
-import { LegalPage, LegalSection, LegalList } from '../legal.layout';
+import {
+  LegalPage,
+  LegalSection,
+  LegalList,
+  LegalSummary,
+} from '../legal.layout';
 
 export const metadata: Metadata = {
   title: 'Voholabs Studio Terms of Service',
   description:
-    'The terms governing use of Voholabs Studio, the free social media scheduling and publishing service operated by Voholabs Ltd.',
+    'The terms governing use of Voholabs Studio, the free, community hosted social media scheduling tool. Provided as is, for business use.',
   alternates: { canonical: '/terms' },
 };
 
-// DRAFT FOR OWNER REVIEW. Anything in [SQUARE BRACKETS] is a fact or a decision
-// only the owner can supply. Do not publish until every bracket is resolved.
+// DRAFT FOR OWNER AND SOLICITOR REVIEW. Anything in [SQUARE BRACKETS] is a fact
+// or a decision only the owner can supply. Do not publish until every bracket
+// is resolved and a solicitor has read the page.
+//
+// Drafting notes, so a later edit does not undo the protection:
+//   - Section 14 is split into separate numbered sub-clauses on purpose. Under
+//     the Unfair Contract Terms Act 1977 a court judges each term as a whole
+//     and does not rewrite one that goes too far, so every exclusion has to be
+//     able to stand or fall by itself. Do not merge them into one paragraph.
+//   - The cap is deliberately not zero. A term that leaves the other side with
+//     no remedy at all is the kind a court is most ready to strike out.
+//   - The carve-outs in 14.1 must stay first and must stay unconditional.
+//   - The summary box is part of the contract. Prominence is one of the things
+//     a court looks at when it decides whether a term was reasonable.
+//   - TikTok and YouTube reviewers check this page: keep the page title, the
+//     YouTube Terms of Service link and the Google Privacy Policy link.
 
 const Ext = ({ href, children }: { href: string; children: ReactNode }) => (
   <a className="underline" href={href} target="_blank" rel="noreferrer">
     {children}
+  </a>
+);
+
+const Mail = () => (
+  <a className="underline" href="mailto:hello@voholabs.com">
+    hello@voholabs.com
   </a>
 );
 
@@ -25,29 +50,99 @@ export default function TermsPage() {
       updated="[DATE OF PUBLICATION]"
       intro={
         <>
-          These terms govern your use of Voholabs Studio, the social media
-          scheduling and publishing service operated by Voholabs Ltd at
-          studio.voholabs.com. By creating an account or using the service,
-          including through the API or an AI assistant, you agree to them. If
-          you use the service for a company or other organisation, you agree to
-          them on its behalf and confirm you are allowed to do so.
+          These terms are the agreement between you and us for Voholabs Studio,
+          the social media scheduling tool at studio.voholabs.com. By creating
+          an account, signing in, or using the service in any way, including
+          through the API, a webhook, an MCP connection or an AI assistant, you
+          agree to them. If you use the service for a company or other
+          organisation, you agree to them on its behalf and confirm you are
+          allowed to do so. If you do not agree, do not use the service.
         </>
       }
     >
+      <LegalSummary
+        id="short-version"
+        title="The short version"
+        items={[
+          <>
+            Voholabs Studio is free. It is provided as is, and you use it at
+            your own risk.
+          </>,
+          <>
+            We host a scheduling tool. We are not your publisher, your agent or
+            your social media manager, and we do not review what you post.
+          </>,
+          <>
+            Your social accounts and your posts are your responsibility. If a
+            network limits, suspends or bans your account, cuts your reach, or
+            changes its rules or its API, that is between you and the network.
+            We are not liable for it.
+          </>,
+          <>
+            We do not guarantee that a post will publish on time, or at all.
+            Check important posts yourself, and never rely on Studio alone for
+            anything time critical.
+          </>,
+          <>
+            Everything done through your workspace counts as done by you. That
+            includes team members, API keys, webhooks, MCP connections and any
+            AI agent you let in.
+          </>,
+          <>
+            Studio is community hosted. There is no service level and no support
+            commitment, and we fix things at our own pace.
+          </>,
+          <>
+            The free plan, its features and its limits, including the 2 GB media
+            cap, can change or end at any time. Keep your own copies of your
+            content.
+          </>,
+          <>Studio is for businesses and professionals, not for consumers.</>,
+          <>
+            If we are ever liable to you, the most we will pay in total is the
+            greater of £100 and what you paid us for Studio in the previous 12
+            months. Section 14 sets out what the law does not let us limit.
+          </>,
+        ]}
+      >
+        This summary is part of these terms. The numbered sections below set out
+        the detail and apply in full.
+      </LegalSummary>
+
       <LegalSection id="about" title="1. About us">
         <p>
-          Voholabs Studio is provided by Voholabs Ltd, a company registered in
-          England and Wales with company number [COMPANY NUMBER], whose
-          registered office is at [REGISTERED OFFICE ADDRESS]. [VAT NUMBER, IF
-          REGISTERED.] You can contact us at{' '}
-          <a className="underline" href="mailto:hello@voholabs.com">
-            hello@voholabs.com
-          </a>
-          .
+          Voholabs Studio is provided by [LEGAL ENTITY NAME, shown on this site
+          today as Voholabs Ltd: confirm the exact registered name], a company
+          registered in England and Wales with company number [COMPANY NUMBER],
+          whose registered office is at [REGISTERED OFFICE ADDRESS]. [VAT
+          NUMBER, IF REGISTERED.] In these terms &quot;we&quot;, &quot;us&quot;
+          and &quot;Voholabs&quot; mean that company. You can contact us at{' '}
+          <Mail />.
         </p>
       </LegalSection>
 
-      <LegalSection id="service" title="2. The service and who it is for">
+      <LegalSection id="business-use" title="2. Business use only">
+        <p>
+          Voholabs Studio is offered only to businesses and professionals. By
+          using it you confirm that you are using it wholly or mainly for
+          purposes relating to your trade, business, craft or profession, and
+          not as a consumer. We offer the service free, and on these terms,
+          because you give us that confirmation.
+        </p>
+        <p>
+          You must be at least 18 years old, or the minimum age required by the
+          platforms you connect, whichever is higher.
+        </p>
+        <p>
+          If, despite your confirmation, the law treats you as a consumer, you
+          have legal rights that these terms cannot take away, and nothing in
+          these terms affects them. Any part of these terms that the law does
+          not allow to apply to a consumer does not apply to you, and the rest
+          still does.
+        </p>
+      </LegalSection>
+
+      <LegalSection id="free-plan" title="3. The service and the free plan">
         <p>
           Voholabs Studio lets you connect social media accounts, compose posts,
           schedule them to publish at chosen times, manage a shared media
@@ -56,27 +151,23 @@ export default function TermsPage() {
           the service.
         </p>
         <p>
-          Voholabs Studio is a tool for businesses and professionals. By using
-          it you confirm that you are acting for purposes relating to your
-          trade, business, craft or profession, and not as a consumer.
+          Scheduling is free. The free plan has no set limit on connected
+          channels or scheduled posts, and includes the calendar, team members,
+          up to 30 webhooks, the public API and the MCP connection for AI
+          assistants. We do not ask for a card. In return we ask every new
+          account a few questions, and we may contact you about Voholabs
+          services, as the{' '}
+          <a className="underline" href="/privacy">
+            Privacy Policy
+          </a>{' '}
+          explains.
         </p>
-      </LegalSection>
-
-      <LegalSection id="free-plan" title="3. The free plan">
-        <p>
-          Scheduling in Voholabs Studio is free. The free plan has no set limit
-          on connected channels or scheduled posts, and includes the calendar,
-          team members, up to 30 webhooks, the public API and the MCP connection
-          for AI assistants. We do not ask for a card.
-        </p>
-        <p>The free plan has limits you should know about:</p>
         <LegalList
           items={[
             <>
               <strong>Storage.</strong> Each organisation can keep up to 2 GB in
               its media library. When you reach the cap, new uploads are refused
-              until you delete files. If you need more, email us and we will
-              tell you what is possible.
+              until you delete files. If you need more, email us. We may say no.
             </>,
             <>
               <strong>Fair use.</strong> &quot;No set limit&quot; means we do
@@ -87,22 +178,28 @@ export default function TermsPage() {
             </>,
             <>
               <strong>Networks.</strong> Which social networks can be connected
-              depends on the approvals each network has given us, and can
-              change.
+              depends on the approvals each network has given us, and can change
+              without notice.
             </>,
             <>
               <strong>Community hosted.</strong> The free plan comes with no
-              service level, no uptime commitment and no guaranteed support. We
-              fix problems at our own pace. You can report a problem by email or
-              on the public repository, but we do not promise a reply or a fix
-              by any particular time.
+              service level, no uptime commitment, no backup commitment and no
+              support commitment. We fix problems at our own pace. You can
+              report a problem by email or on the public repository, but we do
+              not promise a reply or a fix by any particular time, or at all.
             </>,
             <>
-              <strong>It can change.</strong> We may change, limit or withdraw
-              the free plan, or any feature in it. If we withdraw it, or make a
-              change that materially reduces it, we will give account holders at
-              least [30] days&apos; notice by email where we reasonably can, so
-              you can copy your content out first.
+              <strong>It can change or end.</strong> We may change, limit,
+              suspend or withdraw the free plan, or any feature or limit in it,
+              at any time and for any reason. If we withdraw the plan altogether
+              we will try to give account holders 30 days&apos; notice by email
+              so you can copy your content out first, but we do not promise to,
+              and we are not liable if we cannot.
+            </>,
+            <>
+              <strong>Keep your own copies.</strong> Studio is not a backup or
+              an archive. Keep your own copy of every post and every media file
+              you put into it.
             </>,
           ]}
         />
@@ -112,63 +209,101 @@ export default function TermsPage() {
         <p>
           AI features (writing, image and video generation, the agent and the
           brief) are not part of the free plan. They are available only as part
-          of Apex, the managed content service sold by Voholabs Ltd at
-          voholabs.com.
+          of Apex, the managed content service we sell at voholabs.com.
         </p>
         <p>
           Apex is ordered, billed and cancelled through voholabs.com, with
           payment taken by Stripe. Apex fees, renewal, cancellation and refunds
           are governed by the{' '}
           <Ext href="https://voholabs.com/terms">Voholabs Terms of Service</Ext>{' '}
-          and <Ext href="https://voholabs.com/refund-policy">Refund Policy</Ext>
-          , not by this page. These Studio terms continue to govern your use of
+          and the{' '}
+          <Ext href="https://voholabs.com/refund-policy">Refund Policy</Ext>,
+          not by this page. These Studio terms continue to govern your use of
           Voholabs Studio itself. If an Apex subscription ends, your Studio
           organisation returns to the free plan and its limits, including the 2
           GB storage cap.
         </p>
+        <p>
+          Paying for Apex does not create a service level, an uptime commitment
+          or a support commitment for the scheduler, unless we have agreed one
+          with you in a signed written order. AI output can be wrong, offensive,
+          infringing or unsuitable. You are responsible for checking it before
+          it is published.
+        </p>
       </LegalSection>
 
-      <LegalSection id="eligibility" title="5. Eligibility and accounts">
+      <LegalSection
+        id="account"
+        title="5. Your account and everyone who acts through it"
+      >
         <LegalList
           items={[
             <>
-              You must be at least 18 years old, or the minimum age required by
-              the platforms you connect, whichever is higher.
-            </>,
-            <>
               You can sign up with Google, or with a work email address and a
-              password. We ask every new account a few questions about who you
-              are and how you plan to use Studio. Our{' '}
-              <a className="underline" href="/privacy">
-                Privacy Policy
-              </a>{' '}
-              explains how we use the answers, including to contact you about
-              Voholabs services.
+              password. You must give accurate details, including in the
+              questions we ask every new account, and keep them up to date.
             </>,
             <>
-              You must give accurate registration details and keep them up to
-              date.
+              You are responsible for keeping your password, API keys, webhook
+              addresses and AI assistant connections secret and secure.
             </>,
             <>
-              You are responsible for keeping your password, API keys and AI
-              assistant connections secure, and for all activity under your
-              account, including activity by anyone or anything you give access
-              to.
+              Anything done in your workspace, or with your API key, or through
+              a webhook, an MCP connection or an AI assistant you connected, is
+              treated as done by you. That includes posts that a person, a
+              script or an assistant writes, schedules, edits, deletes or
+              publishes, even if it misunderstood you, acted without asking, or
+              acted after you thought its access had ended.
             </>,
             <>
-              If you add team members, you are responsible for their use of the
-              service and for telling them how their data is handled.
+              If you add team members, you are responsible for what they do, for
+              removing their access when they leave, and for telling them how
+              their data is handled.
+            </>,
+            <>
+              An AI assistant or other tool you connect can read data in your
+              organisation, including channel names, posts, media and analytics.
+              That data is then handled by the provider of that tool under its
+              terms, not ours. Only connect tools you trust. If you want a human
+              check before anything goes out, have the assistant create drafts
+              and publish them yourself.
+            </>,
+            <>
+              If you think a key, a password or a connection has leaked, rotate
+              your API key in settings, change your password, remove the
+              connection, and tell us. We may rate-limit, suspend or revoke API
+              keys and connections to protect the service or a connected
+              platform.
             </>,
           ]}
         />
       </LegalSection>
 
-      <LegalSection id="channels" title="6. Connected channels">
+      <LegalSection
+        id="channels"
+        title="6. Connected channels and other platforms"
+      >
         <p>
-          Connecting a channel authorises Voholabs Studio to act on your behalf
-          on that platform, strictly within the permissions you granted. You
-          confirm that you own or are authorised to manage every account you
-          connect.
+          Connecting a channel authorises Voholabs Studio to act on that
+          platform, strictly within the permissions you granted and only to
+          carry out what you or your workspace instruct. You confirm that you
+          own or are authorised to manage every account you connect.
+        </p>
+        <p>
+          <strong>The risk to your social accounts is yours.</strong> Each
+          network decides for itself whether to rate-limit, restrict, label,
+          reduce the reach of, suspend or ban an account, or to remove content.
+          It may do so because of automation, posting volume, the content, a
+          change in its rules, or for no stated reason. Using a scheduling tool
+          does not protect you from that and may be a factor in it. We have no
+          say in those decisions and cannot reverse them.
+        </p>
+        <p>
+          <strong>Our own access can be taken away.</strong> We connect to each
+          network through developer access that the network has approved and can
+          limit, suspend or withdraw at any time. If that happens, every user of
+          that network may be disconnected at once, without notice, and
+          scheduled posts for it will not publish.
         </p>
         <p>
           Your use of each connected platform remains subject to that
@@ -222,8 +357,6 @@ export default function TermsPage() {
           affiliated with, or sponsored by TikTok, Google, YouTube, Meta
           Platforms, Inc., LinkedIn, X Corp. or any other platform, and platform
           names and logos are the trade marks of their respective owners.
-          Platforms may change, rate-limit, suspend or withdraw their APIs or
-          our access to them at any time.
         </p>
       </LegalSection>
 
@@ -234,51 +367,49 @@ export default function TermsPage() {
           process, transform (for example resizing or re-encoding media) and
           transmit that content, only as needed to operate the service and
           publish it to the channels you selected. The licence ends when the
-          content is deleted from our systems.
+          content is erased from our systems.
+        </p>
+        <p>
+          You are the publisher of everything that goes out through your
+          workspace. We provide the tool that carries out your instructions. We
+          do not write, select, check, approve or review content before it is
+          published, and we are under no duty to monitor it.
         </p>
         <p>
           You are responsible for your content: that you hold the rights to it,
-          that it is lawful, that it is properly labelled where a platform or
-          the law requires a label (for example advertising, paid partnerships
-          or AI-generated media), and that it complies with the rules of every
-          platform you publish it to. We do not review content before it is
-          published.
+          that it is lawful, accurate and not defamatory, that it respects other
+          people&apos;s privacy and confidentiality, that it is properly
+          labelled where a platform or the law requires a label (for example
+          advertising, paid partnerships or AI-generated media), and that it
+          complies with the rules of every platform you publish it to. If you
+          work in a regulated field, such as financial services, health, legal
+          services, gambling or alcohol, compliance with the rules on what you
+          may say and when is yours alone. Nothing in the service is legal,
+          financial or other professional advice.
         </p>
       </LegalSection>
 
-      <LegalSection id="automation" title="8. The API, MCP and AI assistants">
+      <LegalSection id="reliability" title="8. Scheduled posts can fail">
         <p>
-          You can operate Voholabs Studio through the public API, webhooks, and
-          an MCP connection that lets an AI assistant act in your account. These
-          are powerful, so please read this section carefully.
+          Publishing depends on our systems, on each platform&apos;s API and on
+          the state of your connected account, so we do not promise that any
+          post goes out, or goes out on time. A scheduled post may fail, be
+          delayed, publish more than once, publish at the wrong time (including
+          because of a time zone or queue fault), publish to the wrong channel,
+          publish with missing or wrong media or formatting, or publish after
+          you edited, unscheduled or deleted it. A draft may be published if it
+          is scheduled by you, a team member or a connected tool. Causes include
+          a platform being down or changing its API, an expired token, a
+          platform rejecting the content, and faults or maintenance in our own
+          service.
         </p>
-        <LegalList
-          items={[
-            <>
-              Anything done with your API key or through an AI assistant you
-              connected is treated as done by you. That includes posts an
-              assistant writes, schedules, edits, deletes or publishes, even if
-              it misunderstood you or acted without asking.
-            </>,
-            <>
-              An AI assistant you connect can read data in your organisation,
-              including channel names, posts, media and analytics, and that data
-              is then handled by the provider of that assistant under their
-              terms, not ours. Only connect assistants you trust.
-            </>,
-            <>
-              You use the API, webhooks and AI assistants at your own risk. We
-              are not responsible for what an assistant, script or third-party
-              tool does with the access you gave it. If you want a human check
-              before anything goes out, have the assistant create drafts and
-              publish them yourself.
-            </>,
-            <>
-              We may rate-limit, suspend or revoke API keys and MCP connections
-              to protect the service or a connected platform.
-            </>,
-          ]}
-        />
+        <p>
+          You are responsible for checking that important posts were published
+          as you intended. Do not rely on Voholabs Studio as the only means of
+          publishing anything that is time critical, legally required or
+          regulated, such as a market announcement, a safety notice or a
+          statutory disclosure.
+        </p>
       </LegalSection>
 
       <LegalSection id="aup" title="9. Acceptable use">
@@ -288,132 +419,322 @@ export default function TermsPage() {
         <LegalList
           items={[
             <>
-              Publish unlawful, infringing, defamatory, deceptive, harassing or
-              hateful content, or content that breaches a connected
-              platform&apos;s rules or community guidelines.
+              publish content that is unlawful, defamatory, fraudulent,
+              deceptive, harassing, threatening or hateful, that promotes
+              violence or terrorism, that sexualises children, or that shares
+              intimate images without consent;
             </>,
             <>
-              Send spam, post duplicate or near-duplicate content across many
-              accounts, operate inauthentic or coordinated networks of accounts,
-              or artificially inflate engagement.
+              infringe anyone&apos;s copyright, trade mark, privacy,
+              confidentiality or other rights;
             </>,
             <>
-              Access accounts you are not authorised to manage, or scrape,
+              impersonate a person, brand or organisation, or misrepresent who
+              is behind an account;
+            </>,
+            <>
+              run scams, phishing, fake giveaways, unlawful financial promotions
+              or undisclosed advertising;
+            </>,
+            <>
+              send spam, post duplicate or near-duplicate content across many
+              accounts, create or operate fake, bulk or inauthentic accounts or
+              coordinated networks of them, or artificially inflate engagement;
+            </>,
+            <>
+              get around a platform&apos;s rules, rate limits, automation
+              policy, suspension or ban, or use the service for an account that
+              a platform has banned;
+            </>,
+            <>
+              access accounts you are not authorised to manage, or scrape,
               resell or build databases from platform data obtained through the
-              service.
+              service;
             </>,
             <>
-              Get around rate limits or storage limits (for example by opening
-              multiple organisations to avoid the storage cap), use the media
-              library as general file hosting, probe or attack the service, or
-              interfere with its security or availability.
+              get around our rate limits or storage limits (for example by
+              opening several organisations to avoid the storage cap), or use
+              the media library as general file hosting;
             </>,
             <>
-              Upload malware, or content that is illegal to possess or
-              distribute.
+              upload malware, or content that is illegal to possess or
+              distribute;
+            </>,
+            <>
+              probe, attack, overload or reverse engineer the hosted service, or
+              interfere with its security or availability. This does not limit
+              what the open-source licence in section 16 lets you do with the
+              source code.
             </>,
           ]}
         />
+      </LegalSection>
+
+      <LegalSection
+        id="takedown"
+        title="10. Reports, takedown and repeat infringers"
+      >
         <p>
-          We may remove content, pause scheduled posts, and suspend or close an
-          account that we reasonably believe breaches these rules, and we may be
-          required to do so by a connected platform. Where we reasonably can, we
-          will tell you why.
+          If you believe something stored or published through Voholabs Studio
+          infringes your rights or is unlawful, email <Mail /> with the subject{' '}
+          <em>Takedown</em>. Tell us who you are, what the content is and where
+          it is (a link), which right or law you say it breaches, and confirm
+          that what you tell us is accurate. For content already published on a
+          social network, the fastest route is that network&apos;s own reporting
+          tool, because only the network can remove it there.
+        </p>
+        <p>
+          When we are told about content in this way we will look at the report
+          and, where we think it is justified, remove or disable the content we
+          hold and may cancel scheduled posts. We may tell the user concerned,
+          who can reply to us. We close the accounts of users who infringe
+          repeatedly.
+        </p>
+        <p>
+          We may report suspected illegal activity to the relevant platform or
+          to the authorities, and we will disclose account information where the
+          law requires us to.
         </p>
       </LegalSection>
 
-      <LegalSection id="reliability" title="10. Scheduled posts can fail">
+      <LegalSection id="termination" title="11. Suspension and ending">
         <p>
-          Publishing depends on our systems, on each platform&apos;s API and on
-          the state of your connected account, so we cannot promise that every
-          post goes out, or goes out on time. A scheduled post may fail, be
-          delayed, be published more than once, or be published with missing
-          media or formatting, for example because a platform is down or changes
-          its API, a token has expired, a platform rejects the content, or our
-          own service has a fault or is being maintained.
+          <strong>By us.</strong> We may remove content, cancel or pause
+          scheduled posts, disconnect a channel, revoke keys and connections,
+          and suspend or close an account, immediately and without notice, if we
+          reasonably believe these terms have been breached, if a platform or
+          the law requires it, if it is needed to protect the service, another
+          user or our access to a platform, or if we withdraw the service under
+          section 3. We may also close an account that has not been used for 12
+          months, after emailing a warning to the registered address at least 30
+          days before. We are not liable to you for taking any of these steps.
+          Where we reasonably can, we will tell you why.
         </p>
         <p>
-          You are responsible for checking that important posts were published
-          as you intended, and for keeping your own copy of your content. Do not
-          rely on Voholabs Studio as the only means of publishing anything that
-          is time-critical or legally required. Our liability for failed, late
-          or duplicated posts is limited as set out in section 13.
+          <strong>By you.</strong> You can stop using the service at any time.
+          There is currently no button that deletes a whole account. To close
+          yours, email <Mail /> from the address registered on the account with
+          the subject <em>Delete my account</em>. We reply within [5] working
+          days and erase the account and its data within 30 days of verifying
+          the request, as set out in{' '}
+          <a className="underline" href="/privacy#data-deletion">
+            section 11 of the Privacy Policy
+          </a>
+          .
+        </p>
+        <p>
+          <strong>Your data when an account ends.</strong> We erase your
+          account, onboarding answers, posts, media and connected channels from
+          our live systems. Copies may remain in backups for up to [30] days
+          until they are overwritten. We keep what the law requires us to keep,
+          and a record of the request. Content already published to a social
+          network stays on that network. You can copy your posts and media out
+          through the app or the API while your account is open. We do not
+          provide an export after an account is closed, so take what you need
+          first.
+        </p>
+        <p>
+          Sections 5, 7, 12 to 15, 17 and 20 continue to apply after your
+          account ends.
         </p>
       </LegalSection>
 
-      <LegalSection id="availability" title="11. Availability and support">
+      <LegalSection id="security" title="12. Security">
         <p>
-          We work to keep the service running but do not guarantee uninterrupted
-          or error-free operation. We may carry out maintenance, and may change
-          or discontinue features. We do not commit to any support response
-          time. Where a change materially reduces a paid service, the notice we
-          give is set out in the terms for that paid service.
+          We take reasonable technical and organisational measures to protect
+          the service and the tokens and content it holds. No online service is
+          completely secure, and we do not guarantee that the service, or the
+          data in it, will never be accessed, lost or altered without authority.
+          You are responsible for your own passwords, devices, API keys,
+          webhooks and connected tools.
+        </p>
+        <p>
+          You can take away our access to a connected account at any time, at
+          the platform itself, whatever state Studio is in:
+        </p>
+        <LegalList
+          items={[
+            <>
+              <strong>Google and YouTube:</strong> the{' '}
+              <Ext href="https://security.google.com/settings/security/permissions">
+                Google security settings page
+              </Ext>
+              .
+            </>,
+            <>
+              <strong>Facebook, Instagram and Threads:</strong>{' '}
+              <Ext href="https://www.facebook.com/settings?tab=business_tools">
+                Facebook Settings, Business Integrations
+              </Ext>
+              , and the apps and websites settings in Instagram and Threads.
+            </>,
+            <>
+              <strong>TikTok:</strong> Settings and privacy, then Security and
+              permissions, then Manage app permissions, in the TikTok app.
+            </>,
+            <>
+              <strong>LinkedIn:</strong> Settings, then Data privacy, then{' '}
+              <Ext href="https://www.linkedin.com/psettings/permitted-services">
+                Permitted services
+              </Ext>
+              .
+            </>,
+            <>
+              <strong>X:</strong> Settings, then Security and account access,
+              then{' '}
+              <Ext href="https://x.com/settings/connected_apps">
+                Connected apps
+              </Ext>
+              .
+            </>,
+          ]}
+        />
+      </LegalSection>
+
+      <LegalSection id="warranties" title="13. No warranties">
+        <p>
+          The service is provided as is and as available. We do not promise that
+          it will be uninterrupted, timely, secure or free of errors, that it
+          will meet your needs, that data in it will be kept or backed up, or
+          that it will keep working with any platform. As far as the law allows,
+          we exclude all conditions, warranties and other terms that might
+          otherwise be implied by statute, common law or custom. Descriptions of
+          the service on our websites, in articles and in comparisons are
+          general information, not promises about what it will do for you.
         </p>
       </LegalSection>
 
-      <LegalSection id="open-source" title="12. Open source">
+      <LegalSection id="liability" title="14. Limits on our liability">
+        <p>
+          <strong>14.1 What we do not limit.</strong> Nothing in these terms
+          excludes or limits our liability for death or personal injury caused
+          by our negligence, for our fraud or fraudulent misrepresentation, or
+          for any other liability that the law does not allow us to exclude or
+          limit. Everything else in this section is subject to this paragraph.
+        </p>
+        <p>
+          <strong>14.2 Your social accounts and other platforms.</strong> We are
+          not liable for any loss arising from a platform rate-limiting,
+          restricting, labelling, reducing the reach of, suspending, banning or
+          closing any account, page, channel, profile or advertising account, or
+          removing any content; from the loss of followers, reach, engagement,
+          monetisation or access on any platform; from a platform changing,
+          limiting, breaking or withdrawing its API, its rules or its service;
+          from a platform outage; or from our own access to a platform being
+          limited, suspended or withdrawn.
+        </p>
+        <p>
+          <strong>14.3 Publishing.</strong> We are not liable for any loss
+          arising from a post that fails, is delayed, is published more than
+          once, at the wrong time, to the wrong channel, with missing or wrong
+          media or formatting, or after it was edited, unscheduled or deleted.
+        </p>
+        <p>
+          <strong>14.4 People and tools acting through your workspace.</strong>{' '}
+          We are not liable for any loss arising from anything done by a team
+          member, a former team member, or anyone or anything using your
+          password, API key, webhook, MCP connection or connected AI assistant,
+          script or third-party tool, or from what the provider of such a tool
+          does with data it obtains.
+        </p>
+        <p>
+          <strong>14.5 Availability and data.</strong> We are not liable for any
+          loss arising from the service being unavailable, slow, changed,
+          limited or withdrawn, from uploads being refused at the storage cap,
+          from an account being suspended or closed under section 11, or from
+          the loss, corruption or deletion of content or data held in the
+          service.
+        </p>
+        <p>
+          <strong>14.6 Types of loss.</strong> We are not liable, whether the
+          loss is direct or indirect, for loss of profit; loss of revenue or
+          sales; loss of business, contracts or opportunity; loss of anticipated
+          savings; loss of goodwill or reputation; wasted staff or management
+          time; fines or penalties imposed on you; or any indirect or
+          consequential loss.
+        </p>
+        <p>
+          <strong>14.7 Cap.</strong> Our total liability to you for all claims
+          arising out of or in connection with these terms and the service,
+          added together, is limited to the greater of (a) the fees you paid us
+          for Voholabs Studio in the 12 months before the first event that gave
+          rise to a claim and (b) £100.
+        </p>
+        <p>
+          <strong>14.8 Time limit.</strong> You must start any claim against us
+          within 12 months of the date you first knew, or ought reasonably to
+          have known, of the facts that give rise to it. After that the claim is
+          barred.
+        </p>
+        <p>
+          <strong>14.9 Events outside our control.</strong> We are not liable
+          for a failure or delay caused by something outside our reasonable
+          control, including failures of hosting, storage, email, network or
+          platform providers, attacks on the service, and acts of government.
+        </p>
+        <p>
+          <strong>14.10 How this section works.</strong> Paragraphs 14.2 to 14.9
+          apply to liability of every kind, whether in contract, tort (including
+          negligence), breach of statutory duty, misrepresentation or otherwise.
+          Each paragraph, and each item within it, is a separate term. If a
+          court finds one of them unenforceable, the others continue to apply.
+        </p>
+        <p>
+          <strong>14.11 Why these limits are fair.</strong> The service is free.
+          We earn nothing from it that could pay for the risks of your business,
+          and we could not offer it at all if we carried them. You are better
+          placed than we are to manage those risks: you can check that posts
+          went out, keep copies of your content, control who and what has access
+          to your workspace, choose a paid service that offers a service level,
+          and insure your business. You accept that these limits are reasonable
+          on that basis.
+        </p>
+      </LegalSection>
+
+      <LegalSection id="indemnity" title="15. Claims caused by your use">
+        <p>
+          You will indemnify us against all losses, damages, fines, costs and
+          expenses (including reasonable legal fees) that we incur because of a
+          claim, complaint, demand or enforcement action by a third party,
+          including a platform or a regulator, that arises from: content stored
+          or published through your workspace; an account you connected;
+          anything done by a person or tool acting through your workspace; your
+          breach of section 9 or of a platform&apos;s rules; or personal data
+          you put into the service without a lawful basis.
+        </p>
+        <p>
+          We will tell you about the claim promptly, let you comment on how it
+          is handled, and take reasonable steps to keep the cost down. The
+          limits in section 14 apply to our liability, not to yours under this
+          section.
+        </p>
+      </LegalSection>
+
+      <LegalSection id="open-source" title="16. Open source">
         <p>
           Voholabs Studio is built on open-source software licensed under the
           GNU Affero General Public License, version 3 (AGPL-3.0). The complete
           source code of the version running at studio.voholabs.com, including
           our modifications and the copyright and licence notices of the
-          original authors, is available at{' '}
+          original authors, is available free of charge at{' '}
           <Ext href="https://github.com/voholabs/voholabs-studio">
             github.com/voholabs/voholabs-studio
           </Ext>
-          . The AGPL-3.0 governs your rights in the source code. These terms
-          govern your use of the hosted service we run. Nothing in these terms
-          limits the rights the AGPL-3.0 gives you in the code.
+          .
+        </p>
+        <p>
+          The AGPL-3.0 governs your rights in the source code, and nothing in
+          these terms limits those rights. The code is provided under that
+          licence without warranty of any kind, as the licence itself states. If
+          you run the software yourself, you do so under the licence and at your
+          own risk: we do not host, support or answer for any copy of it other
+          than the service at studio.voholabs.com. These terms govern only your
+          use of the hosted service we run. Contributions to the source code are
+          made under the terms stated in the repository.
         </p>
       </LegalSection>
 
-      <LegalSection id="liability" title="13. Liability">
-        <p>
-          Nothing in these terms limits liability for death or personal injury
-          caused by negligence, for fraud or fraudulent misrepresentation, or
-          for any liability that cannot lawfully be limited.
-        </p>
-        <p>
-          Subject to that, the service is provided as is and as available. We
-          give no warranty that it will be uninterrupted, error free, or fit for
-          a particular purpose, and all implied terms are excluded as far as the
-          law allows.
-        </p>
-        <p>
-          Subject to the first paragraph, we are not liable for: loss of profit,
-          revenue, business, contracts, goodwill or reputation; loss of or
-          damage to data or content; the suspension, restriction or closure of
-          any of your accounts by a platform; failed, late, duplicated or
-          incorrectly published posts; anything done by an AI assistant, script
-          or third-party tool you connected; or any indirect or consequential
-          loss.
-        </p>
-        <p>
-          Subject to the first paragraph, our total liability arising out of or
-          in connection with these terms and the service, however it arises, is
-          limited to the greater of (a) the fees you paid us for Voholabs Studio
-          in the twelve months before the claim arose and (b) £100.
-        </p>
-        <p>
-          The free plan costs you nothing, and these limits reflect that. If
-          they do not suit your business, do not rely on the free plan for
-          anything critical.
-        </p>
-      </LegalSection>
-
-      <LegalSection id="indemnity" title="14. Claims caused by your use">
-        <p>
-          If someone brings a claim against us because of content you published,
-          accounts you connected without authority, your breach of a
-          platform&apos;s rules or of section 9, or personal data you put into
-          the service without a lawful basis, you will reimburse us for the
-          reasonable losses and costs we incur as a result. We will tell you
-          about the claim promptly and will not settle it without talking to you
-          first.
-        </p>
-      </LegalSection>
-
-      <LegalSection id="data" title="15. Personal data you put into Studio">
+      <LegalSection id="data" title="17. Personal data you put into Studio">
         <p>
           Our{' '}
           <a className="underline" href="/privacy">
@@ -462,63 +783,85 @@ export default function TermsPage() {
           ]}
         />
         <p>
-          You confirm that you have a lawful basis and any notices or consents
-          needed to put that data into Studio and publish it.
+          You confirm that you have a lawful basis, and any notices or consents
+          needed, to put that data into Studio and to publish it.
         </p>
       </LegalSection>
 
-      <LegalSection id="feedback" title="16. Feedback">
+      <LegalSection id="feedback" title="18. Feedback">
         <p>
           If you send us ideas or suggestions about the service, we may use them
-          without restriction or payment. Contributions to the source code are
-          made under the terms stated in the repository.
+          without restriction or payment.
         </p>
       </LegalSection>
 
-      <LegalSection id="termination" title="17. Ending your account">
-        <p>
-          You can stop using the service at any time. There is currently no
-          button to delete your own account: to close it, email{' '}
-          <a className="underline" href="mailto:hello@voholabs.com">
-            hello@voholabs.com
-          </a>{' '}
-          from the address registered on the account, and we will close it and
-          delete your data as set out in{' '}
-          <a className="underline" href="/privacy#data-deletion">
-            section 11 of the Privacy Policy
-          </a>
-          .
-        </p>
-        <p>
-          We may suspend or close an account for a material breach of these
-          terms, where required by law or by a connected platform, or if we
-          withdraw the service under section 3. We may also close an account
-          that has not been used for 12 months, after emailing a warning to the
-          registered address at least 30 days before.
-        </p>
-        <p>
-          You can copy your posts and media out through the app or the API while
-          your account is open. We do not provide an export after an account is
-          closed, so take what you need first. Sections 7, 8, 13, 14 and 18
-          continue to apply after your account ends.
-        </p>
-      </LegalSection>
-
-      <LegalSection id="changes" title="18. Changes and governing law">
+      <LegalSection id="changes" title="19. Changes to these terms">
         <p>
           We may update these terms. The date at the top of this page shows when
-          they last changed, and we will email account holders about any
-          material change at least 14 days before it takes effect, unless the
-          change is needed sooner for legal or security reasons. If you keep
-          using the service after a change takes effect, you accept the updated
-          terms. If you do not accept them, stop using the service and ask us to
-          close your account.
+          they last changed. We will email account holders about any material
+          change at least 14 days before it takes effect, unless the change is
+          needed sooner for legal or security reasons or to reflect a change
+          made by a platform. If you keep using the service after a change takes
+          effect, you accept the updated terms. If you do not accept them, stop
+          using the service and ask us to close your account.
         </p>
+      </LegalSection>
+
+      <LegalSection id="general" title="20. General">
+        <LegalList
+          items={[
+            <>
+              <strong>Governing law and courts.</strong> These terms, and any
+              dispute or claim arising out of them or the service (including
+              non-contractual disputes), are governed by the law of England and
+              Wales, and the courts of England and Wales have exclusive
+              jurisdiction.
+            </>,
+            <>
+              <strong>Whole agreement.</strong> These terms and the Privacy
+              Policy are the whole agreement between you and us about Voholabs
+              Studio. You confirm that you have not relied on any statement,
+              promise or description that is not set out in them. Nothing in
+              this paragraph limits liability for fraud.
+            </>,
+            <>
+              <strong>Severability.</strong> If a court finds any part of these
+              terms invalid or unenforceable, that part is removed to the
+              smallest extent needed and the rest continues to apply.
+            </>,
+            <>
+              <strong>No waiver.</strong> If we do not enforce a right, or delay
+              in doing so, we have not given that right up.
+            </>,
+            <>
+              <strong>Transfer.</strong> We may transfer our rights and
+              obligations under these terms to another organisation, for example
+              if the service is sold. You may not transfer yours without our
+              written agreement.
+            </>,
+            <>
+              <strong>No third-party rights.</strong> Nobody other than you and
+              us has any right to enforce these terms under the Contracts
+              (Rights of Third Parties) Act 1999.
+            </>,
+            <>
+              <strong>No partnership or agency.</strong> Nothing in these terms
+              makes either of us the partner, agent or employee of the other.
+            </>,
+            <>
+              <strong>Notices.</strong> We send notices to the email address
+              registered on your account. Send notices to us at the address in
+              section 21.
+            </>,
+          ]}
+        />
+      </LegalSection>
+
+      <LegalSection id="contact" title="21. Contact">
         <p>
-          These terms, and any dispute or claim arising out of them or the
-          service (including non-contractual disputes), are governed by the laws
-          of England and Wales, and the courts of England and Wales have
-          exclusive jurisdiction.
+          [LEGAL ENTITY NAME], [REGISTERED OFFICE ADDRESS]. Email: <Mail />. For
+          takedown requests use the subject <em>Takedown</em>. For account
+          deletion use the subject <em>Delete my account</em>.
         </p>
       </LegalSection>
     </LegalPage>

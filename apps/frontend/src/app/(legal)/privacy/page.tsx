@@ -54,10 +54,11 @@ export default function PrivacyPage() {
     >
       <LegalSection id="controller" title="1. Who we are">
         <p>
-          The data controller is Voholabs Ltd, a company registered in England
-          and Wales with company number [COMPANY NUMBER], whose registered
-          office is at [REGISTERED OFFICE ADDRESS]. We are registered with the
-          UK Information Commissioner&apos;s Office under number [ICO
+          The data controller is [LEGAL ENTITY NAME, shown on this site today as
+          Voholabs Ltd: confirm the exact registered name], a company registered
+          in England and Wales with company number [COMPANY NUMBER], whose
+          registered office is at [REGISTERED OFFICE ADDRESS]. We are registered
+          with the UK Information Commissioner&apos;s Office under number [ICO
           REGISTRATION NUMBER]. You can reach us about anything in this policy
           at{' '}
           <a className="underline" href="mailto:hello@voholabs.com">
@@ -69,7 +70,7 @@ export default function PrivacyPage() {
           We act as a data controller for your Voholabs Studio account data.
           Where the content you schedule, or the team members you add, include
           personal data about other people, you are the controller of that data
-          and we process it for you as a processor, on the terms in section 15
+          and we process it for you as a processor, on the terms in section 17
           of the{' '}
           <a className="underline" href="/terms#data">
             Terms of Service
@@ -393,12 +394,21 @@ export default function PrivacyPage() {
         <p>
           Voholabs Studio&apos;s free plan does not send your content to any AI
           provider. AI features are available only to customers of Apex, our
-          paid managed content service. If you are an Apex customer, your
-          content, brief and instructions are processed by the AI providers
-          described in the{' '}
+          paid managed content service. If you are an Apex customer and you use
+          an AI feature inside Studio, the text, images, brief and instructions
+          you give that feature are sent to the provider that runs it. At the
+          date of this policy those providers are OpenAI (writing, the agent and
+          image generation), fal.ai (image generation), Kie.ai (video
+          generation), ElevenLabs (voice), HeyGen (avatar video, only if you add
+          your own HeyGen key) and Tavily (web search for the agent), all in the
+          United States or reached through servers there. [OWNER: CONFIRM WHICH
+          OF THESE ARE SWITCHED ON IN PRODUCTION AND DELETE THE REST.] The rest
+          of Apex is described in the{' '}
           <Ext href="https://voholabs.com/privacy">Voholabs Privacy Policy</Ext>
-          , which governs Apex. We do not use your content or your platform data
-          to train AI models.
+          . We do not use your content or your platform data to train AI models,
+          and we do not send data obtained from Google, YouTube, Meta, TikTok,
+          LinkedIn or X to an AI provider except where you ask an AI feature to
+          work on it.
         </p>
       </LegalSection>
 
@@ -440,12 +450,14 @@ export default function PrivacyPage() {
             </>,
             <>
               <strong>Marketing email.</strong> Every marketing email we send
-              names Voholabs Ltd as the sender and has an unsubscribe link. If
-              you signed up with a personal email address, or you are a sole
-              trader or partnership, we send marketing email only where you have
-              agreed to it or where the law otherwise allows it, and you can opt
-              out at any time. [OWNER AND SOLICITOR: THIS SENTENCE NEEDS AN
-              OPT-IN OR OPT-OUT CONTROL ON THE ONBOARDING FORM TO BE TRUE.]
+              says who it is from and has an unsubscribe link. If your address
+              belongs to a company or other corporate body, we rely on the
+              legitimate interest described above, and you can opt out at any
+              time. If you signed up with a personal email address, or you are a
+              sole trader or an ordinary partnership, we send marketing email
+              only where you have agreed to it, and you can withdraw that
+              agreement at any time. [OWNER AND SOLICITOR: THIS SENTENCE NEEDS
+              AN OPT-IN OR OPT-OUT CONTROL ON THE ONBOARDING FORM TO BE TRUE.]
             </>,
             <>
               <strong>To send service and account messages:</strong> account
@@ -492,6 +504,10 @@ export default function PrivacyPage() {
               sign in with Google.
             </>,
             <>
+              <strong>AI providers</strong> (United States): only for Apex
+              customers who use an AI feature, as listed in section 7.
+            </>,
+            <>
               <strong>Stripe</strong>: payment for Apex, taken on voholabs.com.
             </>,
             <>
@@ -516,8 +532,11 @@ export default function PrivacyPage() {
           contracts. Voholabs Studio itself runs no advertising pixels and no
           third-party analytics trackers at the date of this policy. Our
           marketing site, voholabs.com, has its own{' '}
-          <Ext href="https://voholabs.com/privacy">privacy policy</Ext>. We will
-          update this list before we add or replace a provider.
+          <Ext href="https://voholabs.com/privacy">privacy policy</Ext>. If you
+          reach Studio from a link on voholabs.com, that site records the click
+          and its campaign tag in its own analytics tool, and passes the
+          campaign tag to Studio in the link. We will update this list before we
+          add or replace a provider.
         </p>
       </LegalSection>
 

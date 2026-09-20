@@ -1,16 +1,15 @@
 /**
- * The version of the Terms people are asked to agree to.
- *
- * Change it whenever /terms changes in a way people have to agree to again:
- * everybody whose stored version differs is asked once more the next time they
- * open the app.
+ * The version of the Terms people agree to when they sign up.
  */
 export const CURRENT_TERMS_VERSION = '2026-09-20';
 
+// People agree once, with the box on the sign-up form, and nobody is asked
+// again: no screen in place of the app, and no request refused. The screen and
+// the check in AuthMiddleware stay in the code and are driven by this.
 export const needsTerms = (
   user?: { termsVersion?: string | null } | null
 ) => {
-  return !!user && user.termsVersion !== CURRENT_TERMS_VERSION;
+  return false;
 };
 
 export const termsAcceptance = (ip?: string) => ({

@@ -48,8 +48,8 @@ export default function TermsPage() {
           an account, signing in, or using the service in any way, including
           through the API, a webhook, an MCP connection or an AI assistant, you
           agree to them. You confirm that by ticking the box when you sign up,
-          or on the screen we show when these terms change, and we keep a
-          record of the version you agreed to, when, and from which IP address.
+          and we keep a record of the version you agreed to, when, and from
+          which IP address.
           If you use the service for a company or other
           organisation, you agree to them on its behalf and confirm you are
           allowed to do so. If you do not agree, do not use the service.
@@ -709,9 +709,9 @@ export default function TermsPage() {
         <p>
           <strong>14.13 Why this is fair.</strong> We charge nothing for the
           service, and we could not offer it on that basis if we carried the
-          risks of your business. You were told this plainly, on the sign-up
-          screen or on the screen where you agreed to these terms, before you
-          could use the service. Most of these risks are in your hands: you can
+          risks of your business. You are told this plainly on the sign-up
+          screen, before you can create an account, and in the summary at the
+          top of these terms. Most of these risks are in your hands: you can
           check that posts went out, keep copies of your content, control who
           and what has access to your workspace and your social accounts, revoke
           our access at the platform at any time, use two-factor authentication,

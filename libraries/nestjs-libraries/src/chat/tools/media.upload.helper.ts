@@ -51,6 +51,15 @@ export const storeBufferAsMedia = async (params: {
     };
   }
 
+  try {
+    await mediaService.assertStorage(organizationId, buffer.length);
+  } catch (err) {
+    return {
+      error:
+        'The media library is full. Delete files that are no longer needed, or upgrade for more storage.',
+    };
+  }
+
   const safeBase =
     (fileName || 'upload')
       .replace(/\.[^./\\]*$/, '')
@@ -73,7 +82,9 @@ export const storeBufferAsMedia = async (params: {
   const saved = await mediaService.saveFile(
     organizationId,
     getFile.originalname,
-    getFile.path
+    getFile.path,
+    undefined,
+    buffer.length
   );
 
   return { id: saved.id, path: saved.path };

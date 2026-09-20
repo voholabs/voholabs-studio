@@ -15,9 +15,30 @@ const MEDIA_LOOKUP_SELECT = {
 export class MediaRepository {
   constructor(private _media: PrismaRepository<'media'>) {}
 
-  saveFile(org: string, fileName: string, filePath: string, originalName?: string) {
+  async getStorageUsed(org: string) {
+    const total = await this._media.model.media.aggregate({
+      where: {
+        organizationId: org,
+        deletedAt: null,
+      },
+      _sum: {
+        fileSize: true,
+      },
+    });
+
+    return Number(total._sum.fileSize || 0);
+  }
+
+  saveFile(
+    org: string,
+    fileName: string,
+    filePath: string,
+    originalName?: string,
+    fileSize?: number
+  ) {
     return this._media.model.media.create({
       data: {
+        fileSize: Math.round(fileSize || 0),
         organization: {
           connect: {
             id: org,

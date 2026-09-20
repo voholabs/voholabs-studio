@@ -8,6 +8,8 @@ import { SaveMediaInformationDto } from '@gitroom/nestjs-libraries/dtos/media/sa
 import { VideoManager } from '@gitroom/nestjs-libraries/videos/video.manager';
 import { VideoDto } from '@gitroom/nestjs-libraries/dtos/videos/video.dto';
 import { UploadFactory } from '@gitroom/nestjs-libraries/upload/upload.factory';
+import { pricing } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/pricing';
+import { planOf } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 import {
   AuthorizationActions,
   Sections,
@@ -65,8 +67,40 @@ export class MediaService {
     }
   }
 
-  saveFile(org: string, fileName: string, filePath: string, originalName?: string) {
-    return this._mediaRepository.saveFile(org, fileName, filePath, originalName);
+  saveFile(
+    org: string,
+    fileName: string,
+    filePath: string,
+    originalName?: string,
+    fileSize?: number
+  ) {
+    return this._mediaRepository.saveFile(
+      org,
+      fileName,
+      filePath,
+      originalName,
+      fileSize
+    );
+  }
+
+  // Bytes the organization may still upload. The usage is the sum of what is
+  // in its media library, so there is no counter to keep in step. Files saved
+  // before sizes were recorded count as zero.
+  async storageLeft(org: string) {
+    const subscription =
+      await this._subscriptionService.getSubscriptionByOrganizationId(org);
+    const limit = pricing[planOf(subscription)].storage_mb * 1024 * 1024;
+
+    return limit - (await this._mediaRepository.getStorageUsed(org));
+  }
+
+  // Call before the bytes go to storage, so a refused file is never stored.
+  async assertStorage(org: string, incomingBytes: number) {
+    if ((incomingBytes || 0) > (await this.storageLeft(org))) {
+      const message =
+        'Your media library is full. Delete files you no longer need, or upgrade for more storage.';
+      throw new HttpException({ msg: message, message }, 413);
+    }
   }
 
   getMedia(org: string, page: number, search?: string) {

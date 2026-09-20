@@ -3,7 +3,10 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { Injectable } from '@nestjs/common';
 import { MediaMeterService } from '@gitroom/nestjs-libraries/database/prisma/media-meter/media-meter.service';
-import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
+import {
+  checkAuth,
+  paidOnly,
+} from '@gitroom/nestjs-libraries/chat/auth.context';
 import {
   MEDIA_MCP_NOT_CONFIGURED,
   MEDIA_MCP_UNAVAILABLE,
@@ -57,6 +60,12 @@ export class MediaMcpListTool implements AgentToolInterface {
       }),
       execute: async (inputData, context) => {
         checkAuth(inputData, context);
+        // Before the key is resolved: resolving mints a metered key, and a
+        // free organization must not get one.
+        const blocked = paidOnly(context, 'AI media generation');
+        if (blocked) {
+          return { output: blocked };
+        }
         const organizationId = organizationIdFromContext(context);
 
         const resolution =

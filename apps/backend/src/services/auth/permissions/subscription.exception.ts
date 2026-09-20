@@ -5,7 +5,10 @@ import {
   HttpException,
 } from '@nestjs/common';
 import { AuthorizationActions, Sections, SubscriptionException } from '@gitroom/backend/services/auth/permissions/permission.exception.class';
-import { trialExpiredMessage } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
+import {
+  paidFeatureMessage,
+  trialExpiredMessage,
+} from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 
 @Catch(SubscriptionException)
 export class SubscriptionExceptionFilter implements ExceptionFilter {
@@ -23,12 +26,17 @@ export class SubscriptionExceptionFilter implements ExceptionFilter {
     // the regular "move to billing" dialog.
     const isTrial = error.section === Sections.TRIAL;
 
+    // Onboarding was never finished. The app root is where the form shows, so
+    // that is where the browser goes.
+    const isOnboarding = error.section === Sections.ONBOARDING;
+
     response.status(status).json({
       statusCode: status,
       message,
       url:
-        process.env.FRONTEND_URL + (isTrial ? '/trial-ended' : '/billing'),
-      ...(isTrial ? { redirect: true } : {}),
+        process.env.FRONTEND_URL +
+        (isOnboarding ? '/launches' : isTrial ? '/trial-ended' : '/billing'),
+      ...(isTrial || isOnboarding ? { redirect: true } : {}),
     });
   }
 }
@@ -40,6 +48,10 @@ const getErrorMessage = (error: {
   switch (error.section) {
     case Sections.TRIAL:
       return trialExpiredMessage();
+    case Sections.ONBOARDING:
+      return 'Please finish setting up your account first.';
+    case Sections.AI:
+      return paidFeatureMessage('AI');
     case Sections.POSTS_PER_MONTH:
       switch (error.action) {
         default:

@@ -117,6 +117,13 @@ model User {
   lastOnline            DateTime             @default(now())
   ip                    String?
   agent                 String?
+  // Mandatory onboarding. `onboardedAt` is the gate, the rest is the lead.
+  jobRole               String?
+  website               String?
+  heardFrom             String?
+  useCase               String?
+  attribution           String?
+  onboardedAt           DateTime?
   comments              Comments[]
   items                 ItemUser[]
   groupBuyer            MessagesGroup[]      @relation("groupBuyer")

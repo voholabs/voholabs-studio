@@ -11,6 +11,8 @@ import { JSDOM } from 'jsdom';
 import { z } from 'zod';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { PostsService } from '@gitroom/nestjs-libraries/database/prisma/posts/posts.service';
+import { SubscriptionService } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/subscription.service';
+import { hasAccess } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 import Parser from 'rss-parser';
 import { IntegrationService } from '@gitroom/nestjs-libraries/database/prisma/integrations/integration.service';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
@@ -64,7 +66,8 @@ export class AutopostService {
     private _autopostsRepository: AutopostRepository,
     private _temporalService: TemporalService,
     private _integrationService: IntegrationService,
-    private _postsService: PostsService
+    private _postsService: PostsService,
+    private _subscriptionService: SubscriptionService
   ) {}
 
   async stopAll(org: string) {
@@ -313,6 +316,17 @@ export class AutopostService {
   async startAutopost(id: string) {
     const getPost = await this._autopostsRepository.getAutopost(id);
     if (!getPost || !getPost.active) {
+      return;
+    }
+
+    // Auto post writes with AI on every feed item, so it is not part of the
+    // free plan. One set up during the trial stays in place and simply does
+    // nothing until the organization is back on a paid plan.
+    const subscription =
+      await this._subscriptionService.getSubscriptionByOrganizationId(
+        getPost.organizationId
+      );
+    if (!hasAccess({ subscription })) {
       return;
     }
 

@@ -89,11 +89,14 @@ export class PublicIntegrationsController {
       throw new HttpException({ msg: 'No file provided' }, 400);
     }
 
+    await this._mediaService.assertStorage(org.id, file.size);
     const getFile = await this.storage.uploadFile(file);
     return this._mediaService.saveFile(
       org.id,
       getFile.originalname,
-      getFile.path
+      getFile.path,
+      undefined,
+      file.size
     );
   }
 
@@ -138,6 +141,8 @@ export class PublicIntegrationsController {
       throw new HttpException({ msg: 'File is too large.' }, 400);
     }
 
+    await this._mediaService.assertStorage(org.id, buffer.length);
+
     const mimetype = detected.mime;
     const ext = detected.ext;
 
@@ -157,7 +162,9 @@ export class PublicIntegrationsController {
     return this._mediaService.saveFile(
       org.id,
       getFile.originalname,
-      getFile.path
+      getFile.path,
+      undefined,
+      buffer.length
     );
   }
 

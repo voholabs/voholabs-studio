@@ -15,6 +15,8 @@ export interface PricingInnerInterface {
   public_api: boolean;
   webhooks: number;
   autoPost: boolean;
+  // Hard cap on everything an organization keeps in the media library.
+  storage_mb: number;
 }
 export interface PricingInterface {
   [key: string]: PricingInnerInterface;
@@ -24,19 +26,24 @@ export const pricing: PricingInterface = {
     current: 'FREE',
     month_price: 0,
     year_price: 0,
-    channel: 0,
+    // The free plan is the scheduler, without limits. What it leaves out is
+    // everything that costs money per use.
+    channel: 1000000,
     image_generation_count: 0,
-    posts_per_month: 0,
-    team_members: false,
+    posts_per_month: 1000000,
+    team_members: true,
     community_features: false,
     featured_by_gitroom: false,
     ai: false,
     import_from_channels: false,
     image_generator: false,
-    public_api: false,
-    webhooks: 0,
+    // The scheduling API and the MCP are part of the free plan.
+    public_api: true,
+    // Webhooks only. Auto post shares this counter but asks for AI as well.
+    webhooks: 30,
     autoPost: false,
     generate_videos: 0,
+    storage_mb: 2048,
   },
   STANDARD: {
     current: 'STANDARD',
@@ -55,6 +62,7 @@ export const pricing: PricingInterface = {
     webhooks: 2,
     autoPost: false,
     generate_videos: 3,
+    storage_mb: 10240,
   },
   TEAM: {
     current: 'TEAM',
@@ -73,6 +81,7 @@ export const pricing: PricingInterface = {
     webhooks: 10,
     autoPost: true,
     generate_videos: 10,
+    storage_mb: 25600,
   },
   PRO: {
     current: 'PRO',
@@ -91,6 +100,7 @@ export const pricing: PricingInterface = {
     webhooks: 30,
     autoPost: true,
     generate_videos: 30,
+    storage_mb: 51200,
   },
   ULTIMATE: {
     current: 'ULTIMATE',
@@ -109,5 +119,6 @@ export const pricing: PricingInterface = {
     webhooks: 10000,
     autoPost: true,
     generate_videos: 60,
+    storage_mb: 102400,
   },
 };

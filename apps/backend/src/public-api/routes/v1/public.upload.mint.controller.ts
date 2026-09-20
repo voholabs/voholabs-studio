@@ -3,11 +3,6 @@ import { ApiTags } from '@nestjs/swagger';
 import { Organization } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { GetOrgFromRequest } from '@gitroom/nestjs-libraries/user/org.from.request';
-import { CheckPolicies } from '@gitroom/backend/services/auth/permissions/permissions.ability';
-import {
-  AuthorizationActions,
-  Sections,
-} from '@gitroom/backend/services/auth/permissions/permission.exception.class';
 import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
 import {
   UPLOAD_TICKET_TTL_SECONDS,
@@ -28,8 +23,9 @@ import {
  * single-use burn, same organization scoping.
  */
 @ApiTags('Public API')
+// Uploading is part of scheduling, so the free plan keeps it. The storage cap
+// is what bounds it.
 @Controller('/public/v1')
-@CheckPolicies([AuthorizationActions.Create, Sections.AI])
 export class PublicUploadMintController {
   @Post('/upload-ticket')
   async mint(@GetOrgFromRequest() org: Organization) {

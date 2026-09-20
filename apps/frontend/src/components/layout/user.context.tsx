@@ -20,6 +20,7 @@ export const UserContext = createContext<
       isTrailing: boolean;
       // End of the free trial, `null` when whitelisted forever
       trialEndsAt: string | null;
+      needsOnboarding: boolean;
       streakSince: string | null;
     })
 >(undefined);

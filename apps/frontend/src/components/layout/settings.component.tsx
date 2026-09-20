@@ -98,16 +98,15 @@ export const SettingsPopup: FC<{
     if (user?.tier?.autoPost) {
       arr.push({ tab: 'autopost', label: t('auto_post', 'Auto Post') });
     }
-    if (user?.tier.current !== 'FREE') {
-      arr.push({ tab: 'sets', label: t('sets', 'Sets') });
-    }
-    if (user?.tier.current !== 'FREE') {
-      arr.push({ tab: 'signatures', label: t('signatures', 'Signatures') });
-    }
+    arr.push({ tab: 'sets', label: t('sets', 'Sets') });
+    arr.push({ tab: 'signatures', label: t('signatures', 'Signatures') });
     if (user?.tier?.public_api && isGeneral && showLogout) {
       arr.push({ tab: 'api', label: t('connect_agent', 'Connect Agent') });
     }
-    arr.push({ tab: 'usage', label: t('usage', 'Usage') });
+    // AI media credits, which the free plan has none of.
+    if (user?.tier?.ai) {
+      arr.push({ tab: 'usage', label: t('usage', 'Usage') });
+    }
     arr.push({ tab: 'approved_apps', label: t('approved_apps', 'Approved Apps') });
 
     return arr;
@@ -185,13 +184,13 @@ export const SettingsPopup: FC<{
                 </div>
               )}
 
-              {tab === 'sets' && user?.tier.current !== 'FREE' && (
+              {tab === 'sets' && (
                 <div>
                   <Sets />
                 </div>
               )}
 
-              {tab === 'signatures' && user?.tier.current !== 'FREE' && (
+              {tab === 'signatures' && (
                 <div>
                   <SignaturesComponent />
                 </div>
@@ -206,7 +205,7 @@ export const SettingsPopup: FC<{
                   </div>
                 )}
 
-              {tab === 'usage' && (
+              {tab === 'usage' && !!user?.tier?.ai && (
                 <div>
                   <UsageComponent />
                 </div>
@@ -227,8 +226,11 @@ export const SettingsPopup: FC<{
 export const SettingsComponent = () => {
   const settings = useModals();
   const user = useUser();
+  const { billingEnabled } = useVariables();
   const openModal = useCallback(() => {
-    if (user?.tier.current !== 'FREE') {
+    // The popup is for the billing wall, where there is no app to open the
+    // settings page in. The free plan has the app, so it uses the page.
+    if (user?.tier.current !== 'FREE' || !billingEnabled) {
       return;
     }
     settings.openModal({

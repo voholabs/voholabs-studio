@@ -115,6 +115,11 @@ export class AuthMiddleware implements NestMiddleware {
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-expect-error
       req.org = setOrg;
+
+      // Decided here, where every organization of the user is at hand, and
+      // carried on the user so /user/self reports the very same answer.
+      // @ts-ignore
+      user.needsOnboarding = needsOnboarding(user, organization);
     } catch (err) {
       throw new HttpForbiddenException();
     }
@@ -126,7 +131,7 @@ export class AuthMiddleware implements NestMiddleware {
     const path = req.originalUrl.split('?')[0];
     if (
       // @ts-ignore
-      needsOnboarding(req.user, req.org) &&
+      req.user?.needsOnboarding &&
       !onboardingOpenPaths.some((open) => path.endsWith(open))
     ) {
       throw new SubscriptionException({

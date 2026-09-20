@@ -24,7 +24,6 @@ import { ApiTags } from '@nestjs/swagger';
 import { UsersService } from '@gitroom/nestjs-libraries/database/prisma/users/users.service';
 import { UserDetailDto } from '@gitroom/nestjs-libraries/dtos/users/user.details.dto';
 import { OnboardingDto } from '@gitroom/nestjs-libraries/dtos/users/onboarding.dto';
-import { needsOnboarding } from '@gitroom/nestjs-libraries/database/prisma/users/onboarding';
 import { EmailNotificationsDto } from '@gitroom/nestjs-libraries/dtos/users/email-notifications.dto';
 import { HttpForbiddenException } from '@gitroom/nestjs-libraries/services/exception.filter';
 import { RealIP } from 'nestjs-real-ip';
@@ -146,7 +145,8 @@ export class UsersController {
       // anywhere that their access is about to run out.
       trialEndsAt: trialEndsAt(org),
       // The app is replaced by the onboarding form until this is false.
-      needsOnboarding: needsOnboarding(user, org),
+      // @ts-ignore
+      needsOnboarding: !!user.needsOnboarding,
       // @ts-ignore
       role: organization?.users[0]?.role,
       // @ts-ignore
@@ -161,7 +161,8 @@ export class UsersController {
       publicApi:
         // The key opens the API and the MCP, neither of which knows about
         // onboarding, so it stays hidden until the form is done.
-        !needsOnboarding(user, org) &&
+        // @ts-ignore
+        !user.needsOnboarding &&
         // @ts-ignore
         (organization?.users[0]?.role === 'SUPERADMIN' ||
           // @ts-ignore

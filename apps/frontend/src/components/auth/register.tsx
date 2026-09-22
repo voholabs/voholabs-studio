@@ -252,11 +252,7 @@ export function RegisterAfter({
                   >
                     {t('privacy_policy', 'Privacy Policy')}
                   </a>
-                  .&nbsp;
-                  {t(
-                    'terms_short_risk_line',
-                    'The service is free, provided as is, and used entirely at your own risk. We are not liable for anything that happens as a result of using it, including a leaked, hacked, restricted or banned account.'
-                  )}
+                  .
                   {!!form.formState.errors.termsAccepted && (
                     <div className="text-red-400 mt-[4px]">
                       {form.formState.errors.termsAccepted.message}

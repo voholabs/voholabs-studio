@@ -24,7 +24,7 @@ export const contactConsent = (ip?: string) => ({
 });
 
 export const contactConsentRequiredMessage = () =>
-  'Please agree that Voholabs may contact you to create an account';
+  'Please agree to receive emails from Voholabs to create an account';
 
 export const termsRequiredMessage = () =>
   'Please agree to the Terms of Service and Privacy Policy to create an account';

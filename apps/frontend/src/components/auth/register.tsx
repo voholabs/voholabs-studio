@@ -131,7 +131,7 @@ export function RegisterAfter({
       form.setError('contactConsent', {
         message: t(
           'please_agree_to_be_contacted',
-          'Please agree that Voholabs may contact you to continue'
+          'Please tick this box to continue'
         ),
       });
       return;
@@ -277,7 +277,7 @@ export function RegisterAfter({
                 <div className="flex-1 pt-[3px]">
                   {t(
                     'i_agree_to_be_contacted',
-                    'I agree that Voholabs may contact me about my account and Voholabs Studio.'
+                    'Email me news, tips and offers from Voholabs. Unsubscribe anytime.'
                   )}
                   {!!form.formState.errors.contactConsent && (
                     <div className="text-red-400 mt-[4px]">

@@ -18,6 +18,14 @@ export const termsAcceptance = (ip?: string) => ({
   termsAcceptedIp: ip || null,
 });
 
+export const contactConsent = (ip?: string) => ({
+  contactConsentAt: new Date(),
+  contactConsentIp: ip || null,
+});
+
+export const contactConsentRequiredMessage = () =>
+  'Please agree that Voholabs may contact you to create an account';
+
 export const termsRequiredMessage = () =>
   'Please agree to the Terms of Service and Privacy Policy to create an account';
 

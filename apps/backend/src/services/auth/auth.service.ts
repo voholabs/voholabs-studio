@@ -6,6 +6,7 @@ import {
 import { Provider, User } from '@prisma/client';
 import {
   termsRequiredMessage,
+  contactConsentRequiredMessage,
 } from '@gitroom/nestjs-libraries/database/prisma/users/terms';
 import { CreateOrgUserDto } from '@gitroom/nestjs-libraries/dtos/auth/create.org.user.dto';
 import { LoginUserDto } from '@gitroom/nestjs-libraries/dtos/auth/login.user.dto';
@@ -71,6 +72,10 @@ export class AuthService {
 
         if (!body.termsAccepted) {
           throw new Error(termsRequiredMessage());
+        }
+
+        if (!body.contactConsent) {
+          throw new Error(contactConsentRequiredMessage());
         }
 
         const create = await this._organizationService.createOrgAndUser(
@@ -182,6 +187,10 @@ export class AuthService {
       throw new Error(termsRequiredMessage());
     }
 
+    if (!body.contactConsent) {
+      throw new Error(contactConsentRequiredMessage());
+    }
+
     const create = await this._organizationService.createOrgAndUser(
       {
         company: body.company,
@@ -191,6 +200,7 @@ export class AuthService {
         providerId: providerUser.id,
         datafast_visitor_id: body.datafast_visitor_id,
         termsAccepted: body.termsAccepted,
+        contactConsent: body.contactConsent,
       },
       ip,
       userAgent

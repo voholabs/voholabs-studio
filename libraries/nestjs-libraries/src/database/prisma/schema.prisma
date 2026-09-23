@@ -146,6 +146,9 @@ model User {
   // Every time they agreed. The three fields above are the latest one; these
   // rows are append-only.
   termsAcceptances      TermsAcceptance[]
+  // The second box on the sign-up form: they agreed that we may contact them.
+  contactConsentAt      DateTime?
+  contactConsentIp      String?
   comments              Comments[]
   items                 ItemUser[]
   groupBuyer            MessagesGroup[]      @relation("groupBuyer")

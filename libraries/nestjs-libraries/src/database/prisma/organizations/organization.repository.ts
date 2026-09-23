@@ -2,6 +2,7 @@ import { PrismaRepository } from '@gitroom/nestjs-libraries/database/prisma/pris
 import {
   termsAcceptance,
   termsAcceptanceLog,
+  contactConsent,
 } from '@gitroom/nestjs-libraries/database/prisma/users/terms';
 import { Role, ShortLinkPreference, SubscriptionTier } from '@prisma/client';
 import { Injectable } from '@nestjs/common';
@@ -315,6 +316,7 @@ export class OrganizationRepository {
                       ...termsAcceptanceLog('signup', ip, userAgent),
                     }
                   : {}),
+                ...(body.contactConsent ? contactConsent(ip) : {}),
               },
             },
           },

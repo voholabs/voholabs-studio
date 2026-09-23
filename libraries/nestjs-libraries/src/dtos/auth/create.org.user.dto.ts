@@ -46,4 +46,9 @@ export class CreateOrgUserDto {
   @IsOptional()
   @IsBoolean()
   termsAccepted?: boolean;
+
+  // The second box: they agree that we may contact them. Same rules as above.
+  @IsOptional()
+  @IsBoolean()
+  contactConsent?: boolean;
 }

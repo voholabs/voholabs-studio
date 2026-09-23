@@ -38,6 +38,7 @@ type Inputs = {
   providerToken: string;
   provider: string;
   termsAccepted: boolean;
+  contactConsent: boolean;
 };
 export function Register() {
   const getQuery = useSearchParams();
@@ -110,6 +111,7 @@ export function RegisterAfter({
       providerToken: token,
       provider: provider,
       termsAccepted: false,
+      contactConsent: false,
     },
   });
   const fetchData = useFetch();
@@ -120,6 +122,16 @@ export function RegisterAfter({
         message: t(
           'please_agree_to_the_terms',
           'Please agree to the Terms of Service and Privacy Policy to continue'
+        ),
+      });
+      return;
+    }
+
+    if (!data.contactConsent) {
+      form.setError('contactConsent', {
+        message: t(
+          'please_agree_to_be_contacted',
+          'Please tick this box to continue'
         ),
       });
       return;
@@ -256,6 +268,20 @@ export function RegisterAfter({
                   {!!form.formState.errors.termsAccepted && (
                     <div className="text-red-400 mt-[4px]">
                       {form.formState.errors.termsAccepted.message}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex gap-[10px] items-start text-[14px]">
+                <Checkbox name="contactConsent" variant="hollow" />
+                <div className="flex-1 pt-[3px]">
+                  {t(
+                    'i_agree_to_be_contacted',
+                    'Email me news, tips and offers from Voholabs. Unsubscribe anytime.'
+                  )}
+                  {!!form.formState.errors.contactConsent && (
+                    <div className="text-red-400 mt-[4px]">
+                      {form.formState.errors.contactConsent.message}
                     </div>
                   )}
                 </div>

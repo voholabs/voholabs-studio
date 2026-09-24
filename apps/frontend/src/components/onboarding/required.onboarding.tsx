@@ -16,6 +16,7 @@ import {
   onboardingUseCases,
 } from '@gitroom/nestjs-libraries/dtos/users/onboarding.dto';
 import { isWorkEmail } from '@gitroom/nestjs-libraries/services/work.email';
+import { stripSensitiveParams } from '@gitroom/helpers/utils/utm.saver';
 
 type Inputs = {
   name: string;
@@ -33,8 +34,10 @@ const readAttribution = () => {
   try {
     return JSON.stringify({
       utm: JSON.parse(localStorage.getItem('utm') || '""') || '',
-      landingUrl: localStorage.getItem('landingUrl') || '',
-      referrer: localStorage.getItem('referrer') || '',
+      landingUrl: stripSensitiveParams(
+        localStorage.getItem('landingUrl') || ''
+      ),
+      referrer: stripSensitiveParams(localStorage.getItem('referrer') || ''),
     }).slice(0, 2000);
   } catch (err) {
     return '';

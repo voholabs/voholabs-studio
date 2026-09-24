@@ -48,7 +48,7 @@ export async function digestEmailWorkflow({
         (email) =>
           email.type === allowFailure ||
           email.type === allowSuccess ||
-          email.type === 'info'
+          (email.type === 'info' && allowFailure)
       );
 
       if (toSend.length === 0) continue;

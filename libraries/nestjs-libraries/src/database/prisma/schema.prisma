@@ -159,9 +159,9 @@ model User {
   agencies              SocialMediaAgency?
   picture               Media?               @relation(fields: [pictureId], references: [id])
   organizations         UserOrganization[]
-  sendSuccessEmails     Boolean              @default(true)
-  sendFailureEmails     Boolean              @default(true)
-  sendStreakEmails      Boolean              @default(true)
+  sendSuccessEmails     Boolean              @default(false)
+  sendFailureEmails     Boolean              @default(false)
+  sendStreakEmails      Boolean              @default(false)
   oauthAuthorizations   OAuthAuthorization[]
 
   @@unique([email, providerName])

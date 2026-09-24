@@ -37,9 +37,9 @@ const EmailNotificationsComponent = () => {
   const { data, isLoading } = useEmailNotifications();
 
   const [localSettings, setLocalSettings] = useState<EmailNotifications>({
-    sendSuccessEmails: true,
-    sendFailureEmails: true,
-    sendStreakEmails: true,
+    sendSuccessEmails: false,
+    sendFailureEmails: false,
+    sendStreakEmails: false,
   });
 
   // Keep a ref to always have the latest state

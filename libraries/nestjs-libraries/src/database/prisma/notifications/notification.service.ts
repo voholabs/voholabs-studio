@@ -93,15 +93,13 @@ export class NotificationService {
   ) {
     const userOrg = await this._organizationRepository.getAllUsersOrgs(orgId);
     for (const user of userOrg?.users || []) {
-      // 'info' type is always sent regardless of preferences
-      if (type !== 'info') {
-        // Filter users based on their email preferences
-        if (type === 'success' && !user.user.sendSuccessEmails) {
-          continue;
-        }
-        if (type === 'fail' && !user.user.sendFailureEmails) {
-          continue;
-        }
+      // Every notification email is opt-in. 'info' (channel problems) rides on
+      // the failure switch so a user who turned emails off gets nothing.
+      if (type === 'success' && !user.user.sendSuccessEmails) {
+        continue;
+      }
+      if (type !== 'success' && !user.user.sendFailureEmails) {
+        continue;
       }
       await this.sendEmail(user.user.email, subject, message);
     }

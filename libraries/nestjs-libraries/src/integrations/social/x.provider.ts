@@ -10,7 +10,10 @@ import {
 import { lookup } from 'mime-types';
 import sharp from 'sharp';
 import { readOrFetch } from '@gitroom/helpers/utils/read.or.fetch';
-import { SocialAbstract } from '@gitroom/nestjs-libraries/integrations/social.abstract';
+import {
+  BadBody,
+  SocialAbstract,
+} from '@gitroom/nestjs-libraries/integrations/social.abstract';
 import { Plug } from '@gitroom/helpers/decorators/plug.decorator';
 import { Integration } from '@prisma/client';
 import { timer } from '@gitroom/helpers/utils/timer';
@@ -22,6 +25,39 @@ import { stripLinks as removeLinks } from '@gitroom/helpers/utils/strip.links';
 import { XDto } from '@gitroom/nestjs-libraries/dtos/posts/providers-settings/x.dto';
 import { Rules } from '@gitroom/nestjs-libraries/chat/rules.description.decorator';
 import { hasExtension } from '@gitroom/helpers/utils/has.extension';
+import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
+
+// Every X call is billed to our API keys. These daily caps per X account sit
+// far above what a person posts or reads, so they only stop scripted loops.
+// Override with env; 0 turns a cap off.
+const X_DAILY_CAPS = {
+  post: Number(process.env.X_DAILY_POST_CAP ?? 100),
+  analytics: Number(process.env.X_DAILY_ANALYTICS_CAP ?? 50),
+  postAnalytics: Number(process.env.X_DAILY_POST_ANALYTICS_CAP ?? 300),
+};
+
+// Counts one call against today's cap (UTC). Fails open: a Redis problem must
+// never stop a real post.
+const withinXDailyCap = async (
+  kind: keyof typeof X_DAILY_CAPS,
+  account: string
+) => {
+  const cap = X_DAILY_CAPS[kind];
+  if (!cap || typeof ioRedis.incr !== 'function') {
+    return true;
+  }
+
+  try {
+    const key = `x-cap:${kind}:${account}:${dayjs().format('YYYY-MM-DD')}`;
+    const count = await ioRedis.incr(key);
+    if (count === 1) {
+      await ioRedis.expire(key, 60 * 60 * 48);
+    }
+    return count <= cap;
+  } catch (err) {
+    return true;
+  }
+};
 
 @Rules(
   `X can have maximum 4 pictures, or maximum one video, it can also be without attachments ${
@@ -481,6 +517,17 @@ export class XProvider extends SocialAbstract implements SocialProvider {
     }, {} as Record<string, string[]>);
   }
 
+  private async checkPostCap(integration: Integration) {
+    if (!(await withinXDailyCap('post', integration.id))) {
+      throw new BadBody(
+        this.identifier,
+        '{}',
+        '',
+        `This X account reached its daily limit of ${X_DAILY_CAPS.post} posts. It will post again tomorrow (UTC).`
+      );
+    }
+  }
+
   async post(
     id: string,
     accessToken: string,
@@ -499,6 +546,7 @@ export class XProvider extends SocialAbstract implements SocialProvider {
     }>[],
     integration: Integration
   ): Promise<PostResponse[]> {
+    await this.checkPostCap(integration);
     const [accessTokenSplit, accessSecretSplit] = accessToken.split(':');
     const client = await this.getClient(accessToken);
 
@@ -572,6 +620,7 @@ export class XProvider extends SocialAbstract implements SocialProvider {
     }>[],
     integration: Integration
   ): Promise<PostResponse[]> {
+    await this.checkPostCap(integration);
     const [accessTokenSplit, accessSecretSplit] = accessToken.split(':');
     const client = await this.getClient(accessToken);
     const [commentPost] = postDetails;
@@ -666,6 +715,10 @@ export class XProvider extends SocialAbstract implements SocialProvider {
       return [];
     }
 
+    if (!(await withinXDailyCap('analytics', id))) {
+      return [];
+    }
+
     const until = dayjs().endOf('day');
     const since = dayjs().subtract(date > 100 ? 100 : date, 'day');
 
@@ -754,6 +807,10 @@ export class XProvider extends SocialAbstract implements SocialProvider {
     date: number
   ): Promise<AnalyticsData[]> {
     if (process.env.DISABLE_X_ANALYTICS) {
+      return [];
+    }
+
+    if (!(await withinXDailyCap('postAnalytics', integrationId))) {
       return [];
     }
 

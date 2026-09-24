@@ -50,7 +50,7 @@ export function ForgotReturn({ token }: { token: string }) {
   };
   return (
     <FormProvider {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)}>
+      <form method="post" onSubmit={form.handleSubmit(onSubmit)}>
         <div>
           <h1 className="text-3xl font-bold text-start mb-4 cursor-pointer">
             {t('forgot_password_1', 'Forgot Password')}

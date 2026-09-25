@@ -1,6 +1,7 @@
-// Email and password signups have to use a work address: the free plan is
-// traded for a lead, and a personal or throwaway inbox is not one. Signing in
-// with Google is not checked, a Gmail account is fine there.
+// New accounts have to use a work address, whether they sign up with a
+// password or with Google: the free plan is traded for a lead, and a personal
+// or throwaway inbox is not one. Accounts that already exist keep signing in,
+// and somebody accepting a team invitation is never checked.
 //
 // Both lists are the common cases, not every domain that exists. A throwaway
 // domain that is missing still has to pass email activation before it gets in.
@@ -161,11 +162,5 @@ export const isPersonalEmail = (email: string) => {
 export const isWorkEmail = (email: string) =>
   !!domainOf(email) && !isDisposableEmail(email) && !isPersonalEmail(email);
 
-// Google sign-in is the way in for a personal address, so say so when the
-// install has it (it shares the YouTube client, and the generic provider
-// replaces its button when that one is configured).
 export const workEmailMessage = () =>
-  'Please use your work email to sign up with a password.' +
-  (process.env.YOUTUBE_CLIENT_ID && !process.env.POSTIZ_GENERIC_OAUTH
-    ? ' With a personal address, use "Continue with Google" above instead.'
-    : '');
+  "Voholabs Studio needs a work email. Personal addresses like Gmail, Outlook or Yahoo can't be used to sign up.";

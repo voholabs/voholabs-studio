@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useCallback, FC, ReactNode } from 'react';
-import { useSWRConfig } from 'swr';
+import { useState, useCallback, useMemo, FC, ReactNode } from 'react';
+import useSWR, { useSWRConfig } from 'swr';
 import { useUser } from '../layout/user.context';
 import copy from 'copy-to-clipboard';
 import { useToaster } from '@gitroom/react/toaster/toaster';
@@ -10,29 +10,92 @@ import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { useDecisionModal } from '@gitroom/frontend/components/layout/new-modal';
 import { DeveloperComponent } from '@gitroom/frontend/components/developer/developer.component';
+import { McpClientIcon } from '@gitroom/frontend/components/public-api/mcp.client.icons';
 import clsx from 'clsx';
 
-const mcpClients = [
+// Remote clients can't set headers, they get a URL to paste (hint = where)
+export const remoteMcpClients = {
+  Claude:
+    'In Claude go to Settings > Connectors > Add custom connector and paste this URL.',
+  ChatGPT:
+    'In ChatGPT go to Settings > Connectors > Create and paste this URL.',
+} as const;
+
+// Upstream's one-click connectors listed in the assistants' directories. They
+// point at the hosted Postiz MCP server, not this instance, so the Connect
+// screen below never links to them. Kept exported for shared imports.
+export const mcpConnectorUrls = {
+  Claude: 'https://claude.ai/directory/postiz',
+  ChatGPT:
+    'https://chatgpt.com/plugins/plugin_asdk_app_6aaaf1a529808191a2a15fde824bb013',
+  Cursor: 'https://cursor.com/marketplace/postiz',
+  'Grok Bot': 'https://x.ai/bot/plugin/58737848',
+} as const;
+
+// Clients with no MCP or CLI settings: you paste instructions into the chat,
+// the agent installs the CLI itself and asks you for the API key
+export const chatOnlyMcpClients = {
+  'Grok Bot':
+    'Install the Voholabs Studio CLI with `npm install -g github:voholabs/voholabs-studio-cli`, then install the Voholabs skill with `npx skills add voholabs/voholabs-studio-cli`. Ask me for my Voholabs Studio API key and set it as the VOHOLABS_API_KEY environment variable before using the CLI.',
+} as const;
+
+export const mcpClients = [
+  'OpenClaw',
+  'Hermes',
+  'NanoClaw',
   'Claude Code',
   'Cursor',
+  'Codex',
   'VS Code / Copilot',
   'Windsurf',
   'Amp',
-  'Codex',
   'Gemini CLI',
   'Warp',
 ] as const;
 
-type McpClient = (typeof mcpClients)[number];
+export type RemoteMcpClient = keyof typeof remoteMcpClients;
+export type ChatOnlyMcpClient = keyof typeof chatOnlyMcpClients;
+export type McpClient = (typeof mcpClients)[number];
+export type AnyMcpClient = RemoteMcpClient | ChatOnlyMcpClient | McpClient;
 
-// Coding agents read the key from an Authorization header, so they all point at
-// the plain /mcp endpoint. Chat apps (Claude, ChatGPT) cannot set headers, so
-// they use the /mcp/<key> form instead — see connectorUrl below.
-const getMcpConfig = (
-  client: McpClient,
+// oauth: no API key, the client registers itself (DCR) and the user signs in to Voholabs Studio
+// apikey: the organization API key, as a Bearer header (or inside the URL for remote clients)
+export type McpAuth = 'oauth' | 'apikey';
+
+export const getMcpOauthUrl = (mcpBase: string) =>
+  `${mcpBase}/mcp-oauth-dynamic`;
+
+export const isRemoteMcpClient = (client: string): client is RemoteMcpClient =>
+  client in remoteMcpClients;
+
+export const isChatOnlyMcpClient = (
+  client: string
+): client is ChatOnlyMcpClient => client in chatOnlyMcpClients;
+
+export const getMcpConfig = (
+  client: AnyMcpClient,
+  auth: McpAuth,
   mcpBase: string,
   apiKey: string
 ): { config: string; hint: string } => {
+  if (isChatOnlyMcpClient(client)) {
+    return {
+      config: chatOnlyMcpClients[client],
+      hint: 'Paste this into the chat. The agent will ask you for your API key.',
+    };
+  }
+  if (isRemoteMcpClient(client)) {
+    return {
+      config:
+        auth === 'oauth' ? getMcpOauthUrl(mcpBase) : `${mcpBase}/mcp/${apiKey}`,
+      hint: remoteMcpClients[client],
+    };
+  }
+
+  const oauthUrl = getMcpOauthUrl(mcpBase);
+  // Coding agents read the key from an Authorization header, so they all point
+  // at the plain /mcp endpoint. Chat apps (Claude, ChatGPT) cannot set headers,
+  // so they use the /mcp/<key> form instead - see connectorUrl below.
   const urlBase = `${mcpBase}/mcp`;
   const bearer = `Bearer ${apiKey}`;
   // Distinct registration name so adding this MCP doesn't overwrite an
@@ -40,6 +103,70 @@ const getMcpConfig = (
   const serverName = 'voholabs';
 
   const json = (obj: object) => JSON.stringify(obj, null, 2);
+
+  if (auth === 'oauth') {
+    switch (client) {
+      case 'Claude Code':
+        return {
+          config: `claude mcp add ${serverName} --transport http "${oauthUrl}"`,
+          hint: 'Run this command in your terminal.',
+        };
+      case 'Cursor':
+        return {
+          config: json({ mcpServers: { [serverName]: { url: oauthUrl } } }),
+          hint: 'Add to .cursor/mcp.json in your project root.',
+        };
+      case 'VS Code / Copilot':
+        return {
+          config: json({
+            servers: { [serverName]: { type: 'http', url: oauthUrl } },
+          }),
+          hint: 'Add to .vscode/mcp.json in your project root.',
+        };
+      case 'Windsurf':
+        return {
+          config: json({
+            mcpServers: { [serverName]: { serverUrl: oauthUrl } },
+          }),
+          hint: 'Add to ~/.codeium/windsurf/mcp_config.json',
+        };
+      case 'Amp':
+        return {
+          config: `amp mcp add ${serverName} ${oauthUrl}`,
+          hint: 'Run this command in your terminal.',
+        };
+      case 'Codex':
+        return {
+          config: `# ~/.codex/config.toml\n\n[mcp_servers.${serverName}]\nurl = "${oauthUrl}"`,
+          hint: 'Add to ~/.codex/config.toml, then run: codex mcp login voholabs',
+        };
+      case 'Gemini CLI':
+        return {
+          config: json({ mcpServers: { [serverName]: { url: oauthUrl } } }),
+          hint: 'Add to ~/.gemini/settings.json',
+        };
+      case 'Warp':
+        return {
+          config: json({ [serverName]: { url: oauthUrl } }),
+          hint: 'Settings > MCP Servers > + Add, then paste this config.',
+        };
+      case 'Hermes':
+        return {
+          config: `# ~/.hermes/config.yaml\n\nmcp_servers:\n  ${serverName}:\n    url: "${oauthUrl}"\n    auth: oauth`,
+          hint: 'Add to ~/.hermes/config.yaml, then run /reload-mcp in the chat.',
+        };
+      case 'OpenClaw':
+        return {
+          config: `openclaw mcp add ${serverName} --url ${oauthUrl} --transport streamable-http --auth oauth && openclaw mcp login ${serverName}`,
+          hint: 'Run this command in your terminal.',
+        };
+      case 'NanoClaw':
+        return {
+          config: `ncl groups config add-mcp-server --id <group-id> --name ${serverName} --url ${oauthUrl}`,
+          hint: 'Run this in your terminal, replace <group-id> with the agent group that should get Voholabs Studio.',
+        };
+    }
+  }
 
   switch (client) {
     case 'Claude Code':
@@ -111,13 +238,40 @@ const getMcpConfig = (
         }),
         hint: 'Settings > MCP Servers > + Add, then paste this config.',
       };
+    case 'Hermes':
+      return {
+        config: `# ~/.hermes/config.yaml\n\nmcp_servers:\n  ${serverName}:\n    url: "${urlBase}"\n    headers:\n      Authorization: "${bearer}"`,
+        hint: 'Add to ~/.hermes/config.yaml, then run /reload-mcp in the chat.',
+      };
+    case 'OpenClaw':
+      return {
+        config: json({
+          mcp: {
+            servers: {
+              [serverName]: {
+                url: urlBase,
+                transport: 'streamable-http',
+                headers: { Authorization: bearer },
+              },
+            },
+          },
+        }),
+        hint: 'Add to ~/.openclaw/openclaw.json',
+      };
+    case 'NanoClaw':
+      // No headers flag, the key travels inside the URL like remote clients
+      return {
+        config: `ncl groups config add-mcp-server --id <group-id> --name ${serverName} --url ${mcpBase}/mcp/${apiKey}`,
+        hint: 'Run this in your terminal, replace <group-id> with the agent group that should get Voholabs Studio.',
+      };
   }
 };
+
 
 const maskKey = (text: string, apiKey: string) =>
   text.split(apiKey).join('••••••••••••••••••••');
 
-const CopyButton = ({
+export const CopyButton = ({
   text,
   label,
   primary,
@@ -259,7 +413,7 @@ const Tabs = <T extends string>({
   value,
   onChange,
 }: {
-  options: readonly { value: T; label: string }[];
+  options: readonly { value: T; label: string; icon?: ReactNode }[];
   value: T;
   onChange: (value: T) => void;
 }) => (
@@ -269,13 +423,14 @@ const Tabs = <T extends string>({
         key={option.value}
         type="button"
         className={clsx(
-          'cursor-pointer px-[14px] h-[36px] text-[13px] font-[500] rounded-[8px] transition-colors',
+          'cursor-pointer px-[14px] h-[36px] text-[13px] font-[500] rounded-[8px] transition-colors flex items-center gap-[8px]',
           value === option.value
             ? 'bg-[#20808D] text-white'
             : 'bg-btnSimple text-customColor18 hover:bg-boxHover hover:text-textColor'
         )}
         onClick={() => onChange(option.value)}
       >
+        {option.icon}
         {option.label}
       </button>
     ))}
@@ -324,12 +479,21 @@ const ConnectSection = ({
 }) => {
   const t = useT();
   const [target, setTarget] = useState<ConnectTarget>('claude');
-  const [activeClient, setActiveClient] = useState<McpClient>('Claude Code');
+  const [activeClient, setActiveClient] = useState<
+    McpClient | ChatOnlyMcpClient
+  >('Claude Code');
+  // The key in a header stays the default; signing in over OAuth is offered
+  // for clients that support it.
+  const [auth, setAuth] = useState<McpAuth>('apikey');
   const [revealed, setRevealed] = useState(false);
 
   // Chat apps cannot send an Authorization header, so the key travels in the URL.
   const connectorUrl = `${mcpBase}/mcp/${apiKey}`;
-  const { config, hint } = getMcpConfig(activeClient, mcpBase, apiKey);
+  const { config, hint } = getMcpConfig(activeClient, auth, mcpBase, apiKey);
+  const chatOnly = isChatOnlyMcpClient(activeClient);
+  const showsKey = auth === 'apikey' && !chatOnly;
+  const developerBaseUrl =
+    auth === 'oauth' ? getMcpOauthUrl(mcpBase) : `${mcpBase}/mcp`;
 
   // Agent sandboxes allowlist outbound hosts, so both directions fail until
   // the host is added — see the "allow the domains" step below. Uploading a
@@ -594,25 +758,56 @@ const ConnectSection = ({
               'These clients send your key in an Authorization header, so it stays out of the URL. Pick your client and paste the config.'
             )}
           </StepText>
+          {!chatOnly && (
+            <div className="flex flex-col gap-[6px]">
+              <div className="text-[13px] font-[600] text-customColor18">
+                {t('auth_method', 'Authentication')}
+              </div>
+              <Tabs<McpAuth>
+                value={auth}
+                onChange={setAuth}
+                options={[
+                  { value: 'apikey', label: t('api_key', 'API Key') },
+                  {
+                    value: 'oauth',
+                    label: t(
+                      'sign_in_no_api_key',
+                      'Sign in with Voholabs Studio (no API key)'
+                    ),
+                  },
+                ]}
+              />
+            </div>
+          )}
           <div className="flex flex-col gap-[6px]">
             <div className="text-[13px] font-[600] text-customColor18">
               {t('mcp_client', 'Client')}
             </div>
-            <Tabs<McpClient>
+            <Tabs<McpClient | ChatOnlyMcpClient>
               value={activeClient}
               onChange={setActiveClient}
-              options={mcpClients.map((client) => ({
+              options={[
+                ...mcpClients,
+                ...(Object.keys(chatOnlyMcpClients) as ChatOnlyMcpClient[]),
+              ].map((client) => ({
                 value: client,
                 label: client,
+                icon: <McpClientIcon client={client} />,
               }))}
             />
           </div>
           <div className="flex flex-col gap-[8px]">
             <div className="text-[12px] text-customColor18 font-[500]">
               {hint}
+              {auth === 'oauth' &&
+                !chatOnly &&
+                ` ${t(
+                  'oauth_sign_in_hint',
+                  'Your agent will open a browser window to sign in to Voholabs Studio.'
+                )}`}
             </div>
             <CodeBlock>
-              {revealed ? config : maskKey(config, apiKey)}
+              {revealed || !showsKey ? config : maskKey(config, apiKey)}
             </CodeBlock>
             <div className="flex gap-[8px] flex-wrap">
               <CopyButton
@@ -620,14 +815,18 @@ const ConnectSection = ({
                 label={t('copy', 'Copy')}
                 primary={true}
               />
-              <RevealButton
-                revealed={revealed}
-                onClick={() => setRevealed(!revealed)}
-              />
-              <CopyButton
-                text={`${mcpBase}/mcp`}
-                label={t('copy_url', 'Copy URL')}
-              />
+              {showsKey && (
+                <RevealButton
+                  revealed={revealed}
+                  onClick={() => setRevealed(!revealed)}
+                />
+              )}
+              {!chatOnly && (
+                <CopyButton
+                  text={developerBaseUrl}
+                  label={t('copy_url', 'Copy URL')}
+                />
+              )}
             </div>
           </div>
         </div>
@@ -660,7 +859,7 @@ const ConnectSection = ({
   );
 };
 
-const localCliSteps = [
+export const localCliSteps = [
   {
     label: 'Install the CLI',
     code: 'npm install -g github:voholabs/voholabs-studio-cli',
@@ -897,10 +1096,29 @@ const PublicApiContent = () => {
 
 export const PublicComponent = () => {
   const t = useT();
+  const fetch = useFetch();
+  const user = useUser();
   const [subTab, setSubTab] = useState<'api' | 'developer'>('api');
+  const loadOrganizations = useCallback(async () => {
+    return await (await fetch('/user/organizations')).json();
+  }, []);
+  const { data: organizations } = useSWR('organizations', loadOrganizations, {
+    revalidateIfStale: false,
+    revalidateOnFocus: false,
+    refreshWhenOffline: false,
+    refreshWhenHidden: false,
+    revalidateOnReconnect: false,
+  });
+  const currentOrg = useMemo(() => {
+    return organizations?.find((org: any) => org?.id === user?.orgId);
+  }, [organizations, user?.orgId]);
 
   return (
     <div className="flex flex-col gap-[20px]">
+      <h3 className="text-[20px]">
+        {t('developers', 'Developers')}
+        {currentOrg?.name ? ` - ${currentOrg.name}` : ''}
+      </h3>
       <div className="flex gap-[6px]">
         {(['api', 'developer'] as const).map((tab) => (
           <button

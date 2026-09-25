@@ -20,6 +20,7 @@ import {
   Sections,
   SubscriptionException,
 } from '@gitroom/backend/services/auth/permissions/permission.exception.class';
+import { setSentryUserContext } from '@gitroom/nestjs-libraries/sentry/initialize.sentry';
 
 export const removeAuth = (res: Response) => {
   res.cookie('auth', '', {
@@ -92,6 +93,13 @@ export class AuthMiddleware implements NestMiddleware {
           // eslint-disable-next-line @typescript-eslint/ban-ts-comment
           // @ts-expect-error
           req.org = loadImpersonate.organization;
+
+          setSentryUserContext({
+            userId: user.id,
+            email: user.email,
+            orgId: loadImpersonate.organization.id,
+            paymentId: loadImpersonate.organization.paymentId,
+          });
           next();
           return;
         }
@@ -124,6 +132,13 @@ export class AuthMiddleware implements NestMiddleware {
       // carried on the user so /user/self reports the very same answer.
       // @ts-ignore
       user.needsOnboarding = needsOnboarding(user, organization);
+
+      setSentryUserContext({
+        userId: user.id,
+        email: user.email,
+        orgId: setOrg.id,
+        paymentId: setOrg.paymentId,
+      });
     } catch (err) {
       throw new HttpForbiddenException();
     }

@@ -77,12 +77,9 @@ export const OrganizationSelector: FC<{ asOpenSelect?: boolean }> = ({
             onClick={() => setOpen((o) => !o)}
             className="flex items-center gap-[8px] h-[32px] px-[12px] rounded-[8px] border border-btnPrimary text-btnPrimary font-[600] transition-colors select-none cursor-pointer hover:bg-btnPrimary hover:text-white"
           >
-            <span className="max-w-[180px] truncate">{current?.name}</span>
+            <span className="max-w-[240px] truncate">{current?.name}</span>
             <svg
-              className={clsx(
-                'transition-transform',
-                open && 'rotate-180'
-              )}
+              className={clsx('transition-transform', open && 'rotate-180')}
               width="14"
               height="14"
               viewBox="0 0 24 24"
@@ -102,7 +99,7 @@ export const OrganizationSelector: FC<{ asOpenSelect?: boolean }> = ({
         {(open || asOpenSelect) && (
           <div
             className={clsx(
-              'flex absolute top-[calc(100%+4px)] end-0 z-[200] min-w-[220px] flex-col overflow-hidden rounded-[8px] border border-btnPrimary bg-newBgColorInner shadow-lg',
+              'flex absolute top-[calc(100%+4px)] end-0 z-[200] min-w-[220px] max-w-[400px] flex-col overflow-hidden rounded-[8px] border border-btnPrimary bg-newBgColorInner shadow-lg',
               asOpenSelect
                 ? '!flex !relative max-w-[500px] mx-auto mb-[10px] mt-[8px]'
                 : ''
@@ -111,40 +108,61 @@ export const OrganizationSelector: FC<{ asOpenSelect?: boolean }> = ({
             <div className="py-[8px] px-[12px] text-[11px] font-[600] uppercase tracking-wide text-textItemBlur border-b border-blockSeparator">
               {t('team', 'Team:')}
             </div>
-            {data.map((org: { name: string; id: string }) => {
-              const isCurrent = org.id === user?.orgId;
-              return (
-                <div
-                  key={org.id}
-                  onClick={changeOrg(org)}
-                  className={clsx(
-                    'flex items-center justify-between gap-[12px] py-[10px] px-[12px] transition-colors cursor-pointer',
-                    isCurrent
-                      ? 'text-btnPrimary font-[600]'
-                      : 'hover:bg-boxFocused hover:text-textItemFocused'
-                  )}
-                >
-                  <span className="truncate">{org.name}</span>
-                  {isCurrent && (
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M20 6L9 17L4 12"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  )}
-                </div>
-              );
-            })}
+            {data?.map(
+              (org: {
+                name: string;
+                id: string;
+                users?: { role: 'SUPERADMIN' | 'ADMIN' | 'USER' }[];
+              }) => {
+                const isCurrent = org?.id === user?.orgId;
+                const role = org?.users?.[0]?.role;
+                return (
+                  <div
+                    key={org?.id}
+                    onClick={changeOrg(org)}
+                    className={clsx(
+                      'flex items-center justify-between gap-[12px] py-[10px] px-[12px] transition-colors cursor-pointer',
+                      isCurrent
+                        ? 'text-btnPrimary font-[600]'
+                        : 'hover:bg-boxFocused hover:text-textItemFocused'
+                    )}
+                  >
+                    <span className="truncate">
+                      {org?.name}
+                      {!!role && (
+                        <span className="text-textItemBlur font-[500]">
+                          {' '}
+                          (
+                          {role === 'SUPERADMIN'
+                            ? 'Super-Admin'
+                            : role === 'ADMIN'
+                            ? 'Admin'
+                            : 'User'}
+                          )
+                        </span>
+                      )}
+                    </span>
+                    {isCurrent && (
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M20 6L9 17L4 12"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    )}
+                  </div>
+                );
+              }
+            )}
           </div>
         )}
       </div>

@@ -53,9 +53,9 @@ Returns the hosted media { id, path } to use as an attachment, or { error } on f
           );
 
           // The whole fetch-sniff-store pipeline (SSRF-safe fetch, size caps,
-          // byte sniffing, storage) is shared with the copy-on-attach path in
-          // post.write.shared, so there is exactly one implementation of
-          // "make a remote file durable".
+          // byte sniffing, storage quota, storage) is shared with the
+          // copy-on-attach path in post.write.shared, so there is exactly one
+          // implementation of "make a remote file durable".
           return await storeUrlAsMedia({
             storage: this.storage,
             mediaService: this._mediaService,
@@ -63,10 +63,25 @@ Returns the hosted media { id, path } to use as an attachment, or { error } on f
             url: inputData.url,
           });
         } catch (err) {
+          // undici's fetch rejects with a generic TypeError('fetch failed')
+          // and hides the real reason (DNS, TLS, SSRF block, ...) in
+          // err.cause, so walk the chain and surface it for the agent.
+          // Error.cause isn't in the es2020 lib typings this repo compiles
+          // against, hence the cast
+          const message =
+            err instanceof Error ? err.message : 'Unexpected error';
+          const causes: string[] = [];
+          let cause = (err as Error & { cause?: unknown })?.cause;
+          while (cause instanceof Error) {
+            if (cause.message) {
+              causes.push(cause.message);
+            }
+            cause = (cause as Error & { cause?: unknown }).cause;
+          }
+          const causeText = causes.length ? ` (${causes.join(': ')})` : '';
+
           return {
-            error: `Failed to upload media from URL: ${
-              err instanceof Error ? err.message : 'Unexpected error'
-            }`,
+            error: `Failed to upload media from URL: ${message}${causeText}`,
           };
         }
       },

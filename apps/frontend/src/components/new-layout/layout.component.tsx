@@ -1,6 +1,6 @@
 'use client';
 
-import React, { ReactNode, useCallback } from 'react';
+import React, { ReactNode, useCallback, useEffect } from 'react';
 import { Logo } from '@gitroom/frontend/components/new-layout/logo';
 import { Inter_Tight } from 'next/font/google';
 const ModeComponent = dynamic(
@@ -45,6 +45,7 @@ import { FirstBillingComponent } from '@gitroom/frontend/components/billing/firs
 import { TrialTracker } from '@gitroom/frontend/components/layout/gtm.component';
 import { RequiredOnboarding } from '@gitroom/frontend/components/onboarding/required.onboarding';
 import { RequiredTerms } from '@gitroom/frontend/components/onboarding/required.terms';
+import { setSentryUser } from '@gitroom/react/sentry/initialize.sentry.client';
 
 const interTight = Inter_Tight({
   weight: ['600', '500', '700'],
@@ -69,6 +70,12 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
     refreshWhenOffline: false,
     refreshWhenHidden: false,
   });
+
+  useEffect(() => {
+    setSentryUser(
+      user ? { id: user.id, email: user.email, orgId: user.orgId } : null
+    );
+  }, [user]);
 
   if (!user) return null;
 
@@ -130,6 +137,7 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
       <CopilotKit
         credentials="include"
         runtimeUrl={backendUrl + '/copilot/chat'}
+        useSingleEndpoint={true}
         showDevConsole={false}
       >
         <MantineWrapper>

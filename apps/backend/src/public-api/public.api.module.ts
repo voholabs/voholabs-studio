@@ -13,6 +13,7 @@ import { PublicAuthMiddleware } from '@gitroom/backend/services/auth/public.auth
 import { PublicUploadTicketController } from '@gitroom/backend/public-api/routes/v1/public.upload.ticket.controller';
 import { PublicBriefController } from '@gitroom/backend/public-api/routes/v1/public.brief.controller';
 import { PublicUploadMintController } from '@gitroom/backend/public-api/routes/v1/public.upload.mint.controller';
+import { SuperAdminGuard } from '@gitroom/backend/services/auth/super.admin.guard';
 
 const authenticatedController = [
   PublicIntegrationsController,
@@ -26,7 +27,9 @@ const authenticatedController = [
 const ticketController = [PublicUploadTicketController];
 @Module({
   imports: [UploadModule],
-  controllers: [...authenticatedController, ...ticketController],
+  controllers: process.env.MCP_ONLY
+    ? []
+    : [...authenticatedController, ...ticketController],
   providers: [
     AuthService,
     StripeService,
@@ -36,6 +39,7 @@ const ticketController = [PublicUploadTicketController];
     PermissionsService,
     CodesService,
     IntegrationManager,
+    SuperAdminGuard,
   ],
   get exports() {
     return [...this.imports, ...this.providers];

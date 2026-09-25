@@ -7,6 +7,10 @@ import { IntegrationSchedulePostTool } from './integration.schedule.post';
 // import { GenerateVideoOptionsTool } from '@gitroom/nestjs-libraries/chat/tools/generate.video.options.tool';
 // import { VideoFunctionTool } from '@gitroom/nestjs-libraries/chat/tools/video.function.tool';
 // import { GenerateVideoTool } from '@gitroom/nestjs-libraries/chat/tools/generate.video.tool';
+// import { VideoStatusTool } from '@gitroom/nestjs-libraries/chat/tools/video.status.tool';
+// import { ClippingTool } from '@gitroom/nestjs-libraries/chat/tools/clipping.tool';
+// import { ClippingStatusTool } from '@gitroom/nestjs-libraries/chat/tools/clipping.status.tool';
+// import { ClippingWidgetTicketTool } from '@gitroom/nestjs-libraries/chat/tools/clipping.widget.ticket.tool';
 // import { GenerateImageTool } from '@gitroom/nestjs-libraries/chat/tools/generate.image.tool';
 import { AccountInfoTool } from '@gitroom/nestjs-libraries/chat/tools/account.info.tool';
 import { IntegrationListTool } from '@gitroom/nestjs-libraries/chat/tools/integration.list.tool';
@@ -37,6 +41,10 @@ import { SanityMcpListTool } from '@gitroom/nestjs-libraries/chat/tools/sanity.m
 import { SanityMcpCallTool } from '@gitroom/nestjs-libraries/chat/tools/sanity.mcp.call.tool';
 import { MediaMcpListTool } from '@gitroom/nestjs-libraries/chat/tools/media.mcp.list.tool';
 import { MediaMcpCallTool } from '@gitroom/nestjs-libraries/chat/tools/media.mcp.call.tool';
+import { PostSettingsTool } from '@gitroom/nestjs-libraries/chat/tools/post.settings.tool';
+import { UploadWidgetTool } from '@gitroom/nestjs-libraries/chat/tools/upload.widget.tool';
+import { UploadWidgetTicketTool } from '@gitroom/nestjs-libraries/chat/tools/upload.widget.ticket.tool';
+import { UploadWidgetStatusTool } from '@gitroom/nestjs-libraries/chat/tools/upload.widget.status.tool';
 
 export const toolList = [
   AccountInfoTool,
@@ -54,6 +62,7 @@ export const toolList = [
   IntegrationSchedulePostTool,
   PostsListTool,
   PostsEditTool,
+  PostSettingsTool,
   PostsReplaceAssetTool,
   PostsDeleteTool,
   PostsStatusTool,
@@ -83,11 +92,21 @@ export const toolList = [
   //   GenerateVideoTool      - exposes no models on this account anyway
   //   GenerateVideoOptionsTool - returns {"video":[]}, which four workers blocked on
   //   VideoFunctionTool      - setup call for the above
+  //   VideoStatusTool        - polls the result of GenerateVideoTool
+  //   ClippingTool, ClippingStatusTool, ClippingWidgetTicketTool - AI video
+  //                            clipping, same reason
   // GenerateVideoOptionsTool,
   // VideoFunctionTool,
   // GenerateVideoTool,
+  // VideoStatusTool,
+  // ClippingTool,
+  // ClippingStatusTool,
+  // ClippingWidgetTicketTool,
   // GenerateImageTool,
   UploadFromUrlTool,
+  UploadWidgetTool,
+  UploadWidgetTicketTool,
+  UploadWidgetStatusTool,
 ];
 
 // Not part of the free plan: the brief, and AI media. The MCP leaves them out

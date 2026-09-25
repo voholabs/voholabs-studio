@@ -117,6 +117,11 @@ const usePostActions = (onMutate?: () => void) => {
       };
 
       const data = await (await fetch(`/posts/group/${post.group}`)).json();
+      if (!data?.posts?.length) {
+        toaster.show(t('post_not_found', 'Post not found'), 'warning');
+        mutate();
+        return;
+      }
       const date = !isDuplicate
         ? null
         : (await (await fetch('/posts/find-slot')).json()).date;
@@ -173,7 +178,7 @@ const usePostActions = (onMutate?: () => void) => {
         title: ``,
       });
     },
-    [integrations, fetch, modal, mutate]
+    [integrations, fetch, modal, mutate, toaster, t]
   );
 
   const copyDebugJson = useCallback(
@@ -874,8 +879,18 @@ export const CalendarColumn: FC<{
                 <div className="flex flex-col">
                   <div className="text-[20px] mb-[20px]">
                     {t(
-                      'post_already_published_drag',
-                      'This post was already published, what do you want to do?'
+                      'post_already_published_republish_warning',
+                      'This post was already published. Republishing will publish it again to'
+                    )}{' '}
+                    {post.integration?.name}{' '}
+                    {t('republish_at', 'at')} {getDate.format('DD/MM/YYYY HH:mm')}.
+                    {(!!item.interval || !!post.intervalInDays) && (
+                      <div className="mt-[10px]">
+                        {t(
+                          'republish_recurring_note',
+                          'This is a recurring post: your changes apply to all future recurrences starting now.'
+                        )}
+                      </div>
                     )}
                   </div>
                   <div className="flex w-full gap-[10px]">
@@ -925,6 +940,9 @@ export const CalendarColumn: FC<{
         body: JSON.stringify({
           date: getDate.utc().format('YYYY-MM-DDTHH:mm:ss'),
           action,
+          // published posts always confirm via the modal before reaching here;
+          // for QUEUE posts the flag is a no-op on the server
+          ...(action === 'schedule' ? { republish: true } : {}),
         }),
       });
       if (status !== 500) {

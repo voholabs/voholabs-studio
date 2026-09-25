@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
-import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
+import { randomInt } from 'crypto';
+import { makeSecureId } from '@gitroom/nestjs-libraries/services/make.secure.id';
 import { OrganizationService } from '@gitroom/nestjs-libraries/database/prisma/organizations/organization.service';
 import { Organization } from '@prisma/client';
 
@@ -42,14 +43,14 @@ export class DeviceAuthService {
     let raw = '';
     for (let i = 0; i < 8; i += 1) {
       raw += USER_CODE_ALPHABET.charAt(
-        Math.floor(Math.random() * USER_CODE_ALPHABET.length)
+        randomInt(USER_CODE_ALPHABET.length)
       );
     }
     return `${raw.slice(0, 4)}-${raw.slice(4)}`;
   }
 
   async createDeviceCode() {
-    const deviceCode = makeId(40);
+    const deviceCode = makeSecureId(40);
     const userCode = this.generateUserCode();
 
     const record: DeviceRecord = { status: 'pending', userCode };

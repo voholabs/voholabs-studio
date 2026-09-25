@@ -4,11 +4,12 @@ import {
   PostResponse,
   SocialProvider,
 } from '@gitroom/nestjs-libraries/integrations/social/social.integrations.interface';
-import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
+import { makeSecureId } from '@gitroom/nestjs-libraries/services/make.secure.id';
 import { SocialAbstract } from '@gitroom/nestjs-libraries/integrations/social.abstract';
 import { Integration } from '@prisma/client';
 import { DiscordDto } from '@gitroom/nestjs-libraries/dtos/posts/providers-settings/discord.dto';
 import { Tool } from '@gitroom/nestjs-libraries/integrations/tool.decorator';
+import FormDataUpload from 'form-data';
 
 // https://discord.com/developers/docs/topics/permissions
 // BigInt() rather than 1n literals: the TS target is below ES2020.
@@ -82,14 +83,14 @@ export class DiscordProvider extends SocialAbstract implements SocialProvider {
     };
   }
   async generateAuthUrl() {
-    const state = makeId(6);
+    const state = makeSecureId(6);
     return {
       url: `https://discord.com/oauth2/authorize?client_id=${
         process.env.DISCORD_CLIENT_ID
       }&permissions=377957124096&response_type=code&redirect_uri=${encodeURIComponent(
         `${process.env.FRONTEND_URL}/integrations/social/discord`
       )}&integration_type=0&scope=bot+identify+guilds&state=${state}`,
-      codeVerifier: makeId(10),
+      codeVerifier: makeSecureId(10),
       state,
     };
   }
@@ -437,7 +438,7 @@ export class DiscordProvider extends SocialAbstract implements SocialProvider {
   }
 
   // Media is absolute on remote storage but relative on local storage, where
-  // fetch() would reject the bare path.
+  // the bare path is not a file the provider can open or fetch.
   private mediaUrl(path: string) {
     return path.indexOf('http') === 0
       ? path
@@ -453,44 +454,59 @@ export class DiscordProvider extends SocialAbstract implements SocialProvider {
   // Images and videos both go up as plain multipart attachments; Discord picks
   // the player or the preview from the file type itself. Links need nothing
   // special — they travel in the message content and Discord unfurls them.
-  private async buildMessageForm(
+  // Each attachment is streamed straight from its source (size from a HEAD
+  // request, SSRF-safe) so files are never buffered in memory.
+  // runStreamedUpload rebuilds the whole form per attempt (a consumed stream
+  // can't be replayed) and keeps handleErrors classification.
+  private async sendMessageForm(
+    url: string,
     post: PostDetails,
     // Present only for a forum, where the payload is a named thread wrapping
     // the same message body. Absent, the payload is exactly what it always was.
     thread?: { name: string }
   ) {
     const media = post.media || [];
-    const form = new FormData();
 
-    const message = {
-      content: post.message.replace(/\[\[\[(@.*?)]]]/g, (match, p1) => {
-        return `<${p1}>`;
-      }),
-      attachments: media.map((p, index) => ({
-        id: index,
-        description: p.alt || this.mediaFilename(p.path),
-        filename: this.mediaFilename(p.path),
-      })),
-    };
+    return this.runStreamedUpload(async () => {
+      const form = new FormDataUpload();
 
-    form.append(
-      'payload_json',
-      JSON.stringify(thread ? { name: thread.name, message } : message)
-    );
-
-    let index = 0;
-    for (const item of media) {
-      const loaded = await fetch(this.mediaUrl(item.path));
+      const message = {
+        content: post.message.replace(/\[\[\[(@.*?)]]]/g, (match, p1) => {
+          return `<${p1}>`;
+        }),
+        attachments: media.map((p, index) => ({
+          id: index,
+          description: p.alt || this.mediaFilename(p.path),
+          filename: this.mediaFilename(p.path),
+        })),
+      };
 
       form.append(
-        `files[${index}]`,
-        await loaded.blob(),
-        this.mediaFilename(item.path)
+        'payload_json',
+        JSON.stringify(thread ? { name: thread.name, message } : message)
       );
-      index++;
-    }
 
-    return form;
+      let index = 0;
+      for (const item of media) {
+        const source = this.mediaUrl(item.path);
+        const fileSize = await this.mediaSize(source, this.identifier);
+        const stream = await this.mediaStream(source, this.identifier);
+        form.append(`files[${index}]`, stream, {
+          filename: this.mediaFilename(item.path),
+          knownLength: fileSize,
+        });
+        index++;
+      }
+
+      const { data } = await this.getSsrfSafeAxios().post(url, form, {
+        headers: {
+          ...form.getHeaders(),
+          Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN_ID}`,
+        },
+      });
+
+      return data;
+    }, this.identifier);
   }
 
   /**
@@ -579,17 +595,10 @@ export class DiscordProvider extends SocialAbstract implements SocialProvider {
       return [await this.postToForum(id, channel, firstPost)];
     }
 
-    const form = await this.buildMessageForm(firstPost);
-
-    const data = await (
-      await this.fetch(`https://discord.com/api/channels/${channel}/messages`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN_ID}`,
-        },
-        body: form,
-      })
-    ).json();
+    const data = await this.sendMessageForm(
+      `https://discord.com/api/channels/${channel}/messages`,
+      firstPost
+    );
 
     return [
       {
@@ -622,17 +631,11 @@ export class DiscordProvider extends SocialAbstract implements SocialProvider {
       );
     }
 
-    const form = await this.buildMessageForm(post, { name });
-
-    const data = await (
-      await this.fetch(`https://discord.com/api/channels/${channel}/threads`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN_ID}`,
-        },
-        body: form,
-      })
-    ).json();
+    const data = await this.sendMessageForm(
+      `https://discord.com/api/channels/${channel}/threads`,
+      post,
+      { name }
+    );
 
     // The response is the thread; its opening message is nested under `message`
     // on versions that return it, and shares the thread id either way.
@@ -739,20 +742,10 @@ export class DiscordProvider extends SocialAbstract implements SocialProvider {
       threadChannel = threadId || postId;
     }
 
-    const form = await this.buildMessageForm(commentPost);
-
-    const data = await (
-      await this.fetch(
-        `https://discord.com/api/channels/${threadChannel}/messages`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN_ID}`,
-          },
-          body: form,
-        }
-      )
-    ).json();
+    const data = await this.sendMessageForm(
+      `https://discord.com/api/channels/${threadChannel}/messages`,
+      commentPost
+    );
 
     return [
       {

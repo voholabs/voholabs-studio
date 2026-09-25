@@ -269,16 +269,26 @@ export class AuthController {
 
   @Post('/oauth/:provider/exists')
   async oauthExists(
+    @Req() req: Request,
     @Body('code') code: string,
     @Body('redirect_uri') redirect_uri: string,
     @Param('provider') provider: string,
     @Res({ passthrough: false }) response: Response
   ) {
-    const { jwt, token } = await this._authService.checkExists(
-      provider,
-      code,
-      redirect_uri
-    );
+    let exists: Awaited<ReturnType<AuthService['checkExists']>>;
+    try {
+      exists = await this._authService.checkExists(
+        provider,
+        code,
+        redirect_uri,
+        !!this._authService.getOrgFromCookie(req?.cookies?.org)
+      );
+    } catch (e: any) {
+      response.status(400).json({ error: e.message });
+      return;
+    }
+
+    const { jwt, token } = exists;
 
     if (token) {
       return response.json({ token });

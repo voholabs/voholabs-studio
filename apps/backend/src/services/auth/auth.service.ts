@@ -119,7 +119,8 @@ export class AuthService {
       provider,
       body as CreateOrgUserDto,
       ip,
-      userAgent
+      userAgent,
+      !!addToOrg
     );
 
     const addedOrg =
@@ -160,7 +161,8 @@ export class AuthService {
     provider: Provider,
     body: CreateOrgUserDto,
     ip: string,
-    userAgent: string
+    userAgent: string,
+    invited: boolean
   ) {
     const providerInstance = this._providerManager.getProvider(provider);
     const providerUser = await providerInstance.getUser(body.providerToken);
@@ -179,6 +181,10 @@ export class AuthService {
 
     if (!(await this.canRegister(provider))) {
       throw new Error('Registration is disabled');
+    }
+
+    if (this.needsWorkEmail(provider, providerUser.email, invited)) {
+      throw new Error(workEmailMessage());
     }
 
     // Only a new account has to agree. Somebody who already has one came
@@ -327,7 +333,18 @@ export class AuthService {
     return providerInstance.generateLink(query);
   }
 
-  async checkExists(provider: string, code: string, redirectUri?: string) {
+  // Only Google hands us a real mailbox to judge. Existing accounts never get
+  // here, and an invitation decides the address on its own.
+  private needsWorkEmail(provider: string, email: string, invited: boolean) {
+    return provider === Provider.GOOGLE && !invited && !isWorkEmail(email);
+  }
+
+  async checkExists(
+    provider: string,
+    code: string,
+    redirectUri?: string,
+    invited = false
+  ) {
     const providerInstance = this._providerManager.getProvider(provider);
     const token = await providerInstance.getToken(code, redirectUri);
     const user = await providerInstance.getUser(token);
@@ -340,6 +357,11 @@ export class AuthService {
     );
     if (checkExists) {
       return { jwt: await this.jwt(checkExists) };
+    }
+
+    // Turn a personal address away before the sign-up form, not after it.
+    if (this.needsWorkEmail(provider, user.email, invited)) {
+      throw new Error(workEmailMessage());
     }
 
     return { token };

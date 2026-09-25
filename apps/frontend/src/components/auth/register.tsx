@@ -46,25 +46,35 @@ export function Register() {
   const [provider] = useState(getQuery?.get('provider')?.toUpperCase());
   const [code, setCode] = useState(getQuery?.get('code') || '');
   const [show, setShow] = useState(false);
+  const [error, setError] = useState('');
   useEffect(() => {
     if (provider && code) {
       load();
     }
   }, []);
   const load = useCallback(async () => {
-    const { token } = await (
-      await fetch(`/auth/oauth/${provider?.toUpperCase() || 'LOCAL'}/exists`, {
+    const response = await fetch(
+      `/auth/oauth/${provider?.toUpperCase() || 'LOCAL'}/exists`,
+      {
         method: 'POST',
         body: JSON.stringify({
           code,
         }),
-      })
-    ).json();
-    if (token) {
-      setCode(token);
+      }
+    );
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setError(data?.error || 'We could not sign you in. Please try again.');
+      return;
+    }
+    if (data?.token) {
+      setCode(data.token);
       setShow(true);
     }
   }, [provider, code]);
+  if (error) {
+    return <RegisterBlocked message={error} />;
+  }
   if (!code && !provider) {
     return <RegisterAfter token="" provider="LOCAL" />;
   }
@@ -73,6 +83,32 @@ export function Register() {
   }
   return (
     <RegisterAfter token={code} provider={provider?.toUpperCase() || 'LOCAL'} />
+  );
+}
+function RegisterBlocked({ message }: { message: string }) {
+  const t = useT();
+  return (
+    <div className="flex flex-col flex-1">
+      <h1 className="text-[40px] font-[500] -tracking-[0.8px] text-start">
+        {t('sign_up', 'Sign Up')}
+      </h1>
+      <div className="mt-[32px] text-[14px] text-red-400">{message}</div>
+      <div className="mt-[24px] flex">
+        <Link
+          href="/auth"
+          className="flex-1 rounded-[10px] h-[52px] flex items-center justify-center bg-forth text-white"
+        >
+          {t('use_a_work_email', 'Sign up with a work email')}
+        </Link>
+      </div>
+      <p className="mt-4 text-sm text-center">
+        {t('already_have_an_account', 'Already Have An Account?')}
+        &nbsp;
+        <Link href="/auth/login" className="underline cursor-pointer">
+          {t('sign_in', 'Sign In')}
+        </Link>
+      </p>
+    </div>
   );
 }
 function getHelpfulReasonForRegistrationFailure(httpCode: number) {
@@ -180,6 +216,14 @@ export function RegisterAfter({
               {t('sign_up', 'Sign Up')}
             </h1>
           </div>
+          {!isAfterProvider && (
+            <div className="text-[14px] mt-[12px] text-textColor opacity-80">
+              {t(
+                'work_email_required',
+                'Use your work email. Personal addresses like Gmail, Outlook or Yahoo can\'t be used.'
+              )}
+            </div>
+          )}
           <div className="text-[14px] mt-[32px] mb-[12px]">
             {t('continue_with', 'Continue With')}
           </div>

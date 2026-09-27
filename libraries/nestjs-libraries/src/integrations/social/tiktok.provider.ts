@@ -17,6 +17,7 @@ import { hasExtension } from '@gitroom/helpers/utils/has.extension';
 import { createReadStream, statSync } from 'fs';
 import { Integration } from '@prisma/client';
 import { Rules } from '@gitroom/nestjs-libraries/chat/rules.description.decorator';
+import { Tool } from '@gitroom/nestjs-libraries/integrations/tool.decorator';
 
 @Rules(
   'TikTok can have one video or one picture or multiple pictures, it cannot be without an attachment'
@@ -402,6 +403,41 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
       expiresIn: dayjs().add(23, 'hours').unix() - dayjs().unix(),
       picture: avatar_url,
       username: username,
+    };
+  }
+
+  // TikTok requires the post page to show the latest creator info every time
+  // it renders: nickname, the privacy options this account allows, which
+  // interactions are switched off, the longest video allowed, and whether the
+  // account may post right now.
+  @Tool({ description: 'TikTok creator info', dataSchema: [] })
+  async creatorInfo(accessToken: string) {
+    const load = await (
+      await fetch(
+        'https://open.tiktokapis.com/v2/post/publish/creator_info/query/',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json; charset=UTF-8',
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      )
+    ).json();
+
+    const data = load?.data || {};
+    const errorCode = load?.error?.code;
+    return {
+      canPost: !errorCode || errorCode === 'ok',
+      errorCode: errorCode && errorCode !== 'ok' ? errorCode : null,
+      nickname: data.creator_nickname || '',
+      username: data.creator_username || '',
+      avatar: data.creator_avatar_url || '',
+      privacyLevelOptions: (data.privacy_level_options || []) as string[],
+      commentDisabled: !!data.comment_disabled,
+      duetDisabled: !!data.duet_disabled,
+      stitchDisabled: !!data.stitch_disabled,
+      maxVideoPostDurationSec: data.max_video_post_duration_sec || 0,
     };
   }
 

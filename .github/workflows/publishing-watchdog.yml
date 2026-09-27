@@ -1,0 +1,102 @@
+name: Publishing watchdog
+
+# Every 5 minutes, ask production whether posts are actually going out.
+# Posts to Discord only when something is wrong; silent while healthy.
+# When publishing has stalled it restarts the app on Railway, at most once
+# every 30 minutes.
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      verify_railway:
+        description: 'Only check the Railway token with a read-only call (no Discord, no restart)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: publishing-watchdog
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  check:
+    if: github.repository == 'voholabs/voholabs-studio'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      HEALTH_URL: https://studio.voholabs.com/api/health/publishing
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_SERVICE_ID: ${{ vars.RAILWAY_SERVICE_ID }}
+      RAILWAY_ENVIRONMENT_ID: ${{ vars.RAILWAY_ENVIRONMENT_ID }}
+    steps:
+      - name: Check publishing
+        shell: bash
+        run: |
+          set -u
+
+          check() {
+            CODE=$(curl -s -o body.json -w '%{http_code}' --max-time 20 "$HEALTH_URL" || true)
+            BODY=$(cat body.json 2>/dev/null | head -c 400 || true)
+            [ "$CODE" = "200" ]
+          }
+
+          alert() {
+            # No mentions: allowed_mentions stops any @ from pinging.
+            jq -n --arg c "$1" '{content: $c, allowed_mentions: {parse: []}}' \
+              | curl -s -H 'Content-Type: application/json' -d @- "$DISCORD_WEBHOOK_URL" >/dev/null || true
+          }
+
+          railway() {
+            jq -n --arg q "$1" --arg s "$RAILWAY_SERVICE_ID" --arg e "$RAILWAY_ENVIRONMENT_ID" \
+              '{query: $q, variables: {s: $s, e: $e}}' \
+              | curl -s --max-time 30 https://backboard.railway.com/graphql/v2 \
+                  -H 'Content-Type: application/json' \
+                  -H "Project-Access-Token: $RAILWAY_TOKEN" -d @-
+          }
+
+          if [ "${{ inputs.verify_railway || false }}" = "true" ]; then
+            OUT=$(railway 'query($s:String!,$e:String!){deployments(first:1,input:{serviceId:$s,environmentId:$e}){edges{node{createdAt status}}}}')
+            LAST=$(echo "$OUT" | jq -r '.data.deployments.edges[0].node | "\(.createdAt) \(.status)"' 2>/dev/null)
+            if [ -n "$LAST" ] && [ "$LAST" != "null null" ]; then
+              echo "Railway token OK. Latest production deployment: $LAST"
+              exit 0
+            fi
+            echo "Railway token check FAILED: $(echo "$OUT" | head -c 300)"
+            exit 1
+          fi
+
+          if check; then exit 0; fi
+
+          # One failed check can be a blip: look again in two minutes.
+          sleep 120
+          if check; then exit 0; fi
+          FIRST="HTTP $CODE $BODY"
+
+          LAST=$(railway 'query($s:String!,$e:String!){deployments(first:1,input:{serviceId:$s,environmentId:$e}){edges{node{createdAt}}}}' \
+            | jq -r '.data.deployments.edges[0].node.createdAt // empty')
+          if [ -n "$LAST" ]; then
+            AGE=$(( $(date +%s) - $(date -d "$LAST" +%s) ))
+            if [ "$AGE" -lt 1800 ]; then
+              # Restarted less than 30 minutes ago; the run that did it
+              # already reported. Stay quiet rather than repeat every 5 min.
+              echo "Unhealthy, but the app was deployed ${AGE}s ago: not restarting."
+              exit 1
+            fi
+          fi
+
+          alert "⚠️ Voholabs Studio: publishing has stalled on production. Restarting the app now. Details: $FIRST"
+          RESULT=$(railway 'mutation($s:String!,$e:String!){serviceInstanceRedeploy(serviceId:$s,environmentId:$e)}')
+          if [ "$(echo "$RESULT" | jq -r '.data.serviceInstanceRedeploy // false')" != "true" ]; then
+            alert "❌ Voholabs Studio: the automatic restart failed. Restart it by hand on Railway. Response: $(echo "$RESULT" | head -c 300)"
+            exit 1
+          fi
+
+          # Give it time to come back, then only speak up if it is still broken.
+          sleep 360
+          if check; then exit 0; fi
+          alert "❌ Voholabs Studio: still not publishing after the restart. Needs a look. Details: HTTP $CODE $BODY"
+          exit 1

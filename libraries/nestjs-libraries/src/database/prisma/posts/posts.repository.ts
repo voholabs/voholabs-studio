@@ -37,6 +37,39 @@ export class PostsRepository {
     private _errors: PrismaRepository<'errors'>
   ) {}
 
+  // For the publishing health check: how many top-level posts fell due
+  // between `dueFrom` and `dueTo` but are still waiting, and how many posts
+  // finished (published or failed) since `activitySince`.
+  async publishingActivity(dueFrom: Date, dueTo: Date, activitySince: Date) {
+    const [overdue, oldest, finished] = await Promise.all([
+      this._post.model.post.count({
+        where: {
+          state: 'QUEUE',
+          deletedAt: null,
+          parentPostId: null,
+          publishDate: { gte: dueFrom, lte: dueTo },
+        },
+      }),
+      this._post.model.post.findFirst({
+        where: {
+          state: 'QUEUE',
+          deletedAt: null,
+          parentPostId: null,
+          publishDate: { gte: dueFrom, lte: dueTo },
+        },
+        orderBy: { publishDate: 'asc' },
+        select: { publishDate: true },
+      }),
+      this._post.model.post.count({
+        where: {
+          state: { in: ['PUBLISHED', 'ERROR'] },
+          updatedAt: { gte: activitySince },
+        },
+      }),
+    ]);
+    return { overdue, oldestOverdue: oldest?.publishDate || null, finished };
+  }
+
   searchForMissingThreeHoursPosts() {
     return this._post.model.post.findMany({
       where: {

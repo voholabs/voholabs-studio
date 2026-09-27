@@ -91,6 +91,42 @@ export class PostsService {
     private _postRevisionService: PostRevisionService
   ) {}
 
+  // Is publishing actually moving? Posts that came due 15 to 60 minutes ago
+  // but are still waiting, while nothing has finished in the last 15 minutes,
+  // mean the scheduler has stalled even though every process looks alive.
+  // Older stragglers are ignored so a few stuck posts can't keep this red.
+  async publishingHealth() {
+    const now = Date.now();
+    const minutes = (m: number) => new Date(now - m * 60_000);
+    const activity = await this._postRepository.publishingActivity(
+      minutes(60),
+      minutes(15),
+      minutes(15)
+    );
+
+    let scheduler = true;
+    try {
+      await Promise.race([
+        this._temporalService.client
+          .getRawClient()!
+          .workflowService.getSystemInfo({}),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), 5000)
+        ),
+      ]);
+    } catch (err) {
+      scheduler = false;
+    }
+
+    const stalled = activity.overdue > 0 && activity.finished === 0;
+    return {
+      healthy: scheduler && !stalled,
+      scheduler,
+      stalled,
+      ...activity,
+    };
+  }
+
   searchForMissingThreeHoursPosts() {
     return this._postRepository.searchForMissingThreeHoursPosts();
   }

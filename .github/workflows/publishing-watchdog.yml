@@ -9,6 +9,11 @@ on:
   schedule:
     - cron: '*/5 * * * *'
   workflow_dispatch:
+    inputs:
+      verify_railway:
+        description: 'Only check the Railway token with a read-only call (no Discord, no restart)'
+        type: boolean
+        default: false
 
 concurrency:
   group: publishing-watchdog
@@ -52,6 +57,17 @@ jobs:
                   -H 'Content-Type: application/json' \
                   -H "Project-Access-Token: $RAILWAY_TOKEN" -d @-
           }
+
+          if [ "${{ inputs.verify_railway || false }}" = "true" ]; then
+            OUT=$(railway 'query($s:String!,$e:String!){deployments(first:1,input:{serviceId:$s,environmentId:$e}){edges{node{createdAt status}}}}')
+            LAST=$(echo "$OUT" | jq -r '.data.deployments.edges[0].node | "\(.createdAt) \(.status)"' 2>/dev/null)
+            if [ -n "$LAST" ] && [ "$LAST" != "null null" ]; then
+              echo "Railway token OK. Latest production deployment: $LAST"
+              exit 0
+            fi
+            echo "Railway token check FAILED: $(echo "$OUT" | head -c 300)"
+            exit 1
+          fi
 
           if check; then exit 0; fi
 

@@ -41,16 +41,8 @@ export class PostsRepository {
   // between `dueFrom` and `dueTo` but are still waiting, and how many posts
   // finished (published or failed) since `activitySince`.
   async publishingActivity(dueFrom: Date, dueTo: Date, activitySince: Date) {
-    const [overdue, oldest, finished] = await Promise.all([
-      this._post.model.post.count({
-        where: {
-          state: 'QUEUE',
-          deletedAt: null,
-          parentPostId: null,
-          publishDate: { gte: dueFrom, lte: dueTo },
-        },
-      }),
-      this._post.model.post.findFirst({
+    const [overdue, finished] = await Promise.all([
+      this._post.model.post.findMany({
         where: {
           state: 'QUEUE',
           deletedAt: null,
@@ -58,7 +50,8 @@ export class PostsRepository {
           publishDate: { gte: dueFrom, lte: dueTo },
         },
         orderBy: { publishDate: 'asc' },
-        select: { publishDate: true },
+        select: { id: true, publishDate: true },
+        take: 20,
       }),
       this._post.model.post.count({
         where: {
@@ -67,7 +60,7 @@ export class PostsRepository {
         },
       }),
     ]);
-    return { overdue, oldestOverdue: oldest?.publishDate || null, finished };
+    return { overdue, finished };
   }
 
   searchForMissingThreeHoursPosts() {

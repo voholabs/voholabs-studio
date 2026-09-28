@@ -91,10 +91,11 @@ export class PostsService {
     private _postRevisionService: PostRevisionService
   ) {}
 
-  // Is publishing actually moving? Posts that came due 15 to 60 minutes ago
-  // but are still waiting, while nothing has finished in the last 15 minutes,
-  // mean the scheduler has stalled even though every process looks alive.
-  // Older stragglers are ignored so a few stuck posts can't keep this red.
+  // Is publishing actually moving? A stall is posts that came due 15 to 60
+  // minutes ago, still have a live publishing job in the scheduler, and yet
+  // nothing has finished in the last 15 minutes. Overdue posts with no job at
+  // all (left behind by an earlier outage) are reported but are not a stall:
+  // restarting would not publish them.
   async publishingHealth() {
     const now = Date.now();
     const minutes = (m: number) => new Date(now - m * 60_000);
@@ -104,26 +105,56 @@ export class PostsService {
       minutes(15)
     );
 
-    let scheduler = true;
-    try {
-      await Promise.race([
-        this._temporalService.client
-          .getRawClient()!
-          .workflowService.getSystemInfo({}),
-        new Promise((_, reject) =>
+    const client = this._temporalService.client.getRawClient()!;
+    const withTimeout = <T>(p: Promise<T>) =>
+      Promise.race([
+        p,
+        new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('timeout')), 5000)
         ),
       ]);
+
+    let scheduler = true;
+    try {
+      await withTimeout(client.workflowService.getSystemInfo({}));
     } catch (err) {
       scheduler = false;
     }
 
-    const stalled = activity.overdue > 0 && activity.finished === 0;
+    // Which overdue posts still have a running publishing job
+    let waitingOnScheduler = 0;
+    let withoutJob = 0;
+    if (scheduler) {
+      for (const post of activity.overdue) {
+        try {
+          const job = await withTimeout(
+            client.workflow.getHandle(`post_${post.id}`).describe()
+          );
+          if (job.status.name === 'RUNNING') {
+            waitingOnScheduler++;
+          } else {
+            withoutJob++;
+          }
+        } catch (err: any) {
+          if (err?.message === 'timeout') {
+            scheduler = false;
+            break;
+          }
+          withoutJob++;
+        }
+      }
+    }
+
+    const stalled = waitingOnScheduler > 0 && activity.finished === 0;
     return {
       healthy: scheduler && !stalled,
       scheduler,
       stalled,
-      ...activity,
+      overdue: activity.overdue.length,
+      waitingOnScheduler,
+      withoutJob,
+      oldestOverdue: activity.overdue[0]?.publishDate || null,
+      finished: activity.finished,
     };
   }
 

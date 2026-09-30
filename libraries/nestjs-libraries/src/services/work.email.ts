@@ -1,7 +1,6 @@
-// New accounts have to use a work address, whether they sign up with a
-// password or with Google: the free plan is traded for a lead, and a personal
-// or throwaway inbox is not one. Accounts that already exist keep signing in,
-// and somebody accepting a team invitation is never checked.
+// Sign-up refuses throwaway inboxes (they cannot receive the activation
+// email and are the usual tool for abuse). Personal addresses such as Gmail
+// are welcome. isWorkEmail is still used to prefill the onboarding website.
 //
 // Both lists are the common cases, not every domain that exists. A throwaway
 // domain that is missing still has to pass email activation before it gets in.
@@ -164,3 +163,6 @@ export const isWorkEmail = (email: string) =>
 
 export const workEmailMessage = () =>
   "Voholabs Studio needs a work email. Personal addresses like Gmail, Outlook or Yahoo can't be used to sign up.";
+
+export const disposableEmailMessage = () =>
+  'Please sign up with a real email address. Temporary or throwaway inboxes cannot be used.';

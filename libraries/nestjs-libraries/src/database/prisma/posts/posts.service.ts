@@ -1,8 +1,14 @@
 import {
   BadRequestException,
+  HttpException,
   Injectable,
   ValidationPipe,
 } from '@nestjs/common';
+import {
+  hasAccess,
+  paidFeatureMessage,
+  providerNeedsPaidPlan,
+} from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 import { PostsRepository } from '@gitroom/nestjs-libraries/database/prisma/posts/posts.repository';
 import { CreatePostDto } from '@gitroom/nestjs-libraries/dtos/posts/create.post.dto';
 import dayjs from 'dayjs';
@@ -158,6 +164,10 @@ export class PostsService {
       oldestOverdue: activity.overdue[0]?.publishDate || null,
       finished: activity.finished,
     };
+  }
+
+  async organizationHasPaidPlan(orgId: string) {
+    return hasAccess(await this._postRepository.organizationSubscription(orgId));
   }
 
   searchForMissingThreeHoursPosts() {
@@ -1285,6 +1295,17 @@ export class PostsService {
     body: CreatePostDto,
     creationMethod: CreationMethod
   ): Promise<any[]> {
+    // X is not on the free plan: refuse before anything is saved, whether the
+    // post comes from the app, the public API or an AI agent.
+    if (
+      body.posts.some((post) =>
+        providerNeedsPaidPlan((post.settings as any)?.__type)
+      ) &&
+      !(await this.organizationHasPaidPlan(orgId))
+    ) {
+      throw new HttpException(paidFeatureMessage('Posting to X'), 402);
+    }
+
     const postList = [];
     for (const post of body.posts) {
       const provider = this._integrationManager.getSocialIntegration(

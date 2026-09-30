@@ -21,6 +21,7 @@ import { object, string } from 'yup';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { web3List } from '@gitroom/frontend/components/launches/web3/web3.list';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
+import { useUser } from '@gitroom/frontend/components/layout/user.context';
 import clsx from 'clsx';
 import copy from 'copy-to-clipboard';
 import { capitalize } from 'lodash';
@@ -828,8 +829,14 @@ export const AddProviderComponent: FC<{
   );
 
   const t = useT();
+  const user = useUser();
+  // X is not part of the free plan (the backend refuses it too)
+  const paidOnly = ['x'];
 
   const filteredSocial = social.filter((item) => {
+    if (user?.tier?.current === 'FREE' && paidOnly.includes(item.identifier)) {
+      return false;
+    }
     if (!props.invite) {
       return true;
     }

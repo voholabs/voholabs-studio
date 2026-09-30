@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
-  isWorkEmail,
-  workEmailMessage,
+  isDisposableEmail,
+  disposableEmailMessage,
 } from '@gitroom/nestjs-libraries/services/work.email';
 import { Provider, User } from '@prisma/client';
 import {
@@ -64,10 +64,10 @@ export class AuthService {
           throw new Error('Registration is disabled');
         }
 
-        // Somebody accepting a team invitation signs up with the address the
-        // invitation went to, whatever it is.
-        if (!addToOrg && !isWorkEmail(body.email)) {
-          throw new Error(workEmailMessage());
+        // Any real address may sign up; only throwaway inboxes are refused.
+        // Somebody accepting a team invitation is never checked.
+        if (!addToOrg && isDisposableEmail(body.email)) {
+          throw new Error(disposableEmailMessage());
         }
 
         if (!body.termsAccepted) {
@@ -183,9 +183,6 @@ export class AuthService {
       throw new Error('Registration is disabled');
     }
 
-    if (this.needsWorkEmail(provider, providerUser.email, invited)) {
-      throw new Error(workEmailMessage());
-    }
 
     // Only a new account has to agree. Somebody who already has one came
     // through this same function to sign in and returned above.
@@ -333,11 +330,6 @@ export class AuthService {
     return providerInstance.generateLink(query);
   }
 
-  // Only Google hands us a real mailbox to judge. Existing accounts never get
-  // here, and an invitation decides the address on its own.
-  private needsWorkEmail(provider: string, email: string, invited: boolean) {
-    return provider === Provider.GOOGLE && !invited && !isWorkEmail(email);
-  }
 
   async checkExists(
     provider: string,
@@ -359,10 +351,6 @@ export class AuthService {
       return { jwt: await this.jwt(checkExists) };
     }
 
-    // Turn a personal address away before the sign-up form, not after it.
-    if (this.needsWorkEmail(provider, user.email, invited)) {
-      throw new Error(workEmailMessage());
-    }
 
     return { token };
   }

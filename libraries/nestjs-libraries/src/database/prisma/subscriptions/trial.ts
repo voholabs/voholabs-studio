@@ -79,6 +79,13 @@ export const planOf = (subscription?: AccessSubscription | null) =>
   (isActiveSubscription(subscription) && subscription?.subscriptionTier) ||
   (hasAccess({ subscription }) ? 'ULTIMATE' : 'FREE');
 
+// Channels only paid plans may connect and publish to. X charges per post
+// (far more for posts with links), so it is not part of the free plan.
+export const paidOnlyProviders = ['x'];
+
+export const providerNeedsPaidPlan = (identifier?: string | null) =>
+  paidOnlyProviders.includes((identifier || '').toLowerCase());
+
 export const paidFeatureMessage = (feature: string) =>
   `${feature} is not part of the free plan. Upgrade at ${paywallUrl()} to use it.`;
 

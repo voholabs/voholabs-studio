@@ -216,14 +216,6 @@ export function RegisterAfter({
               {t('sign_up', 'Sign Up')}
             </h1>
           </div>
-          {!isAfterProvider && (
-            <div className="text-[14px] mt-[12px] text-textColor opacity-80">
-              {t(
-                'work_email_required',
-                'Use your work email. Personal addresses like Gmail, Outlook or Yahoo can\'t be used.'
-              )}
-            </div>
-          )}
           <div className="text-[14px] mt-[32px] mb-[12px]">
             {t('continue_with', 'Continue With')}
           </div>

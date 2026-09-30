@@ -7,6 +7,7 @@ import { Organization } from '@prisma/client';
 import dayjs from 'dayjs';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 
+import { planOf } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 @Injectable()
 export class SubscriptionService {
   constructor(
@@ -245,8 +246,9 @@ export class SubscriptionService {
   }
 
   async checkCredits(organization: Organization, checkType = 'ai_images') {
+    // An expired row still names its old tier; the plan that applies is FREE.
     // @ts-ignore
-    const type = organization?.subscription?.subscriptionTier || 'FREE';
+    const type = planOf(organization?.subscription);
 
     if (type === 'FREE') {
       return { credits: 0 };

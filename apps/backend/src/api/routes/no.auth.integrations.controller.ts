@@ -27,6 +27,10 @@ import { RefreshIntegrationService } from '@gitroom/nestjs-libraries/integration
 import { OrganizationService } from '@gitroom/nestjs-libraries/database/prisma/organizations/organization.service';
 import { IntegrationPictureService } from '@gitroom/nestjs-libraries/integrations/integration.picture.service';
 
+import {
+  paidOnlyChannelMessage,
+  providerNeedsPaidPlan,
+} from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 @ApiTags('Integrations')
 @Controller('/integrations')
 export class NoAuthIntegrationsController {
@@ -107,6 +111,15 @@ export class NoAuthIntegrationsController {
     }
 
     const org = await this._organizationService.getOrgById(organization);
+
+    // X and TikTok are unavailable on the free plan, however the connection
+    // was started (app, public API, CLI).
+    if (
+      providerNeedsPaidPlan(integration) &&
+      !(await this._integrationService.organizationHasPaidPlan(organization))
+    ) {
+      throw new HttpException(paidOnlyChannelMessage(), 402);
+    }
 
     if (!integrationProvider.customFields) {
       await ioRedis.del(`login:${body.state}`);

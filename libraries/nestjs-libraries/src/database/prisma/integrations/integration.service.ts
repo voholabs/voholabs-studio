@@ -28,6 +28,10 @@ import { TemporalService } from 'nestjs-temporal-core';
 
 dayjs.extend(utc);
 
+import {
+  hasAccess,
+  providerNeedsPaidPlan,
+} from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 @Injectable()
 export class IntegrationService {
   private storage = UploadFactory.createStorage();
@@ -465,6 +469,12 @@ export class IntegrationService {
     );
   }
 
+  async organizationHasPaidPlan(orgId: string) {
+    return hasAccess(
+      await this._integrationRepository.organizationSubscription(orgId)
+    );
+  }
+
   async processInternalPlug(
     data: {
       post: string;
@@ -500,6 +510,14 @@ export class IntegrationService {
       return;
     }
 
+    // X and TikTok automations don't run for free organizations.
+    if (
+      providerNeedsPaidPlan(getIntegration.providerIdentifier) &&
+      !(await this.organizationHasPaidPlan(data.orgId))
+    ) {
+      return;
+    }
+
     const getSocialIntegration = this._integrationManager.getSocialIntegration(
       getIntegration.providerIdentifier
     );
@@ -524,6 +542,16 @@ export class IntegrationService {
   }) {
     const getPlugById = await this._integrationRepository.getPlug(data.plugId);
     if (!getPlugById) {
+      return true;
+    }
+
+    // X and TikTok automations don't run for free organizations.
+    if (
+      providerNeedsPaidPlan(getPlugById.integration.providerIdentifier) &&
+      !(await this.organizationHasPaidPlan(
+        getPlugById.integration.organizationId
+      ))
+    ) {
       return true;
     }
 

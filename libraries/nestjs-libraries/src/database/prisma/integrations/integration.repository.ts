@@ -17,8 +17,17 @@ export class IntegrationRepository {
     private _plugs: PrismaRepository<'plugs'>,
     private _exisingPlugData: PrismaRepository<'exisingPlugData'>,
     private _customers: PrismaRepository<'customer'>,
-    private _mentions: PrismaRepository<'mentions'>
+    private _mentions: PrismaRepository<'mentions'>,
+    private _organization: PrismaRepository<'organization'>
   ) {}
+
+  // Just enough of an organization to tell its plan.
+  organizationSubscription(orgId: string) {
+    return this._organization.model.organization.findUnique({
+      where: { id: orgId },
+      select: { subscription: true },
+    });
+  }
 
   getMentions(platform: string, q: string) {
     return this._mentions.model.mentions.findMany({

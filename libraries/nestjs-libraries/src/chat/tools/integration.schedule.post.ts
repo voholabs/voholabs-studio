@@ -260,15 +260,17 @@ so you CAN schedule "here is my new X post: <link>" before the X post exists.
               {
                 integration,
                 group: makeId(10),
-                settings: post.settings.reduce(
-                  (acc: AllProvidersSettings, s: { key: string; value: any }) => ({
-                    ...acc,
-                    [s.key]: s.value,
-                  }),
-                  {
-                    __type: integration.providerIdentifier,
-                  } as AllProvidersSettings
-                ),
+                settings: {
+                  ...post.settings.reduce(
+                    (acc: AllProvidersSettings, s: { key: string; value: any }) => ({
+                      ...acc,
+                      [s.key]: s.value,
+                    }),
+                    {} as AllProvidersSettings
+                  ),
+                  // The channel's real platform, never one the caller supplies.
+                  __type: integration.providerIdentifier,
+                } as AllProvidersSettings,
                 value: post.postsAndComments.map((p: any) => ({
                   content: withPostLinks(p),
                   id: makeId(10),

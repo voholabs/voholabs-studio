@@ -847,6 +847,16 @@ export const AddProviderComponent: FC<{
   });
   const isUnavailable = (identifier: string) =>
     isFreePlan && paidOnly.includes(identifier);
+  const unavailableReason: Record<string, string> = {
+    tiktok: t(
+      'tiktok_unavailable_reason',
+      'TikTok is paused while TikTok reviews an update to our connection. It will be back as soon as their review is complete.'
+    ),
+    x: t(
+      'x_unavailable_reason',
+      'X now charges for every post sent through its API, and with high demand we can no longer offer it for free. A premium plan that includes X is coming soon.'
+    ),
+  };
   const enabledSocial = filteredSocial.filter(
     (item) =>
       ENABLED_PROVIDERS.includes(item.identifier) &&
@@ -953,6 +963,8 @@ export const AddProviderComponent: FC<{
               {unavailableSocial.map((item) => (
                 <div
                   key={item.identifier}
+                  data-tooltip-id="tooltip"
+                  data-tooltip-content={unavailableReason[item.identifier]}
                   className={clsx(
                     isMobile
                       ? 'flex-row h-[72px] p-[16px]'

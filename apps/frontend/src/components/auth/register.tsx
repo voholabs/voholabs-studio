@@ -98,7 +98,7 @@ function RegisterBlocked({ message }: { message: string }) {
           href="/auth"
           className="flex-1 rounded-[10px] h-[52px] flex items-center justify-center bg-forth text-white"
         >
-          {t('use_a_work_email', 'Sign up with a work email')}
+          {t('back_to_sign_up', 'Back to sign up')}
         </Link>
       </div>
       <p className="mt-4 text-sm text-center">

@@ -1,6 +1,5 @@
-// Sign-up refuses throwaway inboxes (they cannot receive the activation
-// email and are the usual tool for abuse). Personal addresses such as Gmail
-// are welcome. isWorkEmail is still used to prefill the onboarding website.
+// Sign-up accepts any email address. These lists are only used to tell a
+// company address apart, e.g. to prefill the onboarding website.
 //
 // Both lists are the common cases, not every domain that exists. A throwaway
 // domain that is missing still has to pass email activation before it gets in.
@@ -163,6 +162,3 @@ export const isWorkEmail = (email: string) =>
 
 export const workEmailMessage = () =>
   "Voholabs Studio needs a work email. Personal addresses like Gmail, Outlook or Yahoo can't be used to sign up.";
-
-export const disposableEmailMessage = () =>
-  'Please sign up with a real email address. Temporary or throwaway inboxes cannot be used.';

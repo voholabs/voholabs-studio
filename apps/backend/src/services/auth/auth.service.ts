@@ -1,8 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import {
-  isDisposableEmail,
-  disposableEmailMessage,
-} from '@gitroom/nestjs-libraries/services/work.email';
 import { Provider, User } from '@prisma/client';
 import {
   termsRequiredMessage,
@@ -64,11 +60,6 @@ export class AuthService {
           throw new Error('Registration is disabled');
         }
 
-        // Any real address may sign up; only throwaway inboxes are refused.
-        // Somebody accepting a team invitation is never checked.
-        if (!addToOrg && isDisposableEmail(body.email)) {
-          throw new Error(disposableEmailMessage());
-        }
 
         if (!body.termsAccepted) {
           throw new Error(termsRequiredMessage());

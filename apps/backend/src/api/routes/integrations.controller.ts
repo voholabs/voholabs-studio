@@ -37,7 +37,7 @@ import { IntegrationPictureService } from '@gitroom/nestjs-libraries/integration
 
 import {
   hasAccess,
-  paidFeatureMessage,
+  paidOnlyChannelMessage,
   providerNeedsPaidPlan,
 } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 
@@ -229,7 +229,7 @@ export class IntegrationsController {
 
     // @ts-ignore the request organization carries its subscription
     if (providerNeedsPaidPlan(integration) && !hasAccess(org)) {
-      throw new HttpException(paidFeatureMessage('X'), 402);
+      throw new HttpException(paidOnlyChannelMessage(), 402);
     }
 
     const integrationProvider =

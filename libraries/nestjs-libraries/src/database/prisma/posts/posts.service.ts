@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import {
   hasAccess,
-  paidFeatureMessage,
+  paidOnlyChannelMessage,
   providerNeedsPaidPlan,
 } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 import { PostsRepository } from '@gitroom/nestjs-libraries/database/prisma/posts/posts.repository';
@@ -1295,15 +1295,15 @@ export class PostsService {
     body: CreatePostDto,
     creationMethod: CreationMethod
   ): Promise<any[]> {
-    // X is not on the free plan: refuse before anything is saved, whether the
-    // post comes from the app, the public API or an AI agent.
+    // X and TikTok are unavailable on the free plan: refuse before anything is
+    // saved, whether the post comes from the app, the public API or an agent.
     if (
       body.posts.some((post) =>
         providerNeedsPaidPlan((post.settings as any)?.__type)
       ) &&
       !(await this.organizationHasPaidPlan(orgId))
     ) {
-      throw new HttpException(paidFeatureMessage('Posting to X'), 402);
+      throw new HttpException(paidOnlyChannelMessage(), 402);
     }
 
     const postList = [];

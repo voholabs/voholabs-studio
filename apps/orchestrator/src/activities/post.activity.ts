@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import {
-  paidFeatureMessage,
+  paidOnlyChannelMessage,
   providerNeedsPaidPlan,
 } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 import { BadBody } from '@gitroom/nestjs-libraries/integrations/social.abstract';
@@ -211,7 +211,8 @@ export class PostActivity {
       integration.providerIdentifier
     );
 
-    // X is not on the free plan, including posts queued before that changed.
+    // X and TikTok are unavailable on the free plan, including posts queued
+    // before that changed.
     if (
       providerNeedsPaidPlan(integration.providerIdentifier) &&
       !(await this._postService.organizationHasPaidPlan(
@@ -222,7 +223,7 @@ export class PostActivity {
         integration.providerIdentifier,
         '',
         '',
-        paidFeatureMessage('Posting to X')
+        paidOnlyChannelMessage()
       );
     }
 

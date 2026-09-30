@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import {
+  paidOnlyChannelMessage,
+  providerNeedsPaidPlan,
+} from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
+import { BadBody } from '@gitroom/nestjs-libraries/integrations/social.abstract';
+import {
   Activity,
   ActivityMethod,
   TemporalService,
@@ -205,6 +210,22 @@ export class PostActivity {
     const getIntegration = this._integrationManager.getSocialIntegration(
       integration.providerIdentifier
     );
+
+    // X and TikTok are unavailable on the free plan, including posts queued
+    // before that changed.
+    if (
+      providerNeedsPaidPlan(integration.providerIdentifier) &&
+      !(await this._postService.organizationHasPaidPlan(
+        integration.organizationId
+      ))
+    ) {
+      throw new BadBody(
+        integration.providerIdentifier,
+        '',
+        '',
+        paidOnlyChannelMessage()
+      );
+    }
 
     const newPosts = await this._postService.updateTags(
       integration.organizationId,

@@ -98,7 +98,7 @@ function RegisterBlocked({ message }: { message: string }) {
           href="/auth"
           className="flex-1 rounded-[10px] h-[52px] flex items-center justify-center bg-forth text-white"
         >
-          {t('use_a_work_email', 'Sign up with a work email')}
+          {t('back_to_sign_up', 'Back to sign up')}
         </Link>
       </div>
       <p className="mt-4 text-sm text-center">
@@ -216,14 +216,6 @@ export function RegisterAfter({
               {t('sign_up', 'Sign Up')}
             </h1>
           </div>
-          {!isAfterProvider && (
-            <div className="text-[14px] mt-[12px] text-textColor opacity-80">
-              {t(
-                'work_email_required',
-                'Use your work email. Personal addresses like Gmail, Outlook or Yahoo can\'t be used.'
-              )}
-            </div>
-          )}
           <div className="text-[14px] mt-[32px] mb-[12px]">
             {t('continue_with', 'Continue With')}
           </div>

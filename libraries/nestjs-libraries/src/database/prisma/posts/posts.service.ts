@@ -1,8 +1,14 @@
 import {
   BadRequestException,
+  HttpException,
   Injectable,
   ValidationPipe,
 } from '@nestjs/common';
+import {
+  hasAccess,
+  paidOnlyChannelMessage,
+  providerNeedsPaidPlan,
+} from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 import { PostsRepository } from '@gitroom/nestjs-libraries/database/prisma/posts/posts.repository';
 import { CreatePostDto } from '@gitroom/nestjs-libraries/dtos/posts/create.post.dto';
 import dayjs from 'dayjs';
@@ -158,6 +164,10 @@ export class PostsService {
       oldestOverdue: activity.overdue[0]?.publishDate || null,
       finished: activity.finished,
     };
+  }
+
+  async organizationHasPaidPlan(orgId: string) {
+    return hasAccess(await this._postRepository.organizationSubscription(orgId));
   }
 
   searchForMissingThreeHoursPosts() {
@@ -1285,6 +1295,17 @@ export class PostsService {
     body: CreatePostDto,
     creationMethod: CreationMethod
   ): Promise<any[]> {
+    // X and TikTok are unavailable on the free plan: refuse before anything is
+    // saved, whether the post comes from the app, the public API or an agent.
+    if (
+      body.posts.some((post) =>
+        providerNeedsPaidPlan((post.settings as any)?.__type)
+      ) &&
+      !(await this.organizationHasPaidPlan(orgId))
+    ) {
+      throw new HttpException(paidOnlyChannelMessage(), 402);
+    }
+
     const postList = [];
     for (const post of body.posts) {
       const provider = this._integrationManager.getSocialIntegration(

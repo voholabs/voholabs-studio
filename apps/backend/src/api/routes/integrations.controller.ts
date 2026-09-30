@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpException,
   Param,
   Post,
   Put,
@@ -33,6 +34,12 @@ import {
 import { uniqBy } from 'lodash';
 import { RefreshIntegrationService } from '@gitroom/nestjs-libraries/integrations/refresh.integration.service';
 import { IntegrationPictureService } from '@gitroom/nestjs-libraries/integrations/integration.picture.service';
+
+import {
+  hasAccess,
+  paidOnlyChannelMessage,
+  providerNeedsPaidPlan,
+} from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 
 @ApiTags('Integrations')
 @Controller('/integrations')
@@ -218,6 +225,11 @@ export class IntegrationsController {
         .includes(integration)
     ) {
       throw new Error('Integration not allowed');
+    }
+
+    // @ts-ignore the request organization carries its subscription
+    if (providerNeedsPaidPlan(integration) && !hasAccess(org)) {
+      throw new HttpException(paidOnlyChannelMessage(), 402);
     }
 
     const integrationProvider =

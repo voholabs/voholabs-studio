@@ -34,7 +34,8 @@ export class PostsRepository {
     private _comments: PrismaRepository<'comments'>,
     private _tags: PrismaRepository<'tags'>,
     private _tagsPosts: PrismaRepository<'tagsPosts'>,
-    private _errors: PrismaRepository<'errors'>
+    private _errors: PrismaRepository<'errors'>,
+    private _organization: PrismaRepository<'organization'>
   ) {}
 
   // For the publishing health check: how many top-level posts fell due
@@ -61,6 +62,14 @@ export class PostsRepository {
       }),
     ]);
     return { overdue, finished };
+  }
+
+  // Just enough of an organization to tell its plan.
+  organizationSubscription(orgId: string) {
+    return this._organization.model.organization.findUnique({
+      where: { id: orgId },
+      select: { subscription: true },
+    });
   }
 
   searchForMissingThreeHoursPosts() {

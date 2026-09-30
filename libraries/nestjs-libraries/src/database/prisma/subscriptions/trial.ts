@@ -79,6 +79,19 @@ export const planOf = (subscription?: AccessSubscription | null) =>
   (isActiveSubscription(subscription) && subscription?.subscriptionTier) ||
   (hasAccess({ subscription }) ? 'ULTIMATE' : 'FREE');
 
+// Channels temporarily unavailable on the free plan: they can't be connected
+// or posted to without a paid plan. X charges per post; TikTok is pending its
+// Direct Post audit.
+export const paidOnlyProviders = ['x', 'tiktok'];
+
+export const providerNeedsPaidPlan = (identifier?: string | null) =>
+  paidOnlyProviders.includes(
+    (identifier || '').toLowerCase().split('-')[0]
+  );
+
+export const paidOnlyChannelMessage = () =>
+  'X and TikTok are temporarily unavailable on the free plan.';
+
 export const paidFeatureMessage = (feature: string) =>
   `${feature} is not part of the free plan. Upgrade at ${paywallUrl()} to use it.`;
 

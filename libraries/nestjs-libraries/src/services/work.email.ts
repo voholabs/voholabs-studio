@@ -1,7 +1,5 @@
-// New accounts have to use a work address, whether they sign up with a
-// password or with Google: the free plan is traded for a lead, and a personal
-// or throwaway inbox is not one. Accounts that already exist keep signing in,
-// and somebody accepting a team invitation is never checked.
+// Sign-up accepts any email address. These lists are only used to tell a
+// company address apart, e.g. to prefill the onboarding website.
 //
 // Both lists are the common cases, not every domain that exists. A throwaway
 // domain that is missing still has to pass email activation before it gets in.

@@ -21,6 +21,7 @@ import { object, string } from 'yup';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { web3List } from '@gitroom/frontend/components/launches/web3/web3.list';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
+import { useUser } from '@gitroom/frontend/components/layout/user.context';
 import clsx from 'clsx';
 import copy from 'copy-to-clipboard';
 import { capitalize } from 'lodash';
@@ -828,6 +829,10 @@ export const AddProviderComponent: FC<{
   );
 
   const t = useT();
+  const user = useUser();
+  // Temporarily unavailable on the free plan (the backend refuses them too)
+  const paidOnly = ['x', 'tiktok'];
+  const isFreePlan = user?.tier?.current === 'FREE';
 
   const filteredSocial = social.filter((item) => {
     if (!props.invite) {
@@ -840,8 +845,27 @@ export const AddProviderComponent: FC<{
       !item.customFields
     );
   });
-  const enabledSocial = filteredSocial.filter((item) =>
-    ENABLED_PROVIDERS.includes(item.identifier)
+  const isUnavailable = (identifier: string) =>
+    isFreePlan && paidOnly.includes(identifier);
+  const unavailableReason: Record<string, string> = {
+    tiktok: t(
+      'tiktok_unavailable_reason',
+      'TikTok is paused while TikTok reviews an update to our connection. It will be back as soon as their review is complete.'
+    ),
+    x: t(
+      'x_unavailable_reason',
+      'X now charges for every post sent through its API, and with high demand we can no longer offer it for free. A premium plan that includes X is coming soon.'
+    ),
+  };
+  const enabledSocial = filteredSocial.filter(
+    (item) =>
+      ENABLED_PROVIDERS.includes(item.identifier) &&
+      !isUnavailable(item.identifier)
+  );
+  const unavailableSocial = filteredSocial.filter(
+    (item) =>
+      ENABLED_PROVIDERS.includes(item.identifier) &&
+      isUnavailable(item.identifier)
   );
   const comingSoonSocial = filteredSocial.filter(
     (item) => !ENABLED_PROVIDERS.includes(item.identifier)
@@ -923,6 +947,58 @@ export const AddProviderComponent: FC<{
               </div>
             ))}
         </div>
+        {unavailableSocial.length > 0 && (
+          <div className="flex flex-col gap-[10px]">
+            <div className="text-[12px] font-[500] uppercase tracking-[0.08em] text-textColor/50">
+              {t('temporarily_unavailable', 'Temporarily unavailable')}
+            </div>
+            <div
+              className={clsx(
+                isMobile && 'gap-[20px] flex flex-col',
+                !isMobile &&
+                  'grid grid-cols-5 gap-[10px] justify-items-center justify-center',
+                isMobile ? {} : onboarding ? 'grid-cols-9' : 'grid-cols-5'
+              )}
+            >
+              {unavailableSocial.map((item) => (
+                <div
+                  key={item.identifier}
+                  data-tooltip-id="tooltip"
+                  data-tooltip-content={unavailableReason[item.identifier]}
+                  className={clsx(
+                    isMobile
+                      ? 'flex-row h-[72px] p-[16px]'
+                      : 'flex-col p-[10px] h-[100px] justify-center',
+                    'w-full text-[14px] rounded-[8px] bg-newTableHeader text-textColor relative items-center flex gap-[10px] opacity-40 grayscale cursor-default'
+                  )}
+                >
+                  <div>
+                    {item.identifier === 'youtube' ? (
+                      <img src={`/icons/platforms/youtube.svg`} />
+                    ) : (
+                      <img
+                        className={clsx(
+                          'w-[32px] h-[32px]',
+                          item.identifier !== 'google_my_business' &&
+                            'rounded-full'
+                        )}
+                        src={`/icons/platforms/${item.identifier}.png`}
+                      />
+                    )}
+                  </div>
+                  <div
+                    className={clsx(
+                      isMobile ? '' : 'whitespace-pre-wrap',
+                      'text-center'
+                    )}
+                  >
+                    {item.name}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {comingSoonSocial.length > 0 && (
           <div className="flex flex-col gap-[10px]">
             <div className="text-[12px] font-[500] uppercase tracking-[0.08em] text-textColor/50">

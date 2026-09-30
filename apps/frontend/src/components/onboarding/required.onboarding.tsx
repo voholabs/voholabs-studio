@@ -166,7 +166,10 @@ export const RequiredOnboarding: FC<{
             {...form.register('website')}
             type="text"
             autoComplete="url"
-            placeholder="acme.com"
+            placeholder={t(
+              'onboarding_website_placeholder',
+              'Your company or brand website'
+            )}
           />
           <Options
             label={t('onboarding_role', 'What is your role?')}

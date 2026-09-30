@@ -6,7 +6,48 @@ import {
   Matches,
   MaxLength,
   MinLength,
+  Validate,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
 } from 'class-validator';
+
+// Example domains people copy instead of giving their own website.
+const placeholderDomains = [
+  'acme.com',
+  'example.com',
+  'example.org',
+  'example.net',
+  'test.com',
+  'website.com',
+  'yourwebsite.com',
+  'mywebsite.com',
+  'yourcompany.com',
+  'mycompany.com',
+  'company.com',
+  'domain.com',
+  'yourdomain.com',
+  'sample.com',
+  'demo.com',
+  'abc.com',
+  'xyz.com',
+  'none.com',
+];
+
+@ValidatorConstraint({ name: 'notPlaceholderWebsite' })
+class NotPlaceholderWebsite implements ValidatorConstraintInterface {
+  validate(value: string) {
+    const host = (value || '')
+      .trim()
+      .toLowerCase()
+      .replace(/^https?:\/\//, '')
+      .split(/[/?#]/)[0]
+      .replace(/^www\./, '');
+    return !placeholderDomains.includes(host);
+  }
+  defaultMessage() {
+    return 'Please enter your own website, not an example one';
+  }
+}
 
 // The options live here so the form and the validation cannot drift apart.
 export const onboardingRoles = [
@@ -47,13 +88,14 @@ export class OnboardingDto {
   @MaxLength(128)
   name: string;
 
-  // A domain, with or without the protocol: "acme.com", "https://acme.com/us".
+  // A domain, with or without the protocol: "brand.com", "https://brand.com/us".
   @IsString()
   @IsDefined()
   @MaxLength(200)
   @Matches(/^(https?:\/\/)?([a-z0-9-]+\.)+[a-z]{2,}(\/\S*)?$/i, {
-    message: 'Please enter a valid website, like acme.com',
+    message: 'Please enter your website address',
   })
+  @Validate(NotPlaceholderWebsite)
   website: string;
 
   @IsDefined()

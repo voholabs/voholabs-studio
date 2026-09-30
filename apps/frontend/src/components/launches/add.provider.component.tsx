@@ -854,7 +854,7 @@ export const AddProviderComponent: FC<{
     ),
     x: t(
       'x_unavailable_reason',
-      'X now charges for every post sent through its API, and with high demand we can no longer offer it for free. A premium plan that includes X is coming soon.'
+      'X now charges for every post sent through its API, and with high demand we can no longer offer it for free. A premium plan that includes X is coming soon. All other channels remain free.'
     ),
   };
   const enabledSocial = filteredSocial.filter(

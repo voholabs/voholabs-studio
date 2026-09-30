@@ -2,8 +2,8 @@ name: Publishing watchdog
 
 # Every 5 minutes, ask production whether posts are actually going out.
 # Posts to Discord only when something is wrong; silent while healthy.
-# When publishing has stalled it restarts the app on Railway, at most once
-# every 30 minutes.
+# When publishing has stalled it restarts the running app container on
+# Railway (no rebuild), at most once every 30 minutes.
 
 on:
   schedule:
@@ -76,27 +76,35 @@ jobs:
           if check; then exit 0; fi
           FIRST="HTTP $CODE $BODY"
 
-          LAST=$(railway 'query($s:String!,$e:String!){deployments(first:1,input:{serviceId:$s,environmentId:$e}){edges{node{createdAt}}}}' \
-            | jq -r '.data.deployments.edges[0].node.createdAt // empty')
-          if [ -n "$LAST" ]; then
-            AGE=$(( $(date +%s) - $(date -d "$LAST" +%s) ))
-            if [ "$AGE" -lt 1800 ]; then
-              # Restarted less than 30 minutes ago; the run that did it
-              # already reported. Stay quiet rather than repeat every 5 min.
-              echo "Unhealthy, but the app was deployed ${AGE}s ago: not restarting."
-              exit 1
-            fi
+          # Cooldown: the backend's uptime resets on every restart, so a
+          # young process means we (or a deploy) restarted it recently.
+          UPTIME=$(curl -s --max-time 15 "${HEALTH_URL%/publishing}" | jq -r '.uptime // empty' 2>/dev/null || true)
+          if [ -n "$UPTIME" ] && [ "$UPTIME" -lt 1800 ]; then
+            echo "Unhealthy, but the app restarted ${UPTIME}s ago: not restarting again."
+            exit 1
+          fi
+
+          # Restart the live container as it is. A redeploy would rebuild from
+          # source, which can fail on its own (e.g. a font download).
+          DEPLOYMENT=$(railway 'query($s:String!,$e:String!){deployments(first:1,input:{serviceId:$s,environmentId:$e,status:{in:[SUCCESS]}}){edges{node{id}}}}' \
+            | jq -r '.data.deployments.edges[0].node.id // empty')
+          if [ -z "$DEPLOYMENT" ]; then
+            alert "❌ Voholabs Studio: publishing has stalled and the watchdog could not find the live deployment to restart. Restart it by hand on Railway. Details: $FIRST"
+            exit 1
           fi
 
           alert "⚠️ Voholabs Studio: publishing has stalled on production. Restarting the app now. Details: $FIRST"
-          RESULT=$(railway 'mutation($s:String!,$e:String!){serviceInstanceRedeploy(serviceId:$s,environmentId:$e)}')
-          if [ "$(echo "$RESULT" | jq -r '.data.serviceInstanceRedeploy // false')" != "true" ]; then
+          RESULT=$(jq -n --arg id "$DEPLOYMENT" '{query: "mutation($id:String!){deploymentRestart(id:$id)}", variables: {id: $id}}' \
+            | curl -s --max-time 30 https://backboard.railway.com/graphql/v2 \
+                -H 'Content-Type: application/json' \
+                -H "Project-Access-Token: $RAILWAY_TOKEN" -d @-)
+          if [ "$(echo "$RESULT" | jq -r '.data.deploymentRestart // false')" != "true" ]; then
             alert "❌ Voholabs Studio: the automatic restart failed. Restart it by hand on Railway. Response: $(echo "$RESULT" | head -c 300)"
             exit 1
           fi
 
           # Give it time to come back, then only speak up if it is still broken.
-          sleep 360
+          sleep 240
           if check; then exit 0; fi
           alert "❌ Voholabs Studio: still not publishing after the restart. Needs a look. Details: HTTP $CODE $BODY"
           exit 1

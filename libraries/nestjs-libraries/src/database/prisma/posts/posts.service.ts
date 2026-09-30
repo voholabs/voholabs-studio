@@ -91,18 +91,20 @@ export class PostsService {
     private _postRevisionService: PostRevisionService
   ) {}
 
-  // Is publishing actually moving? A stall is posts that came due 15 to 60
-  // minutes ago, still have a live publishing job in the scheduler, and yet
-  // nothing has finished in the last 15 minutes. Overdue posts with no job at
-  // all (left behind by an earlier outage) are reported but are not a stall:
-  // restarting would not publish them.
+  // Is publishing actually moving? A stall is at least 3 posts that came due
+  // 15 to 60 minutes ago and still have a live publishing job, while nothing
+  // has finished in the last hour. One or two late posts are not a stall: a
+  // job can legitimately be waiting (e.g. a post whose time was edited after
+  // its job started). Overdue posts with no job at all (left behind by an
+  // earlier outage) are reported but never count: restarting would not
+  // publish them.
   async publishingHealth() {
     const now = Date.now();
     const minutes = (m: number) => new Date(now - m * 60_000);
     const activity = await this._postRepository.publishingActivity(
       minutes(60),
       minutes(15),
-      minutes(15)
+      minutes(60)
     );
 
     const client = this._temporalService.client.getRawClient()!;
@@ -145,7 +147,7 @@ export class PostsService {
       }
     }
 
-    const stalled = waitingOnScheduler > 0 && activity.finished === 0;
+    const stalled = waitingOnScheduler >= 3 && activity.finished === 0;
     return {
       healthy: scheduler && !stalled,
       scheduler,

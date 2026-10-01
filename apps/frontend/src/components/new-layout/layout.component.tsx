@@ -27,6 +27,7 @@ import { NewSubscription } from '@gitroom/frontend/components/layout/new.subscri
 import { Support } from '@gitroom/frontend/components/layout/support';
 import { ContinueProvider } from '@gitroom/frontend/components/layout/continue.provider';
 import { ContextWrapper } from '@gitroom/frontend/components/layout/user.context';
+import { ApexBanner } from '@gitroom/frontend/components/layout/apex.banner';
 import { CopilotKit } from '@copilotkit/react-core';
 import { MantineWrapper } from '@gitroom/react/helpers/mantine.wrapper';
 import { Impersonate } from '@gitroom/frontend/components/layout/impersonate';
@@ -173,10 +174,11 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
                       </div>
                     </div>
                     <div className="flex-1 bg-newBgLineColor rounded-[12px] overflow-hidden flex flex-col gap-[1px] blurMe">
-                      <div className="flex bg-newBgColorInner h-[80px] px-[20px] items-center">
+                      <div className="relative flex bg-newBgColorInner h-[80px] px-[20px] items-center">
                         <div className="text-[24px] font-[600] flex flex-1">
                           <Title />
                         </div>
+                        {user.tier === 'FREE' && <ApexBanner />}
                         <div className="flex gap-[20px] text-textItemBlur items-center">
                           <TrialBanner />
                           <StreakComponent />

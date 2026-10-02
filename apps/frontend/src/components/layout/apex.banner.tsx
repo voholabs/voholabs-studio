@@ -12,7 +12,7 @@ export const ApexBanner: FC = () => {
         {t('apex_banner_question', 'Struggling to grow?')}
       </span>
       <a
-        href="https://voholabs.com/apex?utm_source=voholabs-studio&utm_medium=app-banner&utm_campaign=apex"
+        href="https://voholabs.com/?utm_source=voholabs-studio&utm_medium=app-banner&utm_campaign=apex"
         target="_blank"
         rel="noopener"
         className="font-[700] text-warm hover:underline"

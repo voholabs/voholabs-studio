@@ -47,6 +47,7 @@ import { useShortlinkPreference } from '@gitroom/frontend/components/settings/sh
 import dayjs from 'dayjs';
 import { Button } from '@gitroom/react/form/button';
 import { ReviewedCheckbox } from '@gitroom/frontend/components/launches/reviewed.checkbox';
+import { WalletCostLine } from '@gitroom/frontend/components/new-launch/wallet.cost.line';
 
 export const ManageModal: FC<AddEditModalProps> = (props) => {
   const t = useT();
@@ -622,6 +623,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
             </div>
           </div>
         </div>
+        {!dummy && !addEditSets && <WalletCostLine />}
         <div className="select-none h-[84px] py-[20px] border-t border-newBorder flex items-center">
           <div className="flex-1 flex ps-[20px] gap-[8px]">
             {!dummy && (

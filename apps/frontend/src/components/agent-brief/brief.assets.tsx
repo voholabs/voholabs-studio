@@ -107,7 +107,7 @@ export const BriefAssets: FC<{
           {current.map((asset) => (
             <div
               key={asset.id}
-              className="flex gap-[12px] rounded-[10px] border border-newTableBorder p-[10px] focus-within:border-warm transition-colors"
+              className="flex gap-[12px] rounded-[10px] border border-newTableBorder p-[10px] focus-within:border-tealText transition-colors"
             >
               <div className="shrink-0 w-[72px] h-[72px] rounded-[8px] overflow-hidden bg-newBgColor flex items-center justify-center">
                 {isImage(asset) ? (
@@ -135,7 +135,7 @@ export const BriefAssets: FC<{
                     href={resolve(asset.url)}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex-1 text-[13px] truncate hover:text-warm"
+                    className="flex-1 text-[13px] truncate hover:text-tealText"
                   >
                     {asset.name}
                   </a>
@@ -145,7 +145,7 @@ export const BriefAssets: FC<{
                     }
                     data-tooltip-id="tooltip"
                     data-tooltip-content={t('brief_asset_remove', 'Remove')}
-                    className="cursor-pointer select-none text-textItemBlur hover:text-warm"
+                    className="cursor-pointer select-none text-textItemBlur hover:text-tealText"
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
@@ -203,7 +203,7 @@ export const BriefAssets: FC<{
           />
           <div
             onClick={() => !uploading && picker.current?.click()}
-            className="self-start cursor-pointer select-none flex items-center gap-[8px] rounded-[8px] border border-dashed border-newTableBorder px-[14px] h-[38px] text-[14px] text-textItemBlur hover:border-warm hover:text-warm hover:bg-warmHover transition-colors"
+            className="self-start cursor-pointer select-none flex items-center gap-[8px] rounded-[8px] border border-dashed border-newTableBorder px-[14px] h-[38px] text-[14px] text-textItemBlur hover:border-tealText hover:text-tealText hover:bg-tealHover transition-colors"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"

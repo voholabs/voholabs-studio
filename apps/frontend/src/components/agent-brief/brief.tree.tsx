@@ -40,7 +40,7 @@ const Hint: FC<{ content: string }> = ({ content }) => (
     // Without a width the tooltip lays a paragraph out as a single line that
     // runs off the screen.
     data-tooltip-class-name="!max-w-[280px] !whitespace-normal !leading-[1.5]"
-    className="shrink-0 cursor-help text-textItemBlur hover:text-warm transition-colors"
+    className="shrink-0 cursor-help text-textItemBlur hover:text-tealText transition-colors"
   >
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -69,14 +69,14 @@ const TreeRow: FC<{
     onClick={() => onSelect(document)}
     className={clsx(
       'relative cursor-pointer select-none flex items-center gap-[10px] h-[36px] ps-[14px] pe-[10px] rounded-e-[8px] transition-colors',
-      active ? 'bg-warmSoft' : 'hover:bg-warmHover'
+      active ? 'bg-tealSoft' : 'hover:bg-tealHover'
     )}
   >
     {/* Sized to the row rather than to a fixed-height graphic, so it can never
         run past the row it belongs to. */}
     <span
       className={clsx(
-        'absolute start-0 top-0 h-full w-[3px] rounded-e-[3px] bg-warm transition-opacity',
+        'absolute start-0 top-0 h-full w-[3px] rounded-e-[3px] bg-tealText transition-opacity',
         active ? 'opacity-100' : 'opacity-0'
       )}
     />
@@ -86,7 +86,7 @@ const TreeRow: FC<{
     <span
       className={clsx(
         'relative shrink-0 w-[20px] h-[20px] flex items-center justify-center',
-        active ? 'text-warm' : 'text-textItemBlur'
+        active ? 'text-tealText' : 'text-textItemBlur'
       )}
     >
       {document.channel ? (
@@ -177,22 +177,9 @@ export const BriefTree: FC<{
 
   return (
     <>
-      <div className="flex items-center gap-[10px] mb-[16px]">
-        <span className="text-warm">
-          <BriefIcon name="compass" size={22} />
-        </span>
-        <h2 className="text-[20px] font-[500]">
-          {t('brief_title', 'Agent Brief')}
-        </h2>
-        <Hint
-          content={t(
-            'brief_title_tooltip',
-            'Imagine you are briefing your chief marketing officer. You can brief the agent manually, via MCP using another agent, or by talking directly to the agent.'
-          )}
-        />
-      </div>
-
-      <div className="flex items-center gap-[8px] h-[38px] px-[12px] mb-[16px] rounded-[8px] border border-newTableBorder focus-within:border-warm transition-colors">
+      {/* The page title above says "Brief" and carries the explanation in
+          its (i), so the tree starts with the search. */}
+      <div className="flex items-center gap-[8px] h-[38px] px-[12px] mb-[16px] rounded-[8px] border border-newTableBorder focus-within:border-tealText transition-colors">
         <svg
           xmlns="http://www.w3.org/2000/svg"
           width="14"
@@ -242,7 +229,7 @@ export const BriefTree: FC<{
                   onClick={() => onCreate(group)}
                   data-tooltip-id="tooltip"
                   data-tooltip-content={t('brief_add_document', 'Add document')}
-                  className="cursor-pointer select-none w-[20px] h-[20px] rounded-[6px] flex items-center justify-center text-textItemBlur hover:text-warm hover:bg-warmHover transition-colors"
+                  className="cursor-pointer select-none w-[20px] h-[20px] rounded-[6px] flex items-center justify-center text-textItemBlur hover:text-tealText hover:bg-tealHover transition-colors"
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"

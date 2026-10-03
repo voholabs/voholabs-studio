@@ -22,6 +22,17 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import { web3List } from '@gitroom/frontend/components/launches/web3/web3.list';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { useUser } from '@gitroom/frontend/components/layout/user.context';
+import {
+  findPrice,
+  formatCredits,
+  useWalletAccess,
+  useWalletPrices,
+} from '@gitroom/frontend/components/wallet-locks/wallet.access';
+import {
+  CoinsIcon,
+  LockIcon,
+} from '@gitroom/frontend/components/wallet-locks/wallet.icons';
+import { openTopUp } from '@gitroom/frontend/components/wallet/wallet.bridge';
 import clsx from 'clsx';
 import copy from 'copy-to-clipboard';
 import { capitalize } from 'lodash';
@@ -845,8 +856,47 @@ export const AddProviderComponent: FC<{
       !item.customFields
     );
   });
+  // X is pay-per-use from the wallet on the free plan: shown in the grid,
+  // locked until the first top-up. Paid plans connect it as before.
+  const walletAccess = useWalletAccess();
+  const walletWorkspace =
+    walletAccess === 'free' || walletAccess === 'payg';
+  const { data: xPrices } = useWalletPrices('x', walletWorkspace);
+  const xPost = formatCredits(findPrice(xPrices, 'x.post')?.price ?? 0);
+  const xPostLink = formatCredits(findPrice(xPrices, 'x.post_link')?.price ?? 0);
+  const walletMode = (identifier: string) =>
+    identifier !== 'x' || !walletWorkspace
+      ? undefined
+      : walletAccess === 'free'
+      ? ('locked' as const)
+      : ('metered' as const);
+  const walletTip = (identifier: string, toolTip?: string) => {
+    const mode = walletMode(identifier);
+    if (mode === 'locked') {
+      return t(
+        'x_wallet_locked',
+        'X charges per post from your wallet credits: {{post}} credits per post, {{link}} with a link. Top up to connect X.',
+        { post: xPost, link: xPostLink }
+      );
+    }
+    if (mode === 'metered') {
+      return [
+        t(
+          'x_wallet_metered',
+          "{{post}} credits per post. {{link}} with a link. Prices follow X's API price.",
+          { post: xPost, link: xPostLink }
+        ),
+        toolTip,
+      ]
+        .filter(Boolean)
+        .join(' ');
+    }
+    return toolTip;
+  };
   const isUnavailable = (identifier: string) =>
-    isFreePlan && paidOnly.includes(identifier);
+    isFreePlan &&
+    paidOnly.includes(identifier) &&
+    !walletMode(identifier);
   const unavailableReason: Record<string, string> = {
     tiktok: t(
       'tiktok_unavailable_reason',
@@ -882,31 +932,59 @@ export const AddProviderComponent: FC<{
             isMobile ? {} : onboarding ? 'grid-cols-9' : 'grid-cols-5'
           )}
         >
-          {enabledSocial.map((item) => (
+          {enabledSocial.map((item) => {
+            const mode = walletMode(item.identifier);
+            const tip = walletTip(item.identifier, item.toolTip);
+            return (
               <div
                 key={item.identifier}
-                onClick={getSocialLink(
-                  props.invite,
-                  item.identifier,
-                  item.isExternal,
-                  item.isWeb3,
-                  item.isChromeExtension,
-                  item.customFields,
-                  item.customFieldsSetup
-                )}
-                {...(!!item.toolTip
+                onClick={
+                  mode === 'locked'
+                    ? () => {
+                        modal.closeAll();
+                        openTopUp();
+                      }
+                    : getSocialLink(
+                        props.invite,
+                        item.identifier,
+                        item.isExternal,
+                        item.isWeb3,
+                        item.isChromeExtension,
+                        item.customFields,
+                        item.customFieldsSetup
+                      )
+                }
+                {...(!!tip
                   ? {
                       'data-tooltip-id': 'tooltip',
-                      'data-tooltip-content': item.toolTip,
+                      'data-tooltip-content': tip,
+                    }
+                  : {})}
+                {...(mode === 'locked'
+                  ? {
+                      role: 'button',
+                      'aria-label': `${item.name}. ${tip}`,
                     }
                   : {})}
                 className={clsx(
                   isMobile
                     ? 'flex-row h-[72px] p-[16px]'
                     : 'flex-col p-[10px] h-[100px] justify-center',
-                  'w-full text-[14px] rounded-[8px] bg-newTableHeader text-textColor relative items-center flex gap-[10px] cursor-pointer'
+                  'w-full text-[14px] rounded-[8px] bg-newTableHeader text-textColor relative items-center flex gap-[10px] cursor-pointer',
+                  // Pay-per-use marker: a thin warm ring, locked or not.
+                  !!mode && 'ring-1 ring-inset ring-warmRing',
+                  mode === 'locked' && '[&>div]:opacity-40 [&>div]:grayscale'
                 )}
               >
+                {!!mode && (
+                  <span className="absolute top-[10px] end-[10px] text-warm">
+                    {mode === 'locked' ? (
+                      <LockIcon size={14} />
+                    ) : (
+                      <CoinsIcon size={15} />
+                    )}
+                  </span>
+                )}
                 <div>
                   {item.identifier === 'youtube' ? (
                     <img src={`/icons/platforms/youtube.svg`} />
@@ -928,7 +1006,7 @@ export const AddProviderComponent: FC<{
                   )}
                 >
                   {item.name}
-                  {!!item.toolTip && !isMobile && (
+                  {!!item.toolTip && !isMobile && !mode && (
                     <svg
                       width="15"
                       height="15"
@@ -945,7 +1023,8 @@ export const AddProviderComponent: FC<{
                   )}
                 </div>
               </div>
-            ))}
+            );
+          })}
         </div>
         {unavailableSocial.length > 0 && (
           <div className="flex flex-col gap-[10px]">

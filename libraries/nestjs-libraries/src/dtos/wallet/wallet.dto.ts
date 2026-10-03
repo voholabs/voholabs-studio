@@ -5,7 +5,7 @@ export class WalletCheckoutDto {
   @IsInt()
   @Min(1)
   @Max(100000)
-  pence: number;
+  amount: number;
 
   @IsBoolean()
   @IsOptional()
@@ -26,11 +26,11 @@ export class WalletAutoTopUpDto {
   @Min(1)
   @Max(100000)
   @IsOptional()
-  amountPence?: number;
+  amount?: number;
 
   @IsInt()
   @Min(0)
   @Max(1000000)
   @IsOptional()
-  monthlyCapPence?: number;
+  monthlyCap?: number;
 }

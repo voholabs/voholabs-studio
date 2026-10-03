@@ -21,7 +21,8 @@ export interface NewWalletEntry {
   unitPrice?: number;
   idempotencyKey?: string;
   reference?: string;
-  amountPence?: number;
+  paidAmount?: number;
+  currency?: string;
   meta?: string;
 }
 
@@ -143,12 +144,12 @@ export class WalletRepository {
     });
   }
 
-  async autoTopUpPenceSince(organizationId: string, since: Date) {
+  async autoTopUpSpentSince(organizationId: string, since: Date) {
     const sum = await this._entry.model.walletEntry.aggregate({
       where: { organizationId, type: 'AUTO_TOPUP', createdAt: { gte: since } },
-      _sum: { amountPence: true },
+      _sum: { paidAmount: true },
     });
-    return sum._sum.amountPence || 0;
+    return sum._sum.paidAmount || 0;
   }
 
   // Adds an entry once. A repeated idempotency key returns the first entry.

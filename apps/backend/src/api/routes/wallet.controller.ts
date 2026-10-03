@@ -48,7 +48,7 @@ export class WalletController {
       this._wallet.getWallet(org.id),
       this._wallet.balance(org.id),
       this._wallet.topUpRules().catch(() => undefined),
-      this._wallet.autoTopUpPenceSince(
+      this._wallet.autoTopUpSpentSince(
         org.id,
         dayjs().startOf('month').toDate()
       ),
@@ -64,9 +64,9 @@ export class WalletController {
       autoTopUp: {
         enabled: !!wallet?.autoTopUp,
         threshold: wallet?.autoTopUpThreshold ?? null,
-        amountPence: wallet?.autoTopUpAmountPence ?? null,
-        monthlyCapPence: wallet?.autoTopUpMonthlyCapPence ?? null,
-        usedThisMonthPence: spentAuto,
+        paidAmount: wallet?.autoTopUpAmount ?? null,
+        monthlyCap: wallet?.autoTopUpMonthlyCap ?? null,
+        usedThisMonth: spentAuto,
       },
     };
   }
@@ -127,7 +127,7 @@ export class WalletController {
         organizationId: org.id,
         email: user.email,
         name: org.name,
-        pence: body.pence,
+        amount: body.amount,
         saveCard: !!body.saveCard,
         returnUrl: `${process.env.FRONTEND_URL}/wallet`,
       });
@@ -148,13 +148,15 @@ export class WalletController {
       if (!wallet.paymentMethodId) {
         throw new HttpException('Save a card with a top-up first', 400);
       }
-      if (!body.amountPence || body.amountPence < rules.minPence) {
+      if (!body.amount || body.amount < rules.minAmount) {
         throw new HttpException(
-          `The minimum top-up is £${(rules.minPence / 100).toFixed(2)}`,
+          `The minimum top-up is ${await this._wallet.formatMoney(
+            rules.minAmount
+          )}`,
           400
         );
       }
-      if (!body.monthlyCapPence || body.monthlyCapPence < body.amountPence) {
+      if (!body.monthlyCap || body.monthlyCap < body.amount) {
         throw new HttpException(
           'Set a monthly limit of at least one top-up',
           400
@@ -164,9 +166,9 @@ export class WalletController {
     await this._wallet.updateWallet(org.id, {
       autoTopUp: body.enabled,
       autoTopUpThreshold: body.threshold ?? wallet.autoTopUpThreshold,
-      autoTopUpAmountPence: body.amountPence ?? wallet.autoTopUpAmountPence,
-      autoTopUpMonthlyCapPence:
-        body.monthlyCapPence ?? wallet.autoTopUpMonthlyCapPence,
+      autoTopUpAmount: body.amount ?? wallet.autoTopUpAmount,
+      autoTopUpMonthlyCap:
+        body.monthlyCap ?? wallet.autoTopUpMonthlyCap,
     });
     return this.summary(org);
   }

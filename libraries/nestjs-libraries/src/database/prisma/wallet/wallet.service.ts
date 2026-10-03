@@ -11,12 +11,16 @@ export { InsufficientCreditsError };
 // credits. Every number that decides a price lives in BillingSetting and
 // BillableAction; these are only the names of the settings.
 export const BILLING = {
-  creditsPerGbp: 'credits_per_gbp',
+  // The wallet's currency (ISO code, e.g. USD): what top-ups are paid in.
+  currency: 'wallet_currency',
+  // Credits for one unit of that currency (e.g. 100 for $1).
+  creditsPerUnit: 'credits_per_unit',
   defaultMultiplierBp: 'default_multiplier_bp',
-  // Exchange rate into GBP, e.g. fx.USD = "0.80".
+  // Exchange rate from a provider's currency into the wallet's, e.g.
+  // fx.EUR = "1.08". Not needed for the wallet's own currency.
   fxPrefix: 'fx.',
-  minTopUpPence: 'min_topup_pence',
-  topUpOptionsPence: 'topup_options_pence',
+  minTopUp: 'min_topup',
+  topUpOptions: 'topup_options',
 } as const;
 
 const SETTINGS_TTL_MS = 30_000;
@@ -96,21 +100,38 @@ export class WalletService {
 
   async topUpRules() {
     const settings = await this.settings();
-    const minPence = await this.numberSetting(BILLING.minTopUpPence);
-    const optionsPence = (settings[BILLING.topUpOptionsPence] || '')
+    const minAmount = await this.numberSetting(BILLING.minTopUp);
+    const options = (settings[BILLING.topUpOptions] || '')
       .split(',')
       .map((v) => Number(v.trim()))
-      .filter((v) => v >= minPence);
+      .filter((v) => v >= minAmount);
     return {
-      minPence,
-      optionsPence,
-      creditsPerGbp: await this.numberSetting(BILLING.creditsPerGbp),
+      minAmount,
+      options,
+      creditsPerUnit: await this.numberSetting(BILLING.creditsPerUnit),
     };
   }
 
-  // Units of credit bought with an amount in pence.
-  async unitsForPence(pence: number) {
-    return pence * (await this.numberSetting(BILLING.creditsPerGbp));
+  async currency() {
+    const value = (await this.settings())[BILLING.currency];
+    if (!value) {
+      throw new Error(`Billing setting ${BILLING.currency} is not configured`);
+    }
+    return value.toUpperCase();
+  }
+
+  // An amount in the smallest unit of the wallet's currency, for messages.
+  async formatMoney(amount: number) {
+    return new Intl.NumberFormat('en', {
+      style: 'currency',
+      currency: await this.currency(),
+    }).format(amount / 100);
+  }
+
+  // Units of credit bought with an amount in the smallest unit of the
+  // wallet's currency (cents for USD).
+  async unitsForAmount(amount: number) {
+    return amount * (await this.numberSetting(BILLING.creditsPerUnit));
   }
 
   // The price of one unit of an action, in units of credit, rounded up.
@@ -121,9 +142,9 @@ export class WalletService {
 
     const settings = await this.settings();
     const fx =
-      action.costCurrency === 'GBP'
+      action.costCurrency.toUpperCase() === (await this.currency())
         ? '1'
-        : settings[BILLING.fxPrefix + action.costCurrency];
+        : settings[BILLING.fxPrefix + action.costCurrency.toUpperCase()];
     if (!fx) {
       throw new Error(`No exchange rate for ${action.costCurrency}`);
     }
@@ -131,15 +152,16 @@ export class WalletService {
     const multiplierBp =
       action.multiplierBp ??
       (await this.numberSetting(BILLING.defaultMultiplierBp));
-    const creditsPerGbp = await this.numberSetting(BILLING.creditsPerGbp);
+    const creditsPerUnit = await this.numberSetting(BILLING.creditsPerUnit);
 
-    // cost (millionths) x fx (millionths) x multiplier (bp) x credits/GBP x 100
+    // cost (millionths) x fx (millionths) x multiplier (bp) x credits per
+    // currency unit x 100
     return Number(
       ceilDiv(
         BigInt(action.costMicros) *
           BigInt(toMicros(fx)) *
           BigInt(multiplierBp) *
-          BigInt(creditsPerGbp) *
+          BigInt(creditsPerUnit) *
           BigInt(100),
         BigInt(1_000_000) * BigInt(1_000_000) * BigInt(10_000)
       )
@@ -343,17 +365,18 @@ export class WalletService {
   // Records a paid top-up once per Stripe payment, and starts pay-as-you-go.
   async addTopUp(params: {
     organizationId: string;
-    pence: number;
+    amount: number;
     auto: boolean;
     paymentIntentId: string;
   }) {
-    const units = await this.unitsForPence(params.pence);
+    const units = await this.unitsForAmount(params.amount);
     const entry = await this._wallet.add({
       organizationId: params.organizationId,
       amount: units,
       type: params.auto ? 'AUTO_TOPUP' : 'TOPUP',
       description: params.auto ? 'Auto top-up' : 'Top-up',
-      amountPence: params.pence,
+      paidAmount: params.amount,
+      currency: await this.currency(),
       idempotencyKey: `topup:${params.paymentIntentId}`,
       reference: params.paymentIntentId,
     });
@@ -366,7 +389,7 @@ export class WalletService {
     return entry;
   }
 
-  autoTopUpPenceSince(organizationId: string, since: Date) {
-    return this._wallet.autoTopUpPenceSince(organizationId, since);
+  autoTopUpSpentSince(organizationId: string, since: Date) {
+    return this._wallet.autoTopUpSpentSince(organizationId, since);
   }
 }

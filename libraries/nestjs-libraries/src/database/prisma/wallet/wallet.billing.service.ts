@@ -60,14 +60,16 @@ export class WalletBillingService {
     organizationId: string;
     email?: string;
     name?: string;
-    pence: number;
+    amount: number;
     saveCard: boolean;
     returnUrl: string;
   }) {
     const rules = await this._wallet.topUpRules();
-    if (!Number.isInteger(params.pence) || params.pence < rules.minPence) {
+    if (!Number.isInteger(params.amount) || params.amount < rules.minAmount) {
       throw new Error(
-        `The minimum top-up is £${(rules.minPence / 100).toFixed(2)}`
+        `The minimum top-up is ${await this._wallet.formatMoney(
+          rules.minAmount
+        )}`
       );
     }
 
@@ -76,12 +78,12 @@ export class WalletBillingService {
       params.email,
       params.name
     );
-    const units = await this._wallet.unitsForPence(params.pence);
+    const units = await this._wallet.unitsForAmount(params.amount);
     const metadata = {
       service: SERVICE,
       kind: 'topup',
       organizationId: params.organizationId,
-      pence: String(params.pence),
+      amount: String(params.amount),
     };
 
     const session = await this.stripe.checkout.sessions.create({
@@ -91,8 +93,8 @@ export class WalletBillingService {
         {
           quantity: 1,
           price_data: {
-            currency: 'gbp',
-            unit_amount: params.pence,
+            currency: (await this._wallet.currency()).toLowerCase(),
+            unit_amount: params.amount,
             product_data: {
               name: `${(units / 100).toLocaleString('en-GB')} credits`,
               description: 'Voholabs Studio wallet top-up',
@@ -148,9 +150,9 @@ export class WalletBillingService {
       return { ok: true };
     }
     const organizationId = session.metadata.organizationId;
-    const pence = Number(session.metadata.pence);
+    const amount = Number(session.metadata.amount);
     // Credit what was asked for, and only if Stripe charged that amount.
-    if (!organizationId || !pence || session.amount_subtotal !== pence) {
+    if (!organizationId || !amount || session.amount_subtotal !== amount) {
       this._logger.error(`Top-up ${session.id} does not match its metadata`);
       return { ok: false };
     }
@@ -164,7 +166,7 @@ export class WalletBillingService {
 
     await this._wallet.addTopUp({
       organizationId,
-      pence,
+      amount,
       auto: false,
       paymentIntentId,
     });
@@ -197,7 +199,7 @@ export class WalletBillingService {
     }
     await this._wallet.addTopUp({
       organizationId: intent.metadata.organizationId,
-      pence: Number(intent.metadata.pence),
+      amount: Number(intent.metadata.amount),
       auto: true,
       paymentIntentId: intent.id,
     });
@@ -230,7 +232,7 @@ export class WalletBillingService {
       !wallet?.autoTopUp ||
       !wallet.paymentMethodId ||
       !wallet.stripeCustomerId ||
-      !wallet.autoTopUpAmountPence
+      !wallet.autoTopUpAmount
     ) {
       return false;
     }
@@ -241,18 +243,18 @@ export class WalletBillingService {
       return false;
     }
 
-    const pence = wallet.autoTopUpAmountPence;
-    const spent = await this._wallet.autoTopUpPenceSince(
+    const amount = wallet.autoTopUpAmount;
+    const spent = await this._wallet.autoTopUpSpentSince(
       organizationId,
       dayjs().startOf('month').toDate()
     );
     if (
-      wallet.autoTopUpMonthlyCapPence &&
-      spent + pence > wallet.autoTopUpMonthlyCapPence
+      wallet.autoTopUpMonthlyCap &&
+      spent + amount > wallet.autoTopUpMonthlyCap
     ) {
       return false;
     }
-    if (balance + (await this._wallet.unitsForPence(pence)) < needed) {
+    if (balance + (await this._wallet.unitsForAmount(amount)) < needed) {
       return false;
     }
 
@@ -260,15 +262,15 @@ export class WalletBillingService {
       service: SERVICE,
       kind: 'auto_topup',
       organizationId,
-      pence: String(pence),
+      amount: String(amount),
     };
 
     try {
       // One attempt per wallet per ten minutes, however many posts ask for it.
       const intent = await this.stripe.paymentIntents.create(
         {
-          amount: pence,
-          currency: 'gbp',
+          amount,
+          currency: (await this._wallet.currency()).toLowerCase(),
           customer: wallet.stripeCustomerId,
           payment_method: wallet.paymentMethodId,
           off_session: true,

@@ -1153,37 +1153,37 @@ model BriefRevision {
 // the provider's cost, the exchange rate and the multiplier in BillingSetting,
 // so changing costMicros on one row reprices that action everywhere.
 model BillableAction {
-  id           String   @id @default(uuid())
-  key          String   @unique
-  provider     String
+  id            String       @id @default(uuid())
+  key           String       @unique
+  provider      String
   // Groups the price list: channels, storage, ai, brief, skills ...
-  category     String?
-  name         String
-  description  String?
+  category      String?
+  name          String
+  description   String?
   // What one unit is: post, gb_month, 1k_tokens, run ... Usage is always
   // rounded up to whole units (2.1 GB is billed as 3).
-  unit         String   @default("request")
+  unit          String       @default("request")
   // Units that cost nothing: per month when freePeriod is "month", or ever
   // when it is "once" (the first brief onboarding is free, a redo is not).
-  freeUnits    Int?
-  freePeriod   FreePeriod?
+  freeUnits     Int?
+  freePeriod    FreePeriod?
   // How it is charged. The price list's wording is generated from this and
   // the fields above, never written per row.
-  billing      BillingModel @default(PER_USE)
+  billing       BillingModel @default(PER_USE)
   // Only open to a workspace that has topped up its wallet. This is what the
   // code checks to unlock a feature or a channel: no row, no access.
-  requiresTopUp Boolean @default(true)
+  requiresTopUp Boolean      @default(true)
   // What the provider charges us per unit, in millionths of costCurrency.
-  costMicros   Int      @default(0)
-  costCurrency String   @default("USD")
+  costMicros    Int          @default(0)
+  costCurrency  String       @default("USD")
   // Overrides the default multiplier (basis points, 15000 = x1.5).
-  multiplierBp Int?
+  multiplierBp  Int?
   // A price set directly in hundredths of a credit, for things with no
   // provider cost to mark up. Takes precedence when set.
-  fixedPrice   Int?
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  fixedPrice    Int?
+  active        Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
   @@index([provider])
 }
@@ -1204,46 +1204,48 @@ model BillingSetting {
 }
 
 model Wallet {
-  id                       String       @id @default(uuid())
-  organizationId           String       @unique
-  stripeCustomerId         String?
-  paymentMethodId          String?
-  cardBrand                String?
-  cardLast4                String?
-  autoTopUp                Boolean      @default(false)
+  id                  String       @id @default(uuid())
+  organizationId      String       @unique
+  stripeCustomerId    String?
+  paymentMethodId     String?
+  cardBrand           String?
+  cardLast4           String?
+  autoTopUp           Boolean      @default(false)
   // Hundredths of a credit: top up when the balance falls below this.
-  autoTopUpThreshold       Int?
-  autoTopUpAmountPence     Int?
-  autoTopUpMonthlyCapPence Int?
+  autoTopUpThreshold  Int?
+  autoTopUpAmount     Int?
+  autoTopUpMonthlyCap Int?
   // Set by the first successful top-up; this is what makes an organization
   // pay-as-you-go.
-  firstTopUpAt             DateTime?
-  createdAt                DateTime     @default(now())
-  updatedAt                DateTime     @updatedAt
-  organization             Organization @relation(fields: [organizationId], references: [id])
+  firstTopUpAt        DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  organization        Organization @relation(fields: [organizationId], references: [id])
 }
 
 // The ledger. The balance is the sum of amount for an organization; nothing
 // stores it separately.
 model WalletEntry {
-  id             String       @id @default(uuid())
+  id             String          @id @default(uuid())
   organizationId String
   // Hundredths of a credit. Positive adds, negative spends.
   amount         Int
   type           WalletEntryType
   actionKey      String?
-  quantity       Int          @default(1)
+  quantity       Int             @default(1)
   unitPrice      Int?
   description    String
   // Makes a charge, refund or top-up happen at most once.
-  idempotencyKey String?      @unique
+  idempotencyKey String?         @unique
   // A post id, Stripe payment intent id, and so on.
   reference      String?
   // For top-ups: what the customer paid, in pence, before tax.
-  amountPence    Int?
+  // For top-ups: what was paid before tax, in the smallest unit of currency.
+  paidAmount     Int?
+  currency       String?
   meta           String?
-  createdAt      DateTime     @default(now())
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime        @default(now())
+  organization   Organization    @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId, createdAt])
   @@index([reference])

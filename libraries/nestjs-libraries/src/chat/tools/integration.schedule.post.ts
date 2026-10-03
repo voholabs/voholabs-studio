@@ -14,15 +14,65 @@ import {
   withPostLinks,
 } from '@gitroom/nestjs-libraries/chat/tools/post.write.shared';
 import { MediaService } from '@gitroom/nestjs-libraries/database/prisma/media/media.service';
+import { CreatePostDto } from '@gitroom/nestjs-libraries/dtos/posts/create.post.dto';
+import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
+import {
+  onPaidPlan,
+  orgFromContext,
+  postCost,
+  shortWarning,
+  toCredits,
+  walletForecast,
+} from '@gitroom/nestjs-libraries/chat/tools/wallet.shared';
 
 @Injectable()
 export class IntegrationSchedulePostTool implements AgentToolInterface {
   constructor(
     private _postsService: PostsService,
     private _integrationService: IntegrationService,
-    private _mediaService: MediaService
+    private _mediaService: MediaService,
+    private _walletService: WalletService
   ) {}
   name = 'integrationSchedulePostTool';
+
+  // Units of credit for a post on a channel the wallet charges for, or
+  // undefined when the workspace does not pay for it from the wallet.
+  private async walletCost(
+    organization: any,
+    identifier: string,
+    contents: string[]
+  ) {
+    try {
+      if (
+        !organization?.id ||
+        onPaidPlan(organization) ||
+        !(await this._walletService.billsProvider(identifier))
+      ) {
+        return undefined;
+      }
+      return await postCost(this._walletService, identifier, contents);
+    } catch (err) {
+      return undefined;
+    }
+  }
+
+  // Set when the credits will not cover what is scheduled: the scheduled
+  // usage forecast is short, or these posts alone are more than the balance
+  // and auto top-up is off.
+  private async walletWarning(organizationId: string, units: number) {
+    try {
+      const [forecast, balance, wallet] = await Promise.all([
+        walletForecast(this._walletService, organizationId),
+        this._walletService.balance(organizationId),
+        this._walletService.getWallet(organizationId),
+      ]);
+      const short =
+        forecast?.short || (units > balance && !wallet?.autoTopUp);
+      return short ? shortWarning() : undefined;
+    } catch (err) {
+      return undefined;
+    }
+  }
 
   run() {
     return createTool({
@@ -62,6 +112,12 @@ so you CAN schedule "here is my new X post: <link>" before the X post exists.
   waits for it, and fails instead of publishing a broken link. So an echo never goes
   out without its link.
 - The reference expands to a full URL, so leave room for it in character limits.
+
+WALLET CREDITS:
+On a workspace that pays per post from its wallet, each such post in the output
+carries "cost" (credits for the post and its replies, taken when it publishes, not
+now). If the credits will not cover it, the post still gets scheduled and carries
+"walletWarning": tell the user, and pass on the top-up link it contains.
 `,
       inputSchema: z.object({
         socialPost: z
@@ -136,16 +192,25 @@ so you CAN schedule "here is my new X post: <link>" before the X post exists.
             z.object({
               postId: z.string(),
               integration: z.string(),
+              cost: z
+                .number()
+                .optional()
+                .describe(
+                  'Credits this post and its replies take from the wallet when it publishes'
+                ),
+              walletWarning: z.string().optional(),
             })
           )
           .or(z.object({ errors: z.string() })),
       }),
       execute: async (inputData, context) => {
         checkAuth(inputData, context);
-        const organizationId = JSON.parse(
-          (context?.requestContext as any)?.get('organization') as string
-        ).id;
+        const organization = orgFromContext(context);
+        const organizationId = organization?.id;
         const finalOutput = [];
+        // Wallet posts that will publish, so the warning can be added once
+        // every post is on the calendar.
+        const walletPosts: { cost: number }[] = [];
 
         const integrations = {} as Record<string, Integration>;
         for (const platform of inputData.socialPost) {
@@ -251,7 +316,7 @@ so you CAN schedule "here is my new X post: <link>" before the X post exists.
             throw new Error('Integration not found');
           }
 
-          const output = await this._postsService.createPost(organizationId, {
+          const body: CreatePostDto = {
             date: post.date,
             type: post.type as 'draft' | 'schedule' | 'now',
             shortLink: post.shortLink,
@@ -282,8 +347,41 @@ so you CAN schedule "here is my new X post: <link>" before the X post exists.
                 })),
               },
             ],
-          }, 'MCP');
+          };
+          const output = await this._postsService.createPost(
+            organizationId,
+            body,
+            'MCP'
+          );
+
+          // What the wallet will take when this publishes, read from the
+          // content as createPost saved it. Never blocks the schedule.
+          const cost = await this.walletCost(
+            organization,
+            integration.providerIdentifier,
+            (body.posts[0].value || []).map((p: { content: string }) => p.content)
+          );
+          for (const item of output) {
+            if (cost !== undefined) {
+              item.cost = toCredits(cost);
+              if (post.type !== 'draft') {
+                walletPosts.push(item);
+              }
+            }
+          }
           finalOutput.push(...output);
+        }
+
+        if (walletPosts.length) {
+          const warning = await this.walletWarning(
+            organizationId,
+            walletPosts.reduce((all, p) => all + Math.round(p.cost * 100), 0)
+          );
+          if (warning) {
+            for (const item of walletPosts) {
+              (item as any).walletWarning = warning;
+            }
+          }
         }
 
         return {

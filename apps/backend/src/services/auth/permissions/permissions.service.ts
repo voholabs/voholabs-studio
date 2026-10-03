@@ -177,7 +177,7 @@ export class PermissionsService {
 
       if (
         section === Sections.BRIEF &&
-        (options.ai || (await this._walletService.isPayAsYouGo(orgId)))
+        (options.ai || (await this._walletService.unlocks(orgId, 'brief')))
       ) {
         can(action, section);
         continue;

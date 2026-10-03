@@ -62,7 +62,7 @@ Use outcome RECORDED once the lesson is actually saved with briefLearnTool, and 
       }),
       execute: async (inputData, context) => {
         checkAuth(inputData, context);
-        const blocked = paidOnly(context, 'The agent brief', true);
+        const blocked = paidOnly(context, 'The agent brief', 'brief');
         if (blocked) {
           return { error: blocked };
         }

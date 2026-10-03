@@ -187,7 +187,7 @@ export class WalletService {
         freePeriod: a.freePeriod,
         billing: a.billing,
         requiresTopUp: a.requiresTopUp,
-        price: a.billing === 'unlock' ? 0 : await this.priceOf(a),
+        price: a.billing === 'UNLOCK' ? 0 : await this.priceOf(a),
       }))
     );
   }
@@ -220,19 +220,43 @@ export class WalletService {
     return !!(await this._wallet.getWallet(organizationId))?.firstTopUpAt;
   }
 
-  // Whether the wallet prices this provider at all (it has active actions).
+  // What a top-up opens is decided by the price rows alone: an active row
+  // with requiresTopUp opens its provider (a channel such as X) and its
+  // category (a feature such as the brief) to a pay-as-you-go workspace.
+  // Nothing without such a row is ever opened.
+  private async topUpKeys() {
+    const keys = new Set<string>();
+    for (const action of await this._wallet.actions()) {
+      if (action.requiresTopUp) {
+        keys.add(action.provider);
+        if (action.category) {
+          keys.add(action.category);
+        }
+      }
+    }
+    return keys;
+  }
+
+  // Whether the wallet charges for this provider (so its lock says "top up").
   async billsProvider(identifier: string) {
-    const provider = providerOf(identifier);
-    return (await this._wallet.actions()).some((a) => a.provider === provider);
+    return (await this.topUpKeys()).has(providerOf(identifier));
+  }
+
+  // The providers and features this workspace's top-up has opened.
+  async unlockedKeys(organizationId: string) {
+    return (await this.isPayAsYouGo(organizationId))
+      ? [...(await this.topUpKeys())]
+      : [];
+  }
+
+  async unlocks(organizationId: string, key: string) {
+    return (await this.unlockedKeys(organizationId)).includes(key);
   }
 
   // A provider the free plan locks is open to a pay-as-you-go workspace when
-  // the wallet prices it.
-  async unlocksProvider(organizationId: string, identifier: string) {
-    return (
-      (await this.billsProvider(identifier)) &&
-      (await this.isPayAsYouGo(organizationId))
-    );
+  // a price row opens it.
+  unlocksProvider(organizationId: string, identifier: string) {
+    return this.unlocks(organizationId, providerOf(identifier));
   }
 
   entries(organizationId: string, page = 0, size = 20) {
@@ -286,7 +310,7 @@ export class WalletService {
     return this._wallet.spend({
       organizationId: params.organizationId,
       amount: priced.price * quantity,
-      type: 'spend',
+      type: 'SPEND',
       actionKey: params.actionKey,
       quantity,
       unitPrice: priced.price,
@@ -306,7 +330,7 @@ export class WalletService {
     return this._wallet.add({
       organizationId: charge.organizationId,
       amount: -charge.amount,
-      type: 'refund',
+      type: 'REFUND',
       actionKey: charge.actionKey || undefined,
       quantity: -charge.quantity,
       unitPrice: charge.unitPrice || undefined,
@@ -327,7 +351,7 @@ export class WalletService {
     const entry = await this._wallet.add({
       organizationId: params.organizationId,
       amount: units,
-      type: params.auto ? 'auto_topup' : 'topup',
+      type: params.auto ? 'AUTO_TOPUP' : 'TOPUP',
       description: params.auto ? 'Auto top-up' : 'Top-up',
       amountPence: params.pence,
       idempotencyKey: `topup:${params.paymentIntentId}`,

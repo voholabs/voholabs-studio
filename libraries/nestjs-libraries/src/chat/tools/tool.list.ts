@@ -107,8 +107,8 @@ export const paidToolNames = [
   'mediaMcpCall',
 ];
 
-// The paid tools a pay-as-you-go workspace also gets: the brief opens with the
-// first wallet top-up, AI media generation does not.
+// The paid tools a wallet top-up opens, when a price row opens the brief
+// (WalletService.unlockedKeys). AI media generation is never among them.
 export const walletToolNames = [
   'briefListTool',
   'briefSaveTool',

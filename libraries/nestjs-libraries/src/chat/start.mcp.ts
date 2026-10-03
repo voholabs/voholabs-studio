@@ -31,13 +31,13 @@ export const startMcp = async (app: INestApplication) => {
 
   const walletService = app.get(WalletService, { strict: false });
 
-  // Marks a workspace that has topped up its wallet: it gets the brief tools
-  // (see walletToolNames and paidOnly) and the paid rate limit.
+  // Lists what this workspace's wallet top-up has opened (see paidOnly and
+  // walletToolNames). Any of it also earns the paid rate limit.
   const withWallet = async <T extends { id: string } | null>(org: T) => {
     if (org) {
-      (org as any).payAsYouGo = await walletService
-        .isPayAsYouGo(org.id)
-        .catch(() => false);
+      (org as any).walletUnlocks = await walletService
+        .unlockedKeys(org.id)
+        .catch((): string[] => []);
     }
     return org;
   };
@@ -62,7 +62,7 @@ export const startMcp = async (app: INestApplication) => {
   const freeLimit = Number(process.env.MCP_FREE_LIMIT_PER_MINUTE || 120);
   const rateLimited = async (org: any, res: Response) => {
     const mcpLimit =
-      hasAccess(org) || org?.payAsYouGo ? paidLimit : freeLimit;
+      hasAccess(org) || org?.walletUnlocks?.length ? paidLimit : freeLimit;
     try {
       const key = `mcp_limit:${org.id}:${Math.floor(Date.now() / 60000)}`;
       const total = await ioRedis.incr(key);
@@ -129,11 +129,15 @@ export const startMcp = async (app: INestApplication) => {
   const configFor = (org: any) =>
     hasAccess(org)
       ? serverConfig
-      : org?.payAsYouGo
+      : org?.walletUnlocks?.includes('brief')
       ? walletServerConfig
       : freeServerConfig;
   const serverFor = (org: any) =>
-    hasAccess(org) ? server : org?.payAsYouGo ? walletServer : freeServer;
+    hasAccess(org)
+      ? server
+      : org?.walletUnlocks?.includes('brief')
+      ? walletServer
+      : freeServer;
 
   const oauthMiddleware = createOAuthMiddleware({
     oauth: {

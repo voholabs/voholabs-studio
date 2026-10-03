@@ -24,14 +24,14 @@ export const checkAuth = (
 // calls it. Call it right after checkAuth, which is what puts the organization
 // into the request context.
 //
-// opensWithWallet: a pay-as-you-go workspace (one that has topped up its
-// wallet) may use it too. startMcp marks the organization with payAsYouGo.
+// walletKey: what a wallet top-up opens it under (see
+// WalletService.unlockedKeys); startMcp lists those on the organization.
 export const paidOnly = (
   context: any,
   feature: string,
-  opensWithWallet = false
+  walletKey?: string
 ) => {
-  const locked = opensWithWallet
+  const locked = walletKey
     ? `${feature} opens after your first wallet top-up.`
     : paidFeatureMessage(feature);
   try {
@@ -39,7 +39,7 @@ export const paidOnly = (
       (context?.requestContext as any)?.get('organization') as string
     );
     return hasAccess(organization) ||
-      (opensWithWallet && organization?.payAsYouGo)
+      (walletKey && organization?.walletUnlocks?.includes(walletKey))
       ? null
       : locked;
   } catch (err) {

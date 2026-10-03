@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, WalletEntryType } from '@prisma/client';
 import {
   PrismaRepository,
   PrismaTransaction,
@@ -14,7 +14,7 @@ export class InsufficientCreditsError extends Error {
 export interface NewWalletEntry {
   organizationId: string;
   amount: number;
-  type: string;
+  type: WalletEntryType;
   description: string;
   actionKey?: string;
   quantity?: number;
@@ -125,7 +125,7 @@ export class WalletRepository {
       where: {
         organizationId,
         createdAt: { gte: since },
-        type: { in: ['spend', 'refund'] },
+        type: { in: ['SPEND', 'REFUND'] },
       },
       _sum: { amount: true, quantity: true },
     });
@@ -137,7 +137,7 @@ export class WalletRepository {
       where: {
         organizationId,
         createdAt: { gte: since },
-        type: { in: ['spend', 'refund'] },
+        type: { in: ['SPEND', 'REFUND'] },
       },
       select: { amount: true, createdAt: true },
     });
@@ -145,7 +145,7 @@ export class WalletRepository {
 
   async autoTopUpPenceSince(organizationId: string, since: Date) {
     const sum = await this._entry.model.walletEntry.aggregate({
-      where: { organizationId, type: 'auto_topup', createdAt: { gte: since } },
+      where: { organizationId, type: 'AUTO_TOPUP', createdAt: { gte: since } },
       _sum: { amountPence: true },
     });
     return sum._sum.amountPence || 0;
@@ -190,7 +190,7 @@ export class WalletRepository {
 
       const previous = {
         organizationId: data.organizationId,
-        type: 'spend',
+        type: WalletEntryType.SPEND,
         idempotencyKey: { startsWith: `${chargeKey}#` },
       };
       const [latest, count] = await Promise.all([

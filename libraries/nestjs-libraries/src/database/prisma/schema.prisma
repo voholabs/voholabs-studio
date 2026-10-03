@@ -1166,13 +1166,12 @@ model BillableAction {
   // Units that cost nothing: per month when freePeriod is "month", or ever
   // when it is "once" (the first brief onboarding is free, a redo is not).
   freeUnits    Int?
-  freePeriod   String?
-  // How it is charged: per_use (each time it is used), monthly (for each
-  // unit above the free amount, when first exceeded and again each month
-  // while above), or unlock (no charge: it opens with the first top-up).
-  // The price list's wording is generated from this and the fields above.
-  billing      String   @default("per_use")
-  // Only open to a workspace that has topped up its wallet.
+  freePeriod   FreePeriod?
+  // How it is charged. The price list's wording is generated from this and
+  // the fields above, never written per row.
+  billing      BillingModel @default(PER_USE)
+  // Only open to a workspace that has topped up its wallet. This is what the
+  // code checks to unlock a feature or a channel: no row, no access.
   requiresTopUp Boolean @default(true)
   // What the provider charges us per unit, in millionths of costCurrency.
   costMicros   Int      @default(0)
@@ -1231,8 +1230,7 @@ model WalletEntry {
   organizationId String
   // Hundredths of a credit. Positive adds, negative spends.
   amount         Int
-  // topup, auto_topup, spend, refund, grant, adjust
-  type           String
+  type           WalletEntryType
   actionKey      String?
   quantity       Int          @default(1)
   unitPrice      Int?
@@ -1249,4 +1247,30 @@ model WalletEntry {
 
   @@index([organizationId, createdAt])
   @@index([reference])
+}
+
+// PER_USE: charged each time it is used. MONTHLY: charged per unit above the
+// free amount when first exceeded, then again at the start of each month
+// while still above (usage rounded up to whole units). UNLOCK: never charged;
+// opens with the first top-up.
+enum BillingModel {
+  PER_USE
+  MONTHLY
+  UNLOCK
+}
+
+// ONCE: the free units are used up for good (the first brief onboarding).
+// MONTH: they renew every month (free storage).
+enum FreePeriod {
+  ONCE
+  MONTH
+}
+
+enum WalletEntryType {
+  TOPUP
+  AUTO_TOPUP
+  SPEND
+  REFUND
+  GRANT
+  ADJUST
 }

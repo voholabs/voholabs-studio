@@ -65,7 +65,7 @@ Work out what the change implies beyond the document it happened in, write that 
       }),
       execute: async (inputData, context) => {
         checkAuth(inputData, context);
-        const blocked = paidOnly(context, 'The agent brief');
+        const blocked = paidOnly(context, 'The agent brief', true);
         if (blocked) {
           return { error: blocked };
         }

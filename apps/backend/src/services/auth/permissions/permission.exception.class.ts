@@ -14,6 +14,9 @@ export enum Sections {
   TRIAL = 'trial',
   ONBOARDING = 'onboarding',
   TERMS = 'terms',
+  // The agent brief: part of AI on a paid plan, and open to a pay-as-you-go
+  // workspace (one that has topped up its wallet).
+  BRIEF = 'brief',
 }
 
 export enum AuthorizationActions {

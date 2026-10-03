@@ -48,7 +48,7 @@ Always write a note saying when to reach for this file and when not to — a log
       }),
       execute: async (inputData, context) => {
         checkAuth(inputData, context);
-        const blocked = paidOnly(context, 'The agent brief');
+        const blocked = paidOnly(context, 'The agent brief', true);
         if (blocked) {
           return { error: blocked };
         }

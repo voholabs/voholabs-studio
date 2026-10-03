@@ -61,7 +61,7 @@ Group related lessons by using the same "topic": one document per channel, per f
       }),
       execute: async (inputData, context) => {
         checkAuth(inputData, context);
-        const blocked = paidOnly(context, 'The agent brief');
+        const blocked = paidOnly(context, 'The agent brief', true);
         if (blocked) {
           return { error: blocked };
         }

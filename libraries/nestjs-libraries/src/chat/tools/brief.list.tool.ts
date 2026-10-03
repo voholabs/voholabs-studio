@@ -45,7 +45,7 @@ Each document is a list of rules: a heading and the text under it.`,
       }),
       execute: async (inputData, context) => {
         checkAuth(inputData, context);
-        const blocked = paidOnly(context, 'The agent brief');
+        const blocked = paidOnly(context, 'The agent brief', true);
         if (blocked) {
           return { error: blocked };
         }

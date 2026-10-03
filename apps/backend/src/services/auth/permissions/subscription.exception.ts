@@ -33,13 +33,24 @@ export class SubscriptionExceptionFilter implements ExceptionFilter {
       error.section === Sections.ONBOARDING ||
       error.section === Sections.TERMS;
 
+    // Opens with a wallet top-up, so the app offers the top-up instead of
+    // Postiz billing.
+    const isWallet = error.section === Sections.BRIEF;
+
     response.status(status).json({
       statusCode: status,
       message,
       url:
         process.env.FRONTEND_URL +
-        (isOnboarding ? '/launches' : isTrial ? '/trial-ended' : '/billing'),
+        (isOnboarding
+          ? '/launches'
+          : isTrial
+          ? '/trial-ended'
+          : isWallet
+          ? '/wallet'
+          : '/billing'),
       ...(isTrial || isOnboarding ? { redirect: true } : {}),
+      ...(isWallet ? { wallet: true } : {}),
     });
   }
 }
@@ -57,6 +68,8 @@ const getErrorMessage = (error: {
       return 'Please agree to the current Terms of Service to carry on.';
     case Sections.AI:
       return paidFeatureMessage('AI');
+    case Sections.BRIEF:
+      return 'The agent brief opens after your first wallet top-up.';
     case Sections.POSTS_PER_MONTH:
       switch (error.action) {
         default:

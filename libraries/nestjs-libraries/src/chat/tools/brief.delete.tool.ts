@@ -38,7 +38,7 @@ Retire an Experience document when what is in it turned out to be wrong or no lo
       }),
       execute: async (inputData, context) => {
         checkAuth(inputData, context);
-        const blocked = paidOnly(context, 'The agent brief');
+        const blocked = paidOnly(context, 'The agent brief', true);
         if (blocked) {
           return { error: blocked };
         }

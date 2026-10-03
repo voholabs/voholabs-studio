@@ -20,11 +20,11 @@ import { SaveBriefDocumentDto } from '@gitroom/nestjs-libraries/dtos/brief/brief
 import { BRIEF_REGISTRY } from '@gitroom/nestjs-libraries/agent-brief/brief.registry';
 
 // The agent brief over the public API, so the CLI and any external agent can
-// read and edit it with an API key. Gated on the AI capability, which the free
-// tier does not carry.
+// read and edit it with an API key. Open on a paid plan, or after the first
+// wallet top-up.
 @ApiTags('Public API')
 @Controller('/public/v1')
-@CheckPolicies([AuthorizationActions.Create, Sections.AI])
+@CheckPolicies([AuthorizationActions.Create, Sections.BRIEF])
 export class PublicBriefController {
   constructor(private _briefService: BriefService) {}
 

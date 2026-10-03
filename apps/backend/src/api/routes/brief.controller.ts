@@ -12,7 +12,7 @@ import { SaveBriefDocumentDto } from '@gitroom/nestjs-libraries/dtos/brief/brief
 
 @ApiTags('Brief')
 @Controller('/brief')
-@CheckPolicies([AuthorizationActions.Create, Sections.AI])
+@CheckPolicies([AuthorizationActions.Create, Sections.BRIEF])
 export class BriefController {
   constructor(private _briefService: BriefService) {}
 

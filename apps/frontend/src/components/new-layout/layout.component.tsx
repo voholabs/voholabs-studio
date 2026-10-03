@@ -157,13 +157,19 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
               ) : (
                 <>
                   <AnnouncementBanner />
+                  {user.tier === 'FREE' && <ApexBanner />}
                   <div className="flex-1 flex gap-[8px]">
                     <Support />
                     <div className="flex flex-col bg-newBgColorInner w-[80px] rounded-[12px]">
                       <div
                         id="left-menu"
                         className={clsx(
-                          'fixed h-full w-[64px] start-[17px] flex flex-1 top-0',
+                          'fixed w-[64px] start-[17px] flex flex-1',
+                          // The Apex strip pushes the page down 20px; the
+                          // fixed menu moves with it to stay aligned.
+                          user.tier === 'FREE'
+                            ? 'top-[20px] h-[calc(100%-20px)]'
+                            : 'top-0 h-full',
                           user?.admin && 'pt-[60px] max-h-[1000px]:w-[500px]'
                         )}
                       >
@@ -173,31 +179,28 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
                         </div>
                       </div>
                     </div>
-                    <div className="flex-1 flex flex-col">
-                      {user.tier === 'FREE' && <ApexBanner />}
-                      <div className="flex-1 bg-newBgLineColor rounded-[12px] overflow-hidden flex flex-col gap-[1px] blurMe">
-                        <div className="relative flex bg-newBgColorInner h-[80px] px-[20px] items-center">
-                          <div className="text-[24px] font-[600] flex flex-1">
-                            <Title />
-                          </div>
-                          <div className="flex gap-[20px] text-textItemBlur items-center">
-                            <TrialBanner />
-                            <StreakComponent />
-                            <div className="w-[1px] h-[20px] bg-blockSeparator" />
-                            <OrganizationSelector />
-                            <div className="hover:text-newTextColor">
-                              <ModeComponent />
-                            </div>
-                            <div className="w-[1px] h-[20px] bg-blockSeparator" />
-                            <LanguageComponent />
-                            <ChromeExtensionComponent />
-                            <div className="w-[1px] h-[20px] bg-blockSeparator" />
-                            <AttachToFeedbackIcon />
-                            <NotificationComponent />
-                          </div>
+                    <div className="flex-1 bg-newBgLineColor rounded-[12px] overflow-hidden flex flex-col gap-[1px] blurMe">
+                      <div className="relative flex bg-newBgColorInner h-[80px] px-[20px] items-center">
+                        <div className="text-[24px] font-[600] flex flex-1">
+                          <Title />
                         </div>
-                        <div className="flex flex-1 gap-[1px]">{children}</div>
+                        <div className="flex gap-[20px] text-textItemBlur items-center">
+                          <TrialBanner />
+                          <StreakComponent />
+                          <div className="w-[1px] h-[20px] bg-blockSeparator" />
+                          <OrganizationSelector />
+                          <div className="hover:text-newTextColor">
+                            <ModeComponent />
+                          </div>
+                          <div className="w-[1px] h-[20px] bg-blockSeparator" />
+                          <LanguageComponent />
+                          <ChromeExtensionComponent />
+                          <div className="w-[1px] h-[20px] bg-blockSeparator" />
+                          <AttachToFeedbackIcon />
+                          <NotificationComponent />
+                        </div>
                       </div>
+                      <div className="flex flex-1 gap-[1px]">{children}</div>
                     </div>
                   </div>
                 </>

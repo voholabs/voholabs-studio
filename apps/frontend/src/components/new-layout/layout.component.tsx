@@ -165,10 +165,10 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
                         id="left-menu"
                         className={clsx(
                           'fixed w-[64px] start-[17px] flex flex-1',
-                          // The Apex strip pushes the page down 20px; the
-                          // fixed menu moves with it to stay aligned.
+                          // The Apex line pushes the page down 1px; the fixed
+                          // menu moves with it to stay aligned.
                           user.tier === 'FREE'
-                            ? 'top-[20px] h-[calc(100%-20px)]'
+                            ? 'top-[1px] h-[calc(100%-1px)]'
                             : 'top-0 h-full',
                           user?.admin && 'pt-[60px] max-h-[1000px]:w-[500px]'
                         )}

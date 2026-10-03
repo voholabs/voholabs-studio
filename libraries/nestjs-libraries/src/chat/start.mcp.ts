@@ -33,8 +33,9 @@ export const startMcp = async (app: INestApplication) => {
 
   // Lists what this workspace's wallet top-up has opened (see paidOnly and
   // walletToolNames). Any of it also earns the paid rate limit.
+  // A paid plan never uses the wallet, so its requests skip the wallet tables.
   const withWallet = async <T extends { id: string } | null>(org: T) => {
-    if (org) {
+    if (org && !hasAccess(org as any)) {
       (org as any).walletUnlocks = await walletService
         .unlockedKeys(org.id)
         .catch((): string[] => []);

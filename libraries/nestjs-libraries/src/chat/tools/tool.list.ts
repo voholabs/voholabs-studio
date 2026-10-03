@@ -37,6 +37,9 @@ import { SanityMcpListTool } from '@gitroom/nestjs-libraries/chat/tools/sanity.m
 import { SanityMcpCallTool } from '@gitroom/nestjs-libraries/chat/tools/sanity.mcp.call.tool';
 import { MediaMcpListTool } from '@gitroom/nestjs-libraries/chat/tools/media.mcp.list.tool';
 import { MediaMcpCallTool } from '@gitroom/nestjs-libraries/chat/tools/media.mcp.call.tool';
+import { WalletBalanceTool } from '@gitroom/nestjs-libraries/chat/tools/wallet.balance.tool';
+import { WalletTransactionsTool } from '@gitroom/nestjs-libraries/chat/tools/wallet.transactions.tool';
+import { WalletPricesTool } from '@gitroom/nestjs-libraries/chat/tools/wallet.prices.tool';
 
 export const toolList = [
   AccountInfoTool,
@@ -78,6 +81,11 @@ export const toolList = [
   // configured instead of vanishing.
   MediaMcpListTool,
   MediaMcpCallTool,
+  // The credit wallet. Listed to every plan: a paid plan is told it does not
+  // use credits, a free one how to top up.
+  WalletBalanceTool,
+  WalletTransactionsTool,
+  WalletPricesTool,
   // Media generation belongs to the vendor, so the agent does not get these:
   //   GenerateImageTool      - vendor's job
   //   GenerateVideoTool      - exposes no models on this account anyway

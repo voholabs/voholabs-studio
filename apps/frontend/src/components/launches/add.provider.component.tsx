@@ -40,7 +40,7 @@ const resolver = classValidatorResolver(ApiKeyDto);
 
 // Channels we currently support connecting. Everything else is shown as
 // "Coming soon" and is not clickable until its OAuth app is configured.
-const ENABLED_PROVIDERS = [
+export const ENABLED_PROVIDERS = [
   'youtube',
   'facebook',
   'instagram',

@@ -74,7 +74,7 @@ export const LockedFeature: FC<{
             <PlusIcon />
             {cta || t('wallet_top_up', 'Top up')}
           </button>
-          <Link href="/prices" className={BTN_SIMPLE}>
+          <Link href="/wallet/prices" className={BTN_SIMPLE}>
             {t('wallet_see_prices', 'See prices')}
           </Link>
         </div>

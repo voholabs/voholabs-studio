@@ -3,6 +3,11 @@
 import useSWR from 'swr';
 import { useCallback } from 'react';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
+import {
+  OPEN_TOP_UP,
+  openTopUp as openWalletTopUp,
+  walletEvents,
+} from '@gitroom/frontend/components/wallet/wallet.events';
 
 // The meeting point between the screens that send people to the wallet
 // (locks, composer, 402 handler) and the wallet itself (summary, top-up).
@@ -49,19 +54,16 @@ export const useWalletSummary = (enabled = true) => {
   });
 };
 
-// The wallet listens for this event and opens its top-up dialog. A listener
-// claims the event with preventDefault(); when nothing does (the wallet is not
-// mounted on this screen), the browser goes to the wallet page instead.
+// Opens the wallet's top-up dialog (wallet.events, listened to by
+// <WalletHost />). When the dialog is not mounted on this screen, the browser
+// goes to the wallet page, which opens it.
 export const openTopUp = (message?: string) => {
   if (typeof window === 'undefined') {
     return;
   }
-  const event = new CustomEvent<OpenTopUpDetail>(WALLET_OPEN_TOPUP_EVENT, {
-    detail: { message },
-    cancelable: true,
-  });
-  const unclaimed = window.dispatchEvent(event);
-  if (unclaimed) {
-    window.location.href = '/wallet?topup=open';
+  if (walletEvents.listenerCount(OPEN_TOP_UP) > 0) {
+    openWalletTopUp(message ? { context: message } : {});
+    return;
   }
+  window.location.href = '/wallet?topup=open';
 };

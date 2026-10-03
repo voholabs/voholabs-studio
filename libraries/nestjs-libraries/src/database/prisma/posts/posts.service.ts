@@ -324,6 +324,31 @@ export class PostsService {
     //   return JSON.parse(getIntegrationData);
     // }
 
+    // A wallet workspace pays for the post read, once per post and UTC day,
+    // before the network is asked; without the credits it is not asked.
+    let charge: string | false | undefined;
+    if (
+      await this._integrationService.paysFromWallet(
+        orgId,
+        getIntegration.providerIdentifier
+      )
+    ) {
+      charge = await this._integrationService.chargeApiUse({
+        orgId,
+        identifier: getIntegration.providerIdentifier,
+        action: 'post_read',
+        chargeKey: `${getIntegration.providerIdentifier
+          .toLowerCase()
+          .split('-')[0]}read:post:${post.id}:${dayjs
+          .utc()
+          .format('YYYY-MM-DD')}`,
+        reference: post.id,
+      });
+      if (!charge) {
+        return [];
+      }
+    }
+
     try {
       const loadAnalytics = await integrationProvider.postAnalytics(
         getIntegration.internalId,
@@ -331,6 +356,12 @@ export class PostsService {
         post.releaseId,
         date
       );
+      if (charge && !loadAnalytics?.length) {
+        await this._integrationService.refundApiUse(
+          charge,
+          'Refund: the post could not be read'
+        );
+      }
       await ioRedis.set(
         `integration:${orgId}:${post.id}:${date}`,
         JSON.stringify(loadAnalytics),

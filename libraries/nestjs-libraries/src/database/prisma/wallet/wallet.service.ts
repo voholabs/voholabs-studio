@@ -30,6 +30,8 @@ export interface PricedAction {
   unit: string;
   freeUnits: number | null;
   freePeriod: string | null;
+  billing: string;
+  requiresTopUp: boolean;
   price: number;
 }
 
@@ -152,6 +154,23 @@ export class WalletService {
     return { action, price: await this.priceOf(action) };
   }
 
+  // The price list grouped into its sections, in order. Every word on the
+  // page is generated from these fields, so a new row needs no new copy.
+  async priceSections(provider?: string) {
+    const [actions, categories] = await Promise.all([
+      this.priceList(provider),
+      this._wallet.categories(),
+    ]);
+    const order = new Map(categories.map((c) => [c.key, c.sortOrder]));
+    const keys = [...new Set(actions.map((a) => a.category || 'other'))].sort(
+      (a, b) => (order.get(a) ?? 1e9) - (order.get(b) ?? 1e9)
+    );
+    return keys.map((key) => ({
+      key,
+      actions: actions.filter((a) => (a.category || 'other') === key),
+    }));
+  }
+
   async priceList(provider?: string): Promise<PricedAction[]> {
     const actions = (await this._wallet.actions()).filter(
       (a) => !provider || a.provider === provider
@@ -166,7 +185,9 @@ export class WalletService {
         unit: a.unit,
         freeUnits: a.freeUnits,
         freePeriod: a.freePeriod,
-        price: await this.priceOf(a),
+        billing: a.billing,
+        requiresTopUp: a.requiresTopUp,
+        price: a.billing === 'unlock' ? 0 : await this.priceOf(a),
       }))
     );
   }

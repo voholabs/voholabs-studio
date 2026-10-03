@@ -1167,6 +1167,13 @@ model BillableAction {
   // when it is "once" (the first brief onboarding is free, a redo is not).
   freeUnits    Int?
   freePeriod   String?
+  // How it is charged: per_use (each time it is used), monthly (for each
+  // unit above the free amount, when first exceeded and again each month
+  // while above), or unlock (no charge: it opens with the first top-up).
+  // The price list's wording is generated from this and the fields above.
+  billing      String   @default("per_use")
+  // Only open to a workspace that has topped up its wallet.
+  requiresTopUp Boolean @default(true)
   // What the provider charges us per unit, in millionths of costCurrency.
   costMicros   Int      @default(0)
   costCurrency String   @default("USD")
@@ -1180,6 +1187,13 @@ model BillableAction {
   updatedAt    DateTime @updatedAt
 
   @@index([provider])
+}
+
+// The sections of the price list. An action's category is a key here.
+model BillingCategory {
+  key       String   @id
+  sortOrder Int      @default(0)
+  updatedAt DateTime @updatedAt
 }
 
 // Key/value settings for the wallet: credits per pound, exchange rates, the

@@ -35,11 +35,18 @@ export class WalletRepository {
     private _entry: PrismaRepository<'walletEntry'>,
     private _action: PrismaRepository<'billableAction'>,
     private _setting: PrismaRepository<'billingSetting'>,
+    private _category: PrismaRepository<'billingCategory'>,
     private _transaction: PrismaTransaction
   ) {}
 
   settings() {
     return this._setting.model.billingSetting.findMany();
+  }
+
+  categories() {
+    return this._category.model.billingCategory.findMany({
+      orderBy: { sortOrder: 'asc' },
+    });
   }
 
   actions(includeInactive = false) {

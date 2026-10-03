@@ -109,7 +109,7 @@ export class WalletController {
 
   @Get('/prices')
   prices(@Query('provider') provider?: string) {
-    return this._wallet.priceList(provider);
+    return this._wallet.priceSections(provider);
   }
 
   @Post('/checkout')

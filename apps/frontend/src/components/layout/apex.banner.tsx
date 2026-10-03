@@ -3,12 +3,12 @@
 import { FC } from 'react';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 
-// One line of text centred in the top bar, for free-plan organizations.
+// One line of text in the strip above the main panel, for free-plan organizations.
 export const ApexBanner: FC = () => {
   const t = useT();
   return (
-    <div className="hidden xl:flex absolute start-1/2 -translate-x-1/2 rtl:translate-x-1/2 items-center gap-[6px] text-[14px] text-textItemBlur whitespace-nowrap">
-      <span className="apex-nudge font-[600]">
+    <div className="flex justify-center items-center gap-[6px] h-[34px] -mt-[12px] text-[14px] whitespace-nowrap">
+      <span className="font-[600] text-newTextColor">
         {t('apex_banner_question', 'Struggling to grow?')}
       </span>
       <a

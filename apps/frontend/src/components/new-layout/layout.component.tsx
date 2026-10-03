@@ -173,29 +173,31 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
                         </div>
                       </div>
                     </div>
-                    <div className="flex-1 bg-newBgLineColor rounded-[12px] overflow-hidden flex flex-col gap-[1px] blurMe">
-                      <div className="relative flex bg-newBgColorInner h-[80px] px-[20px] items-center">
-                        <div className="text-[24px] font-[600] flex flex-1">
-                          <Title />
-                        </div>
-                        {user.tier === 'FREE' && <ApexBanner />}
-                        <div className="flex gap-[20px] text-textItemBlur items-center">
-                          <TrialBanner />
-                          <StreakComponent />
-                          <div className="w-[1px] h-[20px] bg-blockSeparator" />
-                          <OrganizationSelector />
-                          <div className="hover:text-newTextColor">
-                            <ModeComponent />
+                    <div className="flex-1 flex flex-col">
+                      {user.tier === 'FREE' && <ApexBanner />}
+                      <div className="flex-1 bg-newBgLineColor rounded-[12px] overflow-hidden flex flex-col gap-[1px] blurMe">
+                        <div className="relative flex bg-newBgColorInner h-[80px] px-[20px] items-center">
+                          <div className="text-[24px] font-[600] flex flex-1">
+                            <Title />
                           </div>
-                          <div className="w-[1px] h-[20px] bg-blockSeparator" />
-                          <LanguageComponent />
-                          <ChromeExtensionComponent />
-                          <div className="w-[1px] h-[20px] bg-blockSeparator" />
-                          <AttachToFeedbackIcon />
-                          <NotificationComponent />
+                          <div className="flex gap-[20px] text-textItemBlur items-center">
+                            <TrialBanner />
+                            <StreakComponent />
+                            <div className="w-[1px] h-[20px] bg-blockSeparator" />
+                            <OrganizationSelector />
+                            <div className="hover:text-newTextColor">
+                              <ModeComponent />
+                            </div>
+                            <div className="w-[1px] h-[20px] bg-blockSeparator" />
+                            <LanguageComponent />
+                            <ChromeExtensionComponent />
+                            <div className="w-[1px] h-[20px] bg-blockSeparator" />
+                            <AttachToFeedbackIcon />
+                            <NotificationComponent />
+                          </div>
                         </div>
+                        <div className="flex flex-1 gap-[1px]">{children}</div>
                       </div>
-                      <div className="flex flex-1 gap-[1px]">{children}</div>
                     </div>
                   </div>
                 </>

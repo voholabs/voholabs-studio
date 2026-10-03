@@ -26,6 +26,8 @@ import {
 import { RefreshIntegrationService } from '@gitroom/nestjs-libraries/integrations/refresh.integration.service';
 import { OrganizationService } from '@gitroom/nestjs-libraries/database/prisma/organizations/organization.service';
 import { IntegrationPictureService } from '@gitroom/nestjs-libraries/integrations/integration.picture.service';
+import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
+import { paidOnlyChannelMessage } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 
 @ApiTags('Integrations')
 @Controller('/integrations')
@@ -35,7 +37,8 @@ export class NoAuthIntegrationsController {
     private _integrationService: IntegrationService,
     private _refreshIntegrationService: RefreshIntegrationService,
     private _organizationService: OrganizationService,
-    private _integrationPictureService: IntegrationPictureService
+    private _integrationPictureService: IntegrationPictureService,
+    private _walletService: WalletService
   ) {}
 
   /**
@@ -113,9 +116,10 @@ export class NoAuthIntegrationsController {
         integration
       ))
     ) {
-      throw new HttpException(
-        await this._integrationService.lockedProviderMessage(integration),
-        402
+      throw await this._walletService.providerLocked(
+        organization,
+        integration,
+        paidOnlyChannelMessage()
       );
     }
 

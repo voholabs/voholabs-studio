@@ -1,13 +1,14 @@
 import {
   BadRequestException,
-  HttpException,
   Injectable,
   ValidationPipe,
 } from '@nestjs/common';
 import {
   hasAccess,
+  paidOnlyChannelMessage,
   providerNeedsPaidPlan,
 } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
+import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 import { PostsRepository } from '@gitroom/nestjs-libraries/database/prisma/posts/posts.repository';
 import { CreatePostDto } from '@gitroom/nestjs-libraries/dtos/posts/create.post.dto';
 import dayjs from 'dayjs';
@@ -93,7 +94,8 @@ export class PostsService {
     private _openaiService: OpenaiService,
     private _temporalService: TemporalService,
     private _refreshIntegrationService: RefreshIntegrationService,
-    private _postRevisionService: PostRevisionService
+    private _postRevisionService: PostRevisionService,
+    private _walletService: WalletService
   ) {}
 
   // Is publishing actually moving? A stall is at least 3 posts that came due
@@ -1311,9 +1313,10 @@ export class PostsService {
         providerNeedsPaidPlan(type) &&
         !(await this._integrationService.canUseProvider(orgId, type))
       ) {
-        throw new HttpException(
-          await this._integrationService.lockedProviderMessage(type),
-          402
+        throw await this._walletService.providerLocked(
+          orgId,
+          type,
+          paidOnlyChannelMessage()
         );
       }
     }

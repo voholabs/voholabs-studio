@@ -856,24 +856,3 @@ html[dir='rtl'] [dir='ltr'] {
   font-size: 13px;
   vertical-align: middle;
 }
-
-// Apex line in the top bar: a slow fade to red and back for the first
-// ~30 seconds after the page loads, then it stays red. No hard blinking.
-@keyframes apex-nudge {
-  0%,
-  100% {
-    color: var(--new-textItemBlur);
-  }
-  50% {
-    color: #e5484d;
-  }
-}
-.apex-nudge {
-  color: #e5484d;
-  animation: apex-nudge 3.5s ease-in-out 8;
-}
-@media (prefers-reduced-motion: reduce) {
-  .apex-nudge {
-    animation: none;
-  }
-}

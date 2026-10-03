@@ -254,6 +254,8 @@ export class WalletService {
     quantity?: number;
     reference?: string;
     description?: string;
+    // Charge even into a negative balance (see WalletRepository.spend).
+    allowNegative?: boolean;
   }) {
     const priced = await this.price(params.actionKey);
     if (!priced) {
@@ -269,6 +271,7 @@ export class WalletService {
       unitPrice: priced.price,
       description: params.description || priced.action.name,
       chargeKey: params.chargeKey,
+      allowNegative: params.allowNegative,
       reference: params.reference,
     });
   }

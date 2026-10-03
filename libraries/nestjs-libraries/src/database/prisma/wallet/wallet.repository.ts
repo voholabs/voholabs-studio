@@ -165,8 +165,14 @@ export class WalletRepository {
   // chargeKey names the thing being paid for (a post, say). It is charged at
   // most once while that charge stands; after a refund, the next attempt is
   // charged again under a new key (chargeKey#2, #3 ...).
-  async spend(entry: NewWalletEntry & { chargeKey: string }) {
-    const { chargeKey, ...data } = entry;
+  //
+  // allowNegative charges even when the balance does not cover it, for
+  // things already used (storage above the free amount), so the balance goes
+  // below zero instead of the charge being lost.
+  async spend(
+    entry: NewWalletEntry & { chargeKey: string; allowNegative?: boolean }
+  ) {
+    const { chargeKey, allowNegative, ...data } = entry;
     return this._transaction.model.$transaction(async (tx) => {
       await tx.wallet.upsert({
         where: { organizationId: data.organizationId },
@@ -201,7 +207,7 @@ export class WalletRepository {
         _sum: { amount: true },
       });
       const balance = sum._sum.amount || 0;
-      if (balance < data.amount) {
+      if (!allowNegative && balance < data.amount) {
         throw new InsufficientCreditsError(data.amount, balance);
       }
 

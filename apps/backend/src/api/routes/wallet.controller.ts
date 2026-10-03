@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   HttpException,
+  Param,
   Patch,
   Post,
   Query,
@@ -14,9 +15,13 @@ import { Organization, User } from '@prisma/client';
 import dayjs from 'dayjs';
 import { GetOrgFromRequest } from '@gitroom/nestjs-libraries/user/org.from.request';
 import { GetUserFromRequest } from '@gitroom/nestjs-libraries/user/user.from.request';
-import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
+import {
+  WalletService,
+  walletFrozenMessage,
+} from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 import {
   WalletBillingService,
+  WalletPaymentMismatchError,
   walletPaymentsEnabled,
 } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.billing.service';
 import {
@@ -44,18 +49,23 @@ export class WalletController {
 
   @Get('/')
   async summary(@GetOrgFromRequest() org: Organization) {
-    const [wallet, balance, rules, spentAuto] = await Promise.all([
-      this._wallet.getWallet(org.id),
-      this._wallet.balance(org.id),
-      this._wallet.topUpRules().catch(() => undefined),
-      this._wallet.autoTopUpSpentSince(
-        org.id,
-        dayjs().startOf('month').toDate()
-      ),
-    ]);
+    const [wallet, balance, rules, spentAuto, currency, forecast] =
+      await Promise.all([
+        this._wallet.getWallet(org.id),
+        this._wallet.balance(org.id),
+        this._wallet.topUpRules().catch(() => undefined),
+        this._wallet.autoTopUpSpentSince(
+          org.id,
+          dayjs().startOf('month').toDate()
+        ),
+        this._wallet.currency().catch(() => null),
+        this._wallet.forecast(org.id),
+      ]);
     return {
       balance,
-      payAsYouGo: !!wallet?.firstTopUpAt,
+      payAsYouGo: !!wallet?.firstTopUpAt && !wallet.frozenAt,
+      frozen: !!wallet?.frozenAt,
+      currency: wallet?.currency || currency,
       paymentsEnabled: walletPaymentsEnabled(),
       topUp: rules || null,
       card: wallet?.cardLast4
@@ -64,11 +74,30 @@ export class WalletController {
       autoTopUp: {
         enabled: !!wallet?.autoTopUp,
         threshold: wallet?.autoTopUpThreshold ?? null,
-        paidAmount: wallet?.autoTopUpAmount ?? null,
+        amount: wallet?.autoTopUpAmount ?? null,
         monthlyCap: wallet?.autoTopUpMonthlyCap ?? null,
         usedThisMonth: spentAuto,
       },
+      forecast,
     };
+  }
+
+  // What one prospective charge costs and leaves, for the composer.
+  @Get('/estimate')
+  async estimate(
+    @GetOrgFromRequest() org: Organization,
+    @Query('actionKey') actionKey: string,
+    @Query('quantity') quantity = '1'
+  ) {
+    const estimate = await this._wallet.estimate(
+      org.id,
+      actionKey,
+      Math.min(Math.max(Math.floor(Number(quantity)) || 1, 1), 10000)
+    );
+    if (!estimate) {
+      throw new HttpException('No price for this action', 404);
+    }
+    return estimate;
   }
 
   @Get('/transactions')
@@ -136,6 +165,40 @@ export class WalletController {
     }
   }
 
+  // Stripe sends the browser back here with the session id: credit it now if
+  // it is paid (the webhook may not have arrived yet), then return the summary.
+  @Get('/checkout/:sessionId')
+  async checkoutReturn(
+    @GetOrgFromRequest() org: Organization,
+    @Param('sessionId') sessionId: string
+  ) {
+    if (!walletPaymentsEnabled()) {
+      throw new HttpException('Top-ups are not available yet', 503);
+    }
+    if (!/^cs_[A-Za-z0-9_]+$/.test(sessionId || '')) {
+      throw new HttpException('Unknown checkout session', 404);
+    }
+    let found: boolean;
+    try {
+      found = await this._billing.confirmCheckout(org.id, sessionId);
+    } catch (err) {
+      if (err instanceof WalletPaymentMismatchError) {
+        throw new HttpException(
+          'This payment could not be matched to a top-up. We have been told and will sort it out.',
+          409
+        );
+      }
+      if ((err as { type?: string })?.type === 'StripeInvalidRequestError') {
+        throw new HttpException('Unknown checkout session', 404);
+      }
+      throw err;
+    }
+    if (!found) {
+      throw new HttpException('Unknown checkout session', 404);
+    }
+    return this.summary(org);
+  }
+
   @Patch('/auto-top-up')
   async autoTopUp(
     @GetOrgFromRequest() org: OrgWithRole,
@@ -144,6 +207,9 @@ export class WalletController {
     assertAdmin(org);
     const wallet = await this._wallet.ensureWallet(org.id);
     if (body.enabled) {
+      if (wallet.frozenAt) {
+        throw new HttpException(walletFrozenMessage(), 400);
+      }
       const rules = await this._wallet.topUpRules();
       if (!wallet.paymentMethodId) {
         throw new HttpException('Save a card with a top-up first', 400);
@@ -167,8 +233,7 @@ export class WalletController {
       autoTopUp: body.enabled,
       autoTopUpThreshold: body.threshold ?? wallet.autoTopUpThreshold,
       autoTopUpAmount: body.amount ?? wallet.autoTopUpAmount,
-      autoTopUpMonthlyCap:
-        body.monthlyCap ?? wallet.autoTopUpMonthlyCap,
+      autoTopUpMonthlyCap: body.monthlyCap ?? wallet.autoTopUpMonthlyCap,
     });
     return this.summary(org);
   }
@@ -194,6 +259,14 @@ export class WalletWebhookController {
     } catch {
       throw new HttpException('Invalid signature', 400);
     }
-    return this._billing.handleEvent(event);
+    try {
+      return await this._billing.handleEvent(event);
+    } catch (err) {
+      // Non-2xx so Stripe retries and flags the endpoint; already alerted.
+      if (err instanceof WalletPaymentMismatchError) {
+        throw new HttpException('Payment does not match its metadata', 400);
+      }
+      throw err;
+    }
   }
 }

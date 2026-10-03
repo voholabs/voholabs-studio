@@ -4,7 +4,11 @@ import dayjs from 'dayjs';
 import {
   InsufficientCreditsError,
   WalletService,
+  formatCredits,
+  walletFrozenMessage,
 } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
+import { walletAlert } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.alert';
+import { NotificationService } from '@gitroom/nestjs-libraries/database/prisma/notifications/notification.service';
 
 // Payments for the credit wallet. This uses its own Stripe keys
 // (WALLET_STRIPE_*) on purpose: setting Postiz's STRIPE_* keys switches the
@@ -18,12 +22,58 @@ export const walletPaymentsEnabled = () =>
 
 const SERVICE = 'wallet';
 
+// A Stripe payment that does not match what was created for it. The webhook
+// answers non-2xx so Stripe keeps retrying and shows it as failing.
+export class WalletPaymentMismatchError extends Error {}
+
+// Card problems the customer has to fix. Anything else (Stripe down, a
+// timeout, rate limits) is temporary and leaves auto top-up on.
+const CARD_ERROR_CODES = [
+  'card_declined',
+  'expired_card',
+  'incorrect_cvc',
+  'incorrect_number',
+  'invalid_cvc',
+  'invalid_expiry_month',
+  'invalid_expiry_year',
+  'insufficient_funds',
+  'authentication_required',
+  'payment_intent_authentication_failure',
+  'payment_method_unactivated',
+  'card_decline_rate_limit_exceeded',
+];
+
+const isCardError = (err: unknown) => {
+  const e = err as { type?: string; code?: string };
+  return (
+    e?.type === 'StripeCardError' ||
+    (!!e?.code && CARD_ERROR_CODES.includes(e.code))
+  );
+};
+
+const isTransientError = (err: unknown) => {
+  const e = err as { type?: string; statusCode?: number };
+  return (
+    e?.type === 'StripeAPIError' ||
+    e?.type === 'StripeConnectionError' ||
+    e?.type === 'StripeRateLimitError' ||
+    e?.type === 'StripeIdempotencyError' ||
+    (e?.statusCode || 0) >= 500
+  );
+};
+
+const paymentIntentIdOf = (value: string | { id: string } | null | undefined) =>
+  typeof value === 'string' ? value : value?.id;
+
 @Injectable()
 export class WalletBillingService {
   private _logger = new Logger(WalletBillingService.name);
   private _client?: Stripe;
 
-  constructor(private _wallet: WalletService) {}
+  constructor(
+    private _wallet: WalletService,
+    private _notifications: NotificationService
+  ) {}
 
   private get stripe() {
     if (!walletPaymentsEnabled()) {
@@ -56,6 +106,19 @@ export class WalletBillingService {
     return customer.id;
   }
 
+  // The currency a wallet pays in: the one of its first top-up, else today's
+  // setting. A wallet never mixes currencies.
+  private async currencyFor(organizationId: string) {
+    const wallet = await this._wallet.getWallet(organizationId);
+    const current = await this._wallet.currency();
+    if (wallet?.currency && wallet.currency.toUpperCase() !== current) {
+      throw new Error(
+        `This wallet is in ${wallet.currency.toUpperCase()}; top-ups are now in ${current}. Contact support.`
+      );
+    }
+    return current;
+  }
+
   async createCheckout(params: {
     organizationId: string;
     email?: string;
@@ -64,6 +127,9 @@ export class WalletBillingService {
     saveCard: boolean;
     returnUrl: string;
   }) {
+    if (await this._wallet.isFrozen(params.organizationId)) {
+      throw new Error(walletFrozenMessage());
+    }
     const rules = await this._wallet.topUpRules();
     if (!Number.isInteger(params.amount) || params.amount < rules.minAmount) {
       throw new Error(
@@ -73,17 +139,21 @@ export class WalletBillingService {
       );
     }
 
+    const currency = await this.currencyFor(params.organizationId);
     const customer = await this.customerFor(
       params.organizationId,
       params.email,
       params.name
     );
     const units = await this._wallet.unitsForAmount(params.amount);
+    // What this payment buys is fixed now; the webhook credits exactly this.
     const metadata = {
       service: SERVICE,
       kind: 'topup',
       organizationId: params.organizationId,
       amount: String(params.amount),
+      credits: String(units),
+      currency,
     };
 
     const session = await this.stripe.checkout.sessions.create({
@@ -93,7 +163,7 @@ export class WalletBillingService {
         {
           quantity: 1,
           price_data: {
-            currency: (await this._wallet.currency()).toLowerCase(),
+            currency: currency.toLowerCase(),
             unit_amount: params.amount,
             product_data: {
               name: `${(units / 100).toLocaleString('en-GB')} credits`,
@@ -115,10 +185,25 @@ export class WalletBillingService {
           }
         : undefined,
       metadata,
-      success_url: `${params.returnUrl}?topup=success`,
+      success_url: `${params.returnUrl}?topup=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${params.returnUrl}?topup=cancelled`,
     });
     return { url: session.url };
+  }
+
+  // The browser came back from Checkout: credit the session now if it is
+  // paid, through the same idempotent path as the webhook. Returns false when
+  // the session is not this workspace's.
+  async confirmCheckout(organizationId: string, sessionId: string) {
+    const session = await this.stripe.checkout.sessions.retrieve(sessionId);
+    if (
+      session.metadata?.service !== SERVICE ||
+      session.metadata.organizationId !== organizationId
+    ) {
+      return false;
+    }
+    await this.checkoutPaid(session);
+    return true;
   }
 
   validateWebhook(rawBody: Buffer, signature: string) {
@@ -138,8 +223,41 @@ export class WalletBillingService {
         return this.autoTopUpPaid(event.data.object as Stripe.PaymentIntent);
       case 'payment_intent.payment_failed':
         return this.autoTopUpFailed(event.data.object as Stripe.PaymentIntent);
+      case 'charge.refunded':
+        return this.chargeRefunded(event.data.object as Stripe.Charge);
+      case 'charge.dispute.created':
+        return this.chargeDisputed(event.data.object as Stripe.Dispute);
     }
     return { ok: true };
+  }
+
+  // Checks a payment against the metadata written when it was created, and
+  // returns what to credit. Throws WalletPaymentMismatchError (and alerts)
+  // when they disagree.
+  private async verified(
+    id: string,
+    metadata: Stripe.Metadata,
+    paid: { amount: number | null; currency: string | null }
+  ) {
+    const organizationId = metadata.organizationId;
+    const amount = Number(metadata.amount);
+    const credits = Number(metadata.credits);
+    const currency = (metadata.currency || '').toUpperCase();
+    if (
+      !organizationId ||
+      !Number.isInteger(amount) ||
+      amount <= 0 ||
+      !Number.isInteger(credits) ||
+      credits <= 0 ||
+      !currency ||
+      paid.amount !== amount ||
+      (paid.currency || '').toUpperCase() !== currency
+    ) {
+      const message = `Payment ${id} does not match its metadata (org ${organizationId}, metadata ${amount} ${currency} for ${credits} units, paid ${paid.amount} ${paid.currency}). Nothing was credited.`;
+      await walletAlert(message);
+      throw new WalletPaymentMismatchError(message);
+    }
+    return { organizationId, amount, credits, currency };
   }
 
   private async checkoutPaid(session: Stripe.Checkout.Session) {
@@ -149,28 +267,24 @@ export class WalletBillingService {
     ) {
       return { ok: true };
     }
-    const organizationId = session.metadata.organizationId;
-    const amount = Number(session.metadata.amount);
-    // Credit what was asked for, and only if Stripe charged that amount.
-    if (!organizationId || !amount || session.amount_subtotal !== amount) {
-      this._logger.error(`Top-up ${session.id} does not match its metadata`);
-      return { ok: false };
-    }
-    const paymentIntentId =
-      typeof session.payment_intent === 'string'
-        ? session.payment_intent
-        : session.payment_intent?.id;
+    const paymentIntentId = paymentIntentIdOf(session.payment_intent);
+    const paid = await this.verified(session.id, session.metadata, {
+      amount: session.amount_subtotal,
+      currency: session.currency,
+    });
     if (!paymentIntentId) {
-      return { ok: false };
+      await walletAlert(`Checkout ${session.id} is paid but has no payment.`);
+      throw new WalletPaymentMismatchError(
+        `Checkout ${session.id} has no payment intent`
+      );
     }
 
     await this._wallet.addTopUp({
-      organizationId,
-      amount,
+      ...paid,
       auto: false,
       paymentIntentId,
     });
-    await this.rememberCard(organizationId, paymentIntentId);
+    await this.rememberCard(paid.organizationId, paymentIntentId);
     return { ok: true };
   }
 
@@ -197,9 +311,12 @@ export class WalletBillingService {
     ) {
       return { ok: true };
     }
+    const paid = await this.verified(intent.id, intent.metadata, {
+      amount: intent.amount_received || intent.amount,
+      currency: intent.currency,
+    });
     await this._wallet.addTopUp({
-      organizationId: intent.metadata.organizationId,
-      amount: Number(intent.metadata.amount),
+      ...paid,
       auto: true,
       paymentIntentId: intent.id,
     });
@@ -213,11 +330,97 @@ export class WalletBillingService {
     ) {
       return { ok: true };
     }
-    // Stop retrying a card that fails; the customer turns it back on.
-    await this._wallet.updateWallet(intent.metadata.organizationId, {
-      autoTopUp: false,
-    });
+    await this.disableAutoTopUp(
+      intent.metadata.organizationId,
+      intent.last_payment_error?.code ||
+        intent.last_payment_error?.message ||
+        'the payment failed'
+    );
     return { ok: true };
+  }
+
+  // A refund of a wallet payment takes the same share of its credits back
+  // (allowed below zero), and freezes the wallet.
+  private async chargeRefunded(charge: Stripe.Charge) {
+    const paymentIntentId = paymentIntentIdOf(charge.payment_intent);
+    if (!paymentIntentId || !charge.amount) {
+      return { ok: true };
+    }
+    const result = await this._wallet.clawBack({
+      paymentIntentId,
+      share: charge.amount_refunded / charge.amount,
+      eventKey: `refund:${charge.amount_refunded}`,
+      description: 'Payment refunded',
+    });
+    if (!result) {
+      if (charge.metadata?.service === SERVICE) {
+        await walletAlert(
+          `Refund on wallet payment ${paymentIntentId}, which never credited a wallet.`
+        );
+      }
+      return { ok: true };
+    }
+    await walletAlert(
+      `Payment ${paymentIntentId} refunded (${charge.amount_refunded}/${
+        charge.amount
+      } ${charge.currency.toUpperCase()}): took back ${formatCredits(
+        result.credits
+      )} credits from org ${result.organizationId} and froze its wallet.`
+    );
+    return { ok: true };
+  }
+
+  // A dispute takes back all of that payment's credits and freezes the
+  // wallet until support clears it.
+  private async chargeDisputed(dispute: Stripe.Dispute) {
+    const paymentIntentId = paymentIntentIdOf(dispute.payment_intent);
+    if (!paymentIntentId) {
+      return { ok: true };
+    }
+    const result = await this._wallet.clawBack({
+      paymentIntentId,
+      share: 1,
+      eventKey: `dispute:${dispute.id}`,
+      description: 'Payment disputed',
+    });
+    if (!result) {
+      return { ok: true };
+    }
+    await walletAlert(
+      `Payment ${paymentIntentId} disputed (${dispute.id}, ${
+        dispute.reason
+      }): took back ${formatCredits(result.credits)} credits from org ${
+        result.organizationId
+      } and froze its wallet.`
+    );
+    return { ok: true };
+  }
+
+  // Turns auto top-up off after a card problem, tells the workspace in the
+  // app, and alerts. Does nothing if it was already off.
+  private async disableAutoTopUp(organizationId: string, reason: string) {
+    const wallet = await this._wallet.getWallet(organizationId);
+    if (!wallet?.autoTopUp) {
+      return;
+    }
+    await this._wallet.updateWallet(organizationId, { autoTopUp: false });
+    try {
+      await this._notifications.inAppNotification(
+        organizationId,
+        'Automatic top-up turned off',
+        'Automatic top-up is off because your saved card could not be charged. Top up your wallet or update your card, then turn it back on.',
+        false,
+        false,
+        'fail'
+      );
+    } catch (err) {
+      this._logger.error(
+        `Could not notify ${organizationId} that auto top-up is off: ${err}`
+      );
+    }
+    await walletAlert(
+      `Auto top-up turned off for org ${organizationId}: ${reason}`
+    );
   }
 
   // Tops up from the saved card when auto top-up is on, the balance is under
@@ -230,6 +433,7 @@ export class WalletBillingService {
     const wallet = await this._wallet.getWallet(organizationId);
     if (
       !wallet?.autoTopUp ||
+      wallet.frozenAt ||
       !wallet.paymentMethodId ||
       !wallet.stripeCustomerId ||
       !wallet.autoTopUpAmount
@@ -254,7 +458,20 @@ export class WalletBillingService {
     ) {
       return false;
     }
-    if (balance + (await this._wallet.unitsForAmount(amount)) < needed) {
+    const credits = await this._wallet.unitsForAmount(amount);
+    if (balance + credits < needed) {
+      return false;
+    }
+
+    let currency: string;
+    try {
+      currency = await this.currencyFor(organizationId);
+    } catch (err) {
+      await walletAlert(
+        `Auto top-up skipped for org ${organizationId}: ${
+          (err as Error).message
+        }`
+      );
       return false;
     }
 
@@ -263,14 +480,17 @@ export class WalletBillingService {
       kind: 'auto_topup',
       organizationId,
       amount: String(amount),
+      credits: String(credits),
+      currency,
     };
 
     try {
-      // One attempt per wallet per ten minutes, however many posts ask for it.
+      // One attempt per wallet and amount per ten minutes, however many posts
+      // ask for it.
       const intent = await this.stripe.paymentIntents.create(
         {
           amount,
-          currency: (await this._wallet.currency()).toLowerCase(),
+          currency: currency.toLowerCase(),
           customer: wallet.stripeCustomerId,
           payment_method: wallet.paymentMethodId,
           off_session: true,
@@ -279,20 +499,41 @@ export class WalletBillingService {
           metadata,
         },
         {
-          idempotencyKey: `wallet-auto:${organizationId}:${Math.floor(
+          idempotencyKey: `wallet-auto:${organizationId}:${amount}:${Math.floor(
             Date.now() / 600_000
           )}`,
         }
       );
 
+      if (intent.status === 'requires_action') {
+        await this.disableAutoTopUp(
+          organizationId,
+          'the card needs the customer to authenticate'
+        );
+        return false;
+      }
       if (intent.status !== 'succeeded') {
         return false;
       }
       await this.autoTopUpPaid(intent);
       return true;
     } catch (err) {
-      this._logger.warn(`Auto top-up failed for ${organizationId}: ${err}`);
-      await this._wallet.updateWallet(organizationId, { autoTopUp: false });
+      if (isCardError(err)) {
+        await this.disableAutoTopUp(
+          organizationId,
+          (err as { code?: string }).code || (err as Error).message
+        );
+      } else if (isTransientError(err)) {
+        this._logger.error(
+          `Auto top-up for ${organizationId} hit a temporary Stripe error, auto top-up stays on: ${err}`
+        );
+      } else {
+        await walletAlert(
+          `Auto top-up for org ${organizationId} failed (auto top-up stays on): ${
+            (err as Error).message
+          }`
+        );
+      }
       return false;
     }
   }

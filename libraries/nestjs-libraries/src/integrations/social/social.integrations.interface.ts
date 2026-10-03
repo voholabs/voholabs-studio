@@ -199,6 +199,8 @@ export interface SocialProvider
   refreshCron?: boolean;
   dto?: any;
   maxLength: (additionalSettings?: any) => number;
+  // The most hashtags the platform accepts in one post, when it has a limit.
+  maxHashtags?: () => number;
   checkValidity(
     posts: Array<{ path: string; thumbnail?: string }[]>,
     settings: any,

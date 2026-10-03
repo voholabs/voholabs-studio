@@ -4,7 +4,7 @@ import { FC, useCallback, useState } from 'react';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 
 const DISMISS_KEY = 'apex-banner-dismissed-at';
-const DISMISS_DAYS = 14;
+const DISMISS_DAYS = 7;
 
 const dismissedRecently = () => {
   try {
@@ -16,7 +16,7 @@ const dismissedRecently = () => {
 };
 
 // Whether the Apex banner shows, and a way to close it. Closing it hides it on
-// this browser for 14 days, then it comes back.
+// this browser for 7 days, then it comes back.
 export const useApexBanner = (eligible: boolean) => {
   const [dismissed, setDismissed] = useState(
     () => typeof window !== 'undefined' && dismissedRecently()

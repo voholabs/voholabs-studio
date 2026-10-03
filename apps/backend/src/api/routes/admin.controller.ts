@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   HttpException,
+  Param,
   Post,
   Query,
 } from '@nestjs/common';
@@ -17,6 +18,11 @@ import { UsersService } from '@gitroom/nestjs-libraries/database/prisma/users/us
 import { PostsService } from '@gitroom/nestjs-libraries/database/prisma/posts/posts.service';
 import { WhitelistDto } from '@gitroom/nestjs-libraries/dtos/admin/whitelist.dto';
 import dayjs from 'dayjs';
+import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
+import {
+  WalletAdjustDto,
+  WalletGrantDto,
+} from '@gitroom/nestjs-libraries/dtos/wallet/wallet.admin.dto';
 
 @ApiTags('Admin')
 @Controller('/admin')
@@ -27,7 +33,8 @@ export class AdminController {
     private _subscriptionService: SubscriptionService,
     private _organizationService: OrganizationService,
     private _userService: UsersService,
-    private _postsService: PostsService
+    private _postsService: PostsService,
+    private _walletService: WalletService
   ) {}
 
   private assertSuperAdmin(user: User) {
@@ -150,5 +157,63 @@ export class AdminController {
       to: toDate.endOf('day').toDate(),
       unknownOnly: unknownOnly === 'true' || unknownOnly === '1',
     });
+  }
+
+  private async assertOrganization(organizationId: string) {
+    if (!(await this._organizationService.getOrgById(organizationId))) {
+      throw new HttpException('Organization not found', 404);
+    }
+  }
+
+  // Wallet support. Credits are in hundredths (225 = 2.25 credits).
+  // Gives credits (a GRANT entry); `unlock` also starts pay-as-you-go.
+  @Post('/wallet/grant')
+  async walletGrant(
+    @GetUserFromRequest() user: User,
+    @Body() body: WalletGrantDto
+  ) {
+    this.assertSuperAdmin(user);
+    await this.assertOrganization(body.organizationId);
+    const entry = await this._walletService.grant({
+      organizationId: body.organizationId,
+      credits: body.credits,
+      reason: body.reason,
+      actorId: user.id,
+      unlock: !!body.unlock,
+    });
+    return {
+      entry,
+      balance: await this._walletService.balance(body.organizationId),
+    };
+  }
+
+  // Corrects the balance either way (an ADJUST entry); may go below zero.
+  @Post('/wallet/adjust')
+  async walletAdjust(
+    @GetUserFromRequest() user: User,
+    @Body() body: WalletAdjustDto
+  ) {
+    this.assertSuperAdmin(user);
+    await this.assertOrganization(body.organizationId);
+    const entry = await this._walletService.adjust({
+      organizationId: body.organizationId,
+      credits: body.credits,
+      reason: body.reason,
+      actorId: user.id,
+    });
+    return {
+      entry,
+      balance: await this._walletService.balance(body.organizationId),
+    };
+  }
+
+  // Balance, wallet row, Stripe customer and the last 50 entries.
+  @Get('/wallet/:organizationId')
+  async walletInspect(
+    @GetUserFromRequest() user: User,
+    @Param('organizationId') organizationId: string
+  ) {
+    this.assertSuperAdmin(user);
+    return this._walletService.inspect(organizationId);
   }
 }

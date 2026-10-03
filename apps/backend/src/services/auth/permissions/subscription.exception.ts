@@ -37,20 +37,25 @@ export class SubscriptionExceptionFilter implements ExceptionFilter {
     // Postiz billing.
     const isWallet = error.section === Sections.BRIEF;
 
+    // A wallet refusal has the same body as every other one in the app:
+    // { message, wallet: true, url: '/wallet' }.
+    if (isWallet) {
+      response.status(status).json({
+        statusCode: status,
+        message,
+        wallet: true,
+        url: '/wallet',
+      });
+      return;
+    }
+
     response.status(status).json({
       statusCode: status,
       message,
       url:
         process.env.FRONTEND_URL +
-        (isOnboarding
-          ? '/launches'
-          : isTrial
-          ? '/trial-ended'
-          : isWallet
-          ? '/wallet'
-          : '/billing'),
+        (isOnboarding ? '/launches' : isTrial ? '/trial-ended' : '/billing'),
       ...(isTrial || isOnboarding ? { redirect: true } : {}),
-      ...(isWallet ? { wallet: true } : {}),
     });
   }
 }

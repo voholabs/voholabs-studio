@@ -3,7 +3,6 @@ import {
   Controller,
   Delete,
   Get,
-  HttpException,
   Param,
   Post,
   Put,
@@ -37,8 +36,10 @@ import { IntegrationPictureService } from '@gitroom/nestjs-libraries/integration
 
 import {
   hasAccess,
+  paidOnlyChannelMessage,
   providerNeedsPaidPlan,
 } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
+import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 
 @ApiTags('Integrations')
 @Controller('/integrations')
@@ -48,7 +49,8 @@ export class IntegrationsController {
     private _integrationService: IntegrationService,
     private _postService: PostsService,
     private _refreshIntegrationService: RefreshIntegrationService,
-    private _integrationPictureService: IntegrationPictureService
+    private _integrationPictureService: IntegrationPictureService,
+    private _walletService: WalletService
   ) {}
 
   @Post('/provider/:id/connect')
@@ -232,9 +234,10 @@ export class IntegrationsController {
       !hasAccess(org) &&
       !(await this._integrationService.canUseProvider(org.id, integration))
     ) {
-      throw new HttpException(
-        await this._integrationService.lockedProviderMessage(integration),
-        402
+      throw await this._walletService.providerLocked(
+        org.id,
+        integration,
+        paidOnlyChannelMessage()
       );
     }
 

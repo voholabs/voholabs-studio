@@ -371,12 +371,19 @@ export class IntegrationsController {
     // @ts-ignore
     if (integrationProvider[body.name]) {
       try {
-        // @ts-ignore
-        const load = await integrationProvider[body.name](
-          getIntegration.token,
+        const load = await this._integrationService.runProviderFunction(
+          org.id,
+          getIntegration,
+          body.name,
           body.data,
-          getIntegration.internalId,
-          getIntegration
+          () =>
+            // @ts-ignore
+            integrationProvider[body.name](
+              getIntegration.token,
+              body.data,
+              getIntegration.internalId,
+              getIntegration
+            )
         );
 
         return load;

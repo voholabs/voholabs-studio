@@ -119,6 +119,14 @@ export class NoAuthIntegrationsController {
       );
     }
 
+    // A workspace paying for X from its wallet pays for the account lookup
+    // made while connecting.
+    const connectCharge = await this._integrationService.chargeConnectLookup(
+      organization,
+      integration,
+      body.state
+    );
+
     if (!integrationProvider.customFields) {
       await ioRedis.del(`login:${body.state}`);
     }
@@ -222,6 +230,13 @@ export class NoAuthIntegrationsController {
         });
       }
     });
+
+    if ((error || !id) && connectCharge) {
+      await this._integrationService.refundApiUse(
+        connectCharge,
+        'Refund: the channel was not connected'
+      );
+    }
 
     if (error) {
       throw new NotEnoughScopes(error);

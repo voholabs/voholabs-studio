@@ -49,6 +49,7 @@ import { FirstBillingComponent } from '@gitroom/frontend/components/billing/firs
 import { TrialTracker } from '@gitroom/frontend/components/layout/gtm.component';
 import { RequiredOnboarding } from '@gitroom/frontend/components/onboarding/required.onboarding';
 import { RequiredTerms } from '@gitroom/frontend/components/onboarding/required.terms';
+import { WalletHeader } from '@gitroom/frontend/components/wallet/wallet.header';
 
 const interTight = Inter_Tight({
   weight: ['600', '500', '700'],
@@ -203,6 +204,7 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
                           <ChromeExtensionComponent />
                           <div className="w-[1px] h-[20px] bg-blockSeparator" />
                           <AttachToFeedbackIcon />
+                          {user.tier === 'FREE' && <WalletHeader />}
                           <NotificationComponent />
                         </div>
                       </div>

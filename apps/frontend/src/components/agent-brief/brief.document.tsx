@@ -1,6 +1,6 @@
 'use client';
 
-import { FC, useCallback, useState } from 'react';
+import { FC, ReactNode, useCallback, useState } from 'react';
 import { useSWRConfig } from 'swr';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
@@ -74,7 +74,7 @@ const ActionButton: FC<{
 }> = ({ label, onClick, icon }) => (
   <div
     onClick={onClick}
-    className="self-start cursor-pointer select-none flex items-center gap-[8px] rounded-[8px] border border-newTableBorder px-[14px] h-[38px] text-[14px] text-textItemBlur hover:border-warm hover:text-warm hover:bg-warmHover transition-colors"
+    className="self-start cursor-pointer select-none flex items-center gap-[8px] rounded-[8px] border border-newTableBorder px-[14px] h-[38px] text-[14px] text-textItemBlur hover:border-tealText hover:text-tealText hover:bg-tealHover transition-colors"
   >
     {icon === 'plus' ? <PlusIcon /> : <TrashIcon />}
     {label}
@@ -87,7 +87,8 @@ export const BriefDocument: FC<{
   document: BriefTreeDocument;
   content?: BriefDocumentContent;
   onDeleted: () => void;
-}> = ({ document, content, onDeleted }) => {
+  headerAction?: ReactNode;
+}> = ({ document, content, onDeleted, headerAction }) => {
   const t = useT();
   const fetch = useFetch();
   const toaster = useToaster();
@@ -201,13 +202,13 @@ export const BriefDocument: FC<{
       <div className="flex items-start gap-[16px]">
         <div className="flex-1 flex flex-col gap-[6px] min-w-0">
           <div className="flex items-center gap-[8px] text-[12px] text-textItemBlur">
-            <span>{t('brief_title', 'Agent Brief')}</span>
+            <span>{t('brief', 'Brief')}</span>
             <span>/</span>
             <span>
               {t(document.category.labelKey, document.category.label)}
             </span>
             <span>/</span>
-            <span className="text-warm">{document.label}</span>
+            <span className="text-tealText">{document.label}</span>
           </div>
           {canRename ? (
             <input
@@ -229,7 +230,8 @@ export const BriefDocument: FC<{
             </div>
           )}
         </div>
-        <div className="flex items-center gap-[12px] pt-[4px]">
+        <div className="flex items-center gap-[12px] pt-[4px] flex-wrap justify-end">
+          {headerAction}
           <BriefSaveIndicator state={state} onRetry={retry} />
         </div>
       </div>
@@ -250,7 +252,7 @@ export const BriefDocument: FC<{
 
       {agentKept && (
         <div className="flex items-center gap-[8px] text-[12px] text-textItemBlur">
-          <span className="w-[6px] h-[6px] rounded-full bg-warm" />
+          <span className="w-[6px] h-[6px] rounded-full bg-tealText" />
           {t(
             'brief_agent_kept',
             'Written by the agent as it learns. Correct anything it got wrong.'
@@ -282,7 +284,7 @@ export const BriefDocument: FC<{
               onClick={removeBlock(block.id)}
               data-tooltip-id="tooltip"
               data-tooltip-content={t('brief_remove_block', 'Remove')}
-              className="shrink-0 mt-[4px] cursor-pointer select-none w-[28px] h-[28px] rounded-[6px] flex items-center justify-center text-textItemBlur hover:text-warm hover:bg-warmHover transition-colors"
+              className="shrink-0 mt-[4px] cursor-pointer select-none w-[28px] h-[28px] rounded-[6px] flex items-center justify-center text-textItemBlur hover:text-tealText hover:bg-tealHover transition-colors"
             >
               <TrashIcon />
             </div>

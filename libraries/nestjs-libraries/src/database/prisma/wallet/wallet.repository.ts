@@ -24,6 +24,8 @@ export interface NewWalletEntry {
   paidAmount?: number;
   currency?: string;
   meta?: string;
+  chargeKey?: string;
+  actorId?: string;
 }
 
 const isUniqueViolation = (err: unknown) =>
@@ -37,6 +39,8 @@ export class WalletRepository {
     private _action: PrismaRepository<'billableAction'>,
     private _setting: PrismaRepository<'billingSetting'>,
     private _category: PrismaRepository<'billingCategory'>,
+    private _post: PrismaRepository<'post'>,
+    private _organization: PrismaRepository<'organization'>,
     private _transaction: PrismaTransaction
   ) {}
 
@@ -105,6 +109,58 @@ export class WalletRepository {
     return this._entry.model.walletEntry.findUnique({
       where: { idempotencyKey },
     });
+  }
+
+  organizationSubscription(organizationId: string) {
+    return this._organization.model.organization.findUnique({
+      where: { id: organizationId },
+      select: { subscription: true },
+    });
+  }
+
+  // Posts waiting to publish in a window, on the given providers, for the
+  // forecast. Thread replies are rows of their own.
+  scheduledPosts(
+    organizationId: string,
+    providers: string[],
+    from: Date,
+    to: Date
+  ) {
+    return this._post.model.post.findMany({
+      where: {
+        organizationId,
+        state: 'QUEUE',
+        deletedAt: null,
+        publishDate: { gte: from, lte: to },
+        integration: {
+          providerIdentifier: { in: providers },
+          deletedAt: null,
+          disabled: false,
+        },
+      },
+      select: {
+        id: true,
+        content: true,
+        publishDate: true,
+        integration: { select: { providerIdentifier: true } },
+      },
+      orderBy: { publishDate: 'asc' },
+    });
+  }
+
+  // What has already been taken back for a top-up's payment (refunds and
+  // disputes), as a negative number.
+  async clawedBack(organizationId: string, paymentIntentId: string) {
+    const sum = await this._entry.model.walletEntry.aggregate({
+      where: {
+        organizationId,
+        type: 'ADJUST',
+        reference: paymentIntentId,
+        idempotencyKey: { startsWith: `chargeback:${paymentIntentId}:` },
+      },
+      _sum: { amount: true },
+    });
+    return sum._sum.amount || 0;
   }
 
   entries(organizationId: string, page: number, size: number) {
@@ -192,7 +248,7 @@ export class WalletRepository {
       const previous = {
         organizationId: data.organizationId,
         type: WalletEntryType.SPEND,
-        idempotencyKey: { startsWith: `${chargeKey}#` },
+        chargeKey,
       };
       const [latest, count] = await Promise.all([
         tx.walletEntry.findFirst({
@@ -223,6 +279,7 @@ export class WalletRepository {
         data: {
           ...data,
           amount: -data.amount,
+          chargeKey,
           idempotencyKey: `${chargeKey}#${count + 1}`,
         },
       });

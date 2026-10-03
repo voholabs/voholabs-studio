@@ -1218,6 +1218,11 @@ model Wallet {
   // Set by the first successful top-up; this is what makes an organization
   // pay-as-you-go.
   firstTopUpAt        DateTime?
+  // Set when a top-up is refunded or disputed: the wallet stops paying for
+  // anything (pay-as-you-go is off) until support clears it.
+  frozenAt            DateTime?
+  // The currency of the first top-up; later top-ups must match it.
+  currency            String?
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
   organization        Organization @relation(fields: [organizationId], references: [id])
@@ -1239,16 +1244,22 @@ model WalletEntry {
   idempotencyKey String?         @unique
   // A post id, Stripe payment intent id, and so on.
   reference      String?
-  // For top-ups: what the customer paid, in pence, before tax.
   // For top-ups: what was paid before tax, in the smallest unit of currency.
   paidAmount     Int?
   currency       String?
   meta           String?
+  // For charges: the thing paid for (e.g. post:<id>). idempotencyKey is
+  // chargeKey#n, one per attempt that was not refunded.
+  chargeKey      String?
+  // For GRANT and ADJUST: the superadmin who made the entry.
+  actorId        String?
   createdAt      DateTime        @default(now())
   organization   Organization    @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId, createdAt])
   @@index([reference])
+  @@index([organizationId, chargeKey])
+  @@index([organizationId, type, createdAt])
 }
 
 // PER_USE: charged each time it is used. MONTHLY: charged per unit above the

@@ -1,7 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { providerNeedsPaidPlan } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 import { BadBody } from '@gitroom/nestjs-libraries/integrations/social.abstract';
-import { hasLinks } from '@gitroom/helpers/utils/strip.links';
+import { stripLinks } from '@gitroom/helpers/utils/strip.links';
+// @ts-ignore - twitter-text ships no types
+import twitter from 'twitter-text';
 import {
   InsufficientCreditsError,
   notEnoughCreditsMessage,
@@ -59,9 +61,25 @@ function slimPost(post: any) {
   return rest;
 }
 
+// X charges more for a post with a link, and decides what is a link with the
+// same rules as twitter-text (bare domains such as example.com count).
+// TODO(merge): use xPostActionKey from wallet
+const postActionKey = (provider: string, text: string) =>
+  `${provider}.${
+    twitter.extractUrls(text || '').length > 0 ? 'post_link' : 'post'
+  }`;
+
+// The text a provider sends for a message: X strips links when
+// STRIP_LINKS_FROM_X_POSTS is set, and is then billed for the stripped text.
+const sentTextFor =
+  (provider: { stripLinks?: () => boolean }) => (message: string) =>
+    provider.stripLinks?.() ? stripLinks(message) : message;
+
 @Injectable()
 @Activity()
 export class PostActivity {
+  private _logger = new Logger(PostActivity.name);
+
   constructor(
     private _postService: PostsService,
     private _notificationService: NotificationService,
@@ -106,25 +124,26 @@ export class PostActivity {
     );
   }
 
-  // Takes the credits for one post as it is published. Returns the charge to
-  // give back if publishing then fails.
+  // Takes the credits for one post as it is published, priced on the text that
+  // is sent to the network. Returns the charge to give back if publishing then
+  // fails.
   private async chargeForPost(
     integration: Integration,
-    post: { id: string; message: string }
+    post: { id: string; message: string },
+    sentText: string
   ) {
     const provider = integration.providerIdentifier.toLowerCase().split('-')[0];
     try {
       const entry = await this._walletBilling.charge({
         organizationId: integration.organizationId,
-        actionKey: `${provider}.${
-          hasLinks(post.message) ? 'post_link' : 'post'
-        }`,
+        actionKey: postActionKey(provider, sentText),
         chargeKey: `post:${post.id}`,
         reference: post.id,
       });
       return entry.idempotencyKey!;
     } catch (err) {
       if (err instanceof InsufficientCreditsError) {
+        // Not posted and never retried (BadBody is not retryable).
         throw new BadBody(
           integration.providerIdentifier,
           '',
@@ -137,25 +156,46 @@ export class PostActivity {
   }
 
   // Publishes, charging each post first and refunding it if publishing fails.
+  // `sentText` gives the text the provider will actually send for a message
+  // (e.g. with links stripped), which is what the network bills.
   private async publishPaid<T>(
     integration: Integration,
     posts: { id: string; message: string }[],
+    sentText: (message: string) => string,
     publish: () => Promise<T>
   ) {
     if (!(await this.paysFromWallet(integration))) {
       return publish();
     }
-    const charges: string[] = [];
+    const charges: { postId: string; charge: string }[] = [];
     try {
       for (const post of posts) {
-        charges.push(await this.chargeForPost(integration, post));
+        charges.push({
+          postId: post.id,
+          charge: await this.chargeForPost(
+            integration,
+            post,
+            sentText(post.message)
+          ),
+        });
       }
       return await publish();
     } catch (err) {
-      for (const charge of charges) {
-        await this._walletService
-          .refund(charge, 'Refund: the post was not published')
-          .catch(() => undefined);
+      for (const { postId, charge } of charges) {
+        try {
+          await this._walletService.refund(
+            charge,
+            'Refund: the post was not published'
+          );
+        } catch (refundErr) {
+          // The post failed but its credits were not given back.
+          // TODO(merge): send the wallet Discord alert from here as well.
+          this._logger.error(
+            `[wallet] REFUND FAILED for post ${postId} (charge ${charge}, organization ${integration.organizationId}): ${
+              refundErr instanceof Error ? refundErr.stack : refundErr
+            }`
+          );
+        }
       }
       throw err;
     }
@@ -290,15 +330,19 @@ export class PostActivity {
       }))
     );
 
-    return this.publishPaid(integration, prepared, () =>
-      getIntegration.comment(
-        integration.internalId,
-        postId,
-        lastPostId,
-        integration.token,
-        prepared,
-        integration
-      )
+    return this.publishPaid(
+      integration,
+      prepared,
+      sentTextFor(getIntegration),
+      () =>
+        getIntegration.comment(
+          integration.internalId,
+          postId,
+          lastPostId,
+          integration.token,
+          prepared,
+          integration
+        )
     );
   }
 
@@ -338,13 +382,17 @@ export class PostActivity {
       }))
     );
 
-    const postNow = await this.publishPaid(integration, prepared, () =>
-      getIntegration.post(
-        integration.internalId,
-        integration.token,
-        prepared,
-        integration
-      )
+    const postNow = await this.publishPaid(
+      integration,
+      prepared,
+      sentTextFor(getIntegration),
+      () =>
+        getIntegration.post(
+          integration.internalId,
+          integration.token,
+          prepared,
+          integration
+        )
     );
 
     await this._temporalService.client

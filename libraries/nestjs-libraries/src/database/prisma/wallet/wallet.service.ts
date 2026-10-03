@@ -68,8 +68,10 @@ export const walletRequiredMessage = (identifier: string) =>
     identifier
   )} is charged per post from your wallet credits. Top up your wallet to use it.`;
 
+// The post is not published and is never retried; the user can top up and
+// reschedule it.
 export const notEnoughCreditsMessage = () =>
-  'Not enough credits in your wallet. Top up to publish this post.';
+  "Not published: there weren't enough credits in your wallet when it was due. Top up, then reschedule it if you still want it out.";
 
 const ceilDiv = (a: bigint, b: bigint) => (a + b - BigInt(1)) / b;
 

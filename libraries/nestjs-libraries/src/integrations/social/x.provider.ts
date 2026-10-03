@@ -10,7 +10,11 @@ import {
 import { lookup } from 'mime-types';
 import sharp from 'sharp';
 import { readOrFetch } from '@gitroom/helpers/utils/read.or.fetch';
-import { SocialAbstract } from '@gitroom/nestjs-libraries/integrations/social.abstract';
+import {
+  BadBody,
+  RefreshToken,
+  SocialAbstract,
+} from '@gitroom/nestjs-libraries/integrations/social.abstract';
 import { Plug } from '@gitroom/helpers/decorators/plug.decorator';
 import { Integration } from '@prisma/client';
 import { timer } from '@gitroom/helpers/utils/timer';
@@ -95,6 +99,18 @@ export class XProvider extends SocialAbstract implements SocialProvider {
         type: 'bad-body',
         value: 'You are not allowed to create a post with duplicate content',
       }
+    }
+
+    // X's API credits for the app are used up (HTTP 402).
+    if (
+      body.includes('CreditsDepleted') ||
+      body.includes('/problems/credits')
+    ) {
+      return {
+        type: 'bad-body',
+        value:
+          'Posting failed - X is not accepting posts right now. Please try again later',
+      };
     }
 
     if (body.includes('usage-capped')) {
@@ -545,9 +561,7 @@ export class XProvider extends SocialAbstract implements SocialProvider {
       },
       body: JSON.stringify(tweetBody),
     });
-    const { data } = (await tweetResponse.json()) as {
-      data: { id: string };
-    };
+    const data = await this.tweetCreated(tweetResponse, tweetBody);
 
     return [
       {
@@ -609,9 +623,7 @@ export class XProvider extends SocialAbstract implements SocialProvider {
       },
       body: JSON.stringify(tweetBody),
     });
-    const { data } = (await tweetResponse.json()) as {
-      data: { id: string };
-    };
+    const data = await this.tweetCreated(tweetResponse, tweetBody);
 
     return [
       {
@@ -621,6 +633,48 @@ export class XProvider extends SocialAbstract implements SocialProvider {
         status: 'posted',
       },
     ];
+  }
+
+  // Reads the new post's id from X's answer. An answer without one (an error
+  // status, or a success status carrying only `errors`) goes through the same
+  // error mapping as a failed request, so it fails with a clear reason instead
+  // of a TypeError that would be retried.
+  private async tweetCreated(
+    tweetResponse: Response,
+    tweetBody: unknown
+  ): Promise<{ id: string }> {
+    const text = await tweetResponse.text().catch(() => '');
+    let parsed: { data?: { id?: string } } | undefined;
+    try {
+      parsed = JSON.parse(text);
+    } catch (err) {
+      parsed = undefined;
+    }
+
+    if (tweetResponse.ok && parsed?.data?.id) {
+      return { id: parsed.data.id };
+    }
+
+    const body = JSON.stringify(tweetBody);
+    const handled = this.handleErrors(text || '{}');
+    if (handled?.type === 'refresh-token' || tweetResponse.status === 401) {
+      throw new RefreshToken(
+        'x',
+        text,
+        body,
+        handled?.value ||
+          'X authentication has expired, please reconnect your account'
+      );
+    }
+    if (handled?.type === 'retry') {
+      throw new Error(handled.value);
+    }
+    throw new BadBody(
+      'x',
+      text,
+      body,
+      handled?.value || 'X did not accept the post'
+    );
   }
 
   private loadAllTweets = async (
@@ -660,7 +714,8 @@ export class XProvider extends SocialAbstract implements SocialProvider {
   async analytics(
     id: string,
     accessToken: string,
-    date: number
+    date: number,
+    onPostsRead?: (count: number) => void
   ): Promise<AnalyticsData[]> {
     if (process.env.DISABLE_X_ANALYTICS) {
       return [];
@@ -687,6 +742,8 @@ export class XProvider extends SocialAbstract implements SocialProvider {
         ),
         (p) => p.id
       );
+
+      onPostsRead?.(tweets.length);
 
       if (tweets.length === 0) {
         return [];

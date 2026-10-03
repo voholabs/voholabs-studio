@@ -39,6 +39,7 @@ import {
   walletRequiredMessage,
 } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 import { WalletBillingService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.billing.service';
+import { walletAlert } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.alert';
 
 // Paid reads and lookups on a provider's API, priced by the `<provider>.<action>`
 // wallet rows.
@@ -576,11 +577,15 @@ export class IntegrationService {
   // Whether this workspace pays for this provider's API from its wallet: it
   // is not on a paid plan, and its top-up opened the provider. Paid plans and
   // the free plan are never charged.
+  // A paid API the wallet charges for, used by a workspace without a paid
+  // plan. Such a workspace's calls are charged when its wallet has unlocked
+  // the provider, and refused (never made unbilled) when it has not, e.g. a
+  // frozen wallet that still has the channel connected.
   async paysFromWallet(orgId: string, identifier: string) {
     return (
       providerNeedsPaidPlan(identifier) &&
       !(await this.organizationHasPaidPlan(orgId)) &&
-      (await this._walletService.unlocksProvider(orgId, identifier))
+      (await this._walletService.billsProvider(identifier))
     );
   }
 
@@ -591,6 +596,9 @@ export class IntegrationService {
     identifier: string,
     action: PaidApiAction
   ) {
+    if (!(await this._walletService.unlocksProvider(orgId, identifier))) {
+      return false;
+    }
     const priced = await this._walletService.price(
       `${providerKey(identifier)}.${action}`
     );
@@ -616,6 +624,14 @@ export class IntegrationService {
     quantity?: number;
     allowNegative?: boolean;
   }): Promise<string | false> {
+    if (
+      !(await this._walletService.unlocksProvider(
+        params.orgId,
+        params.identifier
+      ))
+    ) {
+      return false;
+    }
     try {
       const entry = await this._walletBilling.charge({
         organizationId: params.orgId,
@@ -647,8 +663,12 @@ export class IntegrationService {
     try {
       await this._walletService.refund(charge, reason);
     } catch (err) {
-      // TODO(merge): send the wallet Discord alert from here as well.
       console.error(`[wallet] REFUND FAILED for charge ${charge}:`, err);
+      await walletAlert(
+        `Refund failed for charge ${charge}: ${
+          err instanceof Error ? err.message : err
+        }`
+      ).catch(() => undefined);
     }
   }
 

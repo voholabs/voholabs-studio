@@ -1,5 +1,4 @@
-// @ts-ignore
-import twitter from 'twitter-text';
+import { xPostActionKey } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.x';
 import { stripHtmlValidation } from '@gitroom/helpers/utils/strip.html.validation';
 import {
   PricedAction,
@@ -72,8 +71,8 @@ export const walletForecast = async (
 // "(post:<id>)" reference, which becomes a URL at publish.
 export const postHasLink = (html: string) =>
   /\(post:[^)\s]+\)/.test(html || '') ||
-  twitter.extractUrls(stripHtmlValidation('normal', html || '', true))
-    .length > 0;
+  xPostActionKey(stripHtmlValidation('normal', html || '', true)) ===
+    'x.post_link';
 
 // Units of credit for one post and its replies on a channel the wallet
 // charges per post. undefined when a row is missing (nothing is guessed).

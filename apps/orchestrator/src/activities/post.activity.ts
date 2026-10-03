@@ -2,14 +2,14 @@ import { Injectable, Logger } from '@nestjs/common';
 import { providerNeedsPaidPlan } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 import { BadBody } from '@gitroom/nestjs-libraries/integrations/social.abstract';
 import { stripLinks } from '@gitroom/helpers/utils/strip.links';
-// @ts-ignore - twitter-text ships no types
-import twitter from 'twitter-text';
 import {
   InsufficientCreditsError,
   notEnoughCreditsMessage,
   WalletService,
 } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 import { WalletBillingService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.billing.service';
+import { xPostActionKey } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.x';
+import { walletAlert } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.alert';
 import {
   Activity,
   ActivityMethod,
@@ -62,12 +62,11 @@ function slimPost(post: any) {
 }
 
 // X charges more for a post with a link, and decides what is a link with the
-// same rules as twitter-text (bare domains such as example.com count).
-// TODO(merge): use xPostActionKey from wallet
+// same rules as twitter-text (bare domains such as example.com count). The
+// shared rule lives in the wallet, so the cost shown and the cost charged
+// cannot drift apart.
 const postActionKey = (provider: string, text: string) =>
-  `${provider}.${
-    twitter.extractUrls(text || '').length > 0 ? 'post_link' : 'post'
-  }`;
+  `${provider}.${xPostActionKey(text).split('.')[1]}`;
 
 // The text a provider sends for a message: X strips links when
 // STRIP_LINKS_FROM_X_POSTS is set, and is then billed for the stripped text.
@@ -189,7 +188,9 @@ export class PostActivity {
           );
         } catch (refundErr) {
           // The post failed but its credits were not given back.
-          // TODO(merge): send the wallet Discord alert from here as well.
+          await walletAlert(
+            `Refund failed for post ${postId} (charge ${charge}, organization ${integration.organizationId})`
+          ).catch(() => undefined);
           this._logger.error(
             `[wallet] REFUND FAILED for post ${postId} (charge ${charge}, organization ${integration.organizationId}): ${
               refundErr instanceof Error ? refundErr.stack : refundErr

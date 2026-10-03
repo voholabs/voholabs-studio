@@ -24,9 +24,12 @@ const SETTINGS_TTL_MS = 30_000;
 export interface PricedAction {
   key: string;
   provider: string;
+  category: string | null;
   name: string;
   description: string | null;
   unit: string;
+  freeUnits: number | null;
+  freePeriod: string | null;
   price: number;
 }
 
@@ -157,9 +160,12 @@ export class WalletService {
       actions.map(async (a) => ({
         key: a.key,
         provider: a.provider,
+        category: a.category,
         name: a.name,
         description: a.description,
         unit: a.unit,
+        freeUnits: a.freeUnits,
+        freePeriod: a.freePeriod,
         price: await this.priceOf(a),
       }))
     );

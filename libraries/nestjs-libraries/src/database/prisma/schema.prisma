@@ -1156,9 +1156,17 @@ model BillableAction {
   id           String   @id @default(uuid())
   key          String   @unique
   provider     String
+  // Groups the price list: channels, storage, ai, brief, skills ...
+  category     String?
   name         String
   description  String?
+  // What one unit is: post, gb_month, 1k_tokens, run ... Usage is always
+  // rounded up to whole units (2.1 GB is billed as 3).
   unit         String   @default("request")
+  // Units that cost nothing: per month when freePeriod is "month", or ever
+  // when it is "once" (the first brief onboarding is free, a redo is not).
+  freeUnits    Int?
+  freePeriod   String?
   // What the provider charges us per unit, in millionths of costCurrency.
   costMicros   Int      @default(0)
   costCurrency String   @default("USD")

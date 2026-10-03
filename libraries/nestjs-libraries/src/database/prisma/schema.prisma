@@ -61,6 +61,8 @@ model Organization {
   hermesConversations HermesConversation[]
   postRevisions       PostRevision[]
   briefRevisions      BriefRevision[]
+  wallet              Wallet?
+  walletEntries       WalletEntry[]
 
   @@index([apiKey])
   @@index([streakSince])
@@ -1138,4 +1140,91 @@ model BriefRevision {
   organization   Organization            @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId, category, key, createdAt])
+}
+
+// Prepaid credit wallet, separate from Postiz's own Stripe billing (Subscription,
+// STRIPE_* env vars, /stripe webhook), which it never reads or writes.
+//
+// Every table here is additive and every new column nullable or defaulted:
+// db push runs with --accept-data-loss, so nothing may be renamed or made
+// required later.
+
+// One row per thing we charge for. The price in credits is worked out from
+// the provider's cost, the exchange rate and the multiplier in BillingSetting,
+// so changing costMicros on one row reprices that action everywhere.
+model BillableAction {
+  id           String   @id @default(uuid())
+  key          String   @unique
+  provider     String
+  name         String
+  description  String?
+  unit         String   @default("request")
+  // What the provider charges us per unit, in millionths of costCurrency.
+  costMicros   Int      @default(0)
+  costCurrency String   @default("USD")
+  // Overrides the default multiplier (basis points, 15000 = x1.5).
+  multiplierBp Int?
+  // A price set directly in hundredths of a credit, for things with no
+  // provider cost to mark up. Takes precedence when set.
+  fixedPrice   Int?
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([provider])
+}
+
+// Key/value settings for the wallet: credits per pound, exchange rates, the
+// default multiplier, top-up amounts. Kept in the database, not the code.
+model BillingSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model Wallet {
+  id                       String       @id @default(uuid())
+  organizationId           String       @unique
+  stripeCustomerId         String?
+  paymentMethodId          String?
+  cardBrand                String?
+  cardLast4                String?
+  autoTopUp                Boolean      @default(false)
+  // Hundredths of a credit: top up when the balance falls below this.
+  autoTopUpThreshold       Int?
+  autoTopUpAmountPence     Int?
+  autoTopUpMonthlyCapPence Int?
+  // Set by the first successful top-up; this is what makes an organization
+  // pay-as-you-go.
+  firstTopUpAt             DateTime?
+  createdAt                DateTime     @default(now())
+  updatedAt                DateTime     @updatedAt
+  organization             Organization @relation(fields: [organizationId], references: [id])
+}
+
+// The ledger. The balance is the sum of amount for an organization; nothing
+// stores it separately.
+model WalletEntry {
+  id             String       @id @default(uuid())
+  organizationId String
+  // Hundredths of a credit. Positive adds, negative spends.
+  amount         Int
+  // topup, auto_topup, spend, refund, grant, adjust
+  type           String
+  actionKey      String?
+  quantity       Int          @default(1)
+  unitPrice      Int?
+  description    String
+  // Makes a charge, refund or top-up happen at most once.
+  idempotencyKey String?      @unique
+  // A post id, Stripe payment intent id, and so on.
+  reference      String?
+  // For top-ups: what the customer paid, in pence, before tax.
+  amountPence    Int?
+  meta           String?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, createdAt])
+  @@index([reference])
 }

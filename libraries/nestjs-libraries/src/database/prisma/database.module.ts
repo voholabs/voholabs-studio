@@ -27,6 +27,9 @@ import { WebhooksRepository } from '@gitroom/nestjs-libraries/database/prisma/we
 import { WebhooksService } from '@gitroom/nestjs-libraries/database/prisma/webhooks/webhooks.service';
 import { SignatureRepository } from '@gitroom/nestjs-libraries/database/prisma/signatures/signature.repository';
 import { SignatureService } from '@gitroom/nestjs-libraries/database/prisma/signatures/signature.service';
+import { WalletRepository } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.repository';
+import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
+import { WalletBillingService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.billing.service';
 import { BriefRepository } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.repository';
 import { BriefService } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.service';
 import { BriefRevisionRepository } from '@gitroom/nestjs-libraries/database/prisma/brief/brief-revision.repository';
@@ -84,6 +87,9 @@ import { MediaMeterService } from '@gitroom/nestjs-libraries/database/prisma/med
     AutopostService,
     SignatureService,
     BriefRepository,
+    WalletRepository,
+    WalletService,
+    WalletBillingService,
     BriefService,
     BriefRevisionRepository,
     BriefRevisionService,

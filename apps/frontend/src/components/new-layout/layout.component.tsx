@@ -27,7 +27,10 @@ import { NewSubscription } from '@gitroom/frontend/components/layout/new.subscri
 import { Support } from '@gitroom/frontend/components/layout/support';
 import { ContinueProvider } from '@gitroom/frontend/components/layout/continue.provider';
 import { ContextWrapper } from '@gitroom/frontend/components/layout/user.context';
-import { ApexBanner } from '@gitroom/frontend/components/layout/apex.banner';
+import {
+  ApexBanner,
+  useApexBanner,
+} from '@gitroom/frontend/components/layout/apex.banner';
 import { CopilotKit } from '@copilotkit/react-core';
 import { MantineWrapper } from '@gitroom/react/helpers/mantine.wrapper';
 import { Impersonate } from '@gitroom/frontend/components/layout/impersonate';
@@ -70,6 +73,7 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
     refreshWhenOffline: false,
     refreshWhenHidden: false,
   });
+  const apexBanner = useApexBanner(user?.tier === 'FREE');
 
   if (!user) return null;
 
@@ -157,7 +161,9 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
               ) : (
                 <>
                   <AnnouncementBanner />
-                  {user.tier === 'FREE' && <ApexBanner />}
+                  {apexBanner.show && (
+                    <ApexBanner onClose={apexBanner.dismiss} />
+                  )}
                   <div className="flex-1 flex gap-[8px]">
                     <Support />
                     <div className="flex flex-col bg-newBgColorInner w-[80px] rounded-[12px]">
@@ -165,10 +171,10 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
                         id="left-menu"
                         className={clsx(
                           'fixed w-[64px] start-[17px] flex flex-1',
-                          // The Apex line pushes the page down 1px; the fixed
-                          // menu moves with it to stay aligned.
-                          user.tier === 'FREE'
-                            ? 'top-[1px] h-[calc(100%-1px)]'
+                          // The Apex banner pushes the page down 44px; the
+                          // fixed menu moves with it to stay aligned.
+                          apexBanner.show
+                            ? 'top-[44px] h-[calc(100%-44px)]'
                             : 'top-0 h-full',
                           user?.admin && 'pt-[60px] max-h-[1000px]:w-[500px]'
                         )}

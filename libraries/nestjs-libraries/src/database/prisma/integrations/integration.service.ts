@@ -30,8 +30,13 @@ dayjs.extend(utc);
 
 import {
   hasAccess,
+  paidOnlyChannelMessage,
   providerNeedsPaidPlan,
 } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
+import {
+  WalletService,
+  walletRequiredMessage,
+} from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 @Injectable()
 export class IntegrationService {
   private storage = UploadFactory.createStorage();
@@ -42,7 +47,8 @@ export class IntegrationService {
     private _notificationService: NotificationService,
     @Inject(forwardRef(() => RefreshIntegrationService))
     private _refreshIntegrationService: RefreshIntegrationService,
-    private _temporalService: TemporalService
+    private _temporalService: TemporalService,
+    private _walletService: WalletService
   ) {}
 
   async changeActiveCron(orgId: string) {
@@ -280,10 +286,8 @@ export class IntegrationService {
     // the tokens, so the user's authorization is cleared on their side too.
     // Never let a failed revoke block the deletion the user asked for.
     try {
-      const getIntegration = await this._integrationRepository.getIntegrationById(
-        org,
-        id
-      );
+      const getIntegration =
+        await this._integrationRepository.getIntegrationById(org, id);
 
       if (getIntegration?.token) {
         const provider = this._integrationManager.getSocialIntegration(
@@ -473,6 +477,22 @@ export class IntegrationService {
     return hasAccess(
       await this._integrationRepository.organizationSubscription(orgId)
     );
+  }
+
+  // X and TikTok are locked on the free plan. A paid plan opens them, and so
+  // does a wallet top-up for a provider the wallet charges for.
+  async canUseProvider(orgId: string, identifier: string) {
+    return (
+      !providerNeedsPaidPlan(identifier) ||
+      (await this.organizationHasPaidPlan(orgId)) ||
+      (await this._walletService.unlocksProvider(orgId, identifier))
+    );
+  }
+
+  async lockedProviderMessage(identifier: string) {
+    return (await this._walletService.billsProvider(identifier))
+      ? walletRequiredMessage(identifier)
+      : paidOnlyChannelMessage();
   }
 
   async processInternalPlug(

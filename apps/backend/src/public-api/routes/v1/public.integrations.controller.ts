@@ -63,10 +63,6 @@ import { PostValidationException } from '@gitroom/backend/api/routes/posts.valid
 import { timer } from '@gitroom/helpers/utils/timer';
 import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
 
-import {
-  paidOnlyChannelMessage,
-  providerNeedsPaidPlan,
-} from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 @ApiTags('Public API')
 @Controller('/public/v1')
 export class PublicIntegrationsController {
@@ -403,11 +399,15 @@ export class PublicIntegrationsController {
       throw new HttpException({ msg: 'Integration not allowed' }, 400);
     }
 
-    if (
-      providerNeedsPaidPlan(integration) &&
-      !(await this._integrationService.organizationHasPaidPlan(org.id))
-    ) {
-      throw new HttpException({ msg: paidOnlyChannelMessage() }, 402);
+    if (!(await this._integrationService.canUseProvider(org.id, integration))) {
+      throw new HttpException(
+        {
+          msg: await this._integrationService.lockedProviderMessage(
+            integration
+          ),
+        },
+        402
+      );
     }
 
     const integrationProvider =

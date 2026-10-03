@@ -42,14 +42,6 @@ export class WalletRepository {
     return this._setting.model.billingSetting.findMany();
   }
 
-  setSetting(key: string, value: string) {
-    return this._setting.model.billingSetting.upsert({
-      where: { key },
-      update: { value },
-      create: { key, value },
-    });
-  }
-
   actions(includeInactive = false) {
     return this._action.model.billableAction.findMany({
       where: includeInactive ? {} : { active: true },
@@ -59,17 +51,6 @@ export class WalletRepository {
 
   action(key: string) {
     return this._action.model.billableAction.findUnique({ where: { key } });
-  }
-
-  upsertAction(
-    key: string,
-    data: Omit<Prisma.BillableActionCreateInput, 'key'>
-  ) {
-    return this._action.model.billableAction.upsert({
-      where: { key },
-      update: data,
-      create: { key, ...data },
-    });
   }
 
   getWallet(organizationId: string) {
@@ -98,7 +79,10 @@ export class WalletRepository {
   }
 
   updateWallet(organizationId: string, data: Prisma.WalletUpdateInput) {
-    return this._wallet.model.wallet.update({ where: { organizationId }, data });
+    return this._wallet.model.wallet.update({
+      where: { organizationId },
+      data,
+    });
   }
 
   async balance(organizationId: string) {
@@ -177,33 +161,56 @@ export class WalletRepository {
   // Spends credits if the balance covers them. The wallet row is locked for
   // the duration, so two charges at once cannot both see the same balance.
   // amount is positive here and stored negative.
-  async spend(entry: NewWalletEntry & { idempotencyKey: string }) {
+  //
+  // chargeKey names the thing being paid for (a post, say). It is charged at
+  // most once while that charge stands; after a refund, the next attempt is
+  // charged again under a new key (chargeKey#2, #3 ...).
+  async spend(entry: NewWalletEntry & { chargeKey: string }) {
+    const { chargeKey, ...data } = entry;
     return this._transaction.model.$transaction(async (tx) => {
       await tx.wallet.upsert({
-        where: { organizationId: entry.organizationId },
+        where: { organizationId: data.organizationId },
         update: {},
-        create: { organizationId: entry.organizationId },
+        create: { organizationId: data.organizationId },
       });
-      await tx.$queryRaw`SELECT id FROM "Wallet" WHERE "organizationId" = ${entry.organizationId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM "Wallet" WHERE "organizationId" = ${data.organizationId} FOR UPDATE`;
 
-      const existing = await tx.walletEntry.findUnique({
-        where: { idempotencyKey: entry.idempotencyKey },
-      });
-      if (existing) {
-        return existing;
+      const previous = {
+        organizationId: data.organizationId,
+        type: 'spend',
+        idempotencyKey: { startsWith: `${chargeKey}#` },
+      };
+      const [latest, count] = await Promise.all([
+        tx.walletEntry.findFirst({
+          where: previous,
+          orderBy: { createdAt: 'desc' },
+        }),
+        tx.walletEntry.count({ where: previous }),
+      ]);
+      if (
+        latest &&
+        !(await tx.walletEntry.findUnique({
+          where: { idempotencyKey: `refund:${latest.idempotencyKey}` },
+        }))
+      ) {
+        return latest;
       }
 
       const sum = await tx.walletEntry.aggregate({
-        where: { organizationId: entry.organizationId },
+        where: { organizationId: data.organizationId },
         _sum: { amount: true },
       });
       const balance = sum._sum.amount || 0;
-      if (balance < entry.amount) {
-        throw new InsufficientCreditsError(entry.amount, balance);
+      if (balance < data.amount) {
+        throw new InsufficientCreditsError(data.amount, balance);
       }
 
       return tx.walletEntry.create({
-        data: { ...entry, amount: -entry.amount },
+        data: {
+          ...data,
+          amount: -data.amount,
+          idempotencyKey: `${chargeKey}#${count + 1}`,
+        },
       });
     });
   }

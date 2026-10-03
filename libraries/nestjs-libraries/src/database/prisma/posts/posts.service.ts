@@ -6,7 +6,6 @@ import {
 } from '@nestjs/common';
 import {
   hasAccess,
-  paidOnlyChannelMessage,
   providerNeedsPaidPlan,
 } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 import { PostsRepository } from '@gitroom/nestjs-libraries/database/prisma/posts/posts.repository';
@@ -167,7 +166,9 @@ export class PostsService {
   }
 
   async organizationHasPaidPlan(orgId: string) {
-    return hasAccess(await this._postRepository.organizationSubscription(orgId));
+    return hasAccess(
+      await this._postRepository.organizationSubscription(orgId)
+    );
   }
 
   searchForMissingThreeHoursPosts() {
@@ -1022,7 +1023,11 @@ export class PostsService {
     // Resolved before the delete, while the group still points at live rows.
     let chainId: string | undefined;
     try {
-      chainId = await this._postRevisionService.resolveChainId(orgId, [], group);
+      chainId = await this._postRevisionService.resolveChainId(
+        orgId,
+        [],
+        group
+      );
     } catch (err) {}
 
     const post = await this._postRepository.deletePost(orgId, group);
@@ -1297,13 +1302,20 @@ export class PostsService {
   ): Promise<any[]> {
     // X and TikTok are unavailable on the free plan: refuse before anything is
     // saved, whether the post comes from the app, the public API or an agent.
-    if (
-      body.posts.some((post) =>
-        providerNeedsPaidPlan((post.settings as any)?.__type)
-      ) &&
-      !(await this.organizationHasPaidPlan(orgId))
-    ) {
-      throw new HttpException(paidOnlyChannelMessage(), 402);
+    // A pay-as-you-go workspace may use the ones its wallet charges for; the
+    // credits are taken when each post is published, not here.
+    for (const type of new Set(
+      body.posts.map((post) => (post.settings as any)?.__type as string)
+    )) {
+      if (
+        providerNeedsPaidPlan(type) &&
+        !(await this._integrationService.canUseProvider(orgId, type))
+      ) {
+        throw new HttpException(
+          await this._integrationService.lockedProviderMessage(type),
+          402
+        );
+      }
     }
 
     const postList = [];

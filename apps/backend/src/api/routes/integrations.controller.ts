@@ -37,7 +37,6 @@ import { IntegrationPictureService } from '@gitroom/nestjs-libraries/integration
 
 import {
   hasAccess,
-  paidOnlyChannelMessage,
   providerNeedsPaidPlan,
 } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 
@@ -227,9 +226,16 @@ export class IntegrationsController {
       throw new Error('Integration not allowed');
     }
 
-    // @ts-ignore the request organization carries its subscription
-    if (providerNeedsPaidPlan(integration) && !hasAccess(org)) {
-      throw new HttpException(paidOnlyChannelMessage(), 402);
+    if (
+      providerNeedsPaidPlan(integration) &&
+      // @ts-ignore the request organization carries its subscription
+      !hasAccess(org) &&
+      !(await this._integrationService.canUseProvider(org.id, integration))
+    ) {
+      throw new HttpException(
+        await this._integrationService.lockedProviderMessage(integration),
+        402
+      );
     }
 
     const integrationProvider =

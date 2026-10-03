@@ -1,9 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import {
-  paidOnlyChannelMessage,
-  providerNeedsPaidPlan,
-} from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
+import { providerNeedsPaidPlan } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 import { BadBody } from '@gitroom/nestjs-libraries/integrations/social.abstract';
+import { hasLinks } from '@gitroom/helpers/utils/strip.links';
+import {
+  InsufficientCreditsError,
+  notEnoughCreditsMessage,
+  WalletService,
+} from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
+import { WalletBillingService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.billing.service';
 import {
   Activity,
   ActivityMethod,
@@ -65,8 +69,97 @@ export class PostActivity {
     private _integrationService: IntegrationService,
     private _refreshIntegrationService: RefreshIntegrationService,
     private _webhookService: WebhooksService,
-    private _temporalService: TemporalService
+    private _temporalService: TemporalService,
+    private _walletService: WalletService,
+    private _walletBilling: WalletBillingService
   ) {}
+
+  // A channel the free plan locks is open to a paid plan, or to a
+  // pay-as-you-go workspace that pays per post from its wallet. Throws when
+  // neither applies, and returns whether this workspace pays from its wallet.
+  private async paysFromWallet(integration: Integration) {
+    if (!providerNeedsPaidPlan(integration.providerIdentifier)) {
+      return false;
+    }
+    if (
+      await this._postService.organizationHasPaidPlan(
+        integration.organizationId
+      )
+    ) {
+      return false;
+    }
+    if (
+      await this._walletService.unlocksProvider(
+        integration.organizationId,
+        integration.providerIdentifier
+      )
+    ) {
+      return true;
+    }
+    throw new BadBody(
+      integration.providerIdentifier,
+      '',
+      '',
+      await this._integrationService.lockedProviderMessage(
+        integration.providerIdentifier
+      )
+    );
+  }
+
+  // Takes the credits for one post as it is published. Returns the charge to
+  // give back if publishing then fails.
+  private async chargeForPost(
+    integration: Integration,
+    post: { id: string; message: string }
+  ) {
+    const provider = integration.providerIdentifier.toLowerCase().split('-')[0];
+    try {
+      const entry = await this._walletBilling.charge({
+        organizationId: integration.organizationId,
+        actionKey: `${provider}.${
+          hasLinks(post.message) ? 'post_link' : 'post'
+        }`,
+        chargeKey: `post:${post.id}`,
+        reference: post.id,
+      });
+      return entry.idempotencyKey!;
+    } catch (err) {
+      if (err instanceof InsufficientCreditsError) {
+        throw new BadBody(
+          integration.providerIdentifier,
+          '',
+          '',
+          notEnoughCreditsMessage()
+        );
+      }
+      throw err;
+    }
+  }
+
+  // Publishes, charging each post first and refunding it if publishing fails.
+  private async publishPaid<T>(
+    integration: Integration,
+    posts: { id: string; message: string }[],
+    publish: () => Promise<T>
+  ) {
+    if (!(await this.paysFromWallet(integration))) {
+      return publish();
+    }
+    const charges: string[] = [];
+    try {
+      for (const post of posts) {
+        charges.push(await this.chargeForPost(integration, post));
+      }
+      return await publish();
+    } catch (err) {
+      for (const charge of charges) {
+        await this._walletService
+          .refund(charge, 'Refund: the post was not published')
+          .catch(() => undefined);
+      }
+      throw err;
+    }
+  }
 
   @ActivityMethod()
   async getIntegrationById(orgId: string, id: string) {
@@ -177,31 +270,35 @@ export class PostActivity {
       posts
     );
 
-    return getIntegration.comment(
-      integration.internalId,
-      postId,
-      lastPostId,
-      integration.token,
-      await Promise.all(
-        (newPosts || []).map(async (p) => ({
-          id: p.id,
-          message: stripHtmlValidation(
-            getIntegration.editor,
-            p.content,
-            true,
-            false,
-            !/<\/?[a-z][\s\S]*>/i.test(p.content),
-            getIntegration.mentionFormat
-          ),
-          settings: JSON.parse(p.settings || '{}'),
-          media: await this._postService.updateMedia(
-            p.id,
-            JSON.parse(p.image || '[]'),
-            getIntegration?.convertToJPEG || false
-          ),
-        }))
-      ),
-      integration
+    const prepared = await Promise.all(
+      (newPosts || []).map(async (p) => ({
+        id: p.id,
+        message: stripHtmlValidation(
+          getIntegration.editor,
+          p.content,
+          true,
+          false,
+          !/<\/?[a-z][\s\S]*>/i.test(p.content),
+          getIntegration.mentionFormat
+        ),
+        settings: JSON.parse(p.settings || '{}'),
+        media: await this._postService.updateMedia(
+          p.id,
+          JSON.parse(p.image || '[]'),
+          getIntegration?.convertToJPEG || false
+        ),
+      }))
+    );
+
+    return this.publishPaid(integration, prepared, () =>
+      getIntegration.comment(
+        integration.internalId,
+        postId,
+        lastPostId,
+        integration.token,
+        prepared,
+        integration
+      )
     );
   }
 
@@ -212,49 +309,42 @@ export class PostActivity {
     );
 
     // X and TikTok are unavailable on the free plan, including posts queued
-    // before that changed.
-    if (
-      providerNeedsPaidPlan(integration.providerIdentifier) &&
-      !(await this._postService.organizationHasPaidPlan(
-        integration.organizationId
-      ))
-    ) {
-      throw new BadBody(
-        integration.providerIdentifier,
-        '',
-        '',
-        paidOnlyChannelMessage()
-      );
-    }
+    // before that changed, unless the wallet pays for them (checked again in
+    // publishPaid, where the credits are taken).
+    await this.paysFromWallet(integration);
 
     const newPosts = await this._postService.updateTags(
       integration.organizationId,
       posts
     );
 
-    const postNow = await getIntegration.post(
-      integration.internalId,
-      integration.token,
-      await Promise.all(
-        (newPosts || []).map(async (p) => ({
-          id: p.id,
-          message: stripHtmlValidation(
-            getIntegration.editor,
-            p.content,
-            true,
-            false,
-            !/<\/?[a-z][\s\S]*>/i.test(p.content),
-            getIntegration.mentionFormat
-          ),
-          settings: JSON.parse(p.settings || '{}'),
-          media: await this._postService.updateMedia(
-            p.id,
-            JSON.parse(p.image || '[]'),
-            getIntegration?.convertToJPEG || false
-          ),
-        }))
-      ),
-      integration
+    const prepared = await Promise.all(
+      (newPosts || []).map(async (p) => ({
+        id: p.id,
+        message: stripHtmlValidation(
+          getIntegration.editor,
+          p.content,
+          true,
+          false,
+          !/<\/?[a-z][\s\S]*>/i.test(p.content),
+          getIntegration.mentionFormat
+        ),
+        settings: JSON.parse(p.settings || '{}'),
+        media: await this._postService.updateMedia(
+          p.id,
+          JSON.parse(p.image || '[]'),
+          getIntegration?.convertToJPEG || false
+        ),
+      }))
+    );
+
+    const postNow = await this.publishPaid(integration, prepared, () =>
+      getIntegration.post(
+        integration.internalId,
+        integration.token,
+        prepared,
+        integration
+      )
     );
 
     await this._temporalService.client

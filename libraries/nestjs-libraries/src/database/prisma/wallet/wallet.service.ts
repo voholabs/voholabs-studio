@@ -39,8 +39,28 @@ export const formatCredits = (units: number) =>
 // "0.80" -> 800000 (millionths), without going through floating point.
 const toMicros = (value: string) => {
   const [whole, fraction = ''] = value.trim().split('.');
-  return Number(whole || 0) * 1_000_000 + Number((fraction + '000000').slice(0, 6));
+  return (
+    Number(whole || 0) * 1_000_000 + Number((fraction + '000000').slice(0, 6))
+  );
 };
+
+const providerOf = (identifier: string) =>
+  (identifier || '').toLowerCase().split('-')[0];
+
+const providerLabel = (identifier: string) => {
+  const p = providerOf(identifier);
+  return p.length <= 2 ? p.toUpperCase() : p[0].toUpperCase() + p.slice(1);
+};
+
+// Shown when a channel is charged from the wallet and the workspace has not
+// topped up yet.
+export const walletRequiredMessage = (identifier: string) =>
+  `${providerLabel(
+    identifier
+  )} is charged per post from your wallet credits. Top up your wallet to use it.`;
+
+export const notEnoughCreditsMessage = () =>
+  'Not enough credits in your wallet. Top up to publish this post.';
 
 const ceilDiv = (a: bigint, b: bigint) => (a + b - BigInt(1)) / b;
 
@@ -173,6 +193,21 @@ export class WalletService {
     return !!(await this._wallet.getWallet(organizationId))?.firstTopUpAt;
   }
 
+  // Whether the wallet prices this provider at all (it has active actions).
+  async billsProvider(identifier: string) {
+    const provider = providerOf(identifier);
+    return (await this._wallet.actions()).some((a) => a.provider === provider);
+  }
+
+  // A provider the free plan locks is open to a pay-as-you-go workspace when
+  // the wallet prices it.
+  async unlocksProvider(organizationId: string, identifier: string) {
+    return (
+      (await this.billsProvider(identifier)) &&
+      (await this.isPayAsYouGo(organizationId))
+    );
+  }
+
   entries(organizationId: string, page = 0, size = 20) {
     return this._wallet.entries(organizationId, page, Math.min(size, 100));
   }
@@ -202,13 +237,14 @@ export class WalletService {
     };
   }
 
-  // Charges an action once per idempotency key. Throws
+  // Charges an action once per chargeKey (see WalletRepository.spend). Throws
   // InsufficientCreditsError when the balance does not cover it, and an Error
   // when the action has no price, so nothing is ever given away by accident.
+  // Refund with the returned entry's idempotencyKey.
   async charge(params: {
     organizationId: string;
     actionKey: string;
-    idempotencyKey: string;
+    chargeKey: string;
     quantity?: number;
     reference?: string;
     description?: string;
@@ -226,7 +262,7 @@ export class WalletService {
       quantity,
       unitPrice: priced.price,
       description: params.description || priced.action.name,
-      idempotencyKey: params.idempotencyKey,
+      chargeKey: params.chargeKey,
       reference: params.reference,
     });
   }
@@ -278,33 +314,5 @@ export class WalletService {
 
   autoTopUpPenceSince(organizationId: string, since: Date) {
     return this._wallet.autoTopUpPenceSince(organizationId, since);
-  }
-
-  // Admin: prices and settings are edited in the database, not in code.
-  allActions() {
-    return this._wallet.actions(true);
-  }
-
-  upsertAction(
-    key: string,
-    data: Parameters<WalletRepository['upsertAction']>[1]
-  ) {
-    return this._wallet.upsertAction(key, data);
-  }
-
-  async setSetting(key: string, value: string) {
-    const row = await this._wallet.setSetting(key, value);
-    this._settings = undefined;
-    return row;
-  }
-
-  grant(organizationId: string, units: number, description: string, key: string) {
-    return this._wallet.add({
-      organizationId,
-      amount: units,
-      type: units >= 0 ? 'grant' : 'adjust',
-      description,
-      idempotencyKey: key,
-    });
   }
 }

@@ -33,11 +33,11 @@ export class WalletBillingService {
     return this._client;
   }
 
-  private async taxEnabled() {
-    return (await this._wallet.settings())['stripe_tax'] === 'on';
-  }
-
-  private async customerFor(organizationId: string, email?: string, name?: string) {
+  private async customerFor(
+    organizationId: string,
+    email?: string,
+    name?: string
+  ) {
     const wallet = await this._wallet.ensureWallet(organizationId);
     if (wallet.stripeCustomerId) {
       return wallet.stripeCustomerId;
@@ -66,7 +66,9 @@ export class WalletBillingService {
   }) {
     const rules = await this._wallet.topUpRules();
     if (!Number.isInteger(params.pence) || params.pence < rules.minPence) {
-      throw new Error(`The minimum top-up is £${(rules.minPence / 100).toFixed(2)}`);
+      throw new Error(
+        `The minimum top-up is £${(rules.minPence / 100).toFixed(2)}`
+      );
     }
 
     const customer = await this.customerFor(
@@ -81,21 +83,16 @@ export class WalletBillingService {
       organizationId: params.organizationId,
       pence: String(params.pence),
     };
-    const tax = await this.taxEnabled();
 
     const session = await this.stripe.checkout.sessions.create({
       mode: 'payment',
       customer,
-      customer_update: tax ? { address: 'auto', name: 'auto' } : undefined,
-      automatic_tax: { enabled: tax },
-      billing_address_collection: tax ? 'required' : undefined,
       line_items: [
         {
           quantity: 1,
           price_data: {
             currency: 'gbp',
             unit_amount: params.pence,
-            tax_behavior: tax ? 'exclusive' : undefined,
             product_data: {
               name: `${(units / 100).toLocaleString('en-GB')} credits`,
               description: 'Voholabs Studio wallet top-up',
@@ -144,13 +141,15 @@ export class WalletBillingService {
   }
 
   private async checkoutPaid(session: Stripe.Checkout.Session) {
-    if (session.metadata?.service !== SERVICE || session.payment_status !== 'paid') {
+    if (
+      session.metadata?.service !== SERVICE ||
+      session.payment_status !== 'paid'
+    ) {
       return { ok: true };
     }
     const organizationId = session.metadata.organizationId;
     const pence = Number(session.metadata.pence);
-    // Credit what was asked for, not what Stripe says before tax, and only if
-    // the two agree.
+    // Credit what was asked for, and only if Stripe charged that amount.
     if (!organizationId || !pence || session.amount_subtotal !== pence) {
       this._logger.error(`Top-up ${session.id} does not match its metadata`);
       return { ok: false };
@@ -190,7 +189,10 @@ export class WalletBillingService {
   }
 
   private async autoTopUpPaid(intent: Stripe.PaymentIntent) {
-    if (intent.metadata?.service !== SERVICE || intent.metadata.kind !== 'auto_topup') {
+    if (
+      intent.metadata?.service !== SERVICE ||
+      intent.metadata.kind !== 'auto_topup'
+    ) {
       return { ok: true };
     }
     await this._wallet.addTopUp({
@@ -203,7 +205,10 @@ export class WalletBillingService {
   }
 
   private async autoTopUpFailed(intent: Stripe.PaymentIntent) {
-    if (intent.metadata?.service !== SERVICE || intent.metadata.kind !== 'auto_topup') {
+    if (
+      intent.metadata?.service !== SERVICE ||
+      intent.metadata.kind !== 'auto_topup'
+    ) {
       return { ok: true };
     }
     // Stop retrying a card that fails; the customer turns it back on.
@@ -241,7 +246,10 @@ export class WalletBillingService {
       organizationId,
       dayjs().startOf('month').toDate()
     );
-    if (wallet.autoTopUpMonthlyCapPence && spent + pence > wallet.autoTopUpMonthlyCapPence) {
+    if (
+      wallet.autoTopUpMonthlyCapPence &&
+      spent + pence > wallet.autoTopUpMonthlyCapPence
+    ) {
       return false;
     }
     if (balance + (await this._wallet.unitsForPence(pence)) < needed) {
@@ -256,23 +264,10 @@ export class WalletBillingService {
     };
 
     try {
-      let amount = pence;
-      let calculation: Stripe.Tax.Calculation | undefined;
-      if (await this.taxEnabled()) {
-        calculation = await this.stripe.tax.calculations.create({
-          currency: 'gbp',
-          customer: wallet.stripeCustomerId,
-          line_items: [
-            { amount: pence, reference: 'credits', tax_behavior: 'exclusive' },
-          ],
-        });
-        amount = calculation.amount_total;
-      }
-
       // One attempt per wallet per ten minutes, however many posts ask for it.
       const intent = await this.stripe.paymentIntents.create(
         {
-          amount,
+          amount: pence,
           currency: 'gbp',
           customer: wallet.stripeCustomerId,
           payment_method: wallet.paymentMethodId,
@@ -282,18 +277,14 @@ export class WalletBillingService {
           metadata,
         },
         {
-          idempotencyKey: `wallet-auto:${organizationId}:${Math.floor(Date.now() / 600_000)}`,
+          idempotencyKey: `wallet-auto:${organizationId}:${Math.floor(
+            Date.now() / 600_000
+          )}`,
         }
       );
 
       if (intent.status !== 'succeeded') {
         return false;
-      }
-      if (calculation) {
-        await this.stripe.tax.transactions.createFromCalculation({
-          calculation: calculation.id,
-          reference: intent.id,
-        });
       }
       await this.autoTopUpPaid(intent);
       return true;

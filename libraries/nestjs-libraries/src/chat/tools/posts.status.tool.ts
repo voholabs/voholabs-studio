@@ -3,6 +3,7 @@ import { createTool } from '@mastra/core/tools';
 import { Injectable } from '@nestjs/common';
 import z from 'zod';
 import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
+import { errorMessageForAgent } from '@gitroom/nestjs-libraries/chat/tools/post.error.shared';
 import { PostsService } from '@gitroom/nestjs-libraries/database/prisma/posts/posts.service';
 import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 import {
@@ -127,9 +128,7 @@ On a workspace that pays per post from its wallet, QUEUE takes the credits now a
             return { error: refusal };
           }
           return {
-            error: `Failed to change the post status: ${
-              err instanceof Error ? err.message : 'Unexpected error'
-            }`,
+            error: `Failed to change the post status: ${errorMessageForAgent(err)}`,
           };
         }
       },

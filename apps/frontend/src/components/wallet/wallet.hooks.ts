@@ -103,9 +103,44 @@ export const findAction = (
 export interface EstimateRequest {
   provider: string;
   contents: string[];
+  // The post group being edited: what it already paid counts towards the
+  // new price. Group-wide, so send it with one request only.
+  group?: string;
+  // "Repeat post every n days".
+  inter?: number;
 }
 
-// What publishing the composer's contents would cost (POST /wallet/estimate),
+// Adds up the estimates of several providers. The edited group's credit
+// comes back in one of them only, so `due` (and the balance after it) is the
+// sum of each provider's `due`.
+const mergeEstimates = (results: WalletEstimate[]): WalletEstimate => {
+  if (results.length === 1) {
+    return results[0];
+  }
+  const sum = (pick: (r: WalletEstimate) => number) =>
+    results.reduce((total, r) => total + (pick(r) || 0), 0);
+  const first = results[0];
+  const due = sum((r) => r.due);
+  // Every result was computed against the same balance.
+  const balance = first.balanceAfter + (first.due || 0);
+  const balanceAfter = balance - due;
+  const autoCovers = results.every((r) => r.autoCovers || !r.short);
+  return {
+    items: results.flatMap((r) => r.items),
+    price: sum((r) => r.price),
+    alreadyPaid: sum((r) => r.alreadyPaid),
+    due,
+    balanceAfter,
+    short: balanceAfter < 0 && !autoCovers,
+    autoCovers: balanceAfter < 0 && autoCovers,
+    autoAmount: results.find((r) => r.autoAmount)?.autoAmount ?? null,
+    perOccurrence: results.some((r) => r.perOccurrence),
+    repeatEveryDays:
+      results.find((r) => r.repeatEveryDays)?.repeatEveryDays ?? null,
+  };
+};
+
+// What saving the composer's contents would cost (POST /wallet/estimate),
 // one request per priced provider, added up. Pass null to skip.
 export const useWalletEstimate = (requests: EstimateRequest[] | null) => {
   const fetch = useFetch();
@@ -126,21 +161,7 @@ export const useWalletEstimate = (requests: EstimateRequest[] | null) => {
           return res.json();
         })
       );
-      if (results.length === 1) {
-        return results[0];
-      }
-      const price = results.reduce((sum, r) => sum + r.price, 0);
-      const first = results[0];
-      const balanceAfter = first.balanceAfter + first.price - price;
-      const autoCovers = results.every((r) => r.autoCovers || !r.short);
-      return {
-        items: results.flatMap((r) => r.items),
-        price,
-        balanceAfter,
-        short: balanceAfter < 0 && !autoCovers,
-        autoCovers: balanceAfter < 0 && autoCovers,
-        autoAmount: results.find((r) => r.autoAmount)?.autoAmount ?? null,
-      };
+      return mergeEstimates(results);
     },
     [fetch, prefix]
   );

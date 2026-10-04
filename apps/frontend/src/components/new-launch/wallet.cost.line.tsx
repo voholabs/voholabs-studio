@@ -52,14 +52,20 @@ export interface ComposerWalletCost {
 // What the post in the composer costs from the wallet: one estimate per
 // priced provider (POST /wallet/estimate, which owns the link rule), for
 // wallet workspaces only. Shared by the cost line and the schedule toast.
-export const useComposerWalletCost = (): ComposerWalletCost => {
+// `group` is the post group being edited: what it already paid counts
+// towards the new price, so only the difference is due.
+export const useComposerWalletCost = (
+  options: { group?: string } = {}
+): ComposerWalletCost => {
+  const { group } = options;
   const access = useWalletAccess();
   const walletOrg = access === 'free' || access === 'payg';
-  const { selectedIntegrations, global, internal } = useLaunchStore(
+  const { selectedIntegrations, global, internal, repeater } = useLaunchStore(
     useShallow((state) => ({
       selectedIntegrations: state.selectedIntegrations,
       global: state.global,
       internal: state.internal,
+      repeater: state.repeater,
     }))
   );
   const { data: prices } = useWalletPrices(walletOrg);
@@ -93,11 +99,23 @@ export const useComposerWalletCost = (): ComposerWalletCost => {
         ...values.map((v) => v.content || ''),
       ]);
     }
-    return [...byProvider.entries()].map(([provider, contents]) => ({
+    const inter = repeater && repeater > 0 ? repeater : undefined;
+    // The group's credit is counted once, with the first provider.
+    return [...byProvider.entries()].map(([provider, contents], index) => ({
       provider,
       contents,
+      ...(group && index === 0 ? { group } : {}),
+      ...(inter ? { inter } : {}),
     }));
-  }, [walletOrg, selectedIntegrations, internal, global, pricedProviders]);
+  }, [
+    walletOrg,
+    selectedIntegrations,
+    internal,
+    global,
+    pricedProviders,
+    group,
+    repeater,
+  ]);
 
   const settled = useDebounced(requests, 400);
   const { data: estimate, error } = useWalletEstimate(
@@ -125,16 +143,14 @@ const Skeleton: FC = () => (
   </div>
 );
 
-// Scheduling a post with too little credit is refused unless auto top-up
-// covers it, so the composer disables scheduling in that case. An update of a
-// scheduled post only charges or refunds the difference, so it is not
-// blocked here.
-export const walletBlocksSchedule = (
-  cost: ComposerWalletCost,
-  mode: WalletCostMode
-) => mode === 'new' && !!cost.estimate?.short && !cost.estimate.autoCovers;
+// Saving a post on the schedule with too little credit for what is due is
+// refused unless auto top-up covers it, so the composer disables scheduling
+// (and updating a scheduled post) in that case. Drafts are always allowed.
+export const walletBlocksSchedule = (cost: ComposerWalletCost) =>
+  !!cost.estimate?.short && !cost.estimate.autoCovers;
 
-// new: a new post or a draft; scheduling charges the full price.
+// new: a new post, a draft or a post that is not on the schedule; scheduling
+// charges the full price.
 // update: a scheduled post; saving charges or refunds the difference.
 export type WalletCostMode = 'new' | 'update';
 
@@ -212,14 +228,28 @@ export const WalletCostLine: FC<{
     estimate.autoCovers && estimate.autoAmount && perUnit
       ? estimate.balanceAfter + f.creditsFor(estimate.autoAmount, perUnit)
       : null;
-  const blocked = walletBlocksSchedule(cost, mode);
-  const amount = (
+  const blocked = walletBlocksSchedule(cost);
+  const credits = (hundredths: number) => (
     <span className="font-[600] text-warm tabular-nums">
       {t('wallet_n_credits', '{{credits}} credits', {
-        credits: f.credits(estimate.price),
+        credits: f.credits(hundredths),
       })}
     </span>
   );
+  const perOccurrence = estimate.perOccurrence && (
+    <span
+      className="text-textItemBlur"
+      data-tooltip-id="tooltip"
+      data-tooltip-content={t(
+        'wallet_repeat_charged_each',
+        'Each repeat is charged when it goes out.'
+      )}
+    >
+      {' '}
+      {t('wallet_per_occurrence', 'per occurrence')}
+    </span>
+  );
+  const due = estimate.due ?? estimate.price;
 
   return (
     <div className={className}>
@@ -231,7 +261,8 @@ export const WalletCostLine: FC<{
           {mode === 'update'
             ? t('wallet_post_costs', 'This post costs')
             : t('wallet_scheduling_charges', 'Scheduling charges')}{' '}
-          {amount}
+          {credits(estimate.price)}
+          {perOccurrence}
           {link && (
             <span className="text-textItemBlur">
               {' '}
@@ -255,21 +286,41 @@ export const WalletCostLine: FC<{
         {mode === 'update' && (
           <>
             <Dot />
-            <span className="text-textItemBlur">
-              {t(
-                'wallet_update_difference',
-                'Updating charges or refunds only the difference.'
-              )}
-            </span>
+            {due > 0 ? (
+              <span className="text-[14px] font-[600] text-warm tabular-nums">
+                {t(
+                  'wallet_update_charges_more',
+                  'Updating charges {{credits}} more credits',
+                  { credits: f.credits(due) }
+                )}
+              </span>
+            ) : due < 0 ? (
+              <span className="text-[14px] font-[600] tabular-nums">
+                {t(
+                  'wallet_update_gives_back',
+                  'Updating gives back {{credits}} credits',
+                  { credits: f.credits(-due) }
+                )}
+              </span>
+            ) : (
+              <span className="text-textItemBlur">
+                {t('wallet_update_no_change', 'No change in cost')}
+              </span>
+            )}
           </>
         )}
-        {mode === 'new' && <Dot />}
-        {mode === 'update' ? null : blocked ? (
+        <Dot />
+        {blocked ? (
           <span className="text-danger">
-            {t(
-              'wallet_schedule_short',
-              'Not enough credits to schedule it. Top up, or save it as a draft.'
-            )}{' '}
+            {mode === 'update'
+              ? t(
+                  'wallet_update_short',
+                  'Not enough credits to update it. Top up, or save it as a draft.'
+                )
+              : t(
+                  'wallet_schedule_short',
+                  'Not enough credits to schedule it. Top up, or save it as a draft.'
+                )}{' '}
             <button
               type="button"
               onClick={() => openTopUp()}

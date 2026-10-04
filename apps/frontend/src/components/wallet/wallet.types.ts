@@ -106,10 +106,20 @@ export interface SupportedChannel {
 // POST /wallet/estimate: what publishing these contents to a provider costs.
 export interface WalletEstimate {
   items: { actionKey: string; price: number }[];
+  // Per occurrence when the post repeats.
   price: number;
+  // What the edited post group already paid (0 for a new post).
+  alreadyPaid: number;
+  // What saving charges now: price - alreadyPaid (negative gives back).
+  due: number;
+  // balance - due
   balanceAfter: number;
+  // `due` is not covered, even with auto top-up.
   short: boolean;
   autoCovers: boolean;
   // Smallest currency unit auto top-up would add first, when it covers.
   autoAmount: number | null;
+  // "Repeat post every n days": each occurrence is charged on its own.
+  perOccurrence: boolean;
+  repeatEveryDays: number | null;
 }

@@ -251,23 +251,32 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
   }, [existingData, mutate, modal]);
 
   // Wallet workspaces: what the post costs, for the footer and the toast.
-  const walletCost = useComposerWalletCost();
+  // An edited group's standing charge counts towards its new price.
+  const walletCost = useComposerWalletCost({
+    group: existingData?.integration ? existingData.group : undefined,
+  });
   const walletAvatarTip = useWalletAvatarTip();
-  const walletPrice = walletCost.estimate?.price || 0;
+  // What saving on the schedule charges now (negative gives back).
+  const walletDue = walletCost.estimate?.due ?? walletCost.estimate?.price ?? 0;
   const walletFormat = useWalletFormat();
-  // A scheduled post is re-priced on update (the difference); a new post or
-  // a draft is charged in full when it is scheduled.
+  // A scheduled post is re-priced on update (the difference); a new post, a
+  // draft, or a failed or published post is charged in full when scheduled.
   const walletMode: WalletCostMode =
-    existingData?.integration && existingData?.posts?.[0]?.state !== 'DRAFT'
+    existingData?.integration && existingData?.posts?.[0]?.state === 'QUEUE'
       ? 'update'
       : 'new';
   const walletBlocked =
-    !dummy && !addEditSets && walletBlocksSchedule(walletCost, walletMode);
+    !dummy && !addEditSets && walletBlocksSchedule(walletCost);
   const walletBlockedTip = walletBlocked
-    ? t(
-        'wallet_schedule_blocked_tip',
-        'Not enough credits to schedule this post. Top up, or save it as a draft.'
-      )
+    ? walletMode === 'update'
+      ? t(
+          'wallet_update_blocked_tip',
+          'Not enough credits to update this post. Top up, or save it as a draft.'
+        )
+      : t(
+          'wallet_schedule_blocked_tip',
+          'Not enough credits to schedule this post. Top up, or save it as a draft.'
+        )
     : undefined;
   const fireEvents = useFireEvents();
 
@@ -500,11 +509,28 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
         if (!addEditSets) {
           mutate();
           toaster.show(
-            type !== 'draft' && walletPrice > 0 && walletMode === 'new'
+            // "Just update the post details" of a published post charges
+            // nothing; scheduling and posting now do.
+            type !== 'draft' &&
+              type !== 'update' &&
+              walletDue > 0 &&
+              walletMode === 'new'
               ? t(
                   'wallet_charged_toast',
                   'Added to calendar. {{credits}} credits charged.',
-                  { credits: walletFormat.credits(walletPrice) }
+                  { credits: walletFormat.credits(walletDue) }
+                )
+              : type !== 'draft' && walletMode === 'update' && walletDue > 0
+              ? t(
+                  'wallet_update_charged_toast',
+                  'Updated. {{credits}} more credits charged.',
+                  { credits: walletFormat.credits(walletDue) }
+                )
+              : type !== 'draft' && walletMode === 'update' && walletDue < 0
+              ? t(
+                  'wallet_update_refunded_toast',
+                  'Updated. {{credits}} credits given back.',
+                  { credits: walletFormat.credits(-walletDue) }
                 )
               : !existingData.integration
               ? t('added_successfully', 'Added successfully')
@@ -531,7 +557,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
       dummy,
       shortlinkPreferenceData,
       reviewed,
-      walletPrice,
+      walletDue,
       walletFormat,
       walletMode,
     ]

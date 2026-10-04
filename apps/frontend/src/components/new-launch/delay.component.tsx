@@ -8,6 +8,9 @@ import { useShallow } from 'zustand/react/shallow';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { useClickOutside } from '@mantine/hooks';
 
+// Tall enough for the presets, the custom field and "Remove delay".
+const MENU_HEIGHT = 200;
+
 const delayOptions = [
   { value: 1, label: '1m' },
   { value: 2, label: '2m' },
@@ -52,6 +55,21 @@ export const DelayComponent: FC<{
     setIsOpen(false);
   });
 
+  // The editor scrolls inside the composer, so a menu opened near its bottom
+  // edge would be cut off: open it upwards when there is no room below.
+  const [openUp, setOpenUp] = useState(false);
+  const toggle = useCallback(() => {
+    if (!isOpen && ref.current) {
+      const trigger = ref.current.getBoundingClientRect();
+      const scroller = ref.current.closest('#social-content');
+      const bottom = scroller
+        ? scroller.getBoundingClientRect().bottom
+        : window.innerHeight;
+      setOpenUp(bottom - trigger.bottom < MENU_HEIGHT);
+    }
+    setIsOpen(!isOpen);
+  }, [isOpen, ref]);
+
   const setDelay = useCallback(
     (index: number) => (minutes: number) => {
       if (current !== 'global') {
@@ -80,7 +98,7 @@ export const DelayComponent: FC<{
   return (
     <div ref={ref} className="relative">
       <div
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={toggle}
         data-tooltip-id="tooltip"
         data-tooltip-content={
           !currentDelay
@@ -95,7 +113,14 @@ export const DelayComponent: FC<{
         <DelayIcon />
       </div>
       {isOpen && (
-        <div className="z-[300] absolute end-0 top-[100%] w-[200px] bg-newBgColorInner p-[8px] menu-shadow translate-y-[10px] flex flex-col rounded-[8px]">
+        <div
+          className={clsx(
+            'z-[300] absolute end-0 w-[200px] bg-newBgColorInner p-[8px] menu-shadow flex flex-col rounded-[8px]',
+            openUp
+              ? 'bottom-[100%] -translate-y-[10px]'
+              : 'top-[100%] translate-y-[10px]'
+          )}
+        >
           <div className="grid grid-cols-4 gap-[4px]">
             {delayOptions.map((option) => (
               <div

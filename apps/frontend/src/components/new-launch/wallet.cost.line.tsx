@@ -23,10 +23,10 @@ import {
   WalletAccess,
 } from '@gitroom/frontend/components/wallet-locks/wallet.access';
 import {
+  CoinsIcon,
   InfoIcon,
   LockIcon,
 } from '@gitroom/frontend/components/wallet-locks/wallet.icons';
-import { ProviderLogo } from '@gitroom/frontend/components/wallet/wallet.ui';
 
 // Waits until the value has been stable for `ms` before passing it on, so
 // typing does not send an estimate per keystroke.
@@ -125,10 +125,33 @@ const Skeleton: FC = () => (
   </div>
 );
 
-// The cost line in the composer footer: what the post costs and the balance
-// after, or why it may not go out. Scheduling is never blocked: credits are
-// taken when the post goes out.
-export const WalletCostLine: FC<{ cost: ComposerWalletCost }> = ({ cost }) => {
+// Scheduling a post with too little credit is refused unless auto top-up
+// covers it, so the composer disables scheduling in that case. An update of a
+// scheduled post only charges or refunds the difference, so it is not
+// blocked here.
+export const walletBlocksSchedule = (
+  cost: ComposerWalletCost,
+  mode: WalletCostMode
+) => mode === 'new' && !!cost.estimate?.short && !cost.estimate.autoCovers;
+
+// new: a new post or a draft; scheduling charges the full price.
+// update: a scheduled post; saving charges or refunds the difference.
+export type WalletCostMode = 'new' | 'update';
+
+const Dot: FC = () => (
+  <span aria-hidden="true" className="text-textItemBlur">
+    ·
+  </span>
+);
+
+// The cost line above the composer footer: what scheduling the post charges
+// and the balance after, or why it cannot be scheduled yet. Renders nothing
+// (no row) when there is nothing to say.
+export const WalletCostLine: FC<{
+  cost: ComposerWalletCost;
+  mode: WalletCostMode;
+  className?: string;
+}> = ({ cost, mode, className }) => {
   const t = useT();
   const walletOrg = cost.access === 'free' || cost.access === 'payg';
   const { data: wallet } = useWallet(walletOrg && cost.priced.length > 0);
@@ -139,7 +162,11 @@ export const WalletCostLine: FC<{ cost: ComposerWalletCost }> = ({ cost }) => {
     return null;
   }
   if (cost.loading || (cost.priced.length > 0 && !wallet)) {
-    return <Skeleton />;
+    return (
+      <div className={className}>
+        <Skeleton />
+      </div>
+    );
   }
   if (cost.priced.length && !cost.estimate) {
     // The estimate failed; the post itself is unaffected.
@@ -147,46 +174,64 @@ export const WalletCostLine: FC<{ cost: ComposerWalletCost }> = ({ cost }) => {
   }
   if (!cost.priced.length || !cost.estimate) {
     return cost.access === 'payg' ? (
-      <div className="text-[13px] text-textItemBlur">
-        {t('wallet_no_credits_needed', 'No credits needed for these channels.')}
+      <div className={className}>
+        <div className="text-[13px] text-textItemBlur">
+          {t(
+            'wallet_no_credits_needed',
+            'No credits needed for these channels.'
+          )}
+        </div>
       </div>
     ) : null;
   }
 
   const { estimate } = cost;
   const link = estimate.items.some((i) => /_link$/.test(i.actionKey));
-  const xPost = findAction(prices, 'x.post');
-  const xLink = findAction(prices, 'x.post_link');
-  const explain =
-    cost.priced.includes('x') && xPost && xLink
-      ? t(
-          'wallet_x_cost_info',
-          'X charges per post. {{post}} credits without a link, {{link}} with one. Other channels are free.',
-          { post: f.credits(xPost.price), link: f.credits(xLink.price) }
-        )
-      : '';
+  // The (i) explains each priced provider from its price rows.
+  const explain = cost.priced
+    .map((provider) => {
+      const post = findAction(prices, `${provider}.post`);
+      const withLink = findAction(prices, `${provider}.post_link`);
+      if (!post) return '';
+      return withLink
+        ? t(
+            'wallet_provider_cost_info_link',
+            '{{post}} credits per post without a link, {{link}} with one.',
+            { post: f.credits(post.price), link: f.credits(withLink.price) }
+          )
+        : t('wallet_provider_cost_info', '{{post}} credits per post.', {
+            post: f.credits(post.price),
+          });
+    })
+    .filter(Boolean)
+    .concat(t('wallet_other_channels_free', 'Other channels are free.'))
+    .join(' ');
   const perUnit = wallet?.topUp?.creditsPerUnit;
   // autoAmount is money (smallest currency unit); the balance is credits.
   const afterAuto =
     estimate.autoCovers && estimate.autoAmount && perUnit
       ? estimate.balanceAfter + f.creditsFor(estimate.autoAmount, perUnit)
       : null;
+  const blocked = walletBlocksSchedule(cost, mode);
+  const amount = (
+    <span className="font-[600] text-warm tabular-nums">
+      {t('wallet_n_credits', '{{credits}} credits', {
+        credits: f.credits(estimate.price),
+      })}
+    </span>
+  );
 
   return (
-    <div className="flex flex-col gap-[2px] min-w-0">
-      <div className="flex items-center gap-[8px] text-[14px]">
-        <span className="flex items-center shrink-0">
-          {cost.priced.map((p) => (
-            <ProviderLogo key={p} provider={p} size={16} />
-          ))}
+    <div className={className}>
+      <div className="flex items-center flex-wrap gap-x-[8px] gap-y-[2px] text-[13px] min-w-0">
+        <span className="text-warm shrink-0 flex items-center">
+          <CoinsIcon size={16} />
         </span>
-        <span className="min-w-0">
-          {t('wallet_post_costs', 'This post costs')}{' '}
-          <span className="font-[600] tabular-nums">
-            {t('wallet_n_credits', '{{credits}} credits', {
-              credits: f.credits(estimate.price),
-            })}
-          </span>
+        <span className="text-[14px]">
+          {mode === 'update'
+            ? t('wallet_post_costs', 'This post costs')
+            : t('wallet_scheduling_charges', 'Scheduling charges')}{' '}
+          {amount}
           {link && (
             <span className="text-textItemBlur">
               {' '}
@@ -202,51 +247,63 @@ export const WalletCostLine: FC<{ cost: ComposerWalletCost }> = ({ cost }) => {
             data-tooltip-id="tooltip"
             data-tooltip-content={explain}
             data-tooltip-class-name="!max-w-[300px] !whitespace-normal !leading-[1.5]"
-            className="text-textItemBlur hover:text-newTextColor cursor-help shrink-0"
+            className="text-textItemBlur hover:text-newTextColor cursor-help shrink-0 flex items-center"
           >
             <InfoIcon />
           </span>
         )}
-      </div>
-      {!estimate.short && !estimate.autoCovers ? (
-        <div className="text-[13px] text-textItemBlur tabular-nums ps-[24px]">
-          {t('wallet_balance_after_n', 'Balance after: {{credits}}', {
-            credits: signed(f.credits, estimate.balanceAfter),
-          })}
-        </div>
-      ) : estimate.autoCovers ? (
-        <div className="text-[13px] text-textItemBlur tabular-nums ps-[24px]">
-          {afterAuto !== null && estimate.autoAmount
-            ? t(
-                'wallet_auto_adds_first',
-                'Auto top-up adds {{amount}} first. Balance after: {{credits}}',
-                {
-                  amount: f.moneyShort(estimate.autoAmount),
-                  credits: signed(f.credits, afterAuto),
-                }
-              )
-            : t('wallet_auto_top_up_first', 'Auto top-up runs first.')}
-        </div>
-      ) : (
-        <div className="text-[13px] ps-[24px] text-danger">
-          {t(
-            'wallet_post_short',
-            "Not enough credits yet. If you don't top up before it's due, this post won't go out."
-          )}{' '}
-          <button
-            type="button"
-            onClick={() => openTopUp()}
-            className="underline underline-offset-2 font-[600] hover:opacity-80"
-          >
-            {t('wallet_top_up', 'Top up')}
-          </button>{' '}
+        {mode === 'update' && (
+          <>
+            <Dot />
+            <span className="text-textItemBlur">
+              {t(
+                'wallet_update_difference',
+                'Updating charges or refunds only the difference.'
+              )}
+            </span>
+          </>
+        )}
+        {mode === 'new' && <Dot />}
+        {mode === 'update' ? null : blocked ? (
+          <span className="text-danger">
+            {t(
+              'wallet_schedule_short',
+              'Not enough credits to schedule it. Top up, or save it as a draft.'
+            )}{' '}
+            <button
+              type="button"
+              onClick={() => openTopUp()}
+              className="underline underline-offset-2 font-[600] hover:opacity-80"
+            >
+              {t('wallet_top_up', 'Top up')}
+            </button>{' '}
+            <span className="text-textItemBlur tabular-nums">
+              {t('wallet_balance_n', 'Balance: {{credits}}', {
+                credits: signed(f.credits, wallet?.balance ?? 0),
+              })}
+            </span>
+          </span>
+        ) : estimate.autoCovers ? (
           <span className="text-textItemBlur tabular-nums">
-            {t('wallet_balance_n', 'Balance: {{credits}}', {
-              credits: signed(f.credits, wallet?.balance ?? 0),
+            {afterAuto !== null && estimate.autoAmount
+              ? t(
+                  'wallet_auto_adds_first',
+                  'Auto top-up adds {{amount}} first. Balance after: {{credits}}',
+                  {
+                    amount: f.moneyShort(estimate.autoAmount),
+                    credits: signed(f.credits, afterAuto),
+                  }
+                )
+              : t('wallet_auto_top_up_first', 'Auto top-up runs first.')}
+          </span>
+        ) : (
+          <span className="text-textItemBlur tabular-nums">
+            {t('wallet_balance_after_n', 'Balance after: {{credits}}', {
+              credits: signed(f.credits, estimate.balanceAfter),
             })}
           </span>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };

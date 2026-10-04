@@ -183,6 +183,25 @@ export const walletErrorKind = (
     : null;
 };
 
+// The reason to show for a post the wallet stopped: the wallet's own message
+// instead of the serialized publish failure it is stored inside. Any other
+// error is returned as stored.
+export const walletErrorText = (
+  error?: string | null,
+  errorKind?: string | null
+) => {
+  if (!error || walletErrorKind(error, errorKind) !== 'wallet') {
+    return error || null;
+  }
+  return (
+    [notEnoughCreditsMessage(), walletFrozenMessage()].find(
+      (message) =>
+        error.includes(message) ||
+        error.includes(JSON.stringify(message).slice(1, -1))
+    ) || error
+  );
+};
+
 // A request refused because it needs the wallet (HTTP 402 with
 // { message, wallet: true, url }), as one line for the agent, or undefined
 // for any other error.

@@ -7,7 +7,10 @@ import z from 'zod';
 import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
 import { readPostMedia } from '@gitroom/nestjs-libraries/chat/tools/post.write.shared';
 import { guessMimeFromPath } from '@gitroom/nestjs-libraries/chat/tools/media.preview.helper';
-import { walletErrorKind } from '@gitroom/nestjs-libraries/chat/tools/wallet.shared';
+import {
+  walletErrorKind,
+  walletErrorText,
+} from '@gitroom/nestjs-libraries/chat/tools/wallet.shared';
 
 const DEFAULT_RANGE_IN_DAYS = 30;
 
@@ -252,7 +255,7 @@ A post that failed to publish has state "ERROR" and carries "error", the reason.
             publishDate: new Date(post.publishDate).toISOString(),
             content: post.content || '',
             releaseURL: post.releaseURL ?? null,
-            error: post.error || null,
+            error: walletErrorText(post.error, post.errorKind),
             errorKind: walletErrorKind(post.error, post.errorKind),
             attachments: describeAttachments(post),
             comments: threadOf(post).map((item: any) => ({

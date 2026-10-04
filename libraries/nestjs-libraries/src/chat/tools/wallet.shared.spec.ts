@@ -13,6 +13,7 @@ import {
   pricingModel,
   toCredits,
   walletErrorKind,
+  walletErrorText,
   walletForecast,
   walletWarning,
 } from '@gitroom/nestjs-libraries/chat/tools/wallet.shared';
@@ -221,5 +222,27 @@ describe('credit and price text', () => {
       freeAllowance(action({ freeUnits: 2, freePeriod: 'MONTH', unit: 'gb' }))
     ).toBe('2 GB free each month');
     expect(freeAllowance(action({ billing: 'UNLOCK' }))).toBe('Unlimited use');
+  });
+});
+
+describe('walletErrorText', () => {
+  const failure = (message: string) =>
+    JSON.stringify({
+      cause: { failure: { message, stackTrace: `ApplicationFailure: ${message}` } },
+    });
+
+  it('gives the plain wallet message for a serialized wallet failure', () => {
+    expect(walletErrorText(failure(notEnoughCreditsMessage()), 'wallet')).toBe(
+      notEnoughCreditsMessage()
+    );
+    expect(walletErrorText(failure(walletFrozenMessage()), 'wallet')).toBe(
+      walletFrozenMessage()
+    );
+  });
+
+  it('keeps any other error as stored', () => {
+    const other = failure('Rate limited');
+    expect(walletErrorText(other, null)).toBe(other);
+    expect(walletErrorText(null, null)).toBeNull();
   });
 });

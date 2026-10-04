@@ -3,6 +3,7 @@ import { createTool } from '@mastra/core/tools';
 import { Injectable } from '@nestjs/common';
 import z from 'zod';
 import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
+import { walletRefusal } from '@gitroom/nestjs-libraries/chat/tools/wallet.shared';
 import { IntegrationService } from '@gitroom/nestjs-libraries/database/prisma/integrations/integration.service';
 import { Organization } from '@prisma/client';
 
@@ -18,7 +19,8 @@ export class AnalyticsChannelTool implements AgentToolInterface {
 Use integrationList first to get the channel id. Only social channels report analytics; publishing platforms such as a blog or a newsletter return nothing, which is expected rather than an error.
 What comes back differs by network, because each one exposes its own metrics. Read the labels rather than assuming a fixed set, and say which network the numbers came from.
 Numbers can be a day or two behind what the network's own dashboard shows, so do not present them as live.
-Results are cached for up to an hour: "cachedAt" says when they were read from the network and "note" says whether this answer came from the cache. Pass fresh: true to read the network again; on a workspace that pays from its wallet that can charge post reads (each post at most once per UTC day, whichever period or refresh reads it first; see walletPrices), so only do it when the user wants newer numbers.`,
+Results are cached for up to an hour: "cachedAt" says when they were read from the network and "note" says whether this answer came from the cache. Pass fresh: true to read the network again; on a workspace that pays from its wallet that can charge post reads (each post at most once per UTC day, whichever period or refresh reads it first; see walletPrices), so only do it when the user wants newer numbers.
+A wallet workspace whose credits are used up gets no live read: "error" then says so with a top-up link (cached numbers are still returned).`,
       mcp: {
         annotations: {
           title: 'Channel Analytics',
@@ -94,6 +96,12 @@ Results are cached for up to an hour: "cachedAt" says when they were read from t
 
           return { analytics, cachedAt, note };
         } catch (err) {
+          // Not enough wallet credits: the reason and the top-up link, not a
+          // tool failure. The network was not asked.
+          const refusal = walletRefusal(err);
+          if (refusal) {
+            return { error: refusal };
+          }
           return {
             error: `Failed to read channel analytics: ${
               err instanceof Error ? err.message : 'Unexpected error'

@@ -36,6 +36,7 @@ import {
 import {
   InsufficientCreditsError,
   WalletService,
+  walletPaymentRequired,
   walletRequiredMessage,
 } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 import { WalletBillingService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.billing.service';
@@ -72,6 +73,11 @@ export const apiNeedsCreditsMessage = (identifier: string) => {
     p.length <= 2 ? p.toUpperCase() : p[0].toUpperCase() + p.slice(1);
   return `Not enough credits in your wallet to load this from ${label}. Top up to see it.`;
 };
+
+// Shown when a wallet workspace's balance is used up and auto top-up cannot
+// refill it, so live analytics are not read from the network.
+export const analyticsNeedsCreditsMessage = (scope: 'channel' | 'post') =>
+  `Not enough credits in your wallet to load this ${scope}'s analytics. Top up to see them.`;
 
 const notEnoughCreditsToConnectMessage = () =>
   'Not enough credits in your wallet to connect this channel. Top up, then connect it again.';
@@ -479,26 +485,22 @@ export class IntegrationService {
 
       if (integrationProvider.analytics) {
         // A wallet workspace pays for each post read (only on a cache miss,
-        // above). It needs credits for at least one read before X is asked;
-        // the reads are then charged by how many posts came back, two reads
-        // per post (the timeline, then each post's stats).
+        // above). Before X is asked its balance must be above zero (auto
+        // top-up may refill it); otherwise this throws the wallet 402. The
+        // reads are then charged by how many posts came back, two reads per
+        // post.
         const walletPays = await this.paysFromWallet(
           org.id,
           getIntegration.providerIdentifier
         );
         if (
           walletPays &&
-          !(await this.canPayApiUse(
+          !(await this.assertCanReadAnalytics(
             org.id,
             getIntegration.providerIdentifier,
-            'post_read'
+            'channel'
           ))
         ) {
-          console.warn(
-            `[wallet] ${apiNeedsCreditsMessage(
-              getIntegration.providerIdentifier
-            )} (organization ${org.id}, channel analytics ${integration})`
-          );
           return [];
         }
 
@@ -560,6 +562,13 @@ export class IntegrationService {
 
       return [];
     } catch (e) {
+      // The wallet refusal (402) reaches the caller, who shows the top-up.
+      if (
+        e instanceof HttpException &&
+        e.getStatus() === HttpStatus.PAYMENT_REQUIRED
+      ) {
+        throw e;
+      }
       // A RefreshToken error means the access token expired mid-request; retry
       // once with a forced refresh. Guard against infinite recursion.
       if (e instanceof RefreshToken && !forceRefresh) {
@@ -619,26 +628,41 @@ export class IntegrationService {
     );
   }
 
-  // Whether the wallet can pay for one more paid read or lookup, topping up
-  // automatically when that is on. No price row means it cannot.
-  async canPayApiUse(
+  // Called before a live analytics read on a paid API by a workspace that
+  // pays from its wallet (a cached answer never gets here). A balance above
+  // zero may read; at zero or below, auto top-up is tried (within its
+  // monthly limit) and the read goes ahead if that lifts the balance above
+  // zero. Otherwise throws the wallet 402 and the network must not be asked.
+  // The reads are charged after they happen, into a negative balance if
+  // need be, so a read can take the balance below zero by one batch at most.
+  // Returns false (read nothing, quietly) when the read has no price row.
+  async assertCanReadAnalytics(
     orgId: string,
     identifier: string,
-    action: PaidApiAction
+    scope: 'channel' | 'post'
   ) {
     if (!(await this._walletService.unlocksProvider(orgId, identifier))) {
+      throw walletPaymentRequired(
+        await this._walletService.lockedProviderMessageFor(orgId, identifier)
+      );
+    }
+    const readKey = `${providerKey(identifier)}.post_read`;
+    if (!(await this._walletService.price(readKey))) {
+      console.warn(
+        `[wallet] No price for ${readKey}, analytics not read (organization ${orgId})`
+      );
       return false;
     }
-    const priced = await this._walletService.price(
-      `${providerKey(identifier)}.${action}`
-    );
-    if (!priced) {
-      return false;
-    }
-    if ((await this._walletService.balance(orgId)) >= priced.price) {
+    if ((await this._walletService.balance(orgId)) > 0) {
       return true;
     }
-    return this._walletBilling.autoTopUp(orgId, priced.price);
+    if (await this._walletBilling.autoTopUpFor(orgId, 1)) {
+      return true;
+    }
+    console.warn(
+      `[wallet] ${analyticsNeedsCreditsMessage(scope)} (organization ${orgId})`
+    );
+    throw walletPaymentRequired(analyticsNeedsCreditsMessage(scope));
   }
 
   // Charges a wallet workspace for a paid read or lookup, once per chargeKey.

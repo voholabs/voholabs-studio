@@ -385,7 +385,9 @@ export class PostsService {
     // }
 
     // A wallet workspace pays for the post read, once per post and UTC day,
-    // before the network is asked; without the credits it is not asked.
+    // before the network is asked. Its balance must be above zero (auto
+    // top-up may refill it), else the wallet 402 is thrown and the network
+    // is not asked; the charge itself may then take the balance below zero.
     let charge: string | false | undefined;
     if (
       await this._integrationService.paysFromWallet(
@@ -393,6 +395,15 @@ export class PostsService {
         getIntegration.providerIdentifier
       )
     ) {
+      if (
+        !(await this._integrationService.assertCanReadAnalytics(
+          orgId,
+          getIntegration.providerIdentifier,
+          'post'
+        ))
+      ) {
+        return [];
+      }
       charge = await this._integrationService.chargeApiUse({
         orgId,
         identifier: getIntegration.providerIdentifier,
@@ -403,6 +414,7 @@ export class PostsService {
           .utc()
           .format('YYYY-MM-DD')}`,
         reference: post.id,
+        allowNegative: true,
       });
       if (!charge) {
         return [];

@@ -6,6 +6,7 @@ import {
   NotFoundException,
   Param,
   Patch,
+  Query,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Organization } from '@prisma/client';
@@ -97,8 +98,17 @@ export class PublicBriefController {
   deleteDocument(
     @GetOrgFromRequest() org: Organization,
     @Param('category') category: string,
-    @Param('key') key: string
+    @Param('key') key: string,
+    // ?keepHistory=true keeps the document's revisions and records the
+    // removal in them instead of wiping them.
+    @Query('keepHistory') keepHistory?: string
   ) {
-    return this._briefService.deleteDocument(org.id, category, key);
+    return this._briefService.deleteDocument(
+      org.id,
+      category,
+      key,
+      false,
+      keepHistory === 'true'
+    );
   }
 }

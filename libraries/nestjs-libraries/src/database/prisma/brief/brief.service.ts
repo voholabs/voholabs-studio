@@ -152,7 +152,11 @@ export class BriefService {
     orgId: string,
     category: string,
     key: string,
-    viaAgent = false
+    viaAgent = false,
+    // Keep the document's history and record the removal in it, rather than
+    // wiping it. Used when a redone onboarding replaces the brief, so what it
+    // removed can still be seen afterwards.
+    keepHistory = false
   ) {
     const definition = findCategory(category);
     if (!definition || !resolveDocumentDef(category, key)) {
@@ -171,6 +175,11 @@ export class BriefService {
 
     const storageKey = await this.toStorageKey(orgId, category, key);
     await this._briefRepository.deleteDocument(orgId, category, storageKey);
+
+    if (keepHistory) {
+      await this.capture(orgId, category, storageKey, emptyContent());
+      return { deleted: true };
+    }
 
     // A document that is gone leaves no history behind, same as a deleted post.
     try {

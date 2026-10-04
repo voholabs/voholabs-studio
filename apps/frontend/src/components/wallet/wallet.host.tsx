@@ -114,17 +114,6 @@ const TopUpSuccess: FC<{
   const unlocks = useUnlocks();
   const addProvider = useAddProvider();
   const channel = unlocks.find((u) => u.channel);
-  const names = useMemo(() => {
-    try {
-      // Intl.ListFormat is not in this project's TypeScript lib yet.
-      const ListFormat = (Intl as any).ListFormat;
-      return new ListFormat(f.locale, { type: 'conjunction' }).format(
-        unlocks.map((u) => u.name)
-      ) as string;
-    } catch {
-      return unlocks.map((u) => u.name).join(', ');
-    }
-  }, [unlocks, f.locale]);
 
   return (
     <div className="flex flex-col gap-[24px] whitespace-normal">
@@ -138,31 +127,25 @@ const TopUpSuccess: FC<{
         >
           <CheckIcon size={26} />
         </div>
-        <div className="text-[24px] font-[600]">
-          {t('wallet_on_payg', "You're on Pay-as-you-go")}
-        </div>
-        {!!unlocks.length && (
-          <div className="text-[15px] text-newTextColor/80">
-            {t('wallet_now_unlocked', '{{names}} are now unlocked.', {
-              names,
-              interpolation: { escapeValue: false },
-            })}
-          </div>
-        )}
-        <div className="text-[13px] text-textItemBlur tabular-nums">
+        <div className="text-[24px] font-[600] tabular-nums">
           {credits !== null
             ? t(
-                'wallet_credits_added',
-                '{{credits}} credits added to your wallet.',
+                'wallet_credits_added_title',
+                '{{credits}} credits added to your wallet',
                 {
                   credits: f.credits(credits),
                 }
               )
-            : t('wallet_credits_added_plain', 'Credits added to your wallet.')}
-          {wallet?.autoTopUp.enabled
-            ? ` ${t('wallet_auto_is_on', 'Auto top-up is on.')}`
-            : ''}
+            : t(
+                'wallet_credits_added_plain_title',
+                'Credits added to your wallet'
+              )}
         </div>
+        {!!wallet?.autoTopUp.enabled && (
+          <div className="text-[13px] text-textItemBlur">
+            {t('wallet_auto_is_on', 'Auto top-up is on.')}
+          </div>
+        )}
       </div>
       {!!unlocks.length && (
         <div className="flex flex-col gap-[8px]">

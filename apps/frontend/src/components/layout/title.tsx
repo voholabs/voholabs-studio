@@ -8,10 +8,12 @@ import {
   TitleExtras,
 } from '@gitroom/frontend/components/wallet-locks/title.extras';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
+import { useWalletAccess } from '@gitroom/frontend/components/wallet-locks/wallet.access';
 export const Title = () => {
   const path = usePathname();
   const { all: menuItems } = useMenuItem();
   const t = useT();
+  const paidPlan = useWalletAccess() === 'plan';
   const current = useMemo(() => {
     return menuItems.find((item) => path.indexOf(item.path) > -1);
   }, [path]);
@@ -21,6 +23,11 @@ export const Title = () => {
     : path.startsWith('/wallet')
     ? t('wallet_billing_title', 'Billing')
     : undefined;
+
+  // A paid plan sees the title as it always did.
+  if (paidPlan) {
+    return <h1>{current?.name}</h1>;
+  }
 
   if (!current || (!current.titleInfo && !hasTitleExtras(current.path))) {
     return <h1>{current?.name || walletTitle}</h1>;

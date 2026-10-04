@@ -44,6 +44,8 @@ export const useMenuItem = () => {
   const { isGeneral } = useVariables();
   const t = useT();
   const { openModal } = useModals();
+  // A paid plan keeps the menu it had: the brief as before, no skills.
+  const paidPlan = useWalletAccess() === 'plan';
 
   const handleAgentMediaClick = useCallback(() => {
     openModal({
@@ -167,16 +169,24 @@ export const useMenuItem = () => {
         </svg>
       ),
       path: '/brief',
-      lockedTip: t('brief_locked_tip', 'Top up to start the brief onboarding.'),
-      titleInfo: t(
-        'brief_title_info',
-        'Brief is the structured document about your brand, audience, voice and channels. It steers what your agent writes. Imagine you are briefing your chief marketing officer: you can brief the agent manually, via MCP using another agent, or by talking directly to the agent.'
-      ),
+      ...(paidPlan
+        ? { requireAi: true }
+        : {
+            lockedTip: t(
+              'brief_locked_tip',
+              'Top up to start the brief onboarding.'
+            ),
+            titleInfo: t(
+              'brief_title_info',
+              'Brief is the structured document about your brand, audience, voice and channels. It steers what your agent writes. Imagine you are briefing your chief marketing officer: you can brief the agent manually, via MCP using another agent, or by talking directly to the agent.'
+            ),
+          }),
     },
     {
       name: t('skills', 'Skills'),
       icon: <SkillsIcon />,
       path: '/skills',
+      hide: paidPlan,
       lockedTip: `${t(
         'skills_locked',
         'Ready-made skills for hooks, writing in your voice, removing AI slop, and shaping posts for every channel. Skills are available to your agent through MCP.'

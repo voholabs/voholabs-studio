@@ -417,7 +417,7 @@ export class PostActivity {
       integration.providerIdentifier
     );
 
-    // X and TikTok are unavailable on the free plan, including posts queued
+    // X is unavailable on the free plan, including posts queued
     // before that changed, unless the wallet pays for them (checked again in
     // publishPaid, where the credits are taken).
     await this.paysFromWallet(integration);

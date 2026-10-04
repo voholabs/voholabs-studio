@@ -108,7 +108,7 @@ export class NoAuthIntegrationsController {
 
     const org = await this._organizationService.getOrgById(organization);
 
-    // X and TikTok are unavailable on the free plan, however the connection
+    // X is unavailable on the free plan, however the connection
     // was started (app, public API, CLI).
     if (
       !(await this._integrationService.canUseProvider(

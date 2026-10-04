@@ -847,8 +847,8 @@ export const AddProviderComponent: FC<{
 
   const t = useT();
   const user = useUser();
-  // Temporarily unavailable on the free plan (the backend refuses them too)
-  const paidOnly = ['x', 'tiktok'];
+  // Temporarily unavailable on the free plan (the backend refuses it too)
+  const paidOnly = ['x'];
   const isFreePlan = user?.tier?.current === 'FREE';
 
   const filteredSocial = social.filter((item) => {
@@ -911,10 +911,6 @@ export const AddProviderComponent: FC<{
     paidOnly.includes(identifier) &&
     !walletMode(identifier);
   const unavailableReason: Record<string, string> = {
-    tiktok: t(
-      'tiktok_unavailable_reason',
-      'TikTok is paused while TikTok reviews an update to our connection. It will be back as soon as their review is complete.'
-    ),
     x: t(
       'x_unavailable_reason',
       'X now charges for every post sent through its API, and with high demand we can no longer offer it for free. A premium plan that includes X is coming soon. All other channels remain free.'

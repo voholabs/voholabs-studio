@@ -822,8 +822,8 @@ describe('WalletService.unfreeze and locked messages', () => {
     expect(await open.lockedProviderMessageFor('o', 'x')).toContain(
       'Top up your wallet'
     );
-    expect(await open.lockedProviderMessageFor('o', 'tiktok')).toBe(
-      'X and TikTok are temporarily unavailable on the free plan.'
+    expect(await open.lockedProviderMessageFor('o', 'linkedin')).toBe(
+      'X is temporarily unavailable on the free plan.'
     );
   });
 });

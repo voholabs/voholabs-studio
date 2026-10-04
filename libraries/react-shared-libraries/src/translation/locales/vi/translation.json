@@ -717,7 +717,6 @@
   "brief_onboarding_start_failed": "Không thể mở onboarding. Hãy thử lại sau giây lát.",
   "x_wallet_locked": "X tính phí mỗi bài đăng từ credits trong ví: {{post}} credits mỗi bài, {{link}} nếu có liên kết. Nạp tiền để kết nối X.",
   "x_wallet_metered": "{{post}} credits mỗi bài. {{link}} nếu có liên kết. Giá theo giá API của X.",
-  "tiktok_unavailable_reason": "TikTok đang tạm dừng trong khi TikTok xem xét bản cập nhật kết nối của chúng tôi. Tính năng sẽ trở lại ngay khi họ xem xét xong.",
   "x_unavailable_reason": "X hiện tính phí cho mọi bài đăng gửi qua API và do nhu cầu cao, chúng tôi không thể cung cấp miễn phí nữa. Gói cao cấp bao gồm X sắp ra mắt. Tất cả các kênh khác vẫn miễn phí.",
   "temporarily_unavailable": "Tạm thời không khả dụng",
   "wallet_post_failed_reason": "Chưa đăng: không đủ credits khi đến giờ đăng. Hãy nạp tiền, rồi lên lịch lại nếu bạn vẫn muốn đăng.",

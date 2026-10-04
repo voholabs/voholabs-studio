@@ -820,7 +820,6 @@
   "brief_onboarding_start_failed": "Could not open the onboarding. Try again in a moment.",
   "x_wallet_locked": "X charges per post from your wallet credits: {{post}} credits per post, {{link}} with a link. Top up to connect X.",
   "x_wallet_metered": "{{post}} credits per post. {{link}} with a link. Prices follow X's API price.",
-  "tiktok_unavailable_reason": "TikTok is paused while TikTok reviews an update to our connection. It will be back as soon as their review is complete.",
   "x_unavailable_reason": "X now charges for every post sent through its API, and with high demand we can no longer offer it for free. A premium plan that includes X is coming soon. All other channels remain free.",
   "temporarily_unavailable": "Temporarily unavailable",
   "wallet_post_failed_reason": "Not published: there weren't enough credits when it was due. Top up, then reschedule it if you still want it out.",

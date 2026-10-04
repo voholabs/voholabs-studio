@@ -1471,7 +1471,7 @@ export class PostsService {
     body: CreatePostDto,
     creationMethod: CreationMethod
   ): Promise<any[]> {
-    // X and TikTok are unavailable on the free plan: refuse before anything is
+    // X is unavailable on the free plan: refuse before anything is
     // saved, whether the post comes from the app, the public API or an agent.
     // A pay-as-you-go workspace may use the ones its wallet charges for; the
     // credits are taken when each post is published, not here.

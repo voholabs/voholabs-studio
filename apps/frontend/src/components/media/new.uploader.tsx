@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 // @ts-ignore
 import Uppy, { BasePlugin, UploadResult, UppyFile } from '@uppy/core';
 // @ts-ignore
@@ -14,6 +20,7 @@ import { useToaster } from '@gitroom/react/toaster/toaster';
 import { useLaunchStore } from '@gitroom/frontend/components/new-launch/store';
 import { uniqBy } from 'lodash';
 import { openTopUp } from '@gitroom/frontend/components/wallet/wallet.bridge';
+import { useWalletAccess } from '@gitroom/frontend/components/wallet-locks/wallet.access';
 
 // The JSON body of a refused upload: on the error for the multipart
 // endpoints (uppy.upload.ts), on the request for a direct upload.
@@ -66,6 +73,10 @@ export function useUppyUploader(props: {
     useVariables();
   const { onUploadSuccess, allowedFileTypes } = props;
   const fetch = useFetch();
+  // A paid plan keeps the uploader as it was: no refusal toast, and a
+  // failed file is handled the way it always was.
+  const paidPlan = useRef(false);
+  paidPlan.current = useWalletAccess() === 'plan';
   return useMemo(() => {
     // Track file order to maintain original sequence after upload
     let fileOrderIndex = 0;
@@ -223,6 +234,9 @@ export function useUppyUploader(props: {
     // the top-up, anything else (a full library on the free plan, say) shows
     // its message.
     uppy2.on('upload-error', (file, error, request) => {
+      if (paidPlan.current) {
+        return;
+      }
       const body = refusedBody(error, request);
       if (body?.wallet) {
         openTopUp(body.message);
@@ -239,7 +253,10 @@ export function useUppyUploader(props: {
     });
     uppy2.on('complete', async (result) => {
       console.log(result);
-      for (const file of [...result.successful, ...(result.failed || [])]) {
+      for (const file of [
+        ...result.successful,
+        ...(paidPlan.current ? [] : result.failed || []),
+      ]) {
         uppy2.removeFile(file.id);
       }
 
@@ -251,7 +268,7 @@ export function useUppyUploader(props: {
         return orderA - orderB;
       });
 
-      if (!sortedSuccessful.length) {
+      if (!sortedSuccessful.length && !paidPlan.current) {
         setLocked(false);
         fileOrderIndex = 0;
         return;

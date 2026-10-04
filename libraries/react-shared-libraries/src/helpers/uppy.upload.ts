@@ -18,7 +18,9 @@ const fetchUploadApiEndpoint = async (
     // handler) instead of leaving the upload waiting forever.
     walletInline: true,
   });
-  if (!res.ok) {
+  // Only the wallet's refusal (402) is thrown; any other answer is handled
+  // as it always was.
+  if (res.status === 402) {
     const body = await res.json().catch(() => ({}));
     throw Object.assign(
       new Error(body?.message || body?.msg || 'Upload failed'),

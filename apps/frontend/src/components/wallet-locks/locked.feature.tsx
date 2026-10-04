@@ -33,7 +33,9 @@ export const LockedFeature: FC<{
   bullets?: string[];
   cta?: string;
   tone?: WalletTone;
-  action?: { label: string; onClick: () => void };
+  action?: { label: string; onClick: () => void; disabled?: boolean };
+  // A quieter second way in, shown as a text link under the note.
+  secondary?: { label: string; onClick: () => void };
   note?: string;
   // What a top-up gives for free, generated from the price row.
   gift?: string;
@@ -46,6 +48,7 @@ export const LockedFeature: FC<{
   cta,
   tone = 'warm',
   action,
+  secondary,
   note,
   gift,
 }) => {
@@ -127,6 +130,7 @@ export const LockedFeature: FC<{
             <button
               type="button"
               onClick={action.onClick}
+              disabled={action.disabled}
               className={BTN_PRIMARY}
             >
               {action.label}
@@ -149,6 +153,15 @@ export const LockedFeature: FC<{
         </div>
         {!!note && (
           <div className="text-[12px] text-textItemBlur -mt-[4px]">{note}</div>
+        )}
+        {!!secondary && (
+          <button
+            type="button"
+            onClick={secondary.onClick}
+            className="text-[13px] text-textItemBlur hover:text-newTextColor underline underline-offset-2"
+          >
+            {secondary.label}
+          </button>
         )}
       </div>
     </div>

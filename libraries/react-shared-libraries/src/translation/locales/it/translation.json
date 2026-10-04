@@ -973,5 +973,9 @@
   "wallet_update_short": "Crediti insufficienti per aggiornarlo. Ricarica o salvalo come bozza.",
   "wallet_update_blocked_tip": "Crediti insufficienti per aggiornare questo post. Ricarica o salvalo come bozza.",
   "wallet_update_charged_toast": "Aggiornato. {{credits}} crediti in più addebitati.",
-  "wallet_update_refunded_toast": "Aggiornato. {{credits}} crediti restituiti."
+  "wallet_update_refunded_toast": "Aggiornato. {{credits}} crediti restituiti.",
+  "wallet_channel_pay_per_use": "{{channel}} si paga a consumo.",
+  "wallet_channel_top_up_to_connect": "Ricarica per collegarlo.",
+  "wallet_channel_connect_cost": "Il collegamento costa {{price}} crediti.",
+  "wallet_see_pricing": "Vedi i prezzi"
 }

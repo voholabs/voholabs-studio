@@ -973,5 +973,9 @@
   "wallet_update_short": "الرصيد غير كافٍ للتحديث. اشحن، أو احفظه كمسودة.",
   "wallet_update_blocked_tip": "الرصيد غير كافٍ لتحديث هذا المنشور. اشحن، أو احفظه كمسودة.",
   "wallet_update_charged_toast": "تم التحديث. خُصم {{credits}} رصيد إضافي.",
-  "wallet_update_refunded_toast": "تم التحديث. أُعيد {{credits}} رصيد."
+  "wallet_update_refunded_toast": "تم التحديث. أُعيد {{credits}} رصيد.",
+  "wallet_channel_pay_per_use": "{{channel}} بالدفع حسب الاستخدام.",
+  "wallet_channel_top_up_to_connect": "اشحن رصيدك لربطه.",
+  "wallet_channel_connect_cost": "الربط يكلّف {{price}} رصيد.",
+  "wallet_see_pricing": "عرض الأسعار"
 }

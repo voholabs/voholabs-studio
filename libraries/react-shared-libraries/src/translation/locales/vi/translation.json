@@ -973,5 +973,9 @@
   "wallet_update_short": "Không đủ credits để cập nhật. Hãy nạp tiền hoặc lưu làm bản nháp.",
   "wallet_update_blocked_tip": "Không đủ credits để cập nhật bài đăng này. Hãy nạp tiền hoặc lưu làm bản nháp.",
   "wallet_update_charged_toast": "Đã cập nhật. Đã trừ thêm {{credits}} credits.",
-  "wallet_update_refunded_toast": "Đã cập nhật. Đã hoàn lại {{credits}} credits."
+  "wallet_update_refunded_toast": "Đã cập nhật. Đã hoàn lại {{credits}} credits.",
+  "wallet_channel_pay_per_use": "{{channel}} trả phí theo mức sử dụng.",
+  "wallet_channel_top_up_to_connect": "Nạp tiền để kết nối.",
+  "wallet_channel_connect_cost": "Kết nối tốn {{price}} tín dụng.",
+  "wallet_see_pricing": "Xem bảng giá"
 }

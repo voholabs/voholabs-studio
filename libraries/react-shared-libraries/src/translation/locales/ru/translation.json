@@ -973,5 +973,9 @@
   "wallet_update_short": "Недостаточно кредитов для изменения. Пополните баланс или сохраните как черновик.",
   "wallet_update_blocked_tip": "Недостаточно кредитов, чтобы изменить этот пост. Пополните баланс или сохраните как черновик.",
   "wallet_update_charged_toast": "Обновлено. Списано ещё {{credits}} кредитов.",
-  "wallet_update_refunded_toast": "Обновлено. Возвращено {{credits}} кредитов."
+  "wallet_update_refunded_toast": "Обновлено. Возвращено {{credits}} кредитов.",
+  "wallet_channel_pay_per_use": "{{channel}} оплачивается по факту использования.",
+  "wallet_channel_top_up_to_connect": "Пополните баланс, чтобы подключить.",
+  "wallet_channel_connect_cost": "Подключение стоит {{price}} кредитов.",
+  "wallet_see_pricing": "Посмотреть цены"
 }

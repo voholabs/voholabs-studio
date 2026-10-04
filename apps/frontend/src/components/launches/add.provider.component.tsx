@@ -38,6 +38,8 @@ import {
 } from '@gitroom/frontend/components/wallet-locks/wallet.icons';
 import { openTopUp } from '@gitroom/frontend/components/wallet/wallet.bridge';
 import clsx from 'clsx';
+import Link from 'next/link';
+import { Tooltip } from 'react-tooltip';
 import copy from 'copy-to-clipboard';
 import { capitalize } from 'lodash';
 const resolver = classValidatorResolver(ApiKeyDto);
@@ -868,65 +870,42 @@ export const AddProviderComponent: FC<{
   const { data: prices } = useWalletPrices(walletWorkspace);
   const walletFormat = useWalletFormat();
   const xTone = useActionTone('x.post', 'warm', walletWorkspace);
-  const xPostAction = findAction(prices, 'x.post');
-  const xLinkAction = findAction(prices, 'x.post_link');
-  // No numbers until the prices are in: the tile shows its lock, and the
-  // tooltip waits.
-  const xPrices =
-    xPostAction && xLinkAction
-      ? {
-          post: walletFormat.credits(xPostAction.price),
-          link: walletFormat.credits(xLinkAction.price),
-        }
-      : null;
   const walletMode = (identifier: string) =>
     identifier !== 'x' || !walletWorkspace
       ? undefined
       : walletAccess === 'free'
       ? ('locked' as const)
       : ('metered' as const);
+  // Hover text for a channel the wallet pays for: pay per use, what
+  // connecting costs (its `<provider>.user_lookup` row), and a pricing link.
+  const lookupPrice = (identifier: string) => {
+    const action = findAction(prices, `${identifier}.user_lookup`);
+    return action ? walletFormat.credits(action.price) : null;
+  };
   const walletTip = (identifier: string, toolTip?: string) => {
     const mode = walletMode(identifier);
-    if (mode && !xPrices) {
-      return mode === 'metered' ? toolTip : undefined;
+    if (!mode) {
+      return toolTip;
     }
-    if (mode === 'locked') {
-      return t(
-        'x_wallet_locked',
-        'X charges per post from your wallet credits: {{post}} credits per post, {{link}} with a link. Top up to connect X.',
-        { post: xPrices!.post, link: xPrices!.link }
-      );
-    }
-    if (mode === 'metered') {
-      return [
-        t(
-          'x_wallet_metered',
-          "{{post}} credits per post. {{link}} with a link. Prices follow X's API price.",
-          { post: xPrices!.post, link: xPrices!.link }
-        ),
-        toolTip,
-      ]
-        .filter(Boolean)
-        .join(' ');
-    }
-    return toolTip;
-  };
-  // Connecting a channel the wallet pays for makes one account lookup on its
-  // API, charged by its `<provider>.user_lookup` row: say so, from the row.
-  const connectLookups =
-    walletAccess === 'payg'
-      ? filteredSocial
-          .filter(
-            (item) =>
-              ENABLED_PROVIDERS.includes(item.identifier) &&
-              walletMode(item.identifier)
+    const name = filteredSocial.find((i) => i.identifier === identifier)?.name;
+    const price = lookupPrice(identifier);
+    return [
+      t('wallet_channel_pay_per_use', '{{channel}} is pay per use.', {
+        channel: name,
+      }),
+      mode === 'locked'
+        ? t('wallet_channel_top_up_to_connect', 'Top up to connect it.')
+        : price
+        ? t(
+            'wallet_channel_connect_cost',
+            'Connecting costs {{price}} credits.',
+            { price }
           )
-          .map((item) => ({
-            item,
-            action: findAction(prices, `${item.identifier}.user_lookup`),
-          }))
-          .filter((l) => !!l.action)
-      : [];
+        : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+  };
   const isUnavailable = (identifier: string) =>
     isFreePlan &&
     paidOnly.includes(identifier) &&
@@ -989,10 +968,15 @@ export const AddProviderComponent: FC<{
                       )
                 }
                 {...(!!tip
-                  ? {
-                      'data-tooltip-id': 'tooltip',
-                      'data-tooltip-content': tip,
-                    }
+                  ? mode
+                    ? {
+                        'data-tooltip-id': 'wallet-channel-tip',
+                        'data-tooltip-content': tip,
+                      }
+                    : {
+                        'data-tooltip-id': 'tooltip',
+                        'data-tooltip-content': tip,
+                      }
                   : {})}
                 {...(mode === 'locked'
                   ? {
@@ -1065,26 +1049,25 @@ export const AddProviderComponent: FC<{
             );
           })}
         </div>
-        {connectLookups.map(({ item, action }) => (
-          <div
-            key={`lookup-${item.identifier}`}
-            className={clsx(
-              'flex items-center gap-[6px] text-[12px]',
-              TONE_TEXT[xTone]
+        {walletWorkspace && (
+          <Tooltip
+            id="wallet-channel-tip"
+            clickable
+            className="z-[200] max-w-[280px]"
+            render={({ content }) => (
+              <div className="flex flex-col gap-[4px] text-[13px]">
+                <span>{content}</span>
+                <Link
+                  href="/wallet/prices"
+                  onClick={() => modal.closeAll()}
+                  className={clsx('font-[600] underline', TONE_TEXT[xTone])}
+                >
+                  {t('wallet_see_pricing', 'See pricing')}
+                </Link>
+              </div>
             )}
-          >
-            <CoinsIcon size={14} />
-            {t(
-              'wallet_connect_lookup',
-              'Connecting {{channel}} costs {{price}} credits: one {{action}}.',
-              {
-                channel: item.name,
-                price: walletFormat.credits(action!.price),
-                action: action!.name,
-              }
-            )}
-          </div>
-        ))}
+          />
+        )}
         {unavailableSocial.length > 0 && (
           <div className="flex flex-col gap-[10px]">
             <div className="text-[12px] font-[500] uppercase tracking-[0.08em] text-textColor/50">

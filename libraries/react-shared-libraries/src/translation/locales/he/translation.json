@@ -973,5 +973,9 @@
   "wallet_update_short": "אין מספיק קרדיטים לעדכון. טענו, או שמרו כטיוטה.",
   "wallet_update_blocked_tip": "אין מספיק קרדיטים לעדכון הפוסט. טענו, או שמרו כטיוטה.",
   "wallet_update_charged_toast": "עודכן. חויבו עוד {{credits}} קרדיטים.",
-  "wallet_update_refunded_toast": "עודכן. הוחזרו {{credits}} קרדיטים."
+  "wallet_update_refunded_toast": "עודכן. הוחזרו {{credits}} קרדיטים.",
+  "wallet_channel_pay_per_use": "{{channel}} בתשלום לפי שימוש.",
+  "wallet_channel_top_up_to_connect": "טענו קרדיטים כדי לחבר אותו.",
+  "wallet_channel_connect_cost": "החיבור עולה {{price}} קרדיטים.",
+  "wallet_see_pricing": "לצפייה במחירים"
 }

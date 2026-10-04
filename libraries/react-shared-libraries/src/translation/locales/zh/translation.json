@@ -973,5 +973,9 @@
   "wallet_update_short": "积分不足，无法更新。请充值或保存为草稿。",
   "wallet_update_blocked_tip": "积分不足，无法更新此帖子。请充值或保存为草稿。",
   "wallet_update_charged_toast": "已更新。额外扣除 {{credits}} 积分。",
-  "wallet_update_refunded_toast": "已更新。已退还 {{credits}} 积分。"
+  "wallet_update_refunded_toast": "已更新。已退还 {{credits}} 积分。",
+  "wallet_channel_pay_per_use": "{{channel}} 按使用付费。",
+  "wallet_channel_top_up_to_connect": "充值后即可连接。",
+  "wallet_channel_connect_cost": "连接需要 {{price}} 积分。",
+  "wallet_see_pricing": "查看价格"
 }

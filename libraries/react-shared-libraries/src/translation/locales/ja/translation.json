@@ -973,5 +973,9 @@
   "wallet_update_short": "更新するにはクレジットが足りません。チャージするか、下書きとして保存してください。",
   "wallet_update_blocked_tip": "この投稿を更新するにはクレジットが足りません。チャージするか、下書きとして保存してください。",
   "wallet_update_charged_toast": "更新しました。{{credits}} クレジットが追加で請求されました。",
-  "wallet_update_refunded_toast": "更新しました。{{credits}} クレジットが返金されました。"
+  "wallet_update_refunded_toast": "更新しました。{{credits}} クレジットが返金されました。",
+  "wallet_channel_pay_per_use": "{{channel}} は従量課金です。",
+  "wallet_channel_top_up_to_connect": "接続するにはチャージしてください。",
+  "wallet_channel_connect_cost": "接続には {{price}} クレジットかかります。",
+  "wallet_see_pricing": "料金を見る"
 }

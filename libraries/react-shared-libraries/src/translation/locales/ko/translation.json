@@ -973,5 +973,9 @@
   "wallet_update_short": "수정할 크레딧이 부족합니다. 충전하거나 임시 저장하세요.",
   "wallet_update_blocked_tip": "이 게시물을 수정할 크레딧이 부족합니다. 충전하거나 임시 저장하세요.",
   "wallet_update_charged_toast": "수정되었습니다. {{credits}} 크레딧이 추가로 차감되었습니다.",
-  "wallet_update_refunded_toast": "수정되었습니다. {{credits}} 크레딧이 환불되었습니다."
+  "wallet_update_refunded_toast": "수정되었습니다. {{credits}} 크레딧이 환불되었습니다.",
+  "wallet_channel_pay_per_use": "{{channel}}은(는) 사용한 만큼 결제됩니다.",
+  "wallet_channel_top_up_to_connect": "연결하려면 충전하세요.",
+  "wallet_channel_connect_cost": "연결에는 {{price}} 크레딧이 듭니다.",
+  "wallet_see_pricing": "가격 보기"
 }

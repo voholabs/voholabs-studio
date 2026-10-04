@@ -783,5 +783,9 @@
     "wallet_update_short": "განახლებისთვის კრედიტი არ არის საკმარისი. შეავსეთ ბალანსი ან შეინახეთ მონახაზად.",
     "wallet_update_blocked_tip": "ამ პოსტის განახლებისთვის კრედიტი არ არის საკმარისი. შეავსეთ ბალანსი ან შეინახეთ მონახაზად.",
     "wallet_update_charged_toast": "განახლდა. დამატებით ჩამოიჭრა {{credits}} კრედიტი.",
-    "wallet_update_refunded_toast": "განახლდა. დაბრუნდა {{credits}} კრედიტი."
+    "wallet_update_refunded_toast": "განახლდა. დაბრუნდა {{credits}} კრედიტი.",
+    "wallet_channel_pay_per_use": "{{channel}} გადახდა გამოყენების მიხედვითაა.",
+    "wallet_channel_top_up_to_connect": "დასაკავშირებლად შეავსეთ ბალანსი.",
+    "wallet_channel_connect_cost": "დაკავშირება ღირს {{price}} კრედიტი.",
+    "wallet_see_pricing": "ფასების ნახვა"
 }

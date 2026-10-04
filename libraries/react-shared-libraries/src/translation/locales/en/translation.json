@@ -1076,5 +1076,9 @@
   "wallet_update_short": "Not enough credits to update it. Top up, or save it as a draft.",
   "wallet_update_blocked_tip": "Not enough credits to update this post. Top up, or save it as a draft.",
   "wallet_update_charged_toast": "Updated. {{credits}} more credits charged.",
-  "wallet_update_refunded_toast": "Updated. {{credits}} credits given back."
+  "wallet_update_refunded_toast": "Updated. {{credits}} credits given back.",
+  "wallet_channel_pay_per_use": "{{channel}} is pay per use.",
+  "wallet_channel_top_up_to_connect": "Top up to connect it.",
+  "wallet_channel_connect_cost": "Connecting costs {{price}} credits.",
+  "wallet_see_pricing": "See pricing"
 }

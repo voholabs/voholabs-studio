@@ -973,5 +973,9 @@
   "wallet_update_short": "Nicht genug Credits zum Aktualisieren. Lade auf oder speichere als Entwurf.",
   "wallet_update_blocked_tip": "Nicht genug Credits, um diesen Beitrag zu aktualisieren. Lade auf oder speichere als Entwurf.",
   "wallet_update_charged_toast": "Aktualisiert. {{credits}} Credits zusätzlich berechnet.",
-  "wallet_update_refunded_toast": "Aktualisiert. {{credits}} Credits erstattet."
+  "wallet_update_refunded_toast": "Aktualisiert. {{credits}} Credits erstattet.",
+  "wallet_channel_pay_per_use": "{{channel}} wird pro Nutzung abgerechnet.",
+  "wallet_channel_top_up_to_connect": "Lade Guthaben auf, um es zu verbinden.",
+  "wallet_channel_connect_cost": "Das Verbinden kostet {{price}} Credits.",
+  "wallet_see_pricing": "Preise ansehen"
 }

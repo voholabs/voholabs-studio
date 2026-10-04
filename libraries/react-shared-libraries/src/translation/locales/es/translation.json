@@ -973,5 +973,9 @@
   "wallet_update_short": "No hay suficientes créditos para actualizarla. Recarga o guárdala como borrador.",
   "wallet_update_blocked_tip": "No hay suficientes créditos para actualizar esta publicación. Recarga o guárdala como borrador.",
   "wallet_update_charged_toast": "Actualizada. Se cobraron {{credits}} créditos más.",
-  "wallet_update_refunded_toast": "Actualizada. Se devolvieron {{credits}} créditos."
+  "wallet_update_refunded_toast": "Actualizada. Se devolvieron {{credits}} créditos.",
+  "wallet_channel_pay_per_use": "{{channel}} se paga por uso.",
+  "wallet_channel_top_up_to_connect": "Recarga para conectarlo.",
+  "wallet_channel_connect_cost": "Conectarlo cuesta {{price}} créditos.",
+  "wallet_see_pricing": "Ver precios"
 }

@@ -973,5 +973,9 @@
   "wallet_update_short": "Pas assez de crédits pour la modifier. Rechargez, ou enregistrez-la en brouillon.",
   "wallet_update_blocked_tip": "Pas assez de crédits pour modifier cette publication. Rechargez, ou enregistrez-la en brouillon.",
   "wallet_update_charged_toast": "Modifiée. {{credits}} crédits de plus débités.",
-  "wallet_update_refunded_toast": "Modifiée. {{credits}} crédits rendus."
+  "wallet_update_refunded_toast": "Modifiée. {{credits}} crédits rendus.",
+  "wallet_channel_pay_per_use": "{{channel}} est payé à l'usage.",
+  "wallet_channel_top_up_to_connect": "Rechargez pour le connecter.",
+  "wallet_channel_connect_cost": "La connexion coûte {{price}} crédits.",
+  "wallet_see_pricing": "Voir les tarifs"
 }

@@ -973,5 +973,9 @@
   "wallet_update_short": "Güncellemek için yeterli kredi yok. Bakiye yükleyin veya taslak olarak kaydedin.",
   "wallet_update_blocked_tip": "Bu gönderiyi güncellemek için yeterli kredi yok. Bakiye yükleyin veya taslak olarak kaydedin.",
   "wallet_update_charged_toast": "Güncellendi. {{credits}} kredi daha düşüldü.",
-  "wallet_update_refunded_toast": "Güncellendi. {{credits}} kredi iade edildi."
+  "wallet_update_refunded_toast": "Güncellendi. {{credits}} kredi iade edildi.",
+  "wallet_channel_pay_per_use": "{{channel}} kullandıkça ödenir.",
+  "wallet_channel_top_up_to_connect": "Bağlamak için bakiye yükleyin.",
+  "wallet_channel_connect_cost": "Bağlamak {{price}} kredi tutar.",
+  "wallet_see_pricing": "Fiyatları gör"
 }

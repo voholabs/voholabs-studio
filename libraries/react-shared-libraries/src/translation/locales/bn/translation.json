@@ -973,5 +973,9 @@
   "wallet_update_short": "আপডেট করার মতো যথেষ্ট ক্রেডিট নেই। টপ আপ করুন, অথবা খসড়া হিসেবে সংরক্ষণ করুন।",
   "wallet_update_blocked_tip": "এই পোস্ট আপডেট করার মতো যথেষ্ট ক্রেডিট নেই। টপ আপ করুন, অথবা খসড়া হিসেবে সংরক্ষণ করুন।",
   "wallet_update_charged_toast": "আপডেট হয়েছে। আরও {{credits}} ক্রেডিট চার্জ হয়েছে।",
-  "wallet_update_refunded_toast": "আপডেট হয়েছে। {{credits}} ক্রেডিট ফেরত দেওয়া হয়েছে।"
+  "wallet_update_refunded_toast": "আপডেট হয়েছে। {{credits}} ক্রেডিট ফেরত দেওয়া হয়েছে।",
+  "wallet_channel_pay_per_use": "{{channel}} ব্যবহার অনুযায়ী পেমেন্ট।",
+  "wallet_channel_top_up_to_connect": "সংযোগ করতে টপ আপ করুন।",
+  "wallet_channel_connect_cost": "সংযোগ করতে {{price}} ক্রেডিট লাগে।",
+  "wallet_see_pricing": "মূল্য দেখুন"
 }

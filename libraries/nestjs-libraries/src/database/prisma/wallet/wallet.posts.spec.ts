@@ -135,7 +135,9 @@ const ORG = 'org-1';
 const PLAIN = 225;
 const LINK = 3000;
 
-const post = (over: Partial<ChargePostRow> & { id: string }): ChargePostRow => ({
+const post = (
+  over: Partial<ChargePostRow> & { id: string }
+): ChargePostRow => ({
   group: 'g1',
   parentPostId: null,
   state: 'QUEUE',
@@ -328,9 +330,9 @@ describe('Charging posts when they are scheduled', () => {
     ]);
     await settle(t, REFUND_REASONS.deleted);
     expect(await t.balance()).toBe(10000);
-    expect(t.refunds().every((e) => e.description === REFUND_REASONS.deleted)).toBe(
-      true
-    );
+    expect(
+      t.refunds().every((e) => e.description === REFUND_REASONS.deleted)
+    ).toBe(true);
   });
 
   it('refunds everything when it goes back to drafts, and charges again when re-scheduled', async () => {
@@ -367,7 +369,12 @@ describe('Charging posts when they are scheduled', () => {
       post({ id: 'p3', parentPostId: 'p2' }),
     ]);
     await settle(t, REFUND_REASONS.notSent);
-    expect(t.refunds().map((e) => e.reference).sort()).toEqual(['p2', 'p3']);
+    expect(
+      t
+        .refunds()
+        .map((e) => e.reference)
+        .sort()
+    ).toEqual(['p2', 'p3']);
     expect(await t.balance()).toBe(10000 - PLAIN);
   });
 
@@ -445,7 +452,11 @@ describe('Charging posts when they are scheduled', () => {
 });
 
 describe('Publishing after charging at schedule', () => {
-  const publishCharge = (t: ReturnType<typeof setup>, id: string, run?: string) =>
+  const publishCharge = (
+    t: ReturnType<typeof setup>,
+    id: string,
+    run?: string
+  ) =>
     t.wallet.charge({
       organizationId: ORG,
       actionKey: 'x.post',
@@ -536,7 +547,9 @@ describe('WalletPostsService.assertCanSchedule', () => {
   it('refuses with a wallet 402 before anything is saved', async () => {
     const t = setup({ balance: PLAIN });
     await t.ready();
-    const err = await t.service.assertCanSchedule(ORG, [plan()]).catch((e) => e);
+    const err = await t.service
+      .assertCanSchedule(ORG, [plan()])
+      .catch((e) => e);
     expect(err.getStatus()).toBe(402);
     expect(err.getResponse().wallet).toBe(true);
     expect(t.billing.autoTopUpFor).toHaveBeenCalledWith(ORG, PLAIN + LINK);

@@ -36,7 +36,9 @@ A single post's numbers are not cached: every call reads the network ("cachedAt"
         fresh: z
           .boolean()
           .optional()
-          .describe('Accepted for symmetry: post analytics are always read live'),
+          .describe(
+            'Accepted for symmetry: post analytics are always read live'
+          ),
       }),
       outputSchema: z.object({
         analytics: z.any().optional(),

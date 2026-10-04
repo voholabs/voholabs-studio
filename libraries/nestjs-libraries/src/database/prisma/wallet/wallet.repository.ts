@@ -66,15 +66,13 @@ const isUniqueViolation = (err: unknown) =>
 // is refunded).
 export interface SettleItem {
   chargeKey: string;
-  charge:
-    | {
-        actionKey: string;
-        unitPrice: number;
-        description: string;
-        reference?: string;
-        free?: FreeAllowance;
-      }
-    | null;
+  charge: {
+    actionKey: string;
+    unitPrice: number;
+    description: string;
+    reference?: string;
+    free?: FreeAllowance;
+  } | null;
   // The standing charge was used up (the thing it paid for already
   // happened): charge again under the next key instead of keeping it, and
   // leave it as it is.

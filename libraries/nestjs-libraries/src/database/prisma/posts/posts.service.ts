@@ -144,11 +144,7 @@ export class PostsService {
   // Refunds what was charged for the unsent posts of these groups (deleted,
   // drafted, failed). Giving credits back must never break the action that
   // triggered it, so a failure only alerts.
-  private async refundGroups(
-    orgId: string,
-    groups: string[],
-    reason: string
-  ) {
+  private async refundGroups(orgId: string, groups: string[], reason: string) {
     try {
       await this._walletPosts.settleGroups(orgId, groups, { reason });
     } catch (err) {
@@ -1435,7 +1431,11 @@ export class PostsService {
         })),
         group: post.group,
         scheduled:
-          body.type === 'draft' ? false : body.type === 'update' ? 'keep' : true,
+          body.type === 'draft'
+            ? false
+            : body.type === 'update'
+            ? 'keep'
+            : true,
       }))
     );
 
@@ -1545,12 +1545,7 @@ export class PostsService {
   }
 
   async changeState(id: string, state: State, err?: any, body?: any) {
-    const update = await this._postRepository.changeState(
-      id,
-      state,
-      err,
-      body
-    );
+    const update = await this._postRepository.changeState(id, state, err, body);
     // A post that failed gives back what its unsent parts paid. The part
     // that failed is refunded where it was published (PostActivity); the
     // parts after it were never tried.

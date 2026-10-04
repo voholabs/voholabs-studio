@@ -225,7 +225,7 @@ describe('WalletBillingService top-up dialog choices', () => {
     });
   });
 
-  it('keeps the wallet\'s own auto top-up settings when it has them', async () => {
+  it("keeps the wallet's own auto top-up settings when it has them", async () => {
     const { service, wallet } = withWallet({
       autoTopUp: false,
       frozenAt: null,

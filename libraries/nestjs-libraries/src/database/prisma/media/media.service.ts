@@ -75,14 +75,16 @@ export class MediaService {
     fileName: string,
     filePath: string,
     originalName?: string,
-    fileSize?: number
+    fileSize?: number,
+    type?: string
   ) {
     const saved = await this._mediaRepository.saveFile(
       org,
       fileName,
       filePath,
       originalName,
-      fileSize
+      fileSize,
+      type
     );
     if (fileSize && fileSize > 0) {
       await this.chargeStorage(org);

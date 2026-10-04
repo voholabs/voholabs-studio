@@ -1,7 +1,7 @@
-import { xPostActionKey } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.x';
-import { stripHtmlValidation } from '@gitroom/helpers/utils/strip.html.validation';
 import {
+  notEnoughCreditsMessage,
   PricedAction,
+  walletFrozenMessage,
   WalletService,
 } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 import { hasAccess } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
@@ -54,11 +54,15 @@ export const walletForecast = async (
   }
   try {
     const result = await forecast.call(wallet, organizationId);
-    if (!result || typeof result.needed !== 'number') {
+    if (
+      !result ||
+      typeof result.needed !== 'number' ||
+      typeof result.windowHours !== 'number'
+    ) {
       return undefined;
     }
     return {
-      windowHours: Number(result.windowHours) || 48,
+      windowHours: result.windowHours,
       needed: result.needed,
       short: !!result.short,
     };
@@ -67,12 +71,27 @@ export const walletForecast = async (
   }
 };
 
-// Whether a post's text carries a link once it is sent: a URL, or a
-// "(post:<id>)" reference, which becomes a URL at publish.
-export const postHasLink = (html: string) =>
-  /\(post:[^)\s]+\)/.test(html || '') ||
-  xPostActionKey(stripHtmlValidation('normal', html || '', true)) ===
-    'x.post_link';
+const providerOf = (identifier: string) =>
+  (identifier || '').toLowerCase().split('-')[0];
+
+// The action one post (or reply) is charged as. The link rule lives only in
+// WalletService.postActionKey; sent: false reads the text as it is saved,
+// before any link stripping at publish.
+// TODO(merge): stream S1 makes postActionKey public with the { sent } option;
+// drop the cast then.
+export const postActionKey = async (
+  wallet: WalletService,
+  identifier: string,
+  content: string
+): Promise<string | undefined> => {
+  const fn = (wallet as any).postActionKey;
+  if (typeof fn !== 'function') {
+    return undefined;
+  }
+  return fn.call(wallet, providerOf(identifier), content || '', {
+    sent: false,
+  });
+};
 
 // Units of credit for one post and its replies on a channel the wallet
 // charges per post. undefined when a row is missing (nothing is guessed).
@@ -81,18 +100,169 @@ export const postCost = async (
   identifier: string,
   contents: string[]
 ) => {
-  const provider = (identifier || '').toLowerCase().split('-')[0];
   let total = 0;
   for (const content of contents) {
-    const priced = await wallet.price(
-      `${provider}.${postHasLink(content) ? 'post_link' : 'post'}`
-    );
+    const actionKey = await postActionKey(wallet, identifier, content);
+    const priced = actionKey ? await wallet.price(actionKey) : undefined;
     if (!priced) {
       return undefined;
     }
     total += priced.price;
   }
   return total;
+};
+
+// Units of credit a post and its replies take from this workspace's wallet,
+// or undefined when it does not pay for this channel from the wallet. Never
+// throws: the cost only ever adds information.
+export const walletPostCost = async (
+  wallet: WalletService,
+  organization: any,
+  identifier: string,
+  contents: string[]
+) => {
+  try {
+    if (
+      !organization?.id ||
+      onPaidPlan(organization) ||
+      !(await wallet.billsProvider(identifier))
+    ) {
+      return undefined;
+    }
+    return await postCost(wallet, identifier, contents);
+  } catch (err) {
+    return undefined;
+  }
+};
+
+export interface ContentsEstimate {
+  price: number;
+  short: boolean;
+  autoCovers: boolean;
+}
+
+// WalletService.estimateContents: what these posts cost on one provider, and
+// whether the balance plus what auto top-up can still add covers them on top
+// of the usage already scheduled.
+// TODO(merge): stream S1 adds estimateContents; call it directly then.
+const estimateContents = async (
+  wallet: WalletService,
+  organizationId: string,
+  provider: string,
+  contents: string[]
+): Promise<ContentsEstimate | undefined> => {
+  const fn = (wallet as any).estimateContents;
+  if (typeof fn !== 'function') {
+    return undefined;
+  }
+  const result = await fn.call(wallet, organizationId, provider, contents);
+  if (!result || typeof result.price !== 'number') {
+    return undefined;
+  }
+  return {
+    price: result.price,
+    short: !!result.short,
+    autoCovers: !!result.autoCovers,
+  };
+};
+
+// Posts not yet on the schedule, grouped by channel: provider -> the texts of
+// every post and reply, and the units they cost.
+export type PendingWalletPosts = Map<
+  string,
+  { contents: string[]; units: number }
+>;
+
+export const addPendingWalletPost = (
+  pending: PendingWalletPosts,
+  identifier: string,
+  contents: string[],
+  units: number
+) => {
+  const provider = providerOf(identifier);
+  const entry = pending.get(provider) || { contents: [], units: 0 };
+  entry.contents.push(...contents);
+  entry.units += units;
+  pending.set(provider, entry);
+};
+
+// The warning for posts about to be scheduled, or undefined when the credits
+// cover them. Call it BEFORE the posts are queued: the forecast counts what
+// is already queued, so a post counted there and here would count twice.
+// Same rule as the composer: the balance plus what auto top-up can still add
+// must cover these posts on top of the usage already scheduled.
+export const walletWarning = async (
+  wallet: WalletService,
+  organizationId: string,
+  pending: PendingWalletPosts
+) => {
+  if (!pending.size) {
+    return undefined;
+  }
+  try {
+    const estimates = await Promise.all(
+      [...pending.entries()].map(([provider, { contents }]) =>
+        estimateContents(wallet, organizationId, provider, contents)
+      )
+    );
+    if (estimates.every((e) => e !== undefined)) {
+      return estimates.some((e) => e!.short) ? shortWarning() : undefined;
+    }
+
+    // TODO(merge): the same sums by hand until estimateContents exists.
+    const units = [...pending.values()].reduce((all, p) => all + p.units, 0);
+    const [forecast, balance, headroom] = await Promise.all([
+      walletForecast(wallet, organizationId),
+      wallet.balance(organizationId),
+      wallet.autoTopUpHeadroom(organizationId),
+    ]);
+    const needed = units + (forecast?.needed || 0);
+    return needed > balance && needed > balance + headroom
+      ? shortWarning()
+      : undefined;
+  } catch (err) {
+    return undefined;
+  }
+};
+
+// A publish error the wallet wrote: not enough credits when the post was due,
+// or a wallet on hold. Read from the error text when the post carries no
+// errorKind of its own.
+export const walletErrorKind = (
+  error?: string | null,
+  errorKind?: string | null
+): 'wallet' | null => {
+  if (errorKind !== undefined) {
+    return errorKind === 'wallet' ? 'wallet' : null;
+  }
+  if (!error) {
+    return null;
+  }
+  return error.includes(notEnoughCreditsMessage()) ||
+    error.includes(walletFrozenMessage()) ||
+    /enough credits/i.test(error)
+    ? 'wallet'
+    : null;
+};
+
+// A request refused because it needs the wallet (HTTP 402 with
+// { message, wallet: true, url }), as one line for the agent, or undefined
+// for any other error.
+export const walletRefusal = (err: any) => {
+  const status =
+    typeof err?.getStatus === 'function' ? err.getStatus() : err?.status;
+  const body =
+    typeof err?.getResponse === 'function' ? err.getResponse() : err?.response;
+  if (status !== 402 || !body || typeof body !== 'object' || !body.wallet) {
+    return undefined;
+  }
+  const url =
+    typeof body.url === 'string' && body.url
+      ? body.url.startsWith('/')
+        ? `${process.env.FRONTEND_URL}${body.url}`
+        : body.url
+      : topUpUrl();
+  return `${body.message || 'This needs wallet credits.'} Top up: ${url}`;
 };
 
 const UNIT_LABELS: Record<string, [string, string]> = {

@@ -56,7 +56,6 @@ import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
 import { useVariables } from '@gitroom/react/helpers/variable.context';
 import copy from 'copy-to-clipboard';
 import { stripHtmlValidation } from '@gitroom/helpers/utils/strip.html.validation';
-import { isNotEnoughCreditsError } from '@gitroom/frontend/components/wallet-locks/wallet.access';
 import { useSanityDocumentFor } from '@gitroom/frontend/components/launches/sanity.post.label';
 import { newDayjs } from '@gitroom/frontend/components/layout/set.timezone';
 import { Button } from '@gitroom/react/form/button';
@@ -1185,6 +1184,8 @@ const CalendarItem: FC<{
     tags: {
       tag: Tags;
     }[];
+    // 'wallet' when the post failed because the wallet could not pay for it.
+    errorKind?: 'wallet' | null;
   };
 }> = memo((props) => {
   const t = useT();
@@ -1221,13 +1222,14 @@ const CalendarItem: FC<{
   // is what someone clicking through wants to see. The share page is only the
   // best we can do while it is still scheduled.
   // Not published because the wallet could not pay for it when it was due.
-  const walletShort = state === 'ERROR' && isNotEnoughCreditsError(post.error);
+  const walletShort = state === 'ERROR' && post.errorKind === 'wallet';
   const errorReason = walletShort
     ? t(
         'wallet_post_failed_reason',
         "Not published: there weren't enough credits when it was due. Top up, then reschedule it if you still want it out."
       )
-    : post.error || 'An error occurred while publishing this post';
+    : post.error ||
+      t('post_publish_error', 'An error occurred while publishing this post');
   const liveUrl =
     post.state === 'PUBLISHED' && post.releaseURL
       ? post.releaseURL.split(',')[0].trim()
@@ -1411,9 +1413,11 @@ const CalendarItem: FC<{
       <div
         onClick={isSanityDocument ? preview : editPost}
         className={clsx(
-          'gap-[5px] w-full flex h-full flex-1 rounded-br-[10px] rounded-bl-[10px] p-[8px] text-[14px] bg-newColColor',
+          'gap-[5px] w-full flex h-full flex-1 rounded-br-[10px] rounded-bl-[10px] p-[8px] text-[14px]',
+          walletShort ? 'bg-dangerSoft' : 'bg-newColColor',
           'relative',
-          isBeforeNow && '!grayscale'
+          // A wallet failure keeps its red so it reads as needing action.
+          isBeforeNow && !walletShort && '!grayscale'
         )}
       >
         <div className={clsx('relative min-w-[20px]')}>
@@ -1451,7 +1455,7 @@ const CalendarItem: FC<{
             data-tooltip-id="tooltip"
             data-tooltip-content={errorReason}
             data-tooltip-class-name="!max-w-[280px] !whitespace-normal !leading-[1.5]"
-            className="text-[#f2555a] text-[11px] font-[600] whitespace-nowrap flex items-center"
+            className="text-danger text-[11px] font-[600] whitespace-nowrap flex items-center"
           >
             {t('failed', 'Failed')}
           </div>

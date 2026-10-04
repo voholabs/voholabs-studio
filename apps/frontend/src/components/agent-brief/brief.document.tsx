@@ -208,12 +208,13 @@ export const BriefDocument: FC<{
               {t(document.category.labelKey, document.category.label)}
             </span>
             <span>/</span>
-            <span className="text-tealText">{document.label}</span>
+            <bdi className="text-tealText">{document.label}</bdi>
           </div>
           {canRename ? (
             <input
               value={title}
               maxLength={BRIEF_HEADING_MAX}
+              dir="auto"
               onChange={(event) => {
                 setTitle(event.target.value);
                 save({ title: event.target.value });
@@ -222,7 +223,9 @@ export const BriefDocument: FC<{
               className="text-[28px] font-[500] bg-transparent outline-none w-full placeholder:text-textItemBlur"
             />
           ) : (
-            <h2 className="text-[28px] font-[500]">{document.label}</h2>
+            <h2 className="text-[28px] font-[500]">
+              <bdi>{document.label}</bdi>
+            </h2>
           )}
           {!!document.description && (
             <div className="text-[14px] text-textItemBlur">
@@ -274,6 +277,7 @@ export const BriefDocument: FC<{
             <input
               value={block.heading}
               maxLength={BRIEF_HEADING_MAX}
+              dir="auto"
               onChange={(event) =>
                 changeBlock(block.id, 'heading', event.target.value)
               }

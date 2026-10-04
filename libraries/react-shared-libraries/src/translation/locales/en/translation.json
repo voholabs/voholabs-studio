@@ -1116,5 +1116,8 @@
   "brief_onboarding_continue_body_cost": "You have an onboarding in progress. Continuing it costs nothing extra. Starting a new one after it costs {{credits}} credits.",
   "brief_onboarding_continue_body": "You have an onboarding in progress. Continue where you left off.",
   "brief_onboarding_continue_confirm": "Continue",
-  "brief_onboarding_continue_title": "Continue your onboarding?"
+  "brief_onboarding_continue_title": "Continue your onboarding?",
+  "support": "Support",
+  "agent_media_title": "UGC videos by AgentMedia",
+  "brief_asset_failed_named": "{{name}} could not be uploaded"
 }

@@ -77,6 +77,7 @@ export const BriefLinks: FC<{
               value={link.url}
               onChange={change(link.id, 'url')}
               maxLength={BRIEF_LINK_URL_MAX}
+              dir="auto"
               placeholder={t('brief_link_placeholder', 'Paste a link...')}
               className="flex-1 bg-transparent outline-none text-[14px] placeholder:text-textItemBlur"
             />
@@ -108,6 +109,7 @@ export const BriefLinks: FC<{
             onChange={change(link.id, 'note')}
             maxLength={BRIEF_LINK_NOTE_MAX}
             rows={2}
+            dir="auto"
             placeholder={t(
               'brief_link_note_placeholder',
               'What is this, and how should the agent use it?'

@@ -74,7 +74,10 @@ export const BriefAssets: FC<{
 
           if (!response.ok) {
             toaster.show(
-              `${file.name} ${t('brief_asset_failed', 'could not be uploaded')}`,
+              t('brief_asset_failed_named', '{{name}} could not be uploaded', {
+                name: file.name,
+                interpolation: { escapeValue: false },
+              }),
               'warning'
             );
             continue;
@@ -137,7 +140,7 @@ export const BriefAssets: FC<{
                     rel="noreferrer"
                     className="flex-1 text-[13px] truncate hover:text-tealText"
                   >
-                    {asset.name}
+                    <bdi>{asset.name}</bdi>
                   </a>
                   <span
                     onClick={() =>
@@ -168,6 +171,7 @@ export const BriefAssets: FC<{
                   value={asset.note || ''}
                   maxLength={BRIEF_ASSET_NOTE_MAX}
                   rows={2}
+                  dir="auto"
                   onChange={(event) =>
                     update(
                       current.map((one) =>

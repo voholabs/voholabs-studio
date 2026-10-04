@@ -123,7 +123,7 @@ const TreeRow: FC<{
         document.channel?.disabled && 'opacity-50'
       )}
     >
-      {document.label}
+      <bdi>{document.label}</bdi>
     </span>
   </div>
 );
@@ -200,6 +200,7 @@ export const BriefTree: FC<{
           ref={searchRef}
           value={search}
           onChange={(event) => setSearch(event.target.value)}
+          dir="auto"
           placeholder={t('brief_search_placeholder', 'Search files...')}
           className="flex-1 bg-transparent outline-none text-[14px] placeholder:text-textItemBlur"
         />

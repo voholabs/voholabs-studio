@@ -18,6 +18,7 @@ export class BriefDeleteTool implements AgentToolInterface {
       id: 'briefDeleteTool',
       description: `Delete a document from the agent brief, with everything written in it. This cannot be undone, so say what you are removing.
 Only user-created documents and your own Experience can be deleted. The Foundation documents and the per-channel documents are part of the product and will be refused; to empty one of those, use briefSaveTool with an empty list of rules instead.
+Deleting a key that does not exist deletes nothing and says so.
 Retire an Experience document when what is in it turned out to be wrong or no longer applies. A lesson you no longer stand behind is worse than no lesson.`,
       mcp: {
         annotations: {
@@ -47,12 +48,19 @@ Retire an Experience document when what is in it turned out to be wrong or no lo
             (context?.requestContext as any)?.get('organization') as string
           ).id;
 
-          await this._briefService.deleteDocument(
+          const { deleted } = await this._briefService.deleteDocument(
             organizationId,
             inputData.category,
             inputData.key,
             true
           );
+
+          if (!deleted) {
+            return {
+              deleted: false,
+              error: `There is no "${inputData.key}" document in ${inputData.category}, so nothing was deleted. briefListTool lists the documents that exist.`,
+            };
+          }
 
           return { deleted: true };
         } catch (err) {

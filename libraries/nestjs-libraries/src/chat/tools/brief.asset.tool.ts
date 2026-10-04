@@ -18,31 +18,57 @@ export class BriefAssetTool implements AgentToolInterface {
       id: 'briefAssetTool',
       description: `Register a brand file — a logo, a product shot, a video — in Branding & assets, so it is on hand the next time something is made for this brand.
 Get the file into the media library first (uploadFromUrlTool, uploadMediaTool or createUploadLinkTool) and pass the "path" it returns as the url. Files uploaded that way already live in the account's own storage.
-Always write a note saying when to reach for this file and when not to — a logo on a dark background, a shot that is only for launches, a video that must never be cropped. A file with no note is nearly useless later.`,
+Always write a note saying when to reach for this file and when not to — a logo on a dark background, a shot that is only for launches, a video that must never be cropped. A file with no note is nearly useless later.
+To take files off Branding & assets, pass action "remove" with "assetIds": the "id" of each file under "assets" in briefListTool's branding-assets document. Only the listing is removed; the file stays in the media library. Saving the document with briefSaveTool never removes files.`,
       mcp: {
         annotations: {
           title: 'Register Brand Asset',
           readOnlyHint: false,
-          destructiveHint: false,
+          // "remove" takes files off the document.
+          destructiveHint: true,
           idempotentHint: false,
           openWorldHint: false,
         },
       },
       inputSchema: z.object({
-        name: z.string().describe('What this file is called'),
+        action: z
+          .enum(['add', 'remove'])
+          .optional()
+          .describe(
+            'add (the default) registers a file; remove takes the files in "assetIds" off'
+          ),
+        name: z
+          .string()
+          .optional()
+          .describe('What this file is called. Required to add.'),
         url: z
           .string()
-          .describe('The media library path, or a URL the file already lives at'),
+          .optional()
+          .describe(
+            'The media library path, or a URL the file already lives at. Required to add.'
+          ),
         mime: z
           .string()
           .optional()
           .describe('Content type, e.g. image/png or video/mp4'),
         note: z
           .string()
-          .describe('When to use this file, and when not to'),
+          .optional()
+          .describe('When to use this file, and when not to. Required to add.'),
+        assetIds: z
+          .array(z.string())
+          .optional()
+          .describe(
+            'For remove: the ids of the files to take off, from briefListTool'
+          ),
       }),
       outputSchema: z.object({
         registered: z.boolean().optional(),
+        removed: z.array(z.string()).optional(),
+        notFound: z
+          .array(z.string())
+          .optional()
+          .describe('Ids asked to remove that are not on the document'),
         assets: z.number().optional(),
         error: z.string().optional(),
       }),
@@ -57,6 +83,31 @@ Always write a note saying when to reach for this file and when not to — a log
             (context?.requestContext as any)?.get('organization') as string
           ).id;
 
+          if (inputData.action === 'remove') {
+            if (!inputData.assetIds?.length) {
+              return {
+                error:
+                  'Pass "assetIds" with the ids of the files to remove (from briefListTool).',
+              };
+            }
+            const result = await this._briefService.removeAssets(
+              organizationId,
+              inputData.assetIds
+            );
+            return {
+              removed: result.removed,
+              ...(result.notFound.length ? { notFound: result.notFound } : {}),
+              assets: result.assets,
+            };
+          }
+
+          if (!inputData.name || !inputData.url || !inputData.note) {
+            return {
+              error:
+                'To add a file pass "name", "url" and "note" (when to use it, and when not to).',
+            };
+          }
+
           const saved = await this._briefService.registerAsset(organizationId, {
             name: inputData.name,
             url: inputData.url,
@@ -67,7 +118,7 @@ Always write a note saying when to reach for this file and when not to — a log
           return { registered: true, assets: saved.assets };
         } catch (err) {
           return {
-            error: `Failed to register the file: ${
+            error: `Failed to update the brand files: ${
               err instanceof Error ? err.message : 'Unexpected error'
             }`,
           };

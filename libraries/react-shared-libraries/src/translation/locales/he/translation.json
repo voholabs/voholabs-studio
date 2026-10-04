@@ -965,6 +965,8 @@
   "analytics_refreshing": "מרענן...",
   "analytics_refresh_cost": "רענון קורא שוב את הפוסטים שלכם מהרשת. כל פוסט מחויב פעם אחת ביום, לא משנה איזו תקופה או איזה רענון קוראים אותו ראשונים: {{price}} קרדיטים לכל קריאה ({{action}}). פוסטים שכבר נקראו היום לא מחויבים שוב.",
   "analytics_read_spend": "קריאות אנליטיקה, {{days}} הימים האחרונים: {{credits}} קרדיטים",
+  "analytics_wallet_channel": "אין מספיק קרדיטים לטעינת האנליטיקה של הערוץ הזה.",
+  "analytics_wallet_post": "אין מספיק קרדיטים לטעינת האנליטיקה של הפוסט הזה.",
   "wallet_per_occurrence": "לכל חזרה",
   "wallet_repeat_charged_each": "כל חזרה מחויבת כשהיא יוצאת.",
   "wallet_update_charges_more": "העדכון מחייב עוד {{credits}} קרדיטים",

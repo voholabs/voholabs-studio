@@ -965,6 +965,8 @@
   "analytics_refreshing": "새로고침 중...",
   "analytics_refresh_cost": "새로고침하면 네트워크에서 게시물을 다시 읽습니다. 각 게시물은 어떤 기간이나 새로고침이 먼저 읽든 하루에 한 번만 청구됩니다: 읽기 1회당 {{price}} 크레딧 ({{action}}). 오늘 이미 읽은 게시물은 다시 청구되지 않습니다.",
   "analytics_read_spend": "분석 읽기, 최근 {{days}}일: {{credits}} 크레딧",
+  "analytics_wallet_channel": "이 채널의 분석을 불러올 크레딧이 부족합니다.",
+  "analytics_wallet_post": "이 게시물의 분석을 불러올 크레딧이 부족합니다.",
   "wallet_per_occurrence": "회당",
   "wallet_repeat_charged_each": "반복되는 게시물은 게시될 때마다 청구됩니다.",
   "wallet_update_charges_more": "수정하면 {{credits}} 크레딧이 추가로 청구됩니다",

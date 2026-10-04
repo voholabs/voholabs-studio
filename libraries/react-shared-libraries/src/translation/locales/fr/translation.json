@@ -965,6 +965,8 @@
   "analytics_refreshing": "Actualisation...",
   "analytics_refresh_cost": "Actualiser relit vos publications depuis le réseau. Chaque publication est facturée une fois par jour, quelle que soit la période ou l'actualisation qui la lit en premier : {{price}} crédits par lecture ({{action}}). Les publications déjà lues aujourd'hui ne sont pas facturées à nouveau.",
   "analytics_read_spend": "Lectures d'analyses, {{days}} derniers jours : {{credits}} crédits",
+  "analytics_wallet_channel": "Pas assez de crédits pour charger les analyses de cette chaîne.",
+  "analytics_wallet_post": "Pas assez de crédits pour charger les analyses de cette publication.",
   "wallet_per_occurrence": "par occurrence",
   "wallet_repeat_charged_each": "Chaque répétition est facturée à sa publication.",
   "wallet_update_charges_more": "La modification facture {{credits}} crédits de plus",

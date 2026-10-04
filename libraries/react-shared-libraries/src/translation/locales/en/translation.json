@@ -1068,6 +1068,8 @@
   "analytics_refreshing": "Refreshing...",
   "analytics_refresh_cost": "Refreshing reads your posts again from the network. Each post is charged once a day, whichever period or refresh reads it first: {{price}} credits per read ({{action}}). Posts already read today are not charged again.",
   "analytics_read_spend": "Analytics reads, last {{days}} days: {{credits}} credits",
+  "analytics_wallet_channel": "Not enough credits to load analytics for this channel.",
+  "analytics_wallet_post": "Not enough credits to load analytics for this post.",
   "wallet_per_occurrence": "per occurrence",
   "wallet_repeat_charged_each": "Each repeat is charged when it goes out.",
   "wallet_update_charges_more": "Updating charges {{credits}} more credits",

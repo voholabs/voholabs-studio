@@ -965,6 +965,8 @@
   "analytics_refreshing": "Aggiornamento...",
   "analytics_refresh_cost": "Aggiornare rilegge i tuoi post dalla rete. Ogni post viene addebitato una volta al giorno, qualunque periodo o aggiornamento lo legga per primo: {{price}} crediti per lettura ({{action}}). I post già letti oggi non vengono addebitati di nuovo.",
   "analytics_read_spend": "Letture analytics, ultimi {{days}} giorni: {{credits}} crediti",
+  "analytics_wallet_channel": "Crediti insufficienti per caricare le analytics di questo canale.",
+  "analytics_wallet_post": "Crediti insufficienti per caricare le analytics di questo post.",
   "wallet_per_occurrence": "per ripetizione",
   "wallet_repeat_charged_each": "Ogni ripetizione viene addebitata quando viene pubblicata.",
   "wallet_update_charges_more": "Aggiornando si addebitano {{credits}} crediti in più",

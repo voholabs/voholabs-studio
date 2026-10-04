@@ -965,6 +965,8 @@
   "analytics_refreshing": "正在刷新...",
   "analytics_refresh_cost": "刷新会从网络重新读取您的帖子。每个帖子每天只收费一次，无论哪个时间段或哪次刷新先读取它：每次读取 {{price}} 积分（{{action}}）。今天已读取的帖子不会再次收费。",
   "analytics_read_spend": "分析读取，最近 {{days}} 天：{{credits}} 积分",
+  "analytics_wallet_channel": "积分不足，无法加载此频道的分析数据。",
+  "analytics_wallet_post": "积分不足，无法加载此帖子的分析数据。",
   "wallet_per_occurrence": "每次",
   "wallet_repeat_charged_each": "每次重复在发布时收费。",
   "wallet_update_charges_more": "更新将额外扣除 {{credits}} 积分",

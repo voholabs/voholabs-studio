@@ -1,4 +1,4 @@
-import { FC, useCallback, useMemo, useState } from 'react';
+import { FC, useCallback, useEffect, useMemo, useState } from 'react';
 import clsx from 'clsx';
 import { Integration } from '@prisma/client';
 import useSWR from 'swr';
@@ -19,6 +19,13 @@ import {
   useWalletAccess,
 } from '@gitroom/frontend/components/wallet-locks/wallet.access';
 import { CoinsIcon } from '@gitroom/frontend/components/wallet-locks/wallet.icons';
+import {
+  AnalyticsWalletNotice,
+  isWalletRefusal,
+  readAnalytics,
+  useAnalyticsWalletGate,
+  WALLET_INLINE,
+} from '@gitroom/frontend/components/platform-analytics/analytics.wallet';
 
 // The days the analytics read spend is counted over.
 const READ_SPEND_DAYS = 30;
@@ -297,12 +304,14 @@ export const RenderAnalytics: FC<{
   const { integration, date } = props;
   const [loading, setLoading] = useState(true);
   const fetch = useFetch();
+  // A wallet that cannot pay for a live read: not asked at all.
+  const gate = useAnalyticsWalletGate(integration.providerIdentifier);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const load = (
-      await fetch(`/analytics/${integration.id}?date=${date}`)
-    ).json();
+    const load = readAnalytics(
+      await fetch(`/analytics/${integration.id}?date=${date}`, WALLET_INLINE)
+    );
     setLoading(false);
     return load;
   }, [integration, date]);
@@ -310,7 +319,7 @@ export const RenderAnalytics: FC<{
   // Reading analytics can charge reads, so show the new balance once loaded.
   const refreshWalletAfterLoad = useRefreshWallet();
   const { data, mutate } = useSWR(
-    `/analytics-${integration?.id}-${date}`,
+    gate.state === 'open' ? `/analytics-${integration?.id}-${date}` : null,
     load,
     {
       onSuccess: () => refreshWalletAfterLoad(),
@@ -353,9 +362,10 @@ export const RenderAnalytics: FC<{
     setRefreshing(true);
     try {
       const res = await fetch(
-        `/analytics/${integration.id}?date=${date}&fresh=1`
+        `/analytics/${integration.id}?date=${date}&fresh=1`,
+        WALLET_INLINE
       );
-      const fresh = await res.json();
+      const fresh = await readAnalytics(res);
       await mutate(fresh, { revalidate: false });
     } finally {
       setRefreshing(false);
@@ -384,7 +394,23 @@ export const RenderAnalytics: FC<{
     });
   }, [items]);
 
-  if (loading) {
+  // Refused for credits, then topped up: read again.
+  const refused = isWalletRefusal(data);
+  useEffect(() => {
+    if (refused && gate.funded) {
+      mutate();
+    }
+  }, [refused, gate.funded, mutate]);
+
+  if (gate.state === 'blocked' || refused) {
+    return (
+      <div className="grid grid-cols-1">
+        <AnalyticsWalletNotice scope="channel" />
+      </div>
+    );
+  }
+
+  if (gate.state === 'wait' || loading) {
     return (
       <div className="flex items-center justify-center py-[48px]">
         <LoadingComponent />

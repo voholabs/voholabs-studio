@@ -965,6 +965,8 @@
   "analytics_refreshing": "Actualizando...",
   "analytics_refresh_cost": "Actualizar vuelve a leer tus publicaciones desde la red. Cada publicación se cobra una vez al día, sea cual sea el periodo o la actualización que la lea primero: {{price}} créditos por lectura ({{action}}). Las publicaciones ya leídas hoy no se vuelven a cobrar.",
   "analytics_read_spend": "Lecturas de analíticas, últimos {{days}} días: {{credits}} créditos",
+  "analytics_wallet_channel": "No hay créditos suficientes para cargar las analíticas de este canal.",
+  "analytics_wallet_post": "No hay créditos suficientes para cargar las analíticas de esta publicación.",
   "wallet_per_occurrence": "por repetición",
   "wallet_repeat_charged_each": "Cada repetición se cobra cuando se publica.",
   "wallet_update_charges_more": "Actualizar cobra {{credits}} créditos más",

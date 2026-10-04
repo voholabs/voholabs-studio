@@ -965,6 +965,8 @@
   "analytics_refreshing": "Wird aktualisiert...",
   "analytics_refresh_cost": "Beim Aktualisieren werden deine Beiträge erneut aus dem Netzwerk gelesen. Jeder Beitrag wird einmal pro Tag berechnet, egal welcher Zeitraum oder welche Aktualisierung ihn zuerst liest: {{price}} Credits pro Abruf ({{action}}). Heute bereits gelesene Beiträge werden nicht erneut berechnet.",
   "analytics_read_spend": "Analytics-Abrufe, letzte {{days}} Tage: {{credits}} Credits",
+  "analytics_wallet_channel": "Nicht genug Guthaben, um die Analysen für diesen Kanal zu laden.",
+  "analytics_wallet_post": "Nicht genug Guthaben, um die Analysen für diesen Beitrag zu laden.",
   "wallet_per_occurrence": "pro Wiederholung",
   "wallet_repeat_charged_each": "Jede Wiederholung wird berechnet, wenn sie veröffentlicht wird.",
   "wallet_update_charges_more": "Aktualisieren berechnet {{credits}} Credits mehr",

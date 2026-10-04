@@ -965,6 +965,8 @@
   "analytics_refreshing": "更新中...",
   "analytics_refresh_cost": "更新すると投稿をネットワークから再度読み込みます。各投稿の料金は 1 日 1 回のみで、どの期間や更新が最初に読み込んだかは関係ありません: 1 回の読み込みにつき {{price}} クレジット ({{action}})。今日すでに読み込んだ投稿は再度請求されません。",
   "analytics_read_spend": "分析の読み込み、過去 {{days}} 日間: {{credits}} クレジット",
+  "analytics_wallet_channel": "このチャンネルの分析を読み込むためのクレジットが足りません。",
+  "analytics_wallet_post": "この投稿の分析を読み込むためのクレジットが足りません。",
   "wallet_per_occurrence": "1 回ごと",
   "wallet_repeat_charged_each": "繰り返しの投稿は、それぞれ投稿されるときに請求されます。",
   "wallet_update_charges_more": "更新すると {{credits}} クレジットが追加で請求されます",

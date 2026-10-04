@@ -965,6 +965,8 @@
   "analytics_refreshing": "جارٍ التحديث...",
   "analytics_refresh_cost": "التحديث يقرأ منشوراتك من الشبكة مرة أخرى. يُحتسب كل منشور مرة واحدة في اليوم، أيًّا كانت الفترة أو التحديث الذي يقرؤه أولًا: {{price}} رصيد لكل قراءة ({{action}}). المنشورات التي قُرئت اليوم لا تُحتسب مرة أخرى.",
   "analytics_read_spend": "قراءات التحليلات، آخر {{days}} يومًا: {{credits}} رصيد",
+  "analytics_wallet_channel": "لا يوجد رصيد كافٍ لتحميل تحليلات هذه القناة.",
+  "analytics_wallet_post": "لا يوجد رصيد كافٍ لتحميل تحليلات هذا المنشور.",
   "wallet_per_occurrence": "لكل تكرار",
   "wallet_repeat_charged_each": "يُخصم كل تكرار عند نشره.",
   "wallet_update_charges_more": "التحديث يخصم {{credits}} رصيد إضافي",

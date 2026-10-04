@@ -965,6 +965,8 @@
   "analytics_refreshing": "Đang làm mới...",
   "analytics_refresh_cost": "Làm mới sẽ đọc lại bài đăng của bạn từ mạng. Mỗi bài đăng chỉ bị tính phí một lần mỗi ngày, bất kể khoảng thời gian hay lần làm mới nào đọc nó trước: {{price}} credits mỗi lần đọc ({{action}}). Các bài đăng đã đọc hôm nay sẽ không bị tính phí lại.",
   "analytics_read_spend": "Lượt đọc phân tích, {{days}} ngày qua: {{credits}} credits",
+  "analytics_wallet_channel": "Không đủ tín dụng để tải phân tích cho kênh này.",
+  "analytics_wallet_post": "Không đủ tín dụng để tải phân tích cho bài đăng này.",
   "wallet_per_occurrence": "mỗi lần lặp",
   "wallet_repeat_charged_each": "Mỗi lần lặp được tính phí khi được đăng.",
   "wallet_update_charges_more": "Cập nhật sẽ tính thêm {{credits}} credits",

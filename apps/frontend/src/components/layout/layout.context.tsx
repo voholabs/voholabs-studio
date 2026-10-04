@@ -105,6 +105,18 @@ function LayoutContextInner(params: { children: ReactNode }) {
       }
 
       if (response.status === 402) {
+        // A screen that shows the wallet refusal itself (WALLET_INLINE, e.g.
+        // analytics) gets the response instead of the top-up dialog.
+        if (
+          (options as RequestInit & { walletInline?: boolean })?.walletInline &&
+          (await response
+            .clone()
+            .json()
+            .then((b) => !!b?.wallet)
+            .catch(() => false))
+        ) {
+          return true;
+        }
         const body = await response.json();
 
         // Trial over: there is nothing to upgrade inside the app, so move the

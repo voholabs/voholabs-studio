@@ -965,6 +965,8 @@
   "analytics_refreshing": "Yenileniyor...",
   "analytics_refresh_cost": "Yenileme gönderilerinizi ağdan yeniden okur. Her gönderi, hangi dönem veya yenileme onu önce okursa okusun, günde bir kez ücretlendirilir: okuma başına {{price}} kredi ({{action}}). Bugün zaten okunan gönderiler yeniden ücretlendirilmez.",
   "analytics_read_spend": "Analiz okumaları, son {{days}} gün: {{credits}} kredi",
+  "analytics_wallet_channel": "Bu kanalın analizlerini yüklemek için yeterli kredi yok.",
+  "analytics_wallet_post": "Bu gönderinin analizlerini yüklemek için yeterli kredi yok.",
   "wallet_per_occurrence": "tekrar başına",
   "wallet_repeat_charged_each": "Her tekrar yayınlandığında ücretlendirilir.",
   "wallet_update_charges_more": "Güncelleme {{credits}} kredi daha düşer",

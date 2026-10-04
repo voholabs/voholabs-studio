@@ -1,3 +1,4 @@
+import { captureOrgEvent } from '@gitroom/nestjs-libraries/track/product.analytics';
 import {
   BadRequestException,
   Injectable,
@@ -218,6 +219,7 @@ export class PostsService {
   // chain learns what actually went out.
   async updatePost(id: string, postId: string, releaseURL: string) {
     const post = await this._postRepository.updatePost(id, postId, releaseURL);
+    captureOrgEvent(post.organizationId, 'post_published', { in_thread: !!post.parentPostId });
 
     try {
       await this._postRevisionService.markPublished(

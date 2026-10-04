@@ -14,6 +14,7 @@ import {
 } from '@gitroom/nestjs-libraries/chat/tools/tool.list';
 import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 import { hasAccess } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
+import { trackMcpUse } from '@gitroom/nestjs-libraries/track/product.analytics';
 const fixAcceptHeader = (req: Request) => {
   const value = 'application/json, text/event-stream';
   req.headers.accept = value;
@@ -216,6 +217,7 @@ export const startMcp = async (app: INestApplication) => {
     if (await rateLimited(auth, res)) {
       return;
     }
+    trackMcpUse(auth.id);
 
     fixAcceptHeader(req);
     await runWithContext({ requestId: token!, auth }, async () => {
@@ -274,6 +276,8 @@ export const startMcp = async (app: INestApplication) => {
     if (await rateLimited(req.auth, res)) {
       return;
     }
+    // @ts-ignore
+    trackMcpUse(req.auth.id);
 
     const url = new URL('/mcp', process.env.NEXT_PUBLIC_BACKEND_URL);
 
@@ -326,6 +330,8 @@ export const startMcp = async (app: INestApplication) => {
     if (await rateLimited(req.auth, res)) {
       return;
     }
+    // @ts-ignore
+    trackMcpUse(req.auth.id);
 
     const url = new URL(
       `/mcp/${req.params.id}`,
@@ -381,6 +387,8 @@ export const startMcp = async (app: INestApplication) => {
     if (await rateLimited(req.auth, res)) {
       return;
     }
+    // @ts-ignore
+    trackMcpUse(req.auth.id);
 
     const url = new URL(req.originalUrl, process.env.NEXT_PUBLIC_BACKEND_URL);
 

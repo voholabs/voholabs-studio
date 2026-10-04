@@ -1009,5 +1009,9 @@
   "wallet_channel_pay_per_use": "{{channel}} בתשלום לפי שימוש.",
   "wallet_channel_top_up_to_connect": "טענו קרדיטים כדי לחבר אותו.",
   "wallet_channel_connect_cost": "החיבור עולה {{price}} קרדיטים.",
-  "wallet_see_pricing": "לצפייה במחירים"
+  "wallet_see_pricing": "לצפייה במחירים",
+  "brief_onboarding_continue_body_cost": "יש לכם תהליך הכנה פתוח. ההמשך שלו לא עולה דבר נוסף. התחלת תהליך חדש אחריו עולה {{credits}} קרדיטים.",
+  "brief_onboarding_continue_body": "יש לכם תהליך הכנה פתוח. המשיכו מהמקום שבו עצרתם.",
+  "brief_onboarding_continue_confirm": "המשך",
+  "brief_onboarding_continue_title": "להמשיך את תהליך ההכנה?"
 }

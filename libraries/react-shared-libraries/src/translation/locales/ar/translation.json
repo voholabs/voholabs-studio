@@ -1009,5 +1009,9 @@
   "wallet_channel_pay_per_use": "{{channel}} بالدفع حسب الاستخدام.",
   "wallet_channel_top_up_to_connect": "اشحن رصيدك لربطه.",
   "wallet_channel_connect_cost": "الربط يكلّف {{price}} رصيد.",
-  "wallet_see_pricing": "عرض الأسعار"
+  "wallet_see_pricing": "عرض الأسعار",
+  "brief_onboarding_continue_body_cost": "لديك إعداد قيد التقدم. متابعته لا تكلف شيئاً إضافياً. بدء إعداد جديد بعده يكلف {{credits}} رصيد.",
+  "brief_onboarding_continue_body": "لديك إعداد قيد التقدم. تابع من حيث توقفت.",
+  "brief_onboarding_continue_confirm": "متابعة",
+  "brief_onboarding_continue_title": "متابعة الإعداد؟"
 }

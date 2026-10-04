@@ -1009,5 +1009,9 @@
   "wallet_channel_pay_per_use": "{{channel}}은(는) 사용한 만큼 결제됩니다.",
   "wallet_channel_top_up_to_connect": "연결하려면 충전하세요.",
   "wallet_channel_connect_cost": "연결에는 {{price}} 크레딧이 듭니다.",
-  "wallet_see_pricing": "가격 보기"
+  "wallet_see_pricing": "가격 보기",
+  "brief_onboarding_continue_body_cost": "진행 중인 온보딩이 있습니다. 계속하는 데 추가 비용은 없습니다. 이후 새로 시작하면 {{credits}} 크레딧이 듭니다.",
+  "brief_onboarding_continue_body": "진행 중인 온보딩이 있습니다. 멈춘 곳에서 이어서 진행하세요.",
+  "brief_onboarding_continue_confirm": "계속",
+  "brief_onboarding_continue_title": "온보딩을 계속할까요?"
 }

@@ -1009,5 +1009,9 @@
   "wallet_channel_pay_per_use": "{{channel}} trả phí theo mức sử dụng.",
   "wallet_channel_top_up_to_connect": "Nạp tiền để kết nối.",
   "wallet_channel_connect_cost": "Kết nối tốn {{price}} tín dụng.",
-  "wallet_see_pricing": "Xem bảng giá"
+  "wallet_see_pricing": "Xem bảng giá",
+  "brief_onboarding_continue_body_cost": "Bạn có một lần thiết lập đang dở. Tiếp tục không tốn thêm phí. Bắt đầu lần mới sau đó tốn {{credits}} tín dụng.",
+  "brief_onboarding_continue_body": "Bạn có một lần thiết lập đang dở. Tiếp tục từ chỗ bạn đã dừng.",
+  "brief_onboarding_continue_confirm": "Tiếp tục",
+  "brief_onboarding_continue_title": "Tiếp tục thiết lập?"
 }

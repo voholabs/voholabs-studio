@@ -1009,5 +1009,9 @@
   "wallet_channel_pay_per_use": "{{channel}} оплачивается по факту использования.",
   "wallet_channel_top_up_to_connect": "Пополните баланс, чтобы подключить.",
   "wallet_channel_connect_cost": "Подключение стоит {{price}} кредитов.",
-  "wallet_see_pricing": "Посмотреть цены"
+  "wallet_see_pricing": "Посмотреть цены",
+  "brief_onboarding_continue_body_cost": "У вас есть незавершённый онбординг. Продолжить его ничего не стоит. Начать новый после него стоит {{credits}} кредитов.",
+  "brief_onboarding_continue_body": "У вас есть незавершённый онбординг. Продолжите с того места, где остановились.",
+  "brief_onboarding_continue_confirm": "Продолжить",
+  "brief_onboarding_continue_title": "Продолжить онбординг?"
 }

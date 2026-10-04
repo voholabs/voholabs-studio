@@ -1009,5 +1009,9 @@
   "wallet_channel_pay_per_use": "{{channel}} kullandıkça ödenir.",
   "wallet_channel_top_up_to_connect": "Bağlamak için bakiye yükleyin.",
   "wallet_channel_connect_cost": "Bağlamak {{price}} kredi tutar.",
-  "wallet_see_pricing": "Fiyatları gör"
+  "wallet_see_pricing": "Fiyatları gör",
+  "brief_onboarding_continue_body_cost": "Devam eden bir kurulumunuz var. Devam etmek ek ücret gerektirmez. Ardından yeni bir tane başlatmak {{credits}} kredi tutar.",
+  "brief_onboarding_continue_body": "Devam eden bir kurulumunuz var. Kaldığınız yerden devam edin.",
+  "brief_onboarding_continue_confirm": "Devam et",
+  "brief_onboarding_continue_title": "Kuruluma devam edilsin mi?"
 }

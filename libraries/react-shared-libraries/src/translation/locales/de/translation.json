@@ -1009,5 +1009,9 @@
   "wallet_channel_pay_per_use": "{{channel}} wird pro Nutzung abgerechnet.",
   "wallet_channel_top_up_to_connect": "Lade Guthaben auf, um es zu verbinden.",
   "wallet_channel_connect_cost": "Das Verbinden kostet {{price}} Credits.",
-  "wallet_see_pricing": "Preise ansehen"
+  "wallet_see_pricing": "Preise ansehen",
+  "brief_onboarding_continue_body_cost": "Du hast ein Onboarding in Arbeit. Es fortzusetzen kostet nichts extra. Ein neues danach kostet {{credits}} Credits.",
+  "brief_onboarding_continue_body": "Du hast ein Onboarding in Arbeit. Mach dort weiter, wo du aufgehört hast.",
+  "brief_onboarding_continue_confirm": "Fortsetzen",
+  "brief_onboarding_continue_title": "Onboarding fortsetzen?"
 }

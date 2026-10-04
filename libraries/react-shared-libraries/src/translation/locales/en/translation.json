@@ -1112,5 +1112,9 @@
   "wallet_channel_pay_per_use": "{{channel}} is pay per use.",
   "wallet_channel_top_up_to_connect": "Top up to connect it.",
   "wallet_channel_connect_cost": "Connecting costs {{price}} credits.",
-  "wallet_see_pricing": "See pricing"
+  "wallet_see_pricing": "See pricing",
+  "brief_onboarding_continue_body_cost": "You have an onboarding in progress. Continuing it costs nothing extra. Starting a new one after it costs {{credits}} credits.",
+  "brief_onboarding_continue_body": "You have an onboarding in progress. Continue where you left off.",
+  "brief_onboarding_continue_confirm": "Continue",
+  "brief_onboarding_continue_title": "Continue your onboarding?"
 }

@@ -1009,5 +1009,9 @@
   "wallet_channel_pay_per_use": "{{channel}} é pago por uso.",
   "wallet_channel_top_up_to_connect": "Recarregue para conectar.",
   "wallet_channel_connect_cost": "Conectar custa {{price}} créditos.",
-  "wallet_see_pricing": "Ver preços"
+  "wallet_see_pricing": "Ver preços",
+  "brief_onboarding_continue_body_cost": "Você tem um onboarding em andamento. Continuar não custa nada a mais. Começar um novo depois custa {{credits}} créditos.",
+  "brief_onboarding_continue_body": "Você tem um onboarding em andamento. Continue de onde parou.",
+  "brief_onboarding_continue_confirm": "Continuar",
+  "brief_onboarding_continue_title": "Continuar seu onboarding?"
 }

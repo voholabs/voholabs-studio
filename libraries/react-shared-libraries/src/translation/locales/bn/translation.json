@@ -1009,5 +1009,9 @@
   "wallet_channel_pay_per_use": "{{channel}} ব্যবহার অনুযায়ী পেমেন্ট।",
   "wallet_channel_top_up_to_connect": "সংযোগ করতে টপ আপ করুন।",
   "wallet_channel_connect_cost": "সংযোগ করতে {{price}} ক্রেডিট লাগে।",
-  "wallet_see_pricing": "মূল্য দেখুন"
+  "wallet_see_pricing": "মূল্য দেখুন",
+  "brief_onboarding_continue_body_cost": "আপনার একটি অনবোর্ডিং চলছে। এটি চালিয়ে যেতে বাড়তি খরচ নেই। এরপর নতুন একটি শুরু করতে {{credits}} ক্রেডিট লাগবে।",
+  "brief_onboarding_continue_body": "আপনার একটি অনবোর্ডিং চলছে। যেখানে থেমেছিলেন সেখান থেকে চালিয়ে যান।",
+  "brief_onboarding_continue_confirm": "চালিয়ে যান",
+  "brief_onboarding_continue_title": "অনবোর্ডিং চালিয়ে যাবেন?"
 }

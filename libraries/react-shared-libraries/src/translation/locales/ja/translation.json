@@ -1009,5 +1009,9 @@
   "wallet_channel_pay_per_use": "{{channel}} は従量課金です。",
   "wallet_channel_top_up_to_connect": "接続するにはチャージしてください。",
   "wallet_channel_connect_cost": "接続には {{price}} クレジットかかります。",
-  "wallet_see_pricing": "料金を見る"
+  "wallet_see_pricing": "料金を見る",
+  "brief_onboarding_continue_body_cost": "進行中のオンボーディングがあります。続けても追加料金はかかりません。その後に新しく始めると {{credits}} クレジットかかります。",
+  "brief_onboarding_continue_body": "進行中のオンボーディングがあります。中断したところから続けましょう。",
+  "brief_onboarding_continue_confirm": "続ける",
+  "brief_onboarding_continue_title": "オンボーディングを続けますか？"
 }

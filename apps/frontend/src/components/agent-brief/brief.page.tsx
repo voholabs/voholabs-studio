@@ -201,12 +201,33 @@ const RedoOnboardingButton: FC<{
               }
             );
     }
-    const ok = await deleteDialog(
-      cost ? `${startsOver} ${cost}` : startsOver,
-      t('brief_onboarding_redo_confirm', 'Start over'),
-      t('brief_onboarding_redo_title', 'Redo the onboarding?'),
-      t('cancel', 'Cancel')
-    );
+    // An onboarding already open is continued, not restarted: say so, and
+    // what a new one costs, so the dialog never reads as a free redo.
+    const ok = reopens
+      ? await deleteDialog(
+          wallet && onboarding && onboarding.price > 0
+            ? t(
+                'brief_onboarding_continue_body_cost',
+                'You have an onboarding in progress. Continuing it costs nothing extra. Starting a new one after it costs {{credits}} credits.',
+                {
+                  credits: format.credits(onboarding.price),
+                  interpolation: { escapeValue: false },
+                }
+              )
+            : t(
+                'brief_onboarding_continue_body',
+                'You have an onboarding in progress. Continue where you left off.'
+              ),
+          t('brief_onboarding_continue_confirm', 'Continue'),
+          t('brief_onboarding_continue_title', 'Continue your onboarding?'),
+          t('cancel', 'Cancel')
+        )
+      : await deleteDialog(
+          cost ? `${startsOver} ${cost}` : startsOver,
+          t('brief_onboarding_redo_confirm', 'Start over'),
+          t('brief_onboarding_redo_title', 'Redo the onboarding?'),
+          t('cancel', 'Cancel')
+        );
     if (ok) {
       onConfirm();
     }

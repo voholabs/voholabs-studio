@@ -742,8 +742,8 @@
     "skill_tool_mark_learned": "სწავლის რიგი",
     "skill_tool_posts": "თქვენი პოსტები",
     "skill_tool_edit_post": "პოსტის რედაქტირება",
-  "skill_tool_post_status": "პოსტის სტატუსი",
-  "skill_tool_sanity": "Sanity CMS",
+    "skill_tool_post_status": "პოსტის სტატუსი",
+    "skill_tool_sanity": "Sanity CMS",
     "skills_uses_brief": "იყენებს თქვენს ბრიფს. რაც მეტს შეავსებთ, მით უკეთ მუშაობს.",
     "skills_standalone": "მუშაობს დამოუკიდებლად. ბრიფი არ არის საჭირო.",
     "skills_the_skill": "უნარი",
@@ -753,7 +753,7 @@
     "skill_tag_hooks": "ჰუკები",
     "skill_tag_channels": "არხები",
     "skill_tag_learning": "სწავლა",
-  "skill_tag_planning": "დაგეგმვა",
+    "skill_tag_planning": "დაგეგმვა",
     "skills_studio_tools": "რას იყენებს Studio-ში",
     "skills_studio_tools_note": "სკილი აგენტს ავალებს გამოიყენოს ეს Studio-ის მარშრუტები და არა გარე ხელსაწყოები.",
     "skills_intro_more": "აგენტი სკილებს MCP-ით პოულობს და თითოეული ამოცანისთვის სწორს ირჩევს. ყოველი სკილი ეუბნება, რომელი Studio-ის ხელსაწყოები გამოიყენოს.",
@@ -819,5 +819,9 @@
     "wallet_channel_pay_per_use": "{{channel}} გადახდა გამოყენების მიხედვითაა.",
     "wallet_channel_top_up_to_connect": "დასაკავშირებლად შეავსეთ ბალანსი.",
     "wallet_channel_connect_cost": "დაკავშირება ღირს {{price}} კრედიტი.",
-    "wallet_see_pricing": "ფასების ნახვა"
+    "wallet_see_pricing": "ფასების ნახვა",
+    "brief_onboarding_continue_body_cost": "თქვენ გაქვთ დაწყებული ონბორდინგი. მისი გაგრძელება დამატებით არაფერი ღირს. ამის შემდეგ ახლის დაწყება ღირს {{credits}} კრედიტი.",
+    "brief_onboarding_continue_body": "თქვენ გაქვთ დაწყებული ონბორდინგი. განაგრძეთ იქიდან, სადაც შეჩერდით.",
+    "brief_onboarding_continue_confirm": "გაგრძელება",
+    "brief_onboarding_continue_title": "გავაგრძელოთ ონბორდინგი?"
 }

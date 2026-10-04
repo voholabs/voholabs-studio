@@ -1009,5 +1009,9 @@
   "wallet_channel_pay_per_use": "{{channel}} 按使用付费。",
   "wallet_channel_top_up_to_connect": "充值后即可连接。",
   "wallet_channel_connect_cost": "连接需要 {{price}} 积分。",
-  "wallet_see_pricing": "查看价格"
+  "wallet_see_pricing": "查看价格",
+  "brief_onboarding_continue_body_cost": "你有一个进行中的引导流程。继续它不额外收费。之后重新开始一个需要 {{credits}} 积分。",
+  "brief_onboarding_continue_body": "你有一个进行中的引导流程。从上次停下的地方继续。",
+  "brief_onboarding_continue_confirm": "继续",
+  "brief_onboarding_continue_title": "继续你的引导流程？"
 }

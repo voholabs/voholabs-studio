@@ -1,5 +1,6 @@
 'use client';
 
+import { useFireEvents, postEventName, postEventProps } from '@gitroom/helpers/utils/use.fire.events';
 import React, {
   FC,
   ReactNode,
@@ -252,6 +253,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
   const walletAvatarTip = useWalletAvatarTip();
   const walletPrice = walletCost.estimate?.price || 0;
   const walletFormat = useWalletFormat();
+  const fireEvents = useFireEvents();
 
   const schedule = useCallback(
     (type: 'draft' | 'now' | 'schedule' | 'update') => async () => {
@@ -478,6 +480,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
               body: JSON.stringify(data),
             });
 
+        if (!addEditSets) fireEvents(postEventName(type), postEventProps(type, posts, { is_new: !existingData.integration }));
         if (!addEditSets) {
           mutate();
           toaster.show(

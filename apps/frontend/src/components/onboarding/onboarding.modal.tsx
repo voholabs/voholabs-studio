@@ -1,5 +1,6 @@
 'use client';
 
+import { useTrackView } from '@gitroom/helpers/utils/use.fire.events';
 import React, { FC, useCallback, useMemo } from 'react';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import useSWR from 'swr';
@@ -59,6 +60,7 @@ const OnboardingStep1: FC<{ onNext: () => void; onSkip: () => void }> = ({
 }) => {
   const fetch = useFetch();
   const t = useT();
+  useTrackView('onboarding_step', { step: 'connect_channel' });
 
   const getIntegrations = useCallback(async () => {
     return (await fetch('/integrations')).json();

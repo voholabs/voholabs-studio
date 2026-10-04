@@ -1,5 +1,6 @@
 'use client';
 
+import { useFireEvents, useTrackView } from '@gitroom/helpers/utils/use.fire.events';
 import React, {
   FC,
   ReactNode,
@@ -304,6 +305,7 @@ const AutoTopUpCard: FC<{ wallet: WalletSummary; f: WalletFormat }> = ({
   const [saving, setSaving] = useState(false);
   const [changingCard, setChangingCard] = useState(false);
   const on = paid && wallet.autoTopUp.enabled;
+  const fireEvents = useFireEvents();
   const canEdit = paid && isAdmin && !!wallet.card && !wallet.frozen;
 
   // Choices come from the billing settings; the saved values always stay
@@ -374,6 +376,7 @@ const AutoTopUpCard: FC<{ wallet: WalletSummary; f: WalletFormat }> = ({
           );
           return;
         }
+        if (enabled !== on) fireEvents('auto_topup_toggled', { enabled });
         toaster.show(message);
         await refresh(body?.balance !== undefined ? body : undefined);
       } catch {
@@ -385,7 +388,7 @@ const AutoTopUpCard: FC<{ wallet: WalletSummary; f: WalletFormat }> = ({
         setSaving(false);
       }
     },
-    [fetch, toaster, t, thresholdHundredths, form, refresh]
+    [fetch, toaster, t, thresholdHundredths, form, refresh, on, fireEvents]
   );
 
   const used = wallet.autoTopUp.usedThisMonth || 0;
@@ -1091,6 +1094,7 @@ export { PageShell as WalletPageShell };
 // The Billing page: balance, auto top-up, usage and transactions.
 export const WalletBillingPage: FC = () => {
   const t = useT();
+  useTrackView('wallet_opened');
   const hasWallet = useHasWallet();
   const params = useSearchParams();
   const { data: wallet, error } = useWallet(hasWallet);

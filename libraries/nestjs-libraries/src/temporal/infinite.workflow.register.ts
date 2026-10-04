@@ -15,6 +15,17 @@ export class InfiniteWorkflowRegister implements OnModuleInit {
             taskQueue: 'main',
           });
       } catch (err) {}
+
+      // Hourly wallet jobs (storage month pass, short-forecast notices,
+      // reconciliation). Already running is fine.
+      try {
+        await this._temporalService.client
+          ?.getRawClient()
+          ?.workflow?.start('walletHousekeepingWorkflow', {
+            workflowId: 'wallet-housekeeping',
+            taskQueue: 'main',
+          });
+      } catch (err) {}
     }
   }
 }

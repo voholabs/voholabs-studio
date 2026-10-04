@@ -212,7 +212,7 @@ describe('WalletBillingService refunds and disputes', () => {
 
   it('alerts a refund on a wallet payment that never credited a wallet', async () => {
     const { service, wallet } = build();
-    wallet.clawBack.mockResolvedValueOnce(undefined);
+    wallet.clawBack.mockResolvedValue(undefined);
     await service.handleEvent({
       type: 'charge.refunded',
       data: {
@@ -228,6 +228,66 @@ describe('WalletBillingService refunds and disputes', () => {
     expect(walletAlert).toHaveBeenCalledWith(
       expect.stringContaining('never credited a wallet')
     );
+  });
+});
+
+describe('WalletBillingService dispute before the top-up is credited', () => {
+  const env = process.env.WALLET_STRIPE_SECRET_KEY;
+  beforeEach(() => {
+    process.env.WALLET_STRIPE_SECRET_KEY = 'sk_test_stub';
+    (walletAlert as jest.Mock).mockClear();
+  });
+  afterAll(() => {
+    process.env.WALLET_STRIPE_SECRET_KEY = env;
+  });
+
+  it('credits the payment first, then claws it back', async () => {
+    const { service, wallet, stripe } = build();
+    wallet.clawBack
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ organizationId: 'org-1', credits: 100000 });
+    stripe.paymentIntents.retrieve.mockResolvedValue({
+      id: 'pi_1',
+      status: 'succeeded',
+      amount: 1000,
+      amount_received: 1000,
+      currency: 'usd',
+      metadata: { ...metadata, kind: 'auto_topup' },
+      latest_charge: null,
+    } as any);
+    await service.handleEvent({
+      type: 'charge.dispute.created',
+      data: {
+        object: { id: 'dp_1', payment_intent: 'pi_1', reason: 'fraudulent' },
+      },
+    } as any);
+    expect(wallet.addTopUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: 'org-1',
+        credits: 100000,
+        auto: true,
+        paymentIntentId: 'pi_1',
+      })
+    );
+    expect(wallet.clawBack).toHaveBeenCalledTimes(2);
+    expect(walletAlert).toHaveBeenCalledWith(
+      expect.stringContaining('disputed')
+    );
+  });
+
+  it('credits nothing for a payment that is not a paid wallet top-up', async () => {
+    const { service, wallet, stripe } = build();
+    wallet.clawBack.mockResolvedValue(undefined);
+    stripe.paymentIntents.retrieve.mockResolvedValue({
+      id: 'pi_2',
+      status: 'succeeded',
+      metadata: {},
+    } as any);
+    await service.handleEvent({
+      type: 'charge.dispute.created',
+      data: { object: { id: 'dp_2', payment_intent: 'pi_2' } },
+    } as any);
+    expect(wallet.addTopUp).not.toHaveBeenCalled();
   });
 });
 

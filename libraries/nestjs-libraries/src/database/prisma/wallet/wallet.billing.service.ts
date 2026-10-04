@@ -470,6 +470,49 @@ export class WalletBillingService {
     return { ok: true };
   }
 
+  // A refund or dispute can arrive before the event that credits its
+  // payment (a dispute can be opened the moment a card is charged). Credits
+  // the payment first, through the same idempotent path, when it is a paid
+  // wallet top-up not in the ledger yet, so the claw-back always has
+  // something to take back.
+  private async creditBeforeClawBack(paymentIntentId: string) {
+    const intent = await this.stripe.paymentIntents
+      .retrieve(paymentIntentId)
+      .catch(() => undefined);
+    if (
+      !intent ||
+      intent.status !== 'succeeded' ||
+      intent.metadata?.service !== SERVICE ||
+      (intent.metadata.kind !== 'topup' &&
+        intent.metadata.kind !== 'auto_topup')
+    ) {
+      return;
+    }
+    const paid = await this.verified(intent.id, intent.metadata, {
+      amount: intent.amount_received || intent.amount,
+      currency: intent.currency,
+    });
+    await this._wallet.addTopUp({
+      ...paid,
+      auto: intent.metadata.kind === 'auto_topup',
+      paymentIntentId: intent.id,
+      receiptUrl: await this.receiptUrl(intent),
+    });
+  }
+
+  // Claws back a payment's credits, crediting the payment first if its own
+  // event has not been handled yet.
+  private async clawBackPayment(
+    params: Parameters<WalletService['clawBack']>[0]
+  ) {
+    const result = await this._wallet.clawBack(params);
+    if (result) {
+      return result;
+    }
+    await this.creditBeforeClawBack(params.paymentIntentId);
+    return this._wallet.clawBack(params);
+  }
+
   // A refund of a wallet payment takes the same share of its credits back
   // (allowed below zero), and freezes the wallet.
   private async chargeRefunded(charge: Stripe.Charge) {
@@ -477,7 +520,7 @@ export class WalletBillingService {
     if (!paymentIntentId || !charge.amount) {
       return { ok: true };
     }
-    const result = await this._wallet.clawBack({
+    const result = await this.clawBackPayment({
       paymentIntentId,
       share: charge.amount_refunded / charge.amount,
       eventKey: `refund:${charge.amount_refunded}`,
@@ -508,7 +551,7 @@ export class WalletBillingService {
     if (!paymentIntentId) {
       return { ok: true };
     }
-    const result = await this._wallet.clawBack({
+    const result = await this.clawBackPayment({
       paymentIntentId,
       share: 1,
       eventKey: `dispute:${dispute.id}`,

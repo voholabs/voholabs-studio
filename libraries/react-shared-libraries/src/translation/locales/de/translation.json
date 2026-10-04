@@ -717,7 +717,6 @@
   "brief_onboarding_start_failed": "Das Onboarding konnte nicht geöffnet werden. Versuche es gleich noch einmal.",
   "x_wallet_locked": "X berechnet jeden Beitrag aus deinem Wallet-Guthaben: {{post}} Credits pro Beitrag, {{link}} mit Link. Lade Guthaben auf, um X zu verbinden.",
   "x_wallet_metered": "{{post}} Credits pro Beitrag. {{link}} mit Link. Die Preise folgen dem API-Preis von X.",
-  "tiktok_unavailable_reason": "TikTok ist pausiert, während TikTok ein Update unserer Verbindung prüft. Es ist wieder da, sobald die Prüfung abgeschlossen ist.",
   "x_unavailable_reason": "X berechnet jetzt jeden Beitrag, der über seine API gesendet wird, und bei hoher Nachfrage können wir es nicht mehr kostenlos anbieten. Ein Premium-Tarif mit X kommt bald. Alle anderen Kanäle bleiben kostenlos.",
   "temporarily_unavailable": "Vorübergehend nicht verfügbar",
   "wallet_post_failed_reason": "Nicht veröffentlicht: Zum Zeitpunkt der Veröffentlichung war nicht genug Guthaben vorhanden. Lade auf und plane den Beitrag neu, wenn er noch raus soll.",

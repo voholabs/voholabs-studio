@@ -717,7 +717,6 @@
   "brief_onboarding_start_failed": "Não foi possível abrir o onboarding. Tente novamente em instantes.",
   "x_wallet_locked": "O X cobra por publicação dos créditos da sua carteira: {{post}} créditos por publicação, {{link}} com link. Recarregue para conectar o X.",
   "x_wallet_metered": "{{post}} créditos por publicação. {{link}} com link. Os preços seguem o preço da API do X.",
-  "tiktok_unavailable_reason": "O TikTok está pausado enquanto o TikTok analisa uma atualização da nossa conexão. Ele volta assim que a análise for concluída.",
   "x_unavailable_reason": "O X agora cobra por cada publicação enviada pela sua API e, com a alta demanda, não podemos mais oferecê-lo de graça. Um plano premium que inclui o X chega em breve. Todos os outros canais continuam grátis.",
   "temporarily_unavailable": "Temporariamente indisponível",
   "wallet_post_failed_reason": "Não publicada: não havia créditos suficientes no horário previsto. Recarregue e reagende se ainda quiser publicá-la.",

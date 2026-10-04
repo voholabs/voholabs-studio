@@ -717,7 +717,6 @@
   "brief_onboarding_start_failed": "Onboarding açılamadı. Biraz sonra tekrar deneyin.",
   "x_wallet_locked": "X her gönderi için cüzdan kredilerinizden ücret alır: gönderi başına {{post}} kredi, bağlantılı olanlar {{link}}. X'i bağlamak için bakiye yükleyin.",
   "x_wallet_metered": "Gönderi başına {{post}} kredi. Bağlantılı olanlar {{link}}. Fiyatlar X'in API fiyatını takip eder.",
-  "tiktok_unavailable_reason": "TikTok, bağlantımızdaki bir güncellemeyi incelerken duraklatıldı. İnceleme tamamlanır tamamlanmaz geri gelecek.",
   "x_unavailable_reason": "X artık API'si üzerinden gönderilen her gönderi için ücret alıyor ve yüksek talep nedeniyle artık ücretsiz sunamıyoruz. X'i içeren bir premium plan yakında geliyor. Diğer tüm kanallar ücretsiz kalmaya devam ediyor.",
   "temporarily_unavailable": "Geçici olarak kullanılamıyor",
   "wallet_post_failed_reason": "Yayınlanmadı: zamanı geldiğinde yeterli kredi yoktu. Bakiye yükleyin, hâlâ yayınlanmasını istiyorsanız yeniden zamanlayın.",

@@ -608,7 +608,7 @@ export class IntegrationService {
     );
   }
 
-  // X and TikTok are locked on the free plan. A paid plan opens them, and so
+  // X is locked on the free plan. A paid plan opens it, and so
   // does a wallet top-up for a provider the wallet charges for.
   async canUseProvider(orgId: string, identifier: string) {
     return (
@@ -902,7 +902,7 @@ export class IntegrationService {
       return;
     }
 
-    // X and TikTok automations don't run for free organizations.
+    // X automations don't run for free organizations.
     if (
       providerNeedsPaidPlan(getIntegration.providerIdentifier) &&
       !(await this.organizationHasPaidPlan(data.orgId))
@@ -937,7 +937,7 @@ export class IntegrationService {
       return true;
     }
 
-    // X and TikTok automations don't run for free organizations.
+    // X automations don't run for free organizations.
     if (
       providerNeedsPaidPlan(getPlugById.integration.providerIdentifier) &&
       !(await this.organizationHasPaidPlan(

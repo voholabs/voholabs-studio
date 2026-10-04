@@ -717,7 +717,6 @@
   "brief_onboarding_start_failed": "온보딩을 열 수 없습니다. 잠시 후 다시 시도해 주세요.",
   "x_wallet_locked": "X는 게시물마다 지갑 크레딧이 차감됩니다: 게시물당 {{post}} 크레딧, 링크 포함 시 {{link}}. X를 연결하려면 충전하세요.",
   "x_wallet_metered": "게시물당 {{post}} 크레딧. 링크 포함 시 {{link}}. 가격은 X의 API 가격을 따릅니다.",
-  "tiktok_unavailable_reason": "TikTok이 연동 업데이트를 검토하는 동안 TikTok은 일시 중지됩니다. 검토가 끝나는 대로 다시 이용할 수 있습니다.",
   "x_unavailable_reason": "X가 API를 통한 모든 게시물에 요금을 부과하기 시작했고, 수요가 많아 더 이상 무료로 제공할 수 없습니다. X를 포함한 프리미엄 요금제가 곧 출시됩니다. 다른 모든 채널은 계속 무료입니다.",
   "temporarily_unavailable": "일시적으로 사용할 수 없음",
   "wallet_post_failed_reason": "게시되지 않음: 예정 시간에 크레딧이 부족했습니다. 충전한 후 여전히 게시하려면 다시 예약하세요.",

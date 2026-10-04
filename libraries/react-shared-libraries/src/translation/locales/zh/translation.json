@@ -717,7 +717,6 @@
   "brief_onboarding_start_failed": "无法打开引导设置，请稍后再试。",
   "x_wallet_locked": "X 每条帖子从钱包积分中扣费：每条 {{post}} 积分，含链接为 {{link}}。充值后即可连接 X。",
   "x_wallet_metered": "每条帖子 {{post}} 积分。含链接为 {{link}}。价格随 X 的 API 价格变化。",
-  "tiktok_unavailable_reason": "TikTok 正在审核我们连接的更新，因此 TikTok 暂停使用。审核完成后将立即恢复。",
   "x_unavailable_reason": "X 现在对通过其 API 发送的每条帖子收费，加上需求量大，我们无法再免费提供。包含 X 的高级套餐即将推出。其他所有频道仍然免费。",
   "temporarily_unavailable": "暂时不可用",
   "wallet_post_failed_reason": "未发布：到期时积分不足。请充值，如仍需发布请重新安排。",

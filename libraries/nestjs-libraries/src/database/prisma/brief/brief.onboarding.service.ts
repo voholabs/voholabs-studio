@@ -2,6 +2,7 @@ import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { createHmac } from 'crypto';
 import { BriefOnboardingRepository } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.onboarding.repository';
 import {
+  InsufficientCreditsError,
   WalletService,
   walletPaymentRequired,
 } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
@@ -39,9 +40,9 @@ export const signBriefOnboardingToken = (
 };
 
 // Runs the guided brief onboarding. The onboarding itself happens on the
-// site named by BRIEF_ONBOARDING_URL; Studio opens a run, hands the user over
-// with a signed link, and closes the run (and charges it) when the site
-// reports back. It never creates an agent.
+// site named by BRIEF_ONBOARDING_URL; Studio opens a run (and charges it),
+// hands the user over with a signed link, and closes the run when the site
+// reports back (refunding it if it failed). It never creates an agent.
 @Injectable()
 export class BriefOnboardingService {
   private _logger = new Logger(BriefOnboardingService.name);
@@ -89,26 +90,38 @@ export class BriefOnboardingService {
     }
   }
 
-  // Throws the wallet's 402 when the next run could not be paid for.
-  private async assertAffordable(organizationId: string) {
+  // Charges a new run when it is opened (the user confirmed it in Studio),
+  // once per run (chargeKey). The free units of the brief.onboarding row
+  // make the first run free. Auto top-up runs first when it covers the
+  // price; otherwise the run is closed and the wallet's 402 is thrown. The
+  // charge is refunded if the run fails or is abandoned.
+  private async chargeRun(organizationId: string, id: string) {
     if (!(await this._wallet.paysFromWallet(organizationId))) {
-      return;
+      return null;
     }
-    const free = await this._wallet.freeUnitsRemaining(
-      organizationId,
-      BRIEF_ONBOARDING_ACTION
-    );
-    if (free) {
-      return;
+    if (!(await this._wallet.price(BRIEF_ONBOARDING_ACTION))) {
+      return null;
     }
-    const priced = await this._wallet.price(BRIEF_ONBOARDING_ACTION);
-    if (!priced) {
-      return;
-    }
-    if ((await this._wallet.balance(organizationId)) < priced.price) {
-      throw walletPaymentRequired(
-        'Your wallet balance does not cover the brief onboarding. Top up to run it.'
-      );
+    try {
+      const entry = await this._billing.charge({
+        organizationId,
+        actionKey: BRIEF_ONBOARDING_ACTION,
+        chargeKey: briefOnboardingChargeKey(id),
+        reference: id,
+      });
+      return entry?.idempotencyKey || briefOnboardingChargeKey(id);
+    } catch (err) {
+      await this._repository.update(id, {
+        status: 'FAILED',
+        error: 'Not paid',
+        finishedAt: new Date(),
+      });
+      if (err instanceof InsufficientCreditsError) {
+        throw walletPaymentRequired(
+          'Your wallet balance does not cover the brief onboarding. Top up to run it.'
+        );
+      }
+      throw err;
     }
   }
 
@@ -122,8 +135,11 @@ export class BriefOnboardingService {
 
     let run = await this._repository.running(organizationId);
     if (!run) {
-      await this.assertAffordable(organizationId);
       run = await this._repository.create(organizationId);
+      const chargeKey = await this.chargeRun(organizationId, run.id);
+      if (chargeKey) {
+        run = await this._repository.update(run.id, { chargeKey });
+      }
     }
 
     const language = briefOnboardingLanguage(lang);
@@ -144,10 +160,11 @@ export class BriefOnboardingService {
     };
   }
 
-  // Whether the next finished run takes credits: the workspace pays from the
-  // wallet and has no free run left. The price itself is the price row's.
-  private async nextRunCharged(organizationId: string) {
-    if (!(await this._wallet.paysFromWallet(organizationId))) {
+  // Whether opening a new run takes credits: no run is open (an open one is
+  // reopened for free), the workspace pays from the wallet and has no free
+  // run left. The price itself is the price row's.
+  private async nextRunCharged(organizationId: string, open: boolean) {
+    if (open || !(await this._wallet.paysFromWallet(organizationId))) {
       return false;
     }
     const free = await this._wallet.freeUnitsRemaining(
@@ -159,11 +176,14 @@ export class BriefOnboardingService {
 
   async status(organizationId: string) {
     await this.closeStale(organizationId);
-    const [running, last, nextRunCharged] = await Promise.all([
+    const [running, last] = await Promise.all([
       this._repository.running(organizationId),
       this._repository.last(organizationId),
-      this.nextRunCharged(organizationId),
     ]);
+    const nextRunCharged = await this.nextRunCharged(
+      organizationId,
+      !!running
+    );
     return {
       available: this.available(),
       nextRunCharged,
@@ -211,6 +231,18 @@ export class BriefOnboardingService {
       return { id, status: 'FAILED' as const, charged: false };
     }
 
+    // Charged when it was opened: finishing never charges it again.
+    if (run.chargeKey) {
+      await this._repository.update(id, {
+        status: 'DONE',
+        error: null,
+        finishedAt: new Date(),
+      });
+      return { id, status: 'DONE' as const, charged: true };
+    }
+
+    // Runs opened before charging moved to the start, and workspaces that
+    // started paying from the wallet mid-run, are charged here as before.
     let chargeKey: string | null = null;
     try {
       if (await this._wallet.paysFromWallet(organizationId)) {

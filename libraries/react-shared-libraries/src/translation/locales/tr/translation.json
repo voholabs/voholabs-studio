@@ -711,7 +711,7 @@
   "brief_onboarding_redo": "Onboarding'i yeniden yap",
   "brief_onboarding_redo_title": "Onboarding yeniden yapılsın mı?",
   "brief_onboarding_redo_body": "Rehberli onboarding baştan başlar ve brief'iniz yeni yanıtlarınızdan yeniden yazılır.",
-  "brief_onboarding_redo_cost": "Cüzdanınızdan {{credits}} kredi tutar, yeni brief kaydedildiğinde alınır.",
+  "brief_onboarding_redo_cost": "Baştan başlamak {{credits}} kredi tutar ve şimdi cüzdanınızdan alınır. Onboarding başarısız olursa veya tamamlanmazsa iade edilir.",
   "brief_onboarding_redo_free": "Bu sefer ücretsiz. Sonrakiler her biri {{credits}} kredi tutar.",
   "brief_onboarding_redo_confirm": "Baştan başla",
   "brief_onboarding_start_failed": "Onboarding açılamadı. Biraz sonra tekrar deneyin.",

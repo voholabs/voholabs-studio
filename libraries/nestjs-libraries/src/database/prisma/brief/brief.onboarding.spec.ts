@@ -13,12 +13,14 @@ import {
   BriefOnboardingService,
   briefOnboardingChargeKey,
 } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.onboarding.service';
+import { InsufficientCreditsError } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.repository';
 
 // BriefOnboardingService with an in-memory repository and stub wallet.
 
 const SECRET = 'x'.repeat(40);
 const ORG = 'org-1';
 const USER = { email: 'a@b.com', name: 'Ann' };
+const PRICE = 100;
 
 const build = (
   opts: { pays?: boolean; free?: number | null; balance?: number } = {}
@@ -68,22 +70,46 @@ const build = (
       return row;
     }),
   } as any;
+  // A tiny ledger: free runs left, a balance, and the charges by key.
+  const ledger = {
+    free: opts.free === undefined ? 1 : opts.free,
+    balance: opts.balance ?? 0,
+    charges: new Map<string, { amount: number; free: boolean }>(),
+  };
+  const pays = { value: opts.pays ?? true };
   const wallet = {
-    paysFromWallet: jest.fn(async () => opts.pays ?? true),
-    freeUnitsRemaining: jest.fn(async () =>
-      opts.free === undefined ? 1 : opts.free
-    ),
-    price: jest.fn(async () => ({ price: 100, action: {} })),
-    balance: jest.fn(async () => opts.balance ?? 0),
-    refund: jest.fn(async () => ({})),
+    paysFromWallet: jest.fn(async () => pays.value),
+    freeUnitsRemaining: jest.fn(async () => ledger.free),
+    price: jest.fn(async () => ({ price: PRICE, action: {} })),
+    balance: jest.fn(async () => ledger.balance),
+    refund: jest.fn(async (key: string) => {
+      const charge = ledger.charges.get(key);
+      if (!charge) return undefined;
+      ledger.charges.delete(key);
+      if (charge.free) ledger.free = (ledger.free || 0) + 1;
+      else ledger.balance += charge.amount;
+      return {};
+    }),
   } as any;
   const billing = {
-    charge: jest.fn(async (params: any) => ({
-      idempotencyKey: params.chargeKey,
-    })),
+    charge: jest.fn(async (params: any) => {
+      if (!ledger.charges.has(params.chargeKey)) {
+        if (ledger.free) {
+          ledger.free -= 1;
+          ledger.charges.set(params.chargeKey, { amount: 0, free: true });
+        } else {
+          if (ledger.balance < PRICE && !params.allowNegative) {
+            throw new InsufficientCreditsError(PRICE, ledger.balance);
+          }
+          ledger.balance -= PRICE;
+          ledger.charges.set(params.chargeKey, { amount: PRICE, free: false });
+        }
+      }
+      return { idempotencyKey: params.chargeKey };
+    }),
   } as any;
   const service = new BriefOnboardingService(repository, wallet, billing);
-  return { service, rows, wallet, billing };
+  return { service, rows, wallet, billing, ledger, pays };
 };
 
 const readToken = (url: string) => {
@@ -162,27 +188,63 @@ describe('BriefOnboardingService', () => {
   });
 
   it('refuses with the wallet 402 when the run cannot be paid for', async () => {
-    const { service } = build({ free: 0, balance: 50 });
+    const { service, rows, ledger } = build({ free: 0, balance: 50 });
     await expect(service.start(ORG, USER)).rejects.toMatchObject({
       status: 402,
     });
+    expect(rows[0].status).toBe('FAILED');
+    expect(ledger.balance).toBe(50);
+    expect(ledger.charges.size).toBe(0);
   });
 
-  it('charges a finished run once', async () => {
-    const { service, billing } = build();
+  it('makes the first run free and charges it when it opens', async () => {
+    const { service, rows, billing, ledger } = build({ free: 1, balance: 0 });
     const { id } = await service.start(ORG, USER);
-    const done = await service.finish(id, ORG, 'DONE');
-    expect(done).toEqual({ id, status: 'DONE', charged: true });
-    await service.finish(id, ORG, 'DONE');
-    expect(billing.charge).toHaveBeenCalledTimes(1);
     expect(billing.charge).toHaveBeenCalledWith(
       expect.objectContaining({
         organizationId: ORG,
         actionKey: 'brief.onboarding',
         chargeKey: briefOnboardingChargeKey(id),
-        allowNegative: true,
       })
     );
+    expect(billing.charge.mock.calls[0][0].allowNegative).toBeFalsy();
+    expect(rows[0].chargeKey).toBe(briefOnboardingChargeKey(id));
+    expect(ledger.free).toBe(0);
+    expect(ledger.balance).toBe(0);
+  });
+
+  it('charges a redo when it is opened and not again when it finishes', async () => {
+    const { service, billing, ledger } = build({ free: 1, balance: 150 });
+    const first = await service.start(ORG, USER);
+    await service.finish(first.id, ORG, 'DONE');
+    expect(ledger.balance).toBe(150);
+
+    const redo = await service.start(ORG, USER);
+    expect(redo.id).not.toBe(first.id);
+    expect(ledger.balance).toBe(50);
+
+    const done = await service.finish(redo.id, ORG, 'DONE');
+    expect(done).toEqual({ id: redo.id, status: 'DONE', charged: true });
+    await service.finish(redo.id, ORG, 'DONE');
+    expect(ledger.balance).toBe(50);
+    expect(billing.charge).toHaveBeenCalledTimes(2);
+  });
+
+  it('refuses a redo the balance does not cover', async () => {
+    const { service, ledger } = build({ free: 1, balance: 20 });
+    const first = await service.start(ORG, USER);
+    await service.finish(first.id, ORG, 'DONE');
+    await expect(service.start(ORG, USER)).rejects.toMatchObject({
+      status: 402,
+    });
+    expect(ledger.balance).toBe(20);
+  });
+
+  it('does not charge again when an open run is reopened', async () => {
+    const { service, billing } = build();
+    await service.start(ORG, USER);
+    await service.start(ORG, USER);
+    expect(billing.charge).toHaveBeenCalledTimes(1);
   });
 
   it('does not charge a workspace on a paid plan', async () => {
@@ -194,17 +256,53 @@ describe('BriefOnboardingService', () => {
     expect(billing.charge).not.toHaveBeenCalled();
   });
 
-  it('refunds a charged run that is reported failed', async () => {
-    const { service, rows, wallet } = build();
+  it('charges a run opened before it was charged on opening when it finishes', async () => {
+    const { service, billing, pays } = build({ free: 0, balance: 0 });
+    pays.value = false;
     const { id } = await service.start(ORG, USER);
-    rows[0].chargeKey = briefOnboardingChargeKey(id);
+    pays.value = true;
+    expect(await service.finish(id, ORG, 'DONE')).toMatchObject({
+      charged: true,
+    });
+    expect(billing.charge).toHaveBeenCalledTimes(1);
+    expect(billing.charge).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chargeKey: briefOnboardingChargeKey(id),
+        allowNegative: true,
+      })
+    );
+  });
+
+  it('refunds a redo that is reported failed', async () => {
+    const { service, rows, wallet, ledger } = build({ free: 0, balance: 150 });
+    const { id } = await service.start(ORG, USER);
+    expect(ledger.balance).toBe(50);
     const failed = await service.finish(id, ORG, 'FAILED', 'boom');
     expect(failed.status).toBe('FAILED');
     expect(wallet.refund).toHaveBeenCalledWith(
       briefOnboardingChargeKey(id),
       expect.any(String)
     );
+    expect(ledger.balance).toBe(150);
     expect(rows[0].error).toBe('boom');
+  });
+
+  it('refunds an abandoned redo when the stale run is closed', async () => {
+    const { service, rows, ledger } = build({ free: 0, balance: 150 });
+    await service.start(ORG, USER);
+    expect(ledger.balance).toBe(50);
+    rows[0].createdAt = new Date(Date.now() - 4 * 60 * 60 * 1000);
+    await service.status(ORG);
+    expect(rows[0].status).toBe('FAILED');
+    expect(ledger.balance).toBe(150);
+  });
+
+  it('gives the free run back when the first run fails', async () => {
+    const { service, ledger } = build({ free: 1 });
+    const { id } = await service.start(ORG, USER);
+    expect(ledger.free).toBe(0);
+    await service.finish(id, ORG, 'FAILED');
+    expect(ledger.free).toBe(1);
   });
 
   it('will not finish another workspace run', async () => {
@@ -226,7 +324,7 @@ describe('BriefOnboardingService', () => {
     expect(status.last).toMatchObject({ id, status: 'DONE' });
   });
 
-  it('says whether the next run takes credits', async () => {
+  it('says whether opening a new run takes credits', async () => {
     expect((await build({ free: 1 }).service.status(ORG)).nextRunCharged).toBe(
       false
     );
@@ -240,5 +338,8 @@ describe('BriefOnboardingService', () => {
       (await build({ pays: false, free: 0 }).service.status(ORG))
         .nextRunCharged
     ).toBe(false);
+    const open = build({ free: 0, balance: 500 });
+    await open.service.start(ORG, USER);
+    expect((await open.service.status(ORG)).nextRunCharged).toBe(false);
   });
 });

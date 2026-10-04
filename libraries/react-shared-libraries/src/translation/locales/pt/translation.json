@@ -711,7 +711,7 @@
   "brief_onboarding_redo": "Refazer onboarding",
   "brief_onboarding_redo_title": "Refazer o onboarding?",
   "brief_onboarding_redo_body": "Isto recomeça o onboarding guiado e o seu brief é escrito de novo a partir das novas respostas.",
-  "brief_onboarding_redo_cost": "Custa {{credits}} créditos da sua carteira, cobrados quando o novo brief for salvo.",
+  "brief_onboarding_redo_cost": "Recomeçar custa {{credits}} créditos, cobrados agora da sua carteira. Se o onboarding falhar ou não for concluído, eles são reembolsados.",
   "brief_onboarding_redo_free": "Desta vez é grátis. As próximas custam {{credits}} créditos cada.",
   "brief_onboarding_redo_confirm": "Recomeçar",
   "brief_onboarding_start_failed": "Não foi possível abrir o onboarding. Tente novamente em instantes.",

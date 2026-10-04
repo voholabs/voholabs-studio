@@ -711,7 +711,7 @@
   "brief_onboarding_redo": "重新进行引导设置",
   "brief_onboarding_redo_title": "重新进行引导设置？",
   "brief_onboarding_redo_body": "引导设置将从头开始，你的简介会根据新的回答重新撰写。",
-  "brief_onboarding_redo_cost": "将从你的钱包扣除 {{credits}} 积分，在新简介保存时扣除。",
+  "brief_onboarding_redo_cost": "重新开始需要 {{credits}} 积分，现在从你的钱包扣除。如果引导设置失败或未完成，将退还积分。",
   "brief_onboarding_redo_free": "本次免费。之后每次 {{credits}} 积分。",
   "brief_onboarding_redo_confirm": "重新开始",
   "brief_onboarding_start_failed": "无法打开引导设置，请稍后再试。",

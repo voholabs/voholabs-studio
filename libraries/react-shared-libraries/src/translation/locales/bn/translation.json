@@ -711,7 +711,7 @@
   "brief_onboarding_redo": "আবার অনবোর্ডিং করুন",
   "brief_onboarding_redo_title": "আবার অনবোর্ডিং করবেন?",
   "brief_onboarding_redo_body": "গাইডেড অনবোর্ডিং শুরু থেকে আবার হবে, এবং আপনার নতুন উত্তর থেকে ব্রিফ আবার লেখা হবে।",
-  "brief_onboarding_redo_cost": "এতে আপনার ওয়ালেট থেকে {{credits}} ক্রেডিট লাগবে, নতুন ব্রিফ সেভ হলে কাটা হবে।",
+  "brief_onboarding_redo_cost": "আবার শুরু করতে {{credits}} ক্রেডিট লাগবে, যা এখনই আপনার ওয়ালেট থেকে কাটা হবে। অনবোর্ডিং ব্যর্থ হলে বা শেষ না হলে তা ফেরত দেওয়া হবে।",
   "brief_onboarding_redo_free": "এবার বিনামূল্যে। পরের প্রতিবার {{credits}} ক্রেডিট।",
   "brief_onboarding_redo_confirm": "আবার শুরু করুন",
   "brief_onboarding_start_failed": "অনবোর্ডিং খোলা যায়নি। একটু পরে আবার চেষ্টা করুন।",

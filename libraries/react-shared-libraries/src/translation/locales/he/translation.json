@@ -711,7 +711,7 @@
   "brief_onboarding_redo": "התחל את התהליך מחדש",
   "brief_onboarding_redo_title": "להתחיל את התהליך מחדש?",
   "brief_onboarding_redo_body": "תהליך ההיכרות המודרך יתחיל מההתחלה, והתקציר שלך ייכתב מחדש מהתשובות החדשות.",
-  "brief_onboarding_redo_cost": "זה עולה {{credits}} קרדיטים מהארנק שלך, שיורדים כשהתקציר החדש נשמר.",
+  "brief_onboarding_redo_cost": "התחלה מחדש עולה {{credits}} קרדיטים שיורדים מהארנק שלך עכשיו. אם התהליך נכשל או לא הושלם, הם יוחזרו.",
   "brief_onboarding_redo_free": "הפעם זה בחינם. כל פעם נוספת עולה {{credits}} קרדיטים.",
   "brief_onboarding_redo_confirm": "להתחיל מחדש",
   "brief_onboarding_start_failed": "לא ניתן לפתוח את התהליך. נסו שוב בעוד רגע.",

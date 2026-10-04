@@ -711,7 +711,7 @@
   "brief_onboarding_redo": "Refaire l'onboarding",
   "brief_onboarding_redo_title": "Refaire l'onboarding ?",
   "brief_onboarding_redo_body": "L'onboarding guidé recommence depuis le début, et votre brief est réécrit à partir de vos nouvelles réponses.",
-  "brief_onboarding_redo_cost": "Cela coûte {{credits}} crédits de votre portefeuille, prélevés à l'enregistrement du nouveau brief.",
+  "brief_onboarding_redo_cost": "Recommencer coûte {{credits}} crédits, prélevés maintenant sur votre portefeuille. Si l'onboarding échoue ou n'est pas terminé, ils vous sont remboursés.",
   "brief_onboarding_redo_free": "Cette fois, c'est gratuit. Les suivantes coûtent {{credits}} crédits chacune.",
   "brief_onboarding_redo_confirm": "Recommencer",
   "brief_onboarding_start_failed": "Impossible d'ouvrir l'onboarding. Réessayez dans un instant.",

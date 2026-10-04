@@ -711,7 +711,7 @@
   "brief_onboarding_redo": "オンボーディングをやり直す",
   "brief_onboarding_redo_title": "オンボーディングをやり直しますか？",
   "brief_onboarding_redo_body": "ガイド付きオンボーディングを最初からやり直し、新しい回答をもとにブリーフを書き直します。",
-  "brief_onboarding_redo_cost": "ウォレットから {{credits}} クレジットかかります。新しいブリーフの保存時に差し引かれます。",
+  "brief_onboarding_redo_cost": "最初からやり直すには {{credits}} クレジットかかり、今すぐウォレットから差し引かれます。オンボーディングが失敗したり完了しなかった場合は返金されます。",
   "brief_onboarding_redo_free": "今回は無料です。次回以降は 1 回 {{credits}} クレジットです。",
   "brief_onboarding_redo_confirm": "最初からやり直す",
   "brief_onboarding_start_failed": "オンボーディングを開けませんでした。しばらくしてからもう一度お試しください。",

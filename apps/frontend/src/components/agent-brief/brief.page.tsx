@@ -158,8 +158,8 @@ const BriefOnboardingRunning: FC<{
 };
 
 // Redoing the onboarding is a paid action for wallet workspaces (the first
-// run is free, later ones cost the brief.onboarding price), so it carries the
-// warm accent and asks first. The price comes from the price row; paid plans
+// run is free, later ones cost the brief.onboarding price, charged when the
+// user confirms), so it carries the warm accent and asks first. The price comes from the price row; paid plans
 // are never charged and only see that it starts over.
 const RedoOnboardingButton: FC<{
   onConfirm: () => void;
@@ -184,7 +184,7 @@ const RedoOnboardingButton: FC<{
         charged && onboarding.price > 0
           ? t(
               'brief_onboarding_redo_cost',
-              'It costs {{credits}} credits from your wallet, taken when the new brief is saved.',
+              'Starting over costs {{credits}} credits, taken from your wallet now. If the onboarding fails or is not finished, they are refunded.',
               {
                 credits: format.credits(onboarding.price),
                 interpolation: { escapeValue: false },

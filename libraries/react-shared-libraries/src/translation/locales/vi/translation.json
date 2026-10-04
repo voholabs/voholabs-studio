@@ -711,7 +711,7 @@
   "brief_onboarding_redo": "Làm lại onboarding",
   "brief_onboarding_redo_title": "Làm lại onboarding?",
   "brief_onboarding_redo_body": "Onboarding có hướng dẫn sẽ bắt đầu lại và brief của bạn được viết lại từ câu trả lời mới.",
-  "brief_onboarding_redo_cost": "Chi phí {{credits}} credit từ ví của bạn, trừ khi brief mới được lưu.",
+  "brief_onboarding_redo_cost": "Bắt đầu lại tốn {{credits}} credit, trừ từ ví của bạn ngay bây giờ. Nếu onboarding thất bại hoặc không hoàn tất, số credit này được hoàn lại.",
   "brief_onboarding_redo_free": "Lần này miễn phí. Các lần sau mỗi lần {{credits}} credit.",
   "brief_onboarding_redo_confirm": "Bắt đầu lại",
   "brief_onboarding_start_failed": "Không thể mở onboarding. Hãy thử lại sau giây lát.",

@@ -814,7 +814,7 @@
   "brief_onboarding_redo": "Redo onboarding",
   "brief_onboarding_redo_title": "Redo the onboarding?",
   "brief_onboarding_redo_body": "This starts the guided onboarding over, and your brief is written again from your new answers.",
-  "brief_onboarding_redo_cost": "It costs {{credits}} credits from your wallet, taken when the new brief is saved.",
+  "brief_onboarding_redo_cost": "Starting over costs {{credits}} credits, taken from your wallet now. If the onboarding fails or is not finished, they are refunded.",
   "brief_onboarding_redo_free": "This run is free. Later runs cost {{credits}} credits each.",
   "brief_onboarding_redo_confirm": "Start over",
   "brief_onboarding_start_failed": "Could not open the onboarding. Try again in a moment.",

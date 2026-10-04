@@ -711,7 +711,7 @@
   "brief_onboarding_redo": "Ripeti l'onboarding",
   "brief_onboarding_redo_title": "Ripetere l'onboarding?",
   "brief_onboarding_redo_body": "L'onboarding guidato ricomincia da capo e il tuo brief viene riscritto dalle nuove risposte.",
-  "brief_onboarding_redo_cost": "Costa {{credits}} crediti dal tuo wallet, addebitati quando il nuovo brief viene salvato.",
+  "brief_onboarding_redo_cost": "Ricominciare costa {{credits}} crediti, addebitati ora dal tuo wallet. Se l'onboarding non riesce o non viene completato, ti vengono rimborsati.",
   "brief_onboarding_redo_free": "Questa volta è gratis. Le volte successive costano {{credits}} crediti ciascuna.",
   "brief_onboarding_redo_confirm": "Ricomincia",
   "brief_onboarding_start_failed": "Impossibile aprire l'onboarding. Riprova tra un momento.",

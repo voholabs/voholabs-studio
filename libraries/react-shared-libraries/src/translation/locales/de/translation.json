@@ -711,7 +711,7 @@
   "brief_onboarding_redo": "Onboarding wiederholen",
   "brief_onboarding_redo_title": "Onboarding wiederholen?",
   "brief_onboarding_redo_body": "Damit beginnt das geführte Onboarding von vorn, und dein Brief wird aus deinen neuen Antworten neu geschrieben.",
-  "brief_onboarding_redo_cost": "Es kostet {{credits}} Credits aus deinem Wallet, abgebucht, wenn der neue Brief gespeichert wird.",
+  "brief_onboarding_redo_cost": "Der Neustart kostet {{credits}} Credits, die jetzt von deinem Wallet abgebucht werden. Schlägt das Onboarding fehl oder wird es nicht abgeschlossen, bekommst du sie zurück.",
   "brief_onboarding_redo_free": "Dieser Durchlauf ist kostenlos. Weitere Durchläufe kosten je {{credits}} Credits.",
   "brief_onboarding_redo_confirm": "Neu beginnen",
   "brief_onboarding_start_failed": "Das Onboarding konnte nicht geöffnet werden. Versuche es gleich noch einmal.",

@@ -78,7 +78,8 @@ so you CAN schedule "here is my new X post: <link>" before the X post exists.
 WALLET CREDITS:
 On a workspace that pays per post from its wallet, each such post in the output
 carries "cost": the credits for the post and its replies, taken NOW, as it is
-scheduled (drafts cost nothing until they are scheduled). Deleting it, moving it
+scheduled. A draft is not charged: it carries "costWhenScheduled" instead, what
+it will take once it is scheduled. Deleting it, moving it
 back to drafts or a failed publish gives back what was not sent. A repeating post
 is charged per occurrence: each repeat is charged when it goes out.
 If the credits don't cover it (after an automatic top-up, when that is on), nothing
@@ -95,8 +96,9 @@ channel from its wallet yet.
                 .describe('The id of the integration (not internal id)'),
               isPremium: z
                 .boolean()
+                .optional()
                 .describe(
-                  "If the integration is X, return if it's premium or not"
+                  'Only matters for X: whether the account is X Premium. Defaults to false; leave it out for every other platform.'
                 ),
               date: z.string().describe('The date of the post in UTC time'),
               shortLink: z
@@ -164,6 +166,12 @@ channel from its wallet yet.
                 .optional()
                 .describe(
                   'Credits taken from the wallet for this post and its replies, now, as it is scheduled (per occurrence for a repeating post)'
+                ),
+              costWhenScheduled: z
+                .number()
+                .optional()
+                .describe(
+                  'For a draft: what it will take from the wallet once it is put on the schedule. Nothing is charged for a draft.'
                 ),
               walletWarning: z.string().optional(),
             })
@@ -383,8 +391,12 @@ channel from its wallet yet.
           const cost = costs.get(index);
           for (const item of output) {
             if (cost !== undefined) {
-              item.cost = toCredits(cost);
-              if (post.type !== 'draft') {
+              // "cost" is what was taken now. A draft is not charged until it
+              // is scheduled, so it only says what that will take.
+              if (post.type === 'draft') {
+                item.costWhenScheduled = toCredits(cost);
+              } else {
+                item.cost = toCredits(cost);
                 walletPosts.push(item);
               }
             }

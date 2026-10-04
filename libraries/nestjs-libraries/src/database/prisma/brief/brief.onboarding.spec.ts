@@ -28,10 +28,11 @@ const build = (
   const rows: any[] = [];
   let next = 1;
   const repository = {
-    create: jest.fn(async (organizationId: string) => {
+    create: jest.fn(async (organizationId: string, lang?: string) => {
       const row = {
         id: `run-${next++}`,
         organizationId,
+        lang: lang || null,
         status: 'RUNNING',
         chargeKey: null,
         error: null,
@@ -176,6 +177,24 @@ describe('BriefOnboardingService', () => {
     const second = await service.start(ORG, USER);
     expect(second.id).toBe(first.id);
     expect(rows).toHaveLength(1);
+  });
+
+  it('reopens a run in the language it was opened in', async () => {
+    const { service, rows } = build();
+    const first = await service.start(ORG, USER, 'ar');
+    expect(rows[0].lang).toBe('ar');
+    const second = await service.start(ORG, USER, 'en');
+    expect(second.id).toBe(first.id);
+    expect(readToken(second.url).payload.l).toBe('ar');
+    expect(second.url).toContain('lang=ar');
+  });
+
+  it('reopens an older run with no stored language in the requested one', async () => {
+    const { service, rows } = build();
+    await service.start(ORG, USER, 'fr');
+    rows[0].lang = null;
+    const again = await service.start(ORG, USER, 'de');
+    expect(readToken(again.url).payload.l).toBe('de');
   });
 
   it('closes a stale run and opens a new one', async () => {

@@ -135,14 +135,19 @@ export class BriefOnboardingService {
 
     let run = await this._repository.running(organizationId);
     if (!run) {
-      run = await this._repository.create(organizationId);
+      run = await this._repository.create(
+        organizationId,
+        briefOnboardingLanguage(lang)
+      );
       const chargeKey = await this.chargeRun(organizationId, run.id);
       if (chargeKey) {
         run = await this._repository.update(run.id, { chargeKey });
       }
     }
 
-    const language = briefOnboardingLanguage(lang);
+    // A reopened run continues in the language it was opened in, whatever
+    // Studio is set to now: the interview so far is in that language.
+    const language = briefOnboardingLanguage(run.lang || lang);
     const token = signBriefOnboardingToken(secret, {
       v: 1,
       r: run.id,

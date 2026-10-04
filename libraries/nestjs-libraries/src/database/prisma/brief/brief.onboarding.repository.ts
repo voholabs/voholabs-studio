@@ -6,9 +6,9 @@ import { PrismaRepository } from '@gitroom/nestjs-libraries/database/prisma/pris
 export class BriefOnboardingRepository {
   constructor(private _onboarding: PrismaRepository<'briefOnboarding'>) {}
 
-  create(organizationId: string) {
+  create(organizationId: string, lang?: string) {
     return this._onboarding.model.briefOnboarding.create({
-      data: { organizationId, answers: '{}' },
+      data: { organizationId, answers: '{}', ...(lang ? { lang } : {}) },
     });
   }
 

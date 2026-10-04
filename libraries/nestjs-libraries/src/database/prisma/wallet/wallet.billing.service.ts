@@ -190,6 +190,8 @@ export class WalletBillingService {
     name?: string;
     amount: number;
     saveCard: boolean;
+    // Turn automatic top-up on with the saved card once paid.
+    autoTopUp?: boolean;
     returnUrl: string;
   }) {
     if (await this._wallet.isFrozen(params.organizationId)) {
@@ -202,6 +204,9 @@ export class WalletBillingService {
           rules.minAmount
         )}`
       );
+    }
+    if (!(await this._wallet.isWholeAmount(params.amount))) {
+      throw new Error(await this._wallet.wholeAmountMessage());
     }
 
     const currency = await this.currencyFor(params.organizationId);
@@ -219,6 +224,7 @@ export class WalletBillingService {
       amount: String(params.amount),
       credits: String(units),
       currency,
+      ...(params.saveCard && params.autoTopUp ? { autoTopUp: '1' } : {}),
     };
 
     const session = await this.stripe.checkout.sessions.create({
@@ -366,7 +372,10 @@ export class WalletBillingService {
       receiptUrl: intent ? await this.receiptUrl(intent) : null,
     });
     if (intent) {
-      await this.rememberCard(paid.organizationId, intent);
+      const saved = await this.rememberCard(paid.organizationId, intent);
+      if (saved && session.metadata?.autoTopUp === '1') {
+        await this.enableAutoTopUpDefaults(paid.organizationId);
+      }
     }
     this.notifyIfShort(paid.organizationId).catch(() => undefined);
     return { ok: true };
@@ -393,7 +402,7 @@ export class WalletBillingService {
   ) {
     const method = intent.payment_method as Stripe.PaymentMethod | null;
     if (!intent.setup_future_usage || !method?.id) {
-      return;
+      return false;
     }
     await this._wallet.updateWallet(organizationId, {
       paymentMethodId: method.id,
@@ -401,6 +410,40 @@ export class WalletBillingService {
       cardLast4: method.card?.last4 || null,
       cardExp: cardExpOf(method.card),
     });
+    return true;
+  }
+
+  // The top-up dialog's "auto top-up" choice, applied once the card is
+  // saved: on, with the wallet's own settings if it has them, else the
+  // defaults from the billing settings (the first amount and limit
+  // offered). The limit is never below one top-up. Once per payment: the
+  // webhook and the browser's return both land here, and a wallet that
+  // already has it on is left alone.
+  async enableAutoTopUpDefaults(organizationId: string) {
+    const wallet = await this._wallet.getWallet(organizationId);
+    if (
+      !wallet ||
+      wallet.autoTopUp ||
+      wallet.frozenAt ||
+      !wallet.paymentMethodId
+    ) {
+      return false;
+    }
+    const rules = await this._wallet.topUpRules();
+    const amount =
+      wallet.autoTopUpAmount || rules.autoOptions[0] || rules.minAmount;
+    const cap = Math.max(
+      wallet.autoTopUpMonthlyCap || rules.capOptions[0] || amount,
+      amount
+    );
+    await this._wallet.updateWallet(organizationId, {
+      autoTopUp: true,
+      autoTopUpAmount: amount,
+      autoTopUpMonthlyCap: cap,
+      autoTopUpThreshold:
+        wallet.autoTopUpThreshold ?? rules.defaultThreshold ?? null,
+    });
+    return true;
   }
 
   // A setup-mode Checkout finished: the new card replaces the saved one.
@@ -599,8 +642,9 @@ export class WalletBillingService {
 
   // Tops up from the saved card when auto top-up is on, the balance is under
   // the threshold (or short of `needed`), and the month's limit allows it.
-  // Returns true if credits were added.
-  async autoTopUp(organizationId: string, needed = 0) {
+  // Returns true if credits were added. `partial` tops up even when one
+  // top-up alone does not reach `needed` (autoTopUpFor adds several).
+  async autoTopUp(organizationId: string, needed = 0, partial = false) {
     if (!walletPaymentsEnabled()) {
       return false;
     }
@@ -633,7 +677,7 @@ export class WalletBillingService {
       return false;
     }
     const credits = await this._wallet.unitsForAmount(amount);
-    if (balance + credits < needed) {
+    if (!partial && balance + credits < needed) {
       return false;
     }
 
@@ -713,6 +757,31 @@ export class WalletBillingService {
       }
       return false;
     }
+  }
+
+  // Tops up as many times as it takes for the balance to reach `needed`, but
+  // only when auto top-up can cover all of it within this month's limit
+  // (a card is never charged for a top-up that would not be enough). Returns
+  // whether the balance now covers `needed`.
+  async autoTopUpFor(organizationId: string, needed: number) {
+    let balance = await this._wallet.balance(organizationId);
+    if (balance >= needed) {
+      return true;
+    }
+    const room = await this._wallet.autoTopUpRoom(organizationId);
+    if (
+      !room.perTopUp ||
+      Math.ceil((needed - balance) / room.perTopUp) > room.topUps
+    ) {
+      return false;
+    }
+    for (let i = 0; i < 20 && balance < needed; i++) {
+      if (!(await this.autoTopUp(organizationId, needed, true))) {
+        break;
+      }
+      balance = await this._wallet.balance(organizationId);
+    }
+    return balance >= needed;
   }
 
   // Charges an action, topping up first if auto top-up can cover it.

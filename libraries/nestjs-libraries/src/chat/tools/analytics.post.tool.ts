@@ -16,7 +16,8 @@ export class AnalyticsPostTool implements AgentToolInterface {
       description: `How one published post performed: likes, comments, shares, impressions and whatever else that network reports for a single post.
 Use postsList first to get the post id. Only published posts have analytics; a queued or draft post has nothing to report yet.
 A post can come back marked "missing", which means it was published but is not linked to the message on the network, so the network cannot be asked about it. That is fixable by connecting its release id, not a failure of this tool.
-What comes back differs by network. Read the labels rather than assuming a fixed set, and say which network the numbers came from.`,
+What comes back differs by network. Read the labels rather than assuming a fixed set, and say which network the numbers came from.
+A single post's numbers are not cached: every call reads the network ("cachedAt" is null). On a workspace that pays from its wallet, a post read is charged at most once per post per day.`,
       mcp: {
         annotations: {
           title: 'Post Analytics',
@@ -32,9 +33,17 @@ What comes back differs by network. Read the labels rather than assuming a fixed
           .number()
           .optional()
           .describe('How many days back to look. Defaults to 30.'),
+        fresh: z
+          .boolean()
+          .optional()
+          .describe(
+            'Accepted for symmetry: post analytics are always read live'
+          ),
       }),
       outputSchema: z.object({
         analytics: z.any().optional(),
+        cachedAt: z.string().nullable().optional(),
+        note: z.string().optional(),
         missingReleaseId: z.boolean().optional(),
         error: z.string().optional(),
       }),
@@ -67,7 +76,11 @@ What comes back differs by network. Read the labels rather than assuming a fixed
             };
           }
 
-          return { analytics };
+          return {
+            analytics,
+            cachedAt: null,
+            note: 'Read from the network just now (post analytics are not cached).',
+          };
         } catch (err) {
           return {
             error: `Failed to read post analytics: ${

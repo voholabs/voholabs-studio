@@ -7,6 +7,7 @@ import { PostsService } from '@gitroom/nestjs-libraries/database/prisma/posts/po
 import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 import {
   addPendingWalletPost,
+  walletRefusal,
   orgFromContext,
   PendingWalletPosts,
   toCredits,
@@ -73,7 +74,7 @@ export class PostsStatusTool implements AgentToolInterface {
       description: `Move a post between draft and the schedule.
 Setting it to DRAFT takes a queued post off the schedule so it will not publish, without deleting it. Setting it to QUEUE puts a draft back on the schedule at its existing time, so check that time is still in the future before doing it, or it may go out immediately.
 Use postsList to find the post. This does nothing to a post that has already been published.
-On a workspace that pays per post from its wallet, QUEUE also returns "cost" (credits taken when it publishes) and, when the credits will not cover it, "walletWarning": tell the user and pass on the top-up link it contains.`,
+On a workspace that pays per post from its wallet, QUEUE takes the credits now and returns "cost"; when the credits don't cover it (after an automatic top-up, when that is on) the post stays as it was and "error" carries the reason and a top-up link: pass both on. DRAFT gives back the credits of a queued post.`,
       mcp: {
         annotations: {
           title: 'Change Post Status',
@@ -96,7 +97,7 @@ On a workspace that pays per post from its wallet, QUEUE also returns "cost" (cr
           .number()
           .optional()
           .describe(
-            'Credits this post and its replies take from the wallet when it publishes'
+            'Credits taken from the wallet for this post and its replies, now, as it goes on the schedule'
           ),
         walletWarning: z.string().optional(),
         error: z.string().optional(),
@@ -121,6 +122,10 @@ On a workspace that pays per post from its wallet, QUEUE also returns "cost" (cr
 
           return { changed: true, status: inputData.status, ...wallet };
         } catch (err) {
+          const refusal = walletRefusal(err);
+          if (refusal) {
+            return { error: refusal };
+          }
           return {
             error: `Failed to change the post status: ${
               err instanceof Error ? err.message : 'Unexpected error'

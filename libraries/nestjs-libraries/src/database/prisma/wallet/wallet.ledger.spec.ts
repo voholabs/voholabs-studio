@@ -339,6 +339,19 @@ describe('WalletService.addTopUp', () => {
     expect(await repository.balance(ORG)).toBe(100000);
   });
 
+  it('tells the workspace in the bell once per payment', async () => {
+    const { service } = setup();
+    const bell = (service as any)._notifications.inAppNotification;
+    await topUp(service);
+    await topUp(service);
+    expect(bell).toHaveBeenCalledTimes(1);
+    expect(bell.mock.calls[0][2]).toBe(
+      'Top-up: 1,000.00 credits added to your wallet ($10.00).'
+    );
+    // In the bell only: no email.
+    expect(bell.mock.calls[0][3]).toBe(false);
+  });
+
   it('starts pay-as-you-go on the first top-up and keeps that date afterwards', async () => {
     const { service, db } = setup();
     await topUp(service, 'pi_1');
@@ -392,6 +405,24 @@ describe('WalletService.clawBack', () => {
     expect(db.wallets[0].frozenAt).toBeInstanceOf(Date);
     expect(db.wallets[0].autoTopUp).toBe(false);
     expect(await service.isPayAsYouGo(ORG)).toBe(false);
+  });
+
+  it('tells the workspace its wallet is on hold, once', async () => {
+    const { service } = setup();
+    await topUp(service);
+    const bell = (service as any)._notifications.inAppNotification;
+    bell.mockClear();
+    for (const eventKey of ['refund:500', 'dispute:dp_1']) {
+      await service.clawBack({
+        paymentIntentId: 'pi_1',
+        share: 1,
+        eventKey,
+        description: 'Payment refunded',
+      });
+    }
+    expect(bell).toHaveBeenCalledTimes(1);
+    expect(bell.mock.calls[0][1]).toBe('Wallet on hold');
+    expect(bell.mock.calls[0][5]).toBe('fail');
   });
 
   it('never takes back more than was credited when a partial refund is followed by a dispute', async () => {

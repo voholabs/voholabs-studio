@@ -116,6 +116,20 @@ export const walletFrozenMessage = () =>
 export const notEnoughCreditsMessage = () =>
   "Not published: there weren't enough credits in your wallet when it was due. Top up, then reschedule it if you still want it out.";
 
+// An amount paid, in the smallest unit of its currency, for messages.
+const formatPaid = (amount: number, currency: string) => {
+  try {
+    const format = new Intl.NumberFormat('en', {
+      style: 'currency',
+      currency: currency.toUpperCase(),
+    });
+    const digits = format.resolvedOptions().maximumFractionDigits ?? 2;
+    return format.format(amount / 10 ** digits);
+  } catch {
+    return `${amount} ${currency}`;
+  }
+};
+
 const ceilDiv = (a: bigint, b: bigint) => (a + b - BigInt(1)) / b;
 
 const numberList = (value?: string) =>
@@ -148,7 +162,12 @@ export interface EstimateItem {
 
 export interface Estimate {
   items: EstimateItem[];
+  // The full price (per occurrence for a repeating post).
   price: number;
+  // Credit already standing for the post being edited.
+  alreadyPaid: number;
+  // What scheduling takes now: price - alreadyPaid (negative gives back).
+  due: number;
   balanceAfter: number;
   short: boolean;
   // Auto top-up can cover what the balance can't.
@@ -156,7 +175,36 @@ export interface Estimate {
   // What auto top-up would charge the card for that, in the smallest unit
   // of the wallet currency; null when it isn't needed or can't cover it.
   autoAmount: number | null;
+  // A repeating post: price is per occurrence, each charged as it goes out.
+  perOccurrence?: boolean;
+  repeatEveryDays?: number | null;
 }
+
+// The chargeKey of a post's charge. A repeating post's later occurrences add
+// their run (see postOccurrenceChargeKey).
+export const postChargeKey = (postId: string) => `post:${postId}`;
+
+// The chargeKey of one occurrence of a post: its base key for the first (the
+// one charged when it was scheduled), and a key per run for each repeat, so
+// every occurrence is charged once however often Temporal retries it.
+export const postOccurrenceChargeKey = (postId: string, run?: string) =>
+  run ? `${postChargeKey(postId)}@${run}` : postChargeKey(postId);
+
+// Which run of a post a publishing workflow is. The first run (workflow
+// `post_<id>`) is the one paid for when it was scheduled; each repeat of a
+// "Repeat post every..." post runs as `post_<id>_<suffix>` and is paid as its
+// own occurrence. Temporal retries keep the workflow id, so a run is charged
+// once however often it is retried.
+export const repeatRunOf = (workflowId?: string) => {
+  const match = /^post_[^_]+_([A-Za-z0-9]+)$/.exec(workflowId || '');
+  return match ? match[1] : undefined;
+};
+
+// Whether a post row already went out (its charge was used up).
+export const postWasSent = (post: {
+  releaseURL?: string | null;
+  releaseId?: string | null;
+}) => !!post.releaseURL || !!post.releaseId;
 
 @Injectable()
 export class WalletService {
@@ -237,6 +285,29 @@ export class WalletService {
       style: 'currency',
       currency: await this.currency(),
     }).format(amount / 100);
+  }
+
+  // Smallest currency units in one whole unit of the wallet currency (100
+  // cents in a dollar).
+  async minorPerUnit() {
+    const digits =
+      new Intl.NumberFormat('en', {
+        style: 'currency',
+        currency: await this.currency(),
+      }).resolvedOptions().maximumFractionDigits ?? 2;
+    return 10 ** digits;
+  }
+
+  // Top-ups are whole units of the currency (whole dollars).
+  async isWholeAmount(amount: number) {
+    return (
+      Number.isInteger(amount) && amount % (await this.minorPerUnit()) === 0
+    );
+  }
+
+  async wholeAmountMessage() {
+    const example = await this.formatMoney(await this.minorPerUnit());
+    return `Top-ups are in whole ${await this.currency()} amounts, for example ${example}`;
   }
 
   // Units of credit bought with an amount in the smallest unit of the
@@ -481,7 +552,7 @@ export class WalletService {
   // ever (ONCE) or per UTC calendar month (MONTH). Monthly-billed rows
   // (storage) apply their free amount to usage before charging, so it is not
   // applied again here.
-  private freeAllowance(action: BillableAction): FreeAllowance | undefined {
+  freeAllowance(action: BillableAction): FreeAllowance | undefined {
     if (action.billing !== 'PER_USE' || !action.freeUnits) {
       return undefined;
     }
@@ -579,7 +650,7 @@ export class WalletService {
     // Stripe's receipt for the payment, shown on the transaction.
     receiptUrl?: string | null;
   }) {
-    const entry = await this._wallet.add({
+    const { entry, created } = await this._wallet.addOnce({
       organizationId: params.organizationId,
       amount: params.credits,
       type: params.auto ? 'AUTO_TOPUP' : 'TOPUP',
@@ -599,7 +670,44 @@ export class WalletService {
         currency: wallet.currency || params.currency.toUpperCase(),
       });
     }
+    // In the bell, once per payment (the webhook and the browser's return
+    // both credit it).
+    if (created) {
+      const label = params.auto ? 'Automatic top-up' : 'Top-up';
+      await this.notify(
+        params.organizationId,
+        label,
+        `${label}: ${formatCredits(
+          params.credits
+        )} credits added to your wallet (${formatPaid(
+          params.amount,
+          params.currency
+        )}).`,
+        'success'
+      );
+    }
     return entry;
+  }
+
+  // An in-app notification (the bell). Never emails, never fails the caller.
+  async notify(
+    organizationId: string,
+    subject: string,
+    message: string,
+    type: 'success' | 'fail' | 'info' = 'info'
+  ) {
+    try {
+      await this._notifications.inAppNotification(
+        organizationId,
+        subject,
+        message,
+        false,
+        false,
+        type
+      );
+    } catch (err) {
+      this._logger.error(`Could not notify ${organizationId}: ${err}`);
+    }
   }
 
   autoTopUpSpentSince(organizationId: string, since: Date) {
@@ -619,7 +727,7 @@ export class WalletService {
 
   // Providers whose posts are charged per post: those with an active
   // per-use <provider>.post row (X today).
-  private async postProviders() {
+  async postProviders() {
     return (await this.actions())
       .filter((a) => a.billing === 'PER_USE' && a.key === `${a.provider}.post`)
       .map((a) => a.provider);
@@ -663,7 +771,7 @@ export class WalletService {
   // how many top-ups the monthly limit still allows (Infinity without one),
   // and the amount charged each time. Zero when it is off, frozen or has no
   // saved card.
-  private async autoTopUpRoom(organizationId: string) {
+  async autoTopUpRoom(organizationId: string) {
     const none = { perTopUp: 0, topUps: 0, amount: 0 };
     const wallet = await this._wallet.getWallet(organizationId);
     if (
@@ -699,8 +807,12 @@ export class WalletService {
     return room.topUps === Infinity ? Infinity : room.topUps * room.perTopUp;
   }
 
-  // Paid usage scheduled in the next 48 hours, priced now. `short` means the
-  // balance plus what auto top-up can still add does not cover it.
+  // Paid usage due in the next 48 hours that is not paid for yet, priced
+  // now. Posts are paid when they are scheduled, so this is what is still to
+  // come: each next occurrence of a repeating post, and any post queued
+  // before charging moved to scheduling time (paid when it publishes).
+  // `short` means the balance plus what auto top-up can still add does not
+  // cover it.
   async forecast(organizationId: string): Promise<Forecast> {
     const empty: Forecast = {
       windowHours: FORECAST_HOURS,
@@ -717,31 +829,66 @@ export class WalletService {
     }
 
     const now = dayjs();
-    const posts = await this._wallet.scheduledPosts(
+    const end = now.add(FORECAST_HOURS, 'hour');
+    const [posts, repeating] = await Promise.all([
+      this._wallet.scheduledPosts(
+        organizationId,
+        providers,
+        now.toDate(),
+        end.toDate()
+      ),
+      this._wallet.repeatingPosts(organizationId, providers),
+    ]);
+    const paid = await this._wallet.standingCharges(
       organizationId,
-      providers,
-      now.toDate(),
-      now.add(FORECAST_HOURS, 'hour').toDate()
+      posts.map((p) => postChargeKey(p.id))
     );
+
+    const due: { id: string; content: string; identifier: string; at: Date }[] =
+      posts
+        .filter((p) => !paid.has(postChargeKey(p.id)))
+        .map((p) => ({
+          id: p.id,
+          content: p.content,
+          identifier: p.integration.providerIdentifier,
+          at: p.publishDate,
+        }));
+    // The next occurrence of each repeating post, if it falls in the window.
+    // A thread repeats while its first post is queued or published.
+    const mainState = new Map(
+      repeating.filter((p) => !p.parentPostId).map((p) => [p.group, p.state])
+    );
+    for (const post of repeating) {
+      const state = mainState.get(post.group);
+      if (!state || !post.intervalInDays) {
+        continue;
+      }
+      let next = dayjs(post.publishDate).add(post.intervalInDays, 'day');
+      while (next.isBefore(now)) {
+        next = next.add(post.intervalInDays, 'day');
+      }
+      if (next.isAfter(end)) {
+        continue;
+      }
+      due.push({
+        id: post.id,
+        content: post.content,
+        identifier: post.integration.providerIdentifier,
+        at: next.toDate(),
+      });
+    }
+    due.sort((a, b) => a.at.getTime() - b.at.getTime());
 
     const items: ForecastItem[] = [];
     let needed = 0;
-    for (const post of posts) {
-      const actionKey = await this.postActionKey(
-        post.integration.providerIdentifier,
-        post.content
-      );
+    for (const post of due) {
+      const actionKey = await this.postActionKey(post.identifier, post.content);
       const priced = await this.price(actionKey);
       if (!priced) {
         continue;
       }
       needed += priced.price;
-      items.push({
-        actionKey,
-        quantity: 1,
-        at: post.publishDate,
-        postId: post.id,
-      });
+      items.push({ actionKey, quantity: 1, at: post.at, postId: post.id });
     }
 
     const balance = await this.balance(organizationId);
@@ -776,10 +923,17 @@ export class WalletService {
   // that charges them, for the composer and the MCP. Channels the wallet
   // does not charge give no items and a price of 0. Units still in a free
   // allowance are priced at 0.
+  //
+  // Posts are charged when they are scheduled. `group` is the post being
+  // edited: what it already paid is credited against the new price, so
+  // `due` is what scheduling takes now (negative gives credits back). With
+  // `inter` (repeat every n days) the price is per occurrence: each later
+  // occurrence is charged when it goes out.
   async estimateContents(
     organizationId: string,
     identifier: string,
-    contents: string[]
+    contents: string[],
+    options: { group?: string; inter?: number } = {}
   ): Promise<Estimate> {
     const items: EstimateItem[] = [];
     const freeLeft = new Map<string, number | null>();
@@ -803,23 +957,43 @@ export class WalletService {
       }
       items.push({ actionKey, price: priced.price });
     }
-    return this.estimateTotal(organizationId, items);
+    const alreadyPaid = options.group
+      ? await this.paidForGroup(organizationId, options.group)
+      : 0;
+    return {
+      ...(await this.estimateTotal(organizationId, items, alreadyPaid)),
+      perOccurrence: !!options.inter && options.inter > 0,
+      repeatEveryDays:
+        options.inter && options.inter > 0 ? Math.floor(options.inter) : null,
+    };
   }
 
-  // Totals priced items against the balance, the usage already scheduled in
-  // the forecast window, and what auto top-up can still add this month.
+  // Credits standing for the unpublished posts of a group (what deleting,
+  // drafting or re-pricing it would give back).
+  async paidForGroup(organizationId: string, group: string) {
+    const rows = await this._wallet.postsInGroups(organizationId, [group]);
+    const standing = await this._wallet.standingCharges(
+      organizationId,
+      rows.filter((r) => !postWasSent(r)).map((r) => postChargeKey(r.id))
+    );
+    return [...standing.values()].reduce((sum, e) => sum - e.amount, 0);
+  }
+
+  // Totals priced items against the balance and what auto top-up can still
+  // add this month. `alreadyPaid` is credit standing for what these items
+  // replace (an edit), so only the difference is due now.
   private async estimateTotal(
     organizationId: string,
-    items: EstimateItem[]
+    items: EstimateItem[],
+    alreadyPaid = 0
   ): Promise<Estimate> {
     const price = items.reduce((sum, item) => sum + item.price, 0);
-    const [balance, forecast, room] = await Promise.all([
+    const due = price - alreadyPaid;
+    const [balance, room] = await Promise.all([
       this.balance(organizationId),
-      this.forecast(organizationId),
       this.autoTopUpRoom(organizationId),
     ]);
-    const needed = price + forecast.needed;
-    const missing = needed - balance;
+    const missing = due - balance;
     const topUpsNeeded =
       missing > 0 && room.perTopUp > 0 ? Math.ceil(missing / room.perTopUp) : 0;
     const autoCovers =
@@ -827,7 +1001,9 @@ export class WalletService {
     return {
       items,
       price,
-      balanceAfter: balance - price,
+      alreadyPaid,
+      due,
+      balanceAfter: balance - due,
       short: missing > 0 && !autoCovers,
       autoCovers,
       autoAmount: autoCovers ? topUpsNeeded * room.amount : null,
@@ -1005,10 +1181,20 @@ export class WalletService {
           reference: params.paymentIntentId,
         })
       : undefined;
+    const wasFrozen = !!(await this._wallet.getWallet(topUp.organizationId))
+      ?.frozenAt;
     await this._wallet.updateWallet(topUp.organizationId, {
       frozenAt: new Date(),
       autoTopUp: false,
     });
+    if (!wasFrozen) {
+      await this.notify(
+        topUp.organizationId,
+        'Wallet on hold',
+        walletFrozenMessage(),
+        'fail'
+      );
+    }
     return { organizationId: topUp.organizationId, credits: amount, entry };
   }
 }

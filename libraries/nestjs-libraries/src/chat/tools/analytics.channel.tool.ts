@@ -17,7 +17,8 @@ export class AnalyticsChannelTool implements AgentToolInterface {
       description: `How a channel itself is doing: followers, impressions, engagement and whatever else that network reports about the account.
 Use integrationList first to get the channel id. Only social channels report analytics; publishing platforms such as a blog or a newsletter return nothing, which is expected rather than an error.
 What comes back differs by network, because each one exposes its own metrics. Read the labels rather than assuming a fixed set, and say which network the numbers came from.
-Numbers can be a day or two behind what the network's own dashboard shows, so do not present them as live.`,
+Numbers can be a day or two behind what the network's own dashboard shows, so do not present them as live.
+Results are cached for up to an hour: "cachedAt" says when they were read from the network and "note" says whether this answer came from the cache. Pass fresh: true to read the network again; on a workspace that pays from its wallet that can charge post reads (see walletPrices), so only do it when the user wants newer numbers.`,
       mcp: {
         annotations: {
           title: 'Channel Analytics',
@@ -33,9 +34,21 @@ Numbers can be a day or two behind what the network's own dashboard shows, so do
           .number()
           .optional()
           .describe('How many days back to look. Defaults to 30.'),
+        fresh: z
+          .boolean()
+          .optional()
+          .describe(
+            'Skip the cache and read the network again (may charge post reads on a wallet workspace)'
+          ),
       }),
       outputSchema: z.object({
         analytics: z.any().optional(),
+        cachedAt: z
+          .string()
+          .nullable()
+          .optional()
+          .describe('When these numbers were read from the network (ISO time)'),
+        note: z.string().optional(),
         error: z.string().optional(),
       }),
       execute: async (inputData, context) => {
@@ -45,11 +58,31 @@ Numbers can be a day or two behind what the network's own dashboard shows, so do
             (context?.requestContext as any)?.get('organization') as string
           ) as Organization;
 
+          const date = String(inputData.days ?? 30);
+          const cachedBefore = inputData.fresh
+            ? null
+            : await this._integrationService.analyticsUpdatedAt(
+                organization.id,
+                inputData.id,
+                date
+              );
           const analytics = await this._integrationService.checkAnalytics(
             organization,
             inputData.id,
-            String(inputData.days ?? 30)
+            date,
+            false,
+            !!inputData.fresh
           );
+          const cachedAt =
+            cachedBefore ||
+            (await this._integrationService.analyticsUpdatedAt(
+              organization.id,
+              inputData.id,
+              date
+            ));
+          const note = cachedBefore
+            ? `From the cache, read from the network at ${cachedBefore}. Pass fresh: true for newer numbers.`
+            : 'Read from the network just now.';
 
           if (!analytics?.length) {
             return {
@@ -59,7 +92,7 @@ Numbers can be a day or two behind what the network's own dashboard shows, so do
             };
           }
 
-          return { analytics };
+          return { analytics, cachedAt, note };
         } catch (err) {
           return {
             error: `Failed to read channel analytics: ${

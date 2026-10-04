@@ -30,6 +30,7 @@ import { SignatureService } from '@gitroom/nestjs-libraries/database/prisma/sign
 import { WalletRepository } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.repository';
 import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 import { WalletStorageService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.storage.service';
+import { WalletPostsService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.posts.service';
 import { WalletHousekeepingService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.housekeeping.service';
 import { BriefOnboardingService } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.onboarding.service';
 import { SkillsRepository } from '@gitroom/nestjs-libraries/database/prisma/skills/skills.repository';
@@ -96,6 +97,7 @@ import { MediaMeterService } from '@gitroom/nestjs-libraries/database/prisma/med
     WalletService,
     WalletBillingService,
     WalletStorageService,
+    WalletPostsService,
     WalletHousekeepingService,
     BriefOnboardingService,
     SkillsRepository,

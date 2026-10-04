@@ -14,6 +14,7 @@ import {
   readPostMedia,
   withPostLinks,
 } from '@gitroom/nestjs-libraries/chat/tools/post.write.shared';
+import { walletRefusal } from '@gitroom/nestjs-libraries/chat/tools/wallet.shared';
 import { MediaService } from '@gitroom/nestjs-libraries/database/prisma/media/media.service';
 
 @Injectable()
@@ -35,6 +36,7 @@ The output reports the post as it now stands, including its attachments, so you 
 What it does to the schedule:
 - A queued post stays queued and its publishing job is rebuilt around the new content. If its date has already passed, it can go out immediately — pass a future "date" if you are editing something overdue.
 - A draft stays a draft.
+- On a workspace that pays per post from its wallet, editing a queued post re-prices it: only the difference is charged or given back (a part that gains a link costs more, a removed thread item is refunded). If the difference isn't covered, the edit is refused with an "error" carrying a top-up link: pass it on.
 - A post that has ALREADY PUBLISHED can only be corrected on the calendar. The message live on the social network is not touched, and the tool tells you so ("livePostUnchanged"). Say that to the user rather than letting them believe the live post changed.
 
 To remove media rather than replace it, pass "clearAttachments" — an empty "attachments" array is treated as "no change", so it cannot silently strip a video.`,
@@ -405,6 +407,10 @@ To remove media rather than replace it, pass "clearAttachments" — an empty "at
             ...(type === 'update' ? { livePostUnchanged: true } : {}),
           };
         } catch (err) {
+          const refusal = walletRefusal(err);
+          if (refusal) {
+            return { error: refusal };
+          }
           return {
             error: `Failed to edit the post: ${
               err instanceof Error ? err.message : 'Unexpected error'

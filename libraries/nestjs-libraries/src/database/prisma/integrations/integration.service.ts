@@ -49,6 +49,10 @@ export type PaidApiAction = 'post_read' | 'user_lookup';
 // for its stats. Both reads are billed by X.
 const READS_PER_ANALYTICS_POST = 2;
 
+// Upstream's one-hour cache of a channel's analytics for one window.
+const analyticsCacheKey = (orgId: string, integration: string, date: string) =>
+  `integration:${orgId}:${integration}:${date}`;
+
 const providerKey = (identifier: string) =>
   (identifier || '').toLowerCase().split('-')[0];
 
@@ -401,11 +405,22 @@ export class IntegrationService {
     return { success: true };
   }
 
+  // When the cached channel analytics for this window were read from the
+  // network (ISO time), or null when nothing is cached (the next read is
+  // live). The cache itself is upstream's (one hour); this only dates it.
+  async analyticsUpdatedAt(orgId: string, integration: string, date: string) {
+    const key = analyticsCacheKey(orgId, integration, date);
+    return (await ioRedis.get(`${key}:at`)) || null;
+  }
+
+  // `fresh` skips the cache and reads the network again (a wallet workspace
+  // pays for those reads, see below).
   async checkAnalytics(
     org: Organization,
     integration: string,
     date: string,
-    forceRefresh = false
+    forceRefresh = false,
+    fresh = false
   ): Promise<AnalyticsData[]> {
     const getIntegration = await this.getIntegrationById(org.id, integration);
 
@@ -447,9 +462,9 @@ export class IntegrationService {
         }
       }
 
-      const getIntegrationData = await ioRedis.get(
-        `integration:${org.id}:${integration}:${date}`
-      );
+      const getIntegrationData = fresh
+        ? null
+        : await ioRedis.get(analyticsCacheKey(org.id, integration, date));
       if (getIntegrationData) {
         return JSON.parse(getIntegrationData);
       }
@@ -522,13 +537,21 @@ export class IntegrationService {
             allowNegative: true,
           });
         }
-        await ioRedis.set(
-          `integration:${org.id}:${integration}:${date}`,
-          JSON.stringify(loadAnalytics),
-          'EX',
+        const ttl =
           !process.env.NODE_ENV || process.env.NODE_ENV === 'development'
             ? 1
-            : 3600
+            : 3600;
+        await ioRedis.set(
+          analyticsCacheKey(org.id, integration, date),
+          JSON.stringify(loadAnalytics),
+          'EX',
+          ttl
+        );
+        await ioRedis.set(
+          analyticsCacheKey(org.id, integration, date) + ':at',
+          new Date().toISOString(),
+          'EX',
+          ttl
         );
         return loadAnalytics;
       }
@@ -538,7 +561,7 @@ export class IntegrationService {
       // A RefreshToken error means the access token expired mid-request; retry
       // once with a forced refresh. Guard against infinite recursion.
       if (e instanceof RefreshToken && !forceRefresh) {
-        return this.checkAnalytics(org, integration, date, true);
+        return this.checkAnalytics(org, integration, date, true, fresh);
       }
 
       // Any other failure (token refresh error, provider outage, bad response)

@@ -125,7 +125,10 @@ export class WalletController {
     @GetOrgFromRequest() org: Organization,
     @Body() body: WalletEstimateDto
   ) {
-    return this._wallet.estimateContents(org.id, body.provider, body.contents);
+    return this._wallet.estimateContents(org.id, body.provider, body.contents, {
+      group: body.group,
+      inter: body.inter,
+    });
   }
 
   // `type` filters by entry type, comma separated (e.g. TOPUP,AUTO_TOPUP).
@@ -189,7 +192,8 @@ export class WalletController {
         email: user.email,
         name: org.name,
         amount: body.amount,
-        saveCard: !!body.saveCard,
+        saveCard: !!body.saveCard || !!body.autoTopUp,
+        autoTopUp: !!body.autoTopUp,
         returnUrl: `${process.env.FRONTEND_URL}/wallet`,
       });
     } catch (err) {
@@ -278,6 +282,9 @@ export class WalletController {
           )}`,
           400
         );
+      }
+      if (!(await this._wallet.isWholeAmount(body.amount))) {
+        throw new HttpException(await this._wallet.wholeAmountMessage(), 400);
       }
       if (!body.monthlyCap || body.monthlyCap < body.amount) {
         throw new HttpException(

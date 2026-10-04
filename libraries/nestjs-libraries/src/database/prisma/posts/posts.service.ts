@@ -14,6 +14,11 @@ import {
   WalletService,
   walletFrozenMessage,
 } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
+import {
+  REFUND_REASONS,
+  WalletPostsService,
+} from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.posts.service';
+import { walletAlert } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.alert';
 import { PostsRepository } from '@gitroom/nestjs-libraries/database/prisma/posts/posts.repository';
 import { CreatePostDto } from '@gitroom/nestjs-libraries/dtos/posts/create.post.dto';
 import dayjs from 'dayjs';
@@ -133,8 +138,24 @@ export class PostsService {
     private _temporalService: TemporalService,
     private _refreshIntegrationService: RefreshIntegrationService,
     private _postRevisionService: PostRevisionService,
-    private _walletService: WalletService
+    private _walletService: WalletService,
+    private _walletPosts: WalletPostsService
   ) {}
+
+  // Refunds what was charged for the unsent posts of these groups (deleted,
+  // drafted, failed). Giving credits back must never break the action that
+  // triggered it, so a failure only alerts.
+  private async refundGroups(orgId: string, groups: string[], reason: string) {
+    try {
+      await this._walletPosts.settleGroups(orgId, groups, { reason });
+    } catch (err) {
+      await walletAlert(
+        `Refund failed for post groups ${groups.join(
+          ', '
+        )} (organization ${orgId}): ${(err as Error)?.message || err}`
+      ).catch(() => undefined);
+    }
+  }
 
   // Is publishing actually moving? A stall is at least 3 posts that came due
   // 15 to 60 minutes ago and still have a live publishing job, while nothing
@@ -1110,6 +1131,7 @@ export class PostsService {
     } catch (err) {}
 
     const post = await this._postRepository.deletePost(orgId, group);
+    await this.refundGroups(orgId, [group], REFUND_REASONS.deleted);
 
     if (!chainId && post?.id) {
       try {
@@ -1398,6 +1420,27 @@ export class PostsService {
       }
     }
 
+    // Scheduling takes the credits now (drafts are free): refuse before
+    // anything is saved when the wallet can't cover it, even after an
+    // automatic top-up.
+    await this._walletPosts.assertCanSchedule(
+      orgId,
+      body.posts.map((post) => ({
+        identifier: (post.settings as any)?.__type,
+        values: (post.value || []).map((v) => ({
+          id: v.id,
+          content: v.content,
+        })),
+        group: post.group,
+        scheduled:
+          body.type === 'draft'
+            ? false
+            : body.type === 'update'
+            ? 'keep'
+            : true,
+      }))
+    );
+
     const postList = [];
     for (const post of body.posts) {
       const provider = this._integrationManager.getSocialIntegration(
@@ -1450,6 +1493,10 @@ export class PostsService {
         });
       } catch (err) {}
 
+      // Charge what is now on the schedule, re-price what changed and give
+      // back what left it, before the post can publish.
+      await this.settleSavedPost(orgId, post.group, posts);
+
       if (body.type !== 'update') {
         this.startWorkflow(
           post.settings.__type.split('-')[0].toLowerCase(),
@@ -1469,12 +1516,49 @@ export class PostsService {
     return postList;
   }
 
+  // The wallet side of a save: settles the saved group (and the group it
+  // replaced). If the balance no longer covers it (spent elsewhere since the
+  // check), nothing is left unpaid on the schedule: an edit goes back to
+  // drafts, a new post is removed, and the 402 reaches the caller.
+  private async settleSavedPost(
+    orgId: string,
+    previousGroup: string | undefined,
+    posts: { id: string; group: string; parentPostId?: string | null }[]
+  ) {
+    const group = posts[0].group;
+    const groups = [group, ...(previousGroup ? [previousGroup] : [])];
+    try {
+      await this._walletPosts.settleGroups(orgId, groups, {
+        reason: REFUND_REASONS.edited,
+      });
+    } catch (err) {
+      if (previousGroup) {
+        await this._postRepository.changeState(posts[0].id, 'DRAFT');
+        await this.refundGroups(orgId, groups, REFUND_REASONS.draft);
+      } else {
+        await this._postRepository.deletePost(orgId, group);
+      }
+      throw err;
+    }
+  }
+
   async separatePosts(content: string, len: number) {
     return this._openaiService.separatePosts(content, len);
   }
 
   async changeState(id: string, state: State, err?: any, body?: any) {
-    return this._postRepository.changeState(id, state, err, body);
+    const update = await this._postRepository.changeState(id, state, err, body);
+    // A post that failed gives back what its unsent parts paid. The part
+    // that failed is refunded where it was published (PostActivity); the
+    // parts after it were never tried.
+    if (state === 'ERROR' && update?.organizationId) {
+      await this.refundGroups(
+        update.organizationId,
+        [update.group],
+        REFUND_REASONS.notSent
+      );
+    }
+    return update;
   }
 
   async changePostStatus(
@@ -1488,7 +1572,17 @@ export class PostsService {
     }
 
     const state: State = status === 'draft' ? 'DRAFT' : 'QUEUE';
+    if (state === 'QUEUE') {
+      // Paid before it goes on the schedule; a 402 leaves it as it was.
+      await this._walletPosts.settleGroups(orgId, [getPostById.group], {
+        reason: REFUND_REASONS.edited,
+        mainState: { [getPostById.group]: 'QUEUE' },
+      });
+    }
     await this._postRepository.changeState(id, state);
+    if (state === 'DRAFT') {
+      await this.refundGroups(orgId, [getPostById.group], REFUND_REASONS.draft);
+    }
 
     try {
       await this.startWorkflow(
@@ -1519,6 +1613,38 @@ export class PostsService {
       getPostById.state === 'DRAFT',
       action
     );
+
+    if (action === 'schedule' && getPostById.state !== 'DRAFT') {
+      // Back on the schedule: pay for it (again, if it already went out
+      // once). Short of credits, it goes back to how it was.
+      try {
+        await this._walletPosts.settleGroups(orgId, [getPostById.group], {
+          reason: REFUND_REASONS.edited,
+          fresh:
+            getPostById.releaseURL || getPostById.releaseId
+              ? [getPostById.id]
+              : [],
+        });
+      } catch (err) {
+        await this._postRepository.changeDate(
+          orgId,
+          id,
+          dayjs(getPostById.publishDate).format(),
+          false,
+          'update'
+        );
+        if (getPostById.state === 'PUBLISHED') {
+          await this._postRepository.updatePost(
+            id,
+            getPostById.releaseId!,
+            getPostById.releaseURL!
+          );
+        } else {
+          await this._postRepository.changeState(id, getPostById.state);
+        }
+        throw err;
+      }
+    }
 
     if (action === 'schedule') {
       try {

@@ -72,6 +72,9 @@ const stubRepo = (
     getWallet: jest.fn(async () => null),
     autoTopUpSpentSince: jest.fn(async () => 0),
     scheduledPosts: jest.fn(async () => []),
+    repeatingPosts: jest.fn(async () => []),
+    postsInGroups: jest.fn(async () => []),
+    standingCharges: jest.fn(async () => new Map()),
     spend: jest.fn(async (entry: any) => entry),
     usedUnits: jest.fn(async () => 0),
     updateWallet: jest.fn(async () => ({})),
@@ -301,7 +304,7 @@ describe('WalletService.forecast and estimate', () => {
     expect(repo.scheduledPosts).not.toHaveBeenCalled();
   });
 
-  it('prices each scheduled post, a bare domain at the link rate', async () => {
+  it('prices each scheduled post not paid yet, a bare domain at the link rate', async () => {
     const { service } = build();
     const forecast = await service.forecast('o');
     expect(forecast.items.map((i) => i.actionKey)).toEqual([
@@ -351,13 +354,59 @@ describe('WalletService.forecast and estimate', () => {
     expect((await service.forecast('o')).items[0].actionKey).toBe('x.post');
   });
 
-  it('estimate reports the price, the balance after it, and short with scheduled usage counted', async () => {
+  it('leaves out scheduled posts already paid for when they were scheduled', async () => {
+    const { service } = build(null, 1000, {
+      standingCharges: jest.fn(
+        async () => new Map([['post:p2', { amount: -3000 }]])
+      ),
+    });
+    const forecast = await service.forecast('o');
+    expect(forecast.items.map((i) => i.postId)).toEqual(['p1']);
+    expect(forecast.needed).toBe(225);
+    expect(forecast.short).toBe(false);
+  });
+
+  it('adds the next occurrence of a repeating post when it falls in the window', async () => {
+    const now = Date.now();
+    const { service } = build(null, 0, {
+      scheduledPosts: jest.fn(async () => []),
+      repeatingPosts: jest.fn(async () => [
+        {
+          id: 'r1',
+          group: 'g1',
+          parentPostId: null,
+          state: 'PUBLISHED',
+          content: '<p>Daily</p>',
+          // First went out 23 hours ago, repeats daily: next in 1 hour.
+          publishDate: new Date(now - 23 * 3600_000),
+          intervalInDays: 1,
+          integration: { providerIdentifier: 'x' },
+        },
+        {
+          id: 'r2',
+          group: 'g2',
+          parentPostId: null,
+          state: 'PUBLISHED',
+          content: '<p>Weekly</p>',
+          // Next one in 6 days: outside the 48 hours.
+          publishDate: new Date(now - 24 * 3600_000),
+          intervalInDays: 7,
+          integration: { providerIdentifier: 'x' },
+        },
+      ]),
+    });
+    const forecast = await service.forecast('o');
+    expect(forecast.items.map((i) => i.postId)).toEqual(['r1']);
+    expect(forecast.needed).toBe(225);
+    expect(forecast.short).toBe(true);
+  });
+
+  it('estimate reports the price and the balance after it; scheduled posts are already paid', async () => {
     const { service } = build(null, 3500);
     expect(await service.estimate('o', 'x.post', 2)).toEqual({
       price: 450,
       balanceAfter: 3050,
-      // 450 + 3225 scheduled > 3500
-      short: true,
+      short: false,
     });
   });
 
@@ -437,6 +486,25 @@ describe('WalletService free allowance in charge', () => {
     expect(await service.freeUnitsRemaining('o', 'x.user_lookup')).toBe(2);
     expect(await service.freeUnitsRemaining('o', 'x.post')).toBeNull();
     expect(await service.freeUnitsRemaining('o', 'storage.gb')).toBeNull();
+  });
+});
+
+describe('WalletService whole top-up amounts', () => {
+  const service = new WalletService(stubRepo(), notifications());
+
+  it('accepts whole dollars only (amounts in cents)', async () => {
+    expect(await service.minorPerUnit()).toBe(100);
+    expect(await service.isWholeAmount(2500)).toBe(true);
+    expect(await service.isWholeAmount(2550)).toBe(false);
+    expect(await service.isWholeAmount(25.5)).toBe(false);
+  });
+
+  it('follows the currency: yen has no minor unit', async () => {
+    const yen = new WalletService(
+      stubRepo({}, { ...SETTINGS, wallet_currency: 'JPY' }),
+      notifications()
+    );
+    expect(await yen.isWholeAmount(1001)).toBe(true);
   });
 });
 
@@ -540,7 +608,7 @@ describe('WalletService.estimateContents', () => {
     expect(estimate.short).toBe(false);
   });
 
-  it('counts the usage already scheduled', async () => {
+  it('is short only when the balance does not cover this post (scheduled ones are paid)', async () => {
     const { service } = build(null, 3000, {
       scheduledPosts: jest.fn(async () => [
         {
@@ -551,10 +619,62 @@ describe('WalletService.estimateContents', () => {
         },
       ]),
     });
-    // 3000 + 225 scheduled > 3000
     expect(
       (await service.estimateContents('o', 'x', ['go example.com'])).short
+    ).toBe(false);
+    expect(
+      (await service.estimateContents('o', 'x', ['a.com', 'b.com'])).short
     ).toBe(true);
+  });
+
+  it('charges only the difference when editing a scheduled post', async () => {
+    const { service, repo } = build(null, 100, {
+      postsInGroups: jest.fn(async () => [
+        { id: 'p1', releaseURL: null, releaseId: null },
+        { id: 'p2', releaseURL: null, releaseId: null },
+      ]),
+      standingCharges: jest.fn(
+        async () =>
+          new Map([
+            ['post:p1', { amount: -3000 }],
+            ['post:p2', { amount: -225 }],
+          ])
+      ),
+    });
+    // Now: one link post (3000) and one plain (225), both already paid.
+    const same = await service.estimateContents(
+      'o',
+      'x',
+      ['example.com', 'hello'],
+      { group: 'g1' }
+    );
+    expect(same.price).toBe(3225);
+    expect(same.alreadyPaid).toBe(3225);
+    expect(same.due).toBe(0);
+    expect(same.balanceAfter).toBe(100);
+    expect(same.short).toBe(false);
+    expect(repo.postsInGroups).toHaveBeenCalledWith('o', ['g1']);
+
+    // Dropping the link: 3000 comes back.
+    const down = await service.estimateContents('o', 'x', ['hi', 'hello'], {
+      group: 'g1',
+    });
+    expect(down.due).toBe(450 - 3225);
+    expect(down.balanceAfter).toBe(100 + 3225 - 450);
+  });
+
+  it('prices a repeating post per occurrence', async () => {
+    const { service } = build(null, 10000);
+    const estimate = await service.estimateContents(
+      'o',
+      'x',
+      Array.from({ length: 30 }, () => 'google.com'),
+      { inter: 2 }
+    );
+    // 30 parts with a link, once: the repeat does not multiply it.
+    expect(estimate.price).toBe(90000);
+    expect(estimate.perOccurrence).toBe(true);
+    expect(estimate.repeatEveryDays).toBe(2);
   });
 
   it('is covered by auto top-up when its headroom is enough, with the amount charged', async () => {

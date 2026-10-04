@@ -911,6 +911,22 @@ export const AddProviderComponent: FC<{
     }
     return toolTip;
   };
+  // Connecting a channel the wallet pays for makes one account lookup on its
+  // API, charged by its `<provider>.user_lookup` row: say so, from the row.
+  const connectLookups =
+    walletAccess === 'payg'
+      ? filteredSocial
+          .filter(
+            (item) =>
+              ENABLED_PROVIDERS.includes(item.identifier) &&
+              walletMode(item.identifier)
+          )
+          .map((item) => ({
+            item,
+            action: findAction(prices, `${item.identifier}.user_lookup`),
+          }))
+          .filter((l) => !!l.action)
+      : [];
   const isUnavailable = (identifier: string) =>
     isFreePlan &&
     paidOnly.includes(identifier) &&
@@ -1049,6 +1065,26 @@ export const AddProviderComponent: FC<{
             );
           })}
         </div>
+        {connectLookups.map(({ item, action }) => (
+          <div
+            key={`lookup-${item.identifier}`}
+            className={clsx(
+              'flex items-center gap-[6px] text-[12px]',
+              TONE_TEXT[xTone]
+            )}
+          >
+            <CoinsIcon size={14} />
+            {t(
+              'wallet_connect_lookup',
+              'Connecting {{channel}} costs {{price}} credits: one {{action}}.',
+              {
+                channel: item.name,
+                price: walletFormat.credits(action!.price),
+                action: action!.name,
+              }
+            )}
+          </div>
+        ))}
         {unavailableSocial.length > 0 && (
           <div className="flex flex-col gap-[10px]">
             <div className="text-[12px] font-[500] uppercase tracking-[0.08em] text-textColor/50">

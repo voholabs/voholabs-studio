@@ -419,9 +419,8 @@ const useEndSide = () => {
 };
 
 // A feature the first wallet top-up opens, seen on the free plan. It still
-// leads to its page, which explains it and offers the top-up. Teal: opening
-// it is a one-time unlock, not pay-per-use (the tone follows the row that
-// opens the feature).
+// leads to its page, which explains it and offers the top-up. The lock is
+// warm, like every signal that needs a top-up.
 const LockedMenuItem: FC<{
   label: string;
   icon: ReactNode;

@@ -137,3 +137,21 @@ export const BriefMenuIcon: FC<{ size?: number }> = ({ size = 22 }) => (
     <path d="M1.5 21.3c0-3 2.2-5.3 5-5.3s5 2.3 5 5.3" />
   </svg>
 );
+
+export const GiftIcon: FC<{ size?: number }> = ({ size = 16 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    aria-hidden="true"
+  >
+    <path
+      d="M20 12v8.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 20.5V12M2.5 7.5h19V12h-19V7.5ZM12 22V7.5M12 7.5H7.75a2.5 2.5 0 1 1 0-5C11 2.5 12 7.5 12 7.5ZM12 7.5h4.25a2.5 2.5 0 1 0 0-5C13 2.5 12 7.5 12 7.5Z"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);

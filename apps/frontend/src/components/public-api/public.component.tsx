@@ -399,7 +399,7 @@ const ConnectSection = ({
         <StepText>
           {t(
             'allowlist_two_domains_why',
-            'Both are needed and they do different jobs: the first is Voholabs Studio itself, which is where a file you upload goes. The second is where your photos and videos are kept, and it is the one that lets the assistant open an image or video already in your library — to look at it, or to attach it to a post it is drafting. Allow only the first and uploads work while your existing media stays unreadable.'
+            'Both are needed and they do different jobs: the first is Voholabs Studio itself, which is where a file you upload goes. The second is where your photos and videos are kept, and it is the one that lets the assistant open an image or video already in your library, to look at it or to attach it to a post it is drafting. Allow only the first and uploads work while your existing media stays unreadable.'
           )}
         </StepText>
       )}
@@ -459,7 +459,7 @@ const ConnectSection = ({
           <StepText>
             {t(
               'claude_connector_intro',
-              'Connectors live in your Claude account, so adding this once turns it on everywhere you use Claude — Cowork, the desktop app, claude.ai and mobile.'
+              'Connectors live in your Claude account, so adding this once turns it on everywhere you use Claude: Cowork, the desktop app, claude.ai and mobile.'
             )}
           </StepText>
           {linkStep(1)}
@@ -486,7 +486,7 @@ const ConnectSection = ({
             <StepText>
               {t(
                 'leave_advanced_settings_empty',
-                'Leave "Advanced settings" (OAuth Client ID and Secret) empty — the link already signs you in. Click Add, and Claude will connect straight away.'
+                'Leave "Advanced settings" (OAuth Client ID and Secret) empty. The link already signs you in. Click Add, and Claude will connect straight away.'
               )}
             </StepText>
           </Step>
@@ -513,7 +513,7 @@ const ConnectSection = ({
             6,
             t(
               'allow_uploads_from_your_computer_detail',
-              'Claude blocks its own outgoing connections by default, so sending it a photo or video — and opening one already in your library — fails until you allow these. In Claude: Settings → Capabilities → domain allowlist → add both:'
+              'Claude blocks its own outgoing connections by default, so sending it a photo or video, or opening one already in your library, fails until you allow these. In Claude: Settings → Capabilities → domain allowlist → add both:'
             ),
             t(
               'allow_uploads_from_your_computer_hint',
@@ -528,7 +528,7 @@ const ConnectSection = ({
           <StepText>
             {t(
               'chatgpt_connector_intro',
-              'ChatGPT needs developer mode to add a connector of your own. It is on Plus, Pro, Business, Enterprise and Edu, and only on the web — the phone apps cannot add one.'
+              'ChatGPT needs developer mode to add a connector of your own. It is on Plus, Pro, Business, Enterprise and Edu, and only on the web. The phone apps cannot add one.'
             )}
           </StepText>
           {linkStep(1)}
@@ -565,13 +565,13 @@ const ConnectSection = ({
             <StepText>
               {t(
                 'no_authentication_is_correct',
-                '"No authentication" is the right choice here, even though it sounds wrong: your link already carries the key that signs you in, and ChatGPT has no field to put one in separately. Treat the link like a password — anyone holding it can post as you.'
+                '"No authentication" is the right choice here, even though it sounds wrong: your link already carries the key that signs you in, and ChatGPT has no field to put one in separately. Treat the link like a password: anyone holding it can post as you.'
               )}
             </StepText>
             <StepText>
               {t(
                 'chatgpt_ready_after_saving',
-                'Save it and you are done. Start a chat and ask it to list your channels or schedule a post — there is nothing else to switch on.'
+                'Save it and you are done. Start a chat and ask it to list your channels or schedule a post. There is nothing else to switch on.'
               )}
             </StepText>
           </Step>
@@ -651,7 +651,7 @@ const ConnectSection = ({
           <div>
             {t(
               'connector_link_security_note',
-              'This link contains your API key — anyone who has it can read and publish to your channels. Only paste it into your own Claude or ChatGPT settings, and never into a shared chat or document. If it leaks, rotate your API key below and add the connector again.'
+              'This link contains your API key. Anyone who has it can read and publish to your channels. Only paste it into your own Claude or ChatGPT settings, and never into a shared chat or document. If it leaks, rotate your API key below and add the connector again.'
             )}
           </div>
         </div>
@@ -769,7 +769,7 @@ const PublicApiContent = () => {
       title: t('rotate_api_key', 'Rotate API Key?'),
       description: t(
         'rotate_api_key_description',
-        'This will generate a new API key and invalidate the current one. Any integrations using the old key will stop working — including agents you connected with a connector link.'
+        'This will generate a new API key and invalidate the current one. Any integrations using the old key will stop working, including agents you connected with a connector link.'
       ),
       approveLabel: t('rotate', 'Rotate'),
       cancelLabel: t('cancel', 'Cancel'),
@@ -888,10 +888,27 @@ const PublicApiContent = () => {
       <div className="text-[13px] text-customColor18 leading-[1.7]">
         {t(
           'api_auth_note_line2',
-          'Building a product that schedules posts on behalf of other Voholabs users? Create an OAuth App under the "Apps" tab — your users authorize it with OAuth2 and you receive a pos_ prefixed token that works with the API, MCP and CLI, just like an API Key.'
+          'Building a product that schedules posts on behalf of other Voholabs users? Create an OAuth App under the "Apps" tab. Your users authorize it with OAuth2 and you receive a pos_ prefixed token that works with the API, MCP and CLI, just like an API Key.'
         )}
       </div>
     </div>
+  );
+};
+
+// The "Connect an AI agent" panel on its own, for the onboarding step.
+// Nothing shows without an API key.
+export const ConnectAgentPanel: FC = () => {
+  const user = useUser();
+  const { backendUrl, mcpUrl, cloudflareUrl } = useVariables();
+  if (!user?.publicApi) {
+    return null;
+  }
+  return (
+    <ConnectSection
+      apiKey={user.publicApi}
+      mcpBase={mcpUrl || backendUrl}
+      cloudflareUrl={cloudflareUrl}
+    />
   );
 };
 

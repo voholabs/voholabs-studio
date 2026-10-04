@@ -225,7 +225,7 @@ export const DeveloperComponent: FC = () => {
           <br />
           {t(
             'oauth_app_note_line2',
-            'After a user completes the OAuth2 flow, you receive a pos_ prefixed token that works everywhere an API Key does — API, MCP, and CLI.'
+            'After a user completes the OAuth2 flow, you receive a pos_ prefixed token that works everywhere an API Key does: API, MCP, and CLI.'
           )}
         </div>
         <div className="bg-newBgColorInner rounded-[12px] border border-newBorder overflow-hidden">
@@ -278,7 +278,7 @@ export const DeveloperComponent: FC = () => {
           <br />
           {t(
             'oauth_app_note_line2',
-            'After a user completes the OAuth2 flow, you receive a pos_ prefixed token that works everywhere an API Key does — API, MCP, and CLI.'
+            'After a user completes the OAuth2 flow, you receive a pos_ prefixed token that works everywhere an API Key does: API, MCP, and CLI.'
           )}
         </div>
         <div className="bg-newBgColorInner rounded-[12px] border border-newBorder overflow-hidden">
@@ -387,7 +387,7 @@ export const DeveloperComponent: FC = () => {
         <br />
         {t(
           'oauth_app_note_line2',
-          'After a user completes the OAuth2 flow, you receive a pos_ prefixed token that works everywhere an API Key does — API, MCP, and CLI.'
+          'After a user completes the OAuth2 flow, you receive a pos_ prefixed token that works everywhere an API Key does: API, MCP, and CLI.'
         )}
       </div>
       {/* App details / edit */}

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { FC, useCallback, useMemo } from 'react';
+import React, { FC, useCallback, useMemo, useState } from 'react';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import useSWR from 'swr';
 import { orderBy } from 'lodash';
@@ -8,6 +8,8 @@ import SafeImage from '@gitroom/react/helpers/safe.image';
 import { AddProviderComponent } from '@gitroom/frontend/components/launches/add.provider.component';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { useModals } from '@gitroom/frontend/components/layout/new-modal';
+import { useUser } from '@gitroom/frontend/components/layout/user.context';
+import { ConnectAgentPanel } from '@gitroom/frontend/components/public-api/public.component';
 
 interface OnboardingModalProps {
   onClose: () => void;
@@ -16,6 +18,11 @@ interface OnboardingModalProps {
 export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
   const modals = useModals();
   const t = useT();
+  const user = useUser();
+  // After the channels: connect an agent over MCP. It needs the workspace's
+  // API key, so without one onboarding ends after the channels as before.
+  const hasAgentStep = !!user?.publicApi;
+  const [step, setStep] = useState<'channels' | 'agent'>('channels');
 
   return (
     <div className="w-full min-h-full flex-1 p-[40px] flex relative">
@@ -45,7 +52,18 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
         </button>
         <div className="flex-1 flex p-[40px]">
           <div className="flex flex-col gap-[24px] flex-1">
-            <OnboardingStep1 onNext={onClose} onSkip={onClose} />
+            {step === 'channels' ? (
+              <OnboardingStep1
+                onNext={hasAgentStep ? () => setStep('agent') : onClose}
+                onSkip={onClose}
+                hasNext={hasAgentStep}
+              />
+            ) : (
+              <OnboardingAgentStep
+                onBack={() => setStep('channels')}
+                onDone={onClose}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -53,10 +71,11 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
   );
 };
 
-const OnboardingStep1: FC<{ onNext: () => void; onSkip: () => void }> = ({
-  onNext,
-  onSkip,
-}) => {
+const OnboardingStep1: FC<{
+  onNext: () => void;
+  onSkip: () => void;
+  hasNext?: boolean;
+}> = ({ onNext, onSkip, hasNext }) => {
   const fetch = useFetch();
   const t = useT();
 
@@ -160,7 +179,14 @@ const OnboardingStep1: FC<{ onNext: () => void; onSkip: () => void }> = ({
           onClick={onNext}
           className="group flex items-center gap-[12px] bg-gradient-to-r from-[#622aff] to-[#8b5cf6] hover:from-[#7c3aff] hover:to-[#9d6eff] text-white font-semibold px-[32px] py-[14px] rounded-[12px] text-[16px] transition-all shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40"
         >
-          {sortedIntegrations.length > 0
+          {hasNext
+            ? sortedIntegrations.length > 0
+              ? t('onboarding_next', 'Next')
+              : t(
+                  'onboarding_next_without_channels',
+                  'Continue without channels'
+                )
+            : sortedIntegrations.length > 0
             ? t('onboarding_start', 'Start')
             : t('onboarding_start_without_channels', 'Start without channels')}
           <svg
@@ -184,3 +210,52 @@ const OnboardingStep1: FC<{ onNext: () => void; onSkip: () => void }> = ({
   );
 };
 
+// Second step: connect Claude, ChatGPT or a coding agent over MCP. The panel
+// is the one in Settings, so both stay the same. Skippable.
+const OnboardingAgentStep: FC<{ onBack: () => void; onDone: () => void }> = ({
+  onBack,
+  onDone,
+}) => {
+  const t = useT();
+  return (
+    <div className="flex flex-col gap-[24px]">
+      <div className="flex gap-[4px] flex-col text-center">
+        <div className="text-[24px] font-semibold">
+          {t('onboarding_connect_agent', 'Connect your agent')}
+        </div>
+        <div className="text-[14px] text-textItemBlur">
+          {t(
+            'onboarding_connect_agent_sub',
+            'Connect Claude, ChatGPT or your coding agent so it can write and schedule posts for you. You can do this later in Settings.'
+          )}
+        </div>
+      </div>
+      <ConnectAgentPanel />
+      <div className="flex items-center justify-between gap-[12px] pt-[24px] mt-[8px]">
+        <button
+          type="button"
+          onClick={onBack}
+          className="text-[15px] font-[600] text-textItemBlur hover:text-newTextColor px-[8px] h-[44px]"
+        >
+          {t('onboarding_back', 'Back')}
+        </button>
+        <div className="flex items-center gap-[12px]">
+          <button
+            type="button"
+            onClick={onDone}
+            className="text-[15px] font-[600] text-textItemBlur hover:text-newTextColor px-[16px] h-[44px]"
+          >
+            {t('onboarding_skip_for_now', 'Skip for now')}
+          </button>
+          <button
+            type="button"
+            onClick={onDone}
+            className="group flex items-center gap-[12px] bg-gradient-to-r from-[#622aff] to-[#8b5cf6] hover:from-[#7c3aff] hover:to-[#9d6eff] text-white font-semibold px-[32px] py-[14px] rounded-[12px] text-[16px] transition-all shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40"
+          >
+            {t('onboarding_start', 'Start')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};

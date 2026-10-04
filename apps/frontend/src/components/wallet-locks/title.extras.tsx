@@ -10,7 +10,6 @@ import {
 } from '@gitroom/frontend/components/wallet/wallet.hooks';
 import { tPaidHint } from '@gitroom/frontend/components/wallet/wallet.text';
 import {
-  isFeature,
   TONE_TEXT,
   toneFor,
   useWalletAccess,
@@ -32,12 +31,9 @@ export const hasTitleExtras = (path: string) => !!PAGE_ACTION[path];
 const TOOLTIP_CLASS =
   '!max-w-[320px] !whitespace-normal !leading-[1.5] !text-[13px] !font-[400]';
 
-// How the page's paid action is charged, in one generated sentence. Warm
-// marks pay-per-use; a page for a feature a top-up opens (brief) stays teal.
-const PageCoins: FC<{ path: string; actionKey: string }> = ({
-  path,
-  actionKey,
-}) => {
+// How the page's paid action is charged, in one generated sentence, in the
+// warm accent every paid signal uses.
+const PageCoins: FC<{ actionKey: string }> = ({ actionKey }) => {
   const t = useT();
   const f = useWalletFormat();
   const { data } = useWalletPrices();
@@ -46,9 +42,7 @@ const PageCoins: FC<{ path: string; actionKey: string }> = ({
     return null;
   }
   const hint = tPaidHint(t, f, action);
-  const tone = isFeature(path.replace(/^\//, ''))
-    ? 'teal'
-    : toneFor(action.billing);
+  const tone = toneFor(action.billing);
   return (
     <span
       tabIndex={0}
@@ -93,7 +87,7 @@ export const TitleExtras: FC<{ path: string; info?: string }> = ({
           <InfoIcon />
         </span>
       )}
-      {!!actionKey && <PageCoins path={path} actionKey={actionKey} />}
+      {!!actionKey && <PageCoins actionKey={actionKey} />}
     </>
   );
 };

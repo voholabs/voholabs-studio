@@ -60,10 +60,10 @@ export const TopUpModal: FC<{ context?: string }> = ({ context }) => {
   const input = useRef<HTMLInputElement>(null);
   const ready = value !== null;
 
-  // Start at the minimum, as a plain number in the currency's major unit.
+  // Start at the minimum, as a whole number in the currency's major unit.
   useEffect(() => {
     if (value === null && rules) {
-      setValue(String(rules.minAmount / f.factor));
+      setValue(String(Math.ceil(rules.minAmount / f.factor)));
     }
   }, [rules, value, f.factor]);
 
@@ -75,12 +75,15 @@ export const TopUpModal: FC<{ context?: string }> = ({ context }) => {
     }
   }, [ready]);
 
+  // Top-ups are whole units of the currency (no cents).
+  const whole = /^\d+$/.test(value || '');
   const amount = useMemo(() => {
-    const n = parseFloat(value || '');
-    return Number.isFinite(n) ? Math.round(n * f.factor) : 0;
-  }, [value, f.factor]);
+    const n = parseInt(value || '', 10);
+    return whole && Number.isFinite(n) ? n * f.factor : 0;
+  }, [value, whole, f.factor]);
 
-  const valid = !!rules && amount >= minAmount;
+  const valid = !!rules && whole && amount >= minAmount;
+  const notWhole = touched && !!value && !whole;
   const tooLow = touched && !!value && !valid;
   const credits =
     valid && rules ? f.creditsFor(amount, rules.creditsPerUnit) : 0;
@@ -96,7 +99,13 @@ export const TopUpModal: FC<{ context?: string }> = ({ context }) => {
     try {
       const res = await fetch('/wallet/checkout', {
         method: 'POST',
-        body: JSON.stringify({ amount, saveCard: keepsCard || save }),
+        // autoTopUp: the box says "Save card and enable auto top-up", so a
+        // saved card asks the server to switch auto top-up on once paid.
+        body: JSON.stringify({
+          amount,
+          saveCard: keepsCard || save,
+          autoTopUp: keepsCard || save,
+        }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok || !body?.url) {
@@ -196,13 +205,13 @@ export const TopUpModal: FC<{ context?: string }> = ({ context }) => {
           <input
             ref={input}
             id="wallet-topup-amount"
-            inputMode="decimal"
+            inputMode="numeric"
             autoComplete="off"
             dir="ltr"
             aria-describedby="wallet-topup-error"
             aria-invalid={tooLow}
             value={value || ''}
-            placeholder={(0).toFixed(f.digits)}
+            placeholder="0"
             onChange={(e) => {
               setValue(e.target.value.replace(/[^0-9.]/g, ''));
               setTouched(true);
@@ -219,9 +228,11 @@ export const TopUpModal: FC<{ context?: string }> = ({ context }) => {
           id="wallet-topup-error"
           className={clsx('text-[12px] text-danger', !tooLow && 'hidden')}
         >
-          {t('wallet_min_topup', 'The minimum top-up is {{amount}}', {
-            amount: f.money(minAmount),
-          })}
+          {notWhole
+            ? t('wallet_whole_amount', 'Enter a whole amount, without cents.')
+            : t('wallet_min_topup', 'The minimum top-up is {{amount}}', {
+                amount: f.money(minAmount),
+              })}
         </div>
         {rules.options.length > 0 && (
           <div className="flex flex-wrap gap-[8px] mt-[4px]">

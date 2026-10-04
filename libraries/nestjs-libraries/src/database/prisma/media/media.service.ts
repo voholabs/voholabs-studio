@@ -1,4 +1,4 @@
-import { HttpException, Injectable } from '@nestjs/common';
+import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { MediaRepository } from '@gitroom/nestjs-libraries/database/prisma/media/media.repository';
 import { OpenaiService } from '@gitroom/nestjs-libraries/openai/openai.service';
 import { generationError } from '@gitroom/nestjs-libraries/openai/generation.error';
@@ -10,6 +10,7 @@ import { VideoDto } from '@gitroom/nestjs-libraries/dtos/videos/video.dto';
 import { UploadFactory } from '@gitroom/nestjs-libraries/upload/upload.factory';
 import { pricing } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/pricing';
 import { planOf } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
+import { WalletStorageService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.storage.service';
 import {
   AuthorizationActions,
   Sections,
@@ -19,12 +20,14 @@ import {
 @Injectable()
 export class MediaService {
   private storage = UploadFactory.createStorage();
+  private _logger = new Logger(MediaService.name);
 
   constructor(
     private _mediaRepository: MediaRepository,
     private _openAi: OpenaiService,
     private _subscriptionService: SubscriptionService,
-    private _videoManager: VideoManager
+    private _videoManager: VideoManager,
+    private _walletStorage: WalletStorageService
   ) {}
 
   async deleteMedia(org: string, id: string) {
@@ -67,28 +70,51 @@ export class MediaService {
     }
   }
 
-  saveFile(
+  async saveFile(
     org: string,
     fileName: string,
     filePath: string,
     originalName?: string,
     fileSize?: number
   ) {
-    return this._mediaRepository.saveFile(
+    const saved = await this._mediaRepository.saveFile(
       org,
       fileName,
       filePath,
       originalName,
       fileSize
     );
+    if (fileSize && fileSize > 0) {
+      await this.chargeStorage(org);
+    }
+    return saved;
+  }
+
+  // An organization that pays from its wallet is charged for storage above
+  // the free amount once the file is in its library. The file is kept
+  // whatever happens here.
+  private async chargeStorage(org: string) {
+    try {
+      await this._walletStorage.chargeCrossing(org);
+    } catch (err) {
+      this._logger.error(`Storage charge failed for ${org}: ${err}`);
+    }
   }
 
   // Bytes the organization may still upload. The usage is the sum of what is
   // in its media library, so there is no counter to keep in step. Files saved
-  // before sizes were recorded count as zero.
+  // before sizes were recorded count as zero. A free-plan organization that
+  // pays from its wallet has no cap: storage above the free amount is charged
+  // instead (see WalletStorageService), even into a negative balance.
   async storageLeft(org: string) {
     const subscription =
       await this._subscriptionService.getSubscriptionByOrganizationId(org);
+    if (
+      planOf(subscription) === 'FREE' &&
+      (await this._walletStorage.liftsCap(org))
+    ) {
+      return Number.POSITIVE_INFINITY;
+    }
     const limit = pricing[planOf(subscription)].storage_mb * 1024 * 1024;
 
     return limit - (await this._mediaRepository.getStorageUsed(org));

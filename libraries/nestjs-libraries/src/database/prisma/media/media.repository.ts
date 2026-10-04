@@ -13,7 +13,10 @@ const MEDIA_LOOKUP_SELECT = {
 
 @Injectable()
 export class MediaRepository {
-  constructor(private _media: PrismaRepository<'media'>) {}
+  constructor(
+    private _media: PrismaRepository<'media'>,
+    private _organization: PrismaRepository<'organization'>
+  ) {}
 
   async getStorageUsed(org: string) {
     const total = await this._media.model.media.aggregate({
@@ -27,6 +30,35 @@ export class MediaRepository {
     });
 
     return Number(total._sum.fileSize || 0);
+  }
+
+  // Organizations that have topped up their wallet (pay-as-you-go, also when
+  // frozen), with their plan and the bytes in their media library, for the
+  // monthly storage pass. Two queries whatever the number of organizations.
+  async storageOfWalletOrganizations() {
+    const organizations = await this._organization.model.organization.findMany({
+      where: { wallet: { firstTopUpAt: { not: null } } },
+      select: { id: true, subscription: true },
+    });
+    if (!organizations.length) {
+      return [];
+    }
+    const totals = await this._media.model.media.groupBy({
+      by: ['organizationId'],
+      where: {
+        organizationId: { in: organizations.map((o) => o.id) },
+        deletedAt: null,
+      },
+      _sum: { fileSize: true },
+    });
+    const bytes = new Map(
+      totals.map((t) => [t.organizationId, Number(t._sum.fileSize || 0)])
+    );
+    return organizations.map((o) => ({
+      organizationId: o.id,
+      subscription: o.subscription,
+      bytes: bytes.get(o.id) || 0,
+    }));
   }
 
   saveFile(

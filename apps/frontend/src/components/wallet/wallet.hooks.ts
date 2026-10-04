@@ -4,6 +4,7 @@ import { useCallback, useMemo } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import { useTranslation } from 'react-i18next';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
+import { useUser } from '@gitroom/frontend/components/layout/user.context';
 import { ENABLED_PROVIDERS } from '@gitroom/frontend/components/launches/add.provider.component';
 import {
   SupportedChannel,
@@ -194,11 +195,17 @@ export const useSupportedChannels = (enabled = true) => {
   );
 };
 
-// Refreshes every wallet query and the signed-in user (payAsYouGo).
+// Refreshes every wallet query and the signed-in user (payAsYouGo). Does
+// nothing on a paid plan, which has no wallet to refresh.
 export const useRefreshWallet = () => {
   const { mutate } = useSWRConfig();
+  const user = useUser();
+  const paidPlan = !!user?.tier?.current && user.tier.current !== 'FREE';
   return useCallback(
     async (summary?: WalletSummary) => {
+      if (paidPlan) {
+        return;
+      }
       await Promise.all([
         summary
           ? mutate(WALLET_KEY, summary, { revalidate: false })
@@ -214,7 +221,7 @@ export const useRefreshWallet = () => {
         mutate('/user/self'),
       ]);
     },
-    [mutate]
+    [mutate, paidPlan]
   );
 };
 

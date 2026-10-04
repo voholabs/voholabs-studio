@@ -106,7 +106,7 @@ export default function DeviceAuthorizePage() {
             Device authorized
           </div>
           <div className="text-[16px] text-gray-400 max-w-[400px]">
-            You can return to your terminal. The CLI is now connected to your
+            You can return to your terminal — the CLI is now connected to your
             Voholabs account.
           </div>
         </div>

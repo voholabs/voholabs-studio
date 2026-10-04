@@ -150,7 +150,7 @@ export const AdminStatsComponent: FC = () => {
         <div className="text-[20px] font-[600]">Admin Stats</div>
         {data && (
           <div className="text-[13px] opacity-70">
-            {new Date(data.from).toLocaleDateString()} –{' '}
+            {new Date(data.from).toLocaleDateString()} —{' '}
             {new Date(data.to).toLocaleDateString()}
           </div>
         )}

@@ -41,7 +41,7 @@ TO CHANGE A POST, use editPostTool with its "id". It edits in place and keeps wh
 Every post returns its "settings" too — the channel options it was scheduled with, such as which Discord channel it goes to or an X post's reply permissions and AI-disclosure flags. That is what you read back when you need to know how a post is configured, and what editPostTool merges into rather than replacing.
 
 TO LINK ONE POST TO ANOTHER (echoing a post to another channel): every post here returns a "linkReference" like "(post:<id>)". Put that string in another post's content and it is replaced with this post's real URL at the moment that post publishes. It works while "releaseURL" is still null - a queued post has no URL yet, and that is exactly the case this is for. Never copy "releaseURL" to build an echo; use "linkReference".
-"A post that failed to publish has state "ERROR" and carries "error", the reason. When "errorKind" is "wallet" it was not published because the wallet could not pay for it when it was due: tell the user to top up, then set it back on the schedule with postStatusTool (or move its date) if they still want it out. It is never retried on its own.
+A post that failed to publish has state "ERROR" and carries "error", the reason. When "errorKind" is "wallet" it was not published because the wallet could not pay for it when it was due: tell the user to top up, then set it back on the schedule with postStatusTool (or move its date) if they still want it out. It is never retried on its own.
 
 "references" lists the posts THIS one points at. A chain is only as good as its links: if a post it references is deleted, the reference can never resolve and this post fails at publish time instead of going out with a broken link — a silent no-show. So edit posts rather than deleting them, and check what a delete would break before you run it (deletePostTool refuses and names them).`,
       mcp: {
@@ -184,7 +184,12 @@ TO LINK ONE POST TO ANOTHER (echoing a post to another channel): every post here
               endDate,
               customer: inputData.customer,
             },
-            { includeMedia: true, includeSettings: true, includeThread: true }
+            {
+              includeMedia: true,
+              includeSettings: true,
+              includeThread: true,
+              includeError: true,
+            }
           );
 
           // One lookup for every attachment across the whole page, rather than

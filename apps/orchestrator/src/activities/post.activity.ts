@@ -8,7 +8,6 @@ import {
   WalletService,
 } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 import { WalletBillingService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.billing.service';
-import { xPostActionKey } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.x';
 import { walletAlert } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.alert';
 import {
   Activity,
@@ -64,15 +63,6 @@ function slimPost(post: any) {
   return rest;
 }
 
-// X charges more for a post with a link, and decides what is a link with the
-// same rules as twitter-text (bare domains such as example.com count). The
-// shared rule lives in the wallet, so the cost shown and the cost charged
-// cannot drift apart.
-// TODO(merge): replace with WalletService.postActionKey(provider, sentText,
-// { sent: true }) once the core stream adds it.
-const postActionKey = (provider: string, text: string) =>
-  `${provider}.${xPostActionKey(text).split('.')[1]}`;
-
 // The text a provider sends for a message: X strips links when
 // STRIP_LINKS_FROM_X_POSTS is set, and is then billed for the stripped text.
 const sentTextFor =
@@ -122,9 +112,9 @@ export class PostActivity {
       integration.providerIdentifier,
       '',
       '',
-      await this._integrationService.lockedProviderMessage(
-        integration.providerIdentifier,
-        integration.organizationId
+      await this._walletService.lockedProviderMessageFor(
+        integration.organizationId,
+        integration.providerIdentifier
       )
     );
   }
@@ -137,11 +127,17 @@ export class PostActivity {
     post: { id: string; message: string },
     sentText: string
   ) {
-    const provider = integration.providerIdentifier.toLowerCase().split('-')[0];
     try {
+      // The one link rule, on the exact text sent to the network, so the
+      // cost shown and the cost charged cannot drift apart.
+      const actionKey = await this._walletService.postActionKey(
+        integration.providerIdentifier,
+        sentText,
+        { sent: true }
+      );
       const entry = await this._walletBilling.charge({
         organizationId: integration.organizationId,
-        actionKey: postActionKey(provider, sentText),
+        actionKey,
         chargeKey: `post:${post.id}`,
         reference: post.id,
       });

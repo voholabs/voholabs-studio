@@ -278,3 +278,68 @@ describe('WalletBillingService.charge', () => {
     expect(auto).toHaveBeenCalledWith('org-1');
   });
 });
+
+describe('WalletBillingService auto top-up idempotency', () => {
+  const env = process.env.WALLET_STRIPE_SECRET_KEY;
+  beforeEach(() => {
+    process.env.WALLET_STRIPE_SECRET_KEY = 'sk_test_stub';
+  });
+  afterAll(() => {
+    process.env.WALLET_STRIPE_SECRET_KEY = env;
+  });
+
+  const autoBuild = (spent: { value: number }, card: { id: string }) => {
+    const { service, wallet, stripe } = build();
+    wallet.getWallet = jest.fn(async () => ({
+      autoTopUp: true,
+      frozenAt: null,
+      paymentMethodId: card.id,
+      stripeCustomerId: 'cus_1',
+      autoTopUpAmount: 1000,
+      autoTopUpThreshold: 25000,
+      autoTopUpMonthlyCap: 10000,
+      currency: 'USD',
+    }));
+    wallet.balance = jest.fn(async () => 100);
+    wallet.autoTopUpSpentSince = jest.fn(async () => spent.value);
+    wallet.unitsForAmount = jest.fn(async (a: number) => a * 100);
+    wallet.currency = jest.fn(async () => 'USD');
+    (stripe.paymentIntents as any).create = jest.fn(async (params: any) => ({
+      id: 'pi_auto',
+      status: 'succeeded',
+      amount: params.amount,
+      amount_received: params.amount,
+      currency: params.currency,
+      metadata: params.metadata,
+      latest_charge: null,
+    }));
+    return { service, stripe };
+  };
+  const keyOf = (stripe: any, call: number) =>
+    stripe.paymentIntents.create.mock.calls[call][1].idempotencyKey;
+
+  it('uses a new key once a top-up has been credited', async () => {
+    const spent = { value: 0 };
+    const { service, stripe } = autoBuild(spent, { id: 'pm_1' });
+    await service.autoTopUp('org-1', 225);
+    spent.value = 1000;
+    await service.autoTopUp('org-1', 225);
+    expect(keyOf(stripe, 0)).not.toBe(keyOf(stripe, 1));
+  });
+
+  it('keeps one key for requests before the top-up is credited', async () => {
+    const { service, stripe } = autoBuild({ value: 0 }, { id: 'pm_1' });
+    await service.autoTopUp('org-1', 225);
+    await service.autoTopUp('org-1', 225);
+    expect(keyOf(stripe, 0)).toBe(keyOf(stripe, 1));
+  });
+
+  it('uses a new key when the card changes', async () => {
+    const card = { id: 'pm_1' };
+    const { service, stripe } = autoBuild({ value: 0 }, card);
+    await service.autoTopUp('org-1', 225);
+    card.id = 'pm_2';
+    await service.autoTopUp('org-1', 225);
+    expect(keyOf(stripe, 0)).not.toBe(keyOf(stripe, 1));
+  });
+});

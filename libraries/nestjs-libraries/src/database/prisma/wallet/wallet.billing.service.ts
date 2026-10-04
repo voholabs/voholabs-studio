@@ -616,8 +616,11 @@ export class WalletBillingService {
     };
 
     try {
-      // One attempt per wallet and amount per ten minutes, however many posts
-      // ask for it.
+      // One attempt per top-up, however many posts ask for it at once: the
+      // key holds the card and what auto top-up has added this month, so it
+      // changes once a top-up is credited (the next one is a new payment, not
+      // a replay of the last) and when the card changes. The ten-minute part
+      // lets a failed attempt be tried again later.
       const intent = await this.stripe.paymentIntents.create(
         {
           amount,
@@ -630,9 +633,9 @@ export class WalletBillingService {
           metadata,
         },
         {
-          idempotencyKey: `wallet-auto:${organizationId}:${amount}:${Math.floor(
-            Date.now() / 600_000
-          )}`,
+          idempotencyKey: `wallet-auto:${organizationId}:${
+            wallet.paymentMethodId
+          }:${amount}:${spent}:${Math.floor(Date.now() / 600_000)}`,
         }
       );
 

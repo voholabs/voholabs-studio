@@ -5,8 +5,15 @@ import { stripLinks } from '@gitroom/helpers/utils/strip.links';
 import {
   InsufficientCreditsError,
   notEnoughCreditsMessage,
+  postOccurrenceChargeKey,
+  repeatRunOf,
   WalletService,
 } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
+import {
+  REFUND_REASONS,
+  WalletPostsService,
+} from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.posts.service';
+import { Context } from '@temporalio/activity';
 import { WalletBillingService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.billing.service';
 import { walletAlert } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.alert';
 import {
@@ -69,6 +76,14 @@ const sentTextFor =
   (provider: { stripLinks?: () => boolean }) => (message: string) =>
     provider.stripLinks?.() ? stripLinks(message) : message;
 
+const currentRun = () => {
+  try {
+    return repeatRunOf(Context.current().info.workflowExecution.workflowId);
+  } catch (err) {
+    return undefined;
+  }
+};
+
 @Injectable()
 @Activity()
 export class PostActivity {
@@ -83,7 +98,8 @@ export class PostActivity {
     private _webhookService: WebhooksService,
     private _temporalService: TemporalService,
     private _walletService: WalletService,
-    private _walletBilling: WalletBillingService
+    private _walletBilling: WalletBillingService,
+    private _walletPosts: WalletPostsService
   ) {}
 
   // A channel the free plan locks is open to a paid plan, or to a
@@ -119,9 +135,11 @@ export class PostActivity {
     );
   }
 
-  // Takes the credits for one post as it is published, priced on the text that
-  // is sent to the network. Returns the charge to give back if publishing then
-  // fails.
+  // The credits for one post as it is published. A post is paid when it is
+  // scheduled, so this normally finds that charge and takes nothing more; a
+  // post queued before that (or a repeat occurrence) is charged now, priced
+  // on the text sent to the network. Returns the charge to give back if
+  // publishing then fails.
   private async chargeForPost(
     integration: Integration,
     post: { id: string; message: string },
@@ -138,7 +156,7 @@ export class PostActivity {
       const entry = await this._walletBilling.charge({
         organizationId: integration.organizationId,
         actionKey,
-        chargeKey: `post:${post.id}`,
+        chargeKey: postOccurrenceChargeKey(post.id, currentRun()),
         reference: post.id,
       });
       return entry.idempotencyKey!;
@@ -193,6 +211,20 @@ export class PostActivity {
     publish: () => Promise<T>
   ) {
     if (!(await this.paysFromWallet(integration))) {
+      // Paid when it was scheduled, but this workspace no longer pays from
+      // its wallet (e.g. it moved to a paid plan): give that back.
+      if (
+        providerNeedsPaidPlan(integration.providerIdentifier) &&
+        !currentRun()
+      ) {
+        await this._walletPosts
+          .refundPosts(
+            integration.organizationId,
+            posts.map((p) => p.id),
+            REFUND_REASONS.includedInPlan
+          )
+          .catch(() => undefined);
+      }
       return publish();
     }
     const charges: { postId: string; charge: string }[] = [];

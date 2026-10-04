@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, WalletEntryType } from '@prisma/client';
+import { Prisma, WalletEntry, WalletEntryType } from '@prisma/client';
 import {
   PrismaRepository,
   PrismaTransaction,
@@ -60,6 +60,47 @@ const usedUnitsQuery = async (
 
 const isUniqueViolation = (err: unknown) =>
   (err as { code?: string })?.code === 'P2002';
+
+// One thing to settle in WalletRepository.settleCharges: what the chargeKey
+// should be charged as now, or null for nothing (its standing charge, if any,
+// is refunded).
+export interface SettleItem {
+  chargeKey: string;
+  charge:
+    | {
+        actionKey: string;
+        unitPrice: number;
+        description: string;
+        reference?: string;
+        free?: FreeAllowance;
+      }
+    | null;
+  // The standing charge was used up (the thing it paid for already
+  // happened): charge again under the next key instead of keeping it, and
+  // leave it as it is.
+  fresh?: boolean;
+}
+
+export interface SettleResult {
+  chargeKey: string;
+  result: 'kept' | 'charged' | 'refunded' | 'repriced' | 'none';
+  entry?: { idempotencyKey: string | null; amount: number };
+}
+
+// A post row as the post charges read it.
+export interface ChargePostRow {
+  id: string;
+  group: string;
+  parentPostId: string | null;
+  state: string;
+  content: string;
+  releaseURL: string | null;
+  releaseId: string | null;
+  deletedAt: Date | null;
+  publishDate: Date;
+  intervalInDays: number | null;
+  integration: { providerIdentifier: string } | null;
+}
 
 @Injectable()
 export class WalletRepository {
@@ -175,6 +216,260 @@ export class WalletRepository {
         integration: { select: { providerIdentifier: true } },
       },
       orderBy: { publishDate: 'asc' },
+    });
+  }
+
+  // Every row (live or deleted) of the given post groups, for charging posts
+  // when they are scheduled and refunding them when they are not sent.
+  postsInGroups(organizationId: string, groups: string[]) {
+    if (!groups.length) {
+      return Promise.resolve([] as ChargePostRow[]);
+    }
+    return this._post.model.post.findMany({
+      where: { organizationId, group: { in: groups } },
+      select: {
+        id: true,
+        group: true,
+        parentPostId: true,
+        state: true,
+        content: true,
+        releaseURL: true,
+        releaseId: true,
+        deletedAt: true,
+        publishDate: true,
+        intervalInDays: true,
+        integration: { select: { providerIdentifier: true } },
+      },
+    }) as Promise<ChargePostRow[]>;
+  }
+
+  // Live posts on the given providers that repeat ("Repeat post every..."),
+  // for the forecast of their next occurrences.
+  repeatingPosts(organizationId: string, providers: string[]) {
+    return this._post.model.post.findMany({
+      where: {
+        organizationId,
+        deletedAt: null,
+        intervalInDays: { gt: 0 },
+        state: { in: ['QUEUE', 'PUBLISHED'] },
+        integration: {
+          providerIdentifier: { in: providers },
+          deletedAt: null,
+          disabled: false,
+        },
+      },
+      select: {
+        id: true,
+        group: true,
+        parentPostId: true,
+        state: true,
+        content: true,
+        publishDate: true,
+        intervalInDays: true,
+        integration: { select: { providerIdentifier: true } },
+      },
+    });
+  }
+
+  // The charge standing for each chargeKey: its latest SPEND, when that was
+  // not refunded.
+  async standingCharges(organizationId: string, chargeKeys: string[]) {
+    const standing = new Map<string, WalletEntry>();
+    if (!chargeKeys.length) {
+      return standing;
+    }
+    const spends = await this._entry.model.walletEntry.findMany({
+      where: {
+        organizationId,
+        type: WalletEntryType.SPEND,
+        chargeKey: { in: chargeKeys },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    const latest = new Map<string, WalletEntry>();
+    for (const spend of spends) {
+      if (spend.chargeKey && !latest.has(spend.chargeKey)) {
+        latest.set(spend.chargeKey, spend);
+      }
+    }
+    const refunds = await this._entry.model.walletEntry.findMany({
+      where: {
+        idempotencyKey: {
+          in: [...latest.values()].map((e) => `refund:${e.idempotencyKey}`),
+        },
+      },
+      select: { idempotencyKey: true },
+    });
+    const refunded = new Set(refunds.map((r) => r.idempotencyKey));
+    for (const [key, entry] of latest) {
+      if (!refunded.has(`refund:${entry.idempotencyKey}`)) {
+        standing.set(key, entry);
+      }
+    }
+    return standing;
+  }
+
+  // Brings several charges to what they should be now, all or nothing, under
+  // the wallet lock: charges what has no standing charge, re-prices a
+  // standing charge whose action changed (refund, then charge again) and
+  // refunds what should no longer be charged. Throws InsufficientCreditsError
+  // (with the net amount needed) and writes nothing when the balance does not
+  // cover the net amount it would take; giving credits back never fails.
+  async settleCharges(
+    organizationId: string,
+    items: SettleItem[],
+    refundDescription: string
+  ): Promise<SettleResult[]> {
+    if (!items.length) {
+      return [];
+    }
+    return this._transaction.model.$transaction(async (tx) => {
+      await tx.wallet.upsert({
+        where: { organizationId },
+        update: {},
+        create: { organizationId },
+      });
+      await tx.$queryRaw`SELECT id FROM "Wallet" WHERE "organizationId" = ${organizationId} FOR UPDATE`;
+
+      // Plan everything first; nothing is written until the balance check.
+      const refunds: NewWalletEntry[] = [];
+      const spends: (NewWalletEntry & { chargeKey: string })[] = [];
+      const results: SettleResult[] = [];
+      let net = 0;
+      for (const item of items) {
+        const where = {
+          organizationId,
+          type: WalletEntryType.SPEND,
+          chargeKey: item.chargeKey,
+        };
+        const [latest, count] = await Promise.all([
+          tx.walletEntry.findFirst({ where, orderBy: { createdAt: 'desc' } }),
+          tx.walletEntry.count({ where }),
+        ]);
+        const standing =
+          latest &&
+          !(await tx.walletEntry.findUnique({
+            where: { idempotencyKey: `refund:${latest.idempotencyKey}` },
+          }))
+            ? latest
+            : null;
+
+        const refund = () => {
+          refunds.push({
+            organizationId,
+            amount: -standing!.amount,
+            type: 'REFUND',
+            actionKey: standing!.actionKey || undefined,
+            quantity: -standing!.quantity,
+            unitPrice: standing!.unitPrice || undefined,
+            description: refundDescription,
+            idempotencyKey: `refund:${standing!.idempotencyKey}`,
+            reference: standing!.reference || undefined,
+          });
+          net += standing!.amount;
+        };
+
+        if (!item.charge) {
+          if (standing && !item.fresh) {
+            refund();
+            results.push({
+              chargeKey: item.chargeKey,
+              result: 'refunded',
+              entry: { idempotencyKey: standing.idempotencyKey, amount: 0 },
+            });
+          } else {
+            results.push({ chargeKey: item.chargeKey, result: 'none' });
+          }
+          continue;
+        }
+
+        if (
+          standing &&
+          !item.fresh &&
+          standing.actionKey === item.charge.actionKey
+        ) {
+          results.push({
+            chargeKey: item.chargeKey,
+            result: 'kept',
+            entry: {
+              idempotencyKey: standing.idempotencyKey,
+              amount: standing.amount,
+            },
+          });
+          continue;
+        }
+        const repriced = !!standing && !item.fresh;
+        if (repriced) {
+          refund();
+        }
+
+        let amount = item.charge.unitPrice;
+        let unitPrice = item.charge.unitPrice;
+        let description = item.charge.description;
+        let meta: string | undefined;
+        const free = item.charge.free;
+        if (free && free.units > 0) {
+          const used =
+            (await usedUnitsQuery(
+              tx,
+              organizationId,
+              item.charge.actionKey,
+              free.since
+            )) +
+            spends.filter(
+              (s) => s.actionKey === item.charge!.actionKey && s.amount === 0
+            ).length;
+          if (used < free.units) {
+            amount = 0;
+            unitPrice = 0;
+            description = FREE_DESCRIPTION;
+            meta = JSON.stringify({ freeQuantity: 1 });
+          }
+        }
+        spends.push({
+          organizationId,
+          amount,
+          type: 'SPEND',
+          actionKey: item.charge.actionKey,
+          quantity: 1,
+          unitPrice,
+          description,
+          meta,
+          reference: item.charge.reference,
+          chargeKey: item.chargeKey,
+          idempotencyKey: `${item.chargeKey}#${count + 1}`,
+        });
+        net += amount;
+        results.push({
+          chargeKey: item.chargeKey,
+          result: repriced ? 'repriced' : 'charged',
+          entry: {
+            idempotencyKey: `${item.chargeKey}#${count + 1}`,
+            amount: -amount,
+          },
+        });
+      }
+
+      if (net > 0) {
+        const sum = await tx.walletEntry.aggregate({
+          where: { organizationId },
+          _sum: { amount: true },
+        });
+        const balance = sum._sum.amount || 0;
+        if (balance < net) {
+          throw new InsufficientCreditsError(net, balance);
+        }
+      }
+
+      for (const refund of refunds) {
+        await tx.walletEntry.create({ data: refund });
+      }
+      for (const spend of spends) {
+        await tx.walletEntry.create({
+          data: { ...spend, amount: spend.amount ? -spend.amount : 0 },
+        });
+      }
+      return results;
     });
   }
 

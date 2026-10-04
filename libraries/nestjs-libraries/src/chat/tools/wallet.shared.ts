@@ -42,29 +42,18 @@ export interface WalletForecast {
   short: boolean;
 }
 
-// The scheduled paid usage due soon (WalletService.forecast). Missing or
-// failing, it is simply left out: the forecast only ever adds a warning.
+// The scheduled paid usage due soon (WalletService.forecast). Failing, it is
+// simply left out: the forecast only ever adds a warning.
 export const walletForecast = async (
   wallet: WalletService,
   organizationId: string
 ): Promise<WalletForecast | undefined> => {
-  const forecast = (wallet as any).forecast;
-  if (typeof forecast !== 'function') {
-    return undefined;
-  }
   try {
-    const result = await forecast.call(wallet, organizationId);
-    if (
-      !result ||
-      typeof result.needed !== 'number' ||
-      typeof result.windowHours !== 'number'
-    ) {
-      return undefined;
-    }
+    const result = await wallet.forecast(organizationId);
     return {
       windowHours: result.windowHours,
       needed: result.needed,
-      short: !!result.short,
+      short: result.short,
     };
   } catch (err) {
     return undefined;
@@ -77,21 +66,11 @@ const providerOf = (identifier: string) =>
 // The action one post (or reply) is charged as. The link rule lives only in
 // WalletService.postActionKey; sent: false reads the text as it is saved,
 // before any link stripping at publish.
-// TODO(merge): stream S1 makes postActionKey public with the { sent } option;
-// drop the cast then.
-export const postActionKey = async (
+export const postActionKey = (
   wallet: WalletService,
   identifier: string,
   content: string
-): Promise<string | undefined> => {
-  const fn = (wallet as any).postActionKey;
-  if (typeof fn !== 'function') {
-    return undefined;
-  }
-  return fn.call(wallet, providerOf(identifier), content || '', {
-    sent: false,
-  });
-};
+) => wallet.postActionKey(identifier, content || '', { sent: false });
 
 // Units of credit for one post and its replies on a channel the wallet
 // charges per post. undefined when a row is missing (nothing is guessed).
@@ -102,8 +81,9 @@ export const postCost = async (
 ) => {
   let total = 0;
   for (const content of contents) {
-    const actionKey = await postActionKey(wallet, identifier, content);
-    const priced = actionKey ? await wallet.price(actionKey) : undefined;
+    const priced = await wallet.price(
+      await postActionKey(wallet, identifier, content)
+    );
     if (!priced) {
       return undefined;
     }
@@ -133,37 +113,6 @@ export const walletPostCost = async (
   } catch (err) {
     return undefined;
   }
-};
-
-export interface ContentsEstimate {
-  price: number;
-  short: boolean;
-  autoCovers: boolean;
-}
-
-// WalletService.estimateContents: what these posts cost on one provider, and
-// whether the balance plus what auto top-up can still add covers them on top
-// of the usage already scheduled.
-// TODO(merge): stream S1 adds estimateContents; call it directly then.
-const estimateContents = async (
-  wallet: WalletService,
-  organizationId: string,
-  provider: string,
-  contents: string[]
-): Promise<ContentsEstimate | undefined> => {
-  const fn = (wallet as any).estimateContents;
-  if (typeof fn !== 'function') {
-    return undefined;
-  }
-  const result = await fn.call(wallet, organizationId, provider, contents);
-  if (!result || typeof result.price !== 'number') {
-    return undefined;
-  }
-  return {
-    price: result.price,
-    short: !!result.short,
-    autoCovers: !!result.autoCovers,
-  };
 };
 
 // Posts not yet on the schedule, grouped by channel: provider -> the texts of
@@ -202,38 +151,27 @@ export const walletWarning = async (
   try {
     const estimates = await Promise.all(
       [...pending.entries()].map(([provider, { contents }]) =>
-        estimateContents(wallet, organizationId, provider, contents)
+        wallet.estimateContents(organizationId, provider, contents)
       )
     );
-    if (estimates.every((e) => e !== undefined)) {
-      return estimates.some((e) => e!.short) ? shortWarning() : undefined;
-    }
-
-    // TODO(merge): the same sums by hand until estimateContents exists.
-    const units = [...pending.values()].reduce((all, p) => all + p.units, 0);
-    const [forecast, balance, headroom] = await Promise.all([
-      walletForecast(wallet, organizationId),
-      wallet.balance(organizationId),
-      wallet.autoTopUpHeadroom(organizationId),
-    ]);
-    const needed = units + (forecast?.needed || 0);
-    return needed > balance && needed > balance + headroom
-      ? shortWarning()
-      : undefined;
+    return estimates.some((e) => e.short) ? shortWarning() : undefined;
   } catch (err) {
     return undefined;
   }
 };
 
 // A publish error the wallet wrote: not enough credits when the post was due,
-// or a wallet on hold. Read from the error text when the post carries no
-// errorKind of its own.
+// or a wallet on hold. The server's errorKind (PostsService) decides whenever
+// the post carries one; the error text is read only when it does not.
 export const walletErrorKind = (
   error?: string | null,
   errorKind?: string | null
 ): 'wallet' | null => {
-  if (errorKind !== undefined) {
-    return errorKind === 'wallet' ? 'wallet' : null;
+  if (errorKind === 'wallet') {
+    return 'wallet';
+  }
+  if (errorKind === null) {
+    return null;
   }
   if (!error) {
     return null;

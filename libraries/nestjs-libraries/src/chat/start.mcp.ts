@@ -8,6 +8,7 @@ import { runWithContext } from './async.storage';
 import { createOAuthMiddleware } from './oauth-middleware';
 import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
 import {
+  notOnPlanToolNames,
   paidToolNames,
   walletToolKeys,
   walletToolNames,
@@ -91,10 +92,16 @@ export const startMcp = async (app: INestApplication) => {
   const agent = mastra.getAgent('postiz');
   const tools = await agent.listTools();
 
+  // What a paid plan is served: every tool except the wallet's and the
+  // skills library.
   const serverConfig = {
     name: 'Voholabs MCP',
     version: '1.0.0',
-    tools,
+    tools: Object.fromEntries(
+      Object.entries(tools).filter(
+        ([name]) => !notOnPlanToolNames.includes(name)
+      )
+    ),
     // Registering the agent here is what publishes `ask_postiz`: MCPServer
     // generates an `ask_<name>` tool for every agent in this map. That tool
     // hands the whole job to Studio's own agent, which needs its own OpenAI key

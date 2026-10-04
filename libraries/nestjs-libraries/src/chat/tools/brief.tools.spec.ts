@@ -97,9 +97,9 @@ describe('briefSaveTool', () => {
     expect(result.error).toMatch(/Allowed keys: north-star/);
   });
 
-  it('says in its description that saving keeps the files', () => {
-    const tool = new BriefSaveTool({} as any).run() as any;
-    expect(tool.description).toMatch(/saving keeps them/);
+  it('documents the remove action on briefAssetTool', () => {
+    const tool = new BriefAssetTool({} as any).run() as any;
+    expect(tool.inputSchema.shape.action.description).toMatch(/remove/);
   });
 });
 

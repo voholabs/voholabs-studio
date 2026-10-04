@@ -9,6 +9,7 @@ import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/
 import {
   addPendingWalletPost,
   walletRefusal,
+  onPaidPlan,
   orgFromContext,
   PendingWalletPosts,
   toCredits,
@@ -74,8 +75,7 @@ export class PostsStatusTool implements AgentToolInterface {
       id: 'postStatusTool',
       description: `Move a post between draft and the schedule.
 Setting it to DRAFT takes a queued post off the schedule so it will not publish, without deleting it. Setting it to QUEUE puts a draft back on the schedule at its existing time, so check that time is still in the future before doing it, or it may go out immediately.
-Use postsList to find the post. This does nothing to a post that has already been published.
-On a workspace that pays per post from its wallet, QUEUE takes the credits now and returns "cost"; when the credits don't cover it (after an automatic top-up, when that is on) the post stays as it was and "error" carries the reason and a top-up link: pass both on. DRAFT gives back the credits of a queued post.`,
+Use postsList to find the post. This does nothing to a post that has already been published.`,
       mcp: {
         annotations: {
           title: 'Change Post Status',
@@ -109,8 +109,10 @@ On a workspace that pays per post from its wallet, QUEUE takes the credits now a
           const organization = orgFromContext(context);
           const organizationId = organization.id;
 
+          // A paid plan never pays from the wallet: nothing to add.
+          const paidPlan = onPaidPlan(organization);
           const wallet =
-            inputData.status === 'QUEUE'
+            inputData.status === 'QUEUE' && !paidPlan
               ? await this.walletLine(organization, inputData.id)
               : {};
 
@@ -128,7 +130,13 @@ On a workspace that pays per post from its wallet, QUEUE takes the credits now a
             return { error: refusal };
           }
           return {
-            error: `Failed to change the post status: ${errorMessageForAgent(err)}`,
+            error: `Failed to change the post status: ${
+              onPaidPlan(orgFromContext(context))
+                ? err instanceof Error
+                  ? err.message
+                  : 'Unexpected error'
+                : errorMessageForAgent(err)
+            }`,
           };
         }
       },

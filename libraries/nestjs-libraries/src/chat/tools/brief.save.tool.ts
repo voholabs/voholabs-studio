@@ -22,9 +22,8 @@ export class BriefSaveTool implements AgentToolInterface {
 Each rule is a heading and the plain text under it. Plain text means plain: no markdown, no HTML, no "#" headings, bullets, tables or bold. Anything sent as markup is stored and rendered literally, so it reads as broken rather than as formatting.
 One rule holding a whole formatted document is the wrong shape. Split it into one rule per idea and let each heading do the work its markdown heading would have done — the headings are the document's structure.
 Sources hold one document per source, not one document listing them all. A source is a single place the agent can read from, so give each its own short key and its own title ("forum", "discord", "notion"), and put its address in "links" with a note saying what the link is and when to use it. A source document with no links is nearly always a mistake, because the link is the source and the rules only say how to use it.
-Files registered on a document (Branding & assets) are not part of "rules": saving keeps them as they are. Add one with briefAssetTool, and take one off with briefAssetTool's "remove" action.
 For Experience use briefLearnTool instead, which revises one lesson at a time rather than replacing the document, and needs no permission.
-Use briefListTool for the list of valid categories and keys. Only documents in a category marked canCreate may be created with a new key; Foundation only takes its own fixed keys, and an unknown one is refused with the list of allowed keys.`,
+Use briefListTool for the list of valid categories and keys. Only documents in a category marked canCreate may be created with a new key; everything else must use a key that already exists.`,
       mcp: {
         annotations: {
           title: 'Write Agent Brief',

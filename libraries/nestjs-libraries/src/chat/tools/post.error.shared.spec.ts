@@ -182,7 +182,14 @@ describe('postsList', () => {
 
   const context = () => {
     const store = new Map<string, string>([
-      ['organization', JSON.stringify({ id: 'org-1' })],
+      // Without a paid plan: a paid plan gets the list without reasons.
+      [
+        'organization',
+        JSON.stringify({
+          id: 'org-1',
+          subscription: { subscriptionTier: 'FREE', cancelAt: '2020-01-01' },
+        }),
+      ],
     ]);
     return {
       requestContext: {

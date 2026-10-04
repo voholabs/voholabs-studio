@@ -20,8 +20,7 @@ export class BriefListTool implements AgentToolInterface {
       description: `Read the agent brief: everything the user has written about their business — what they do, who they are for, how they sound, what is off limits, how each channel should be steered, and which sources to draw on.
 Read this before writing anything on the user's behalf, so the content matches their business rather than generic advice.
 It returns both the schema (which categories and documents exist, and which of them can be created or deleted) and the content the user has filled in so far. A document that has never been written to simply will not appear in "documents".
-Each document is a list of rules: a heading and the text under it.
-To read only some documents, pass "key" (or "keys"): the result then holds just those documents, without the schema, and "notWritten" names any of them that has never been written to. An unknown "category" is refused rather than ignored.`,
+Each document is a list of rules: a heading and the text under it.`,
       mcp: {
         annotations: {
           title: 'Read Agent Brief',

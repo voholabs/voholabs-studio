@@ -74,18 +74,6 @@ so you CAN schedule "here is my new X post: <link>" before the X post exists.
   waits for it, and fails instead of publishing a broken link. So an echo never goes
   out without its link.
 - The reference expands to a full URL, so leave room for it in character limits.
-
-WALLET CREDITS:
-On a workspace that pays per post from its wallet, each such post in the output
-carries "cost": the credits for the post and its replies, taken NOW, as it is
-scheduled. A draft is not charged: it carries "costWhenScheduled" instead, what
-it will take once it is scheduled. Deleting it, moving it
-back to drafts or a failed publish gives back what was not sent. A repeating post
-is charged per occurrence: each repeat is charged when it goes out.
-If the credits don't cover it (after an automatic top-up, when that is on), nothing
-is scheduled and the call returns "errors" with the reason and a top-up link: pass
-both on to the user. The same happens when the workspace has not unlocked a
-channel from its wallet yet.
 `,
       inputSchema: z.object({
         socialPost: z

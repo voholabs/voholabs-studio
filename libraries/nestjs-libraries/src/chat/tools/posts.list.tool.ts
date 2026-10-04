@@ -12,6 +12,10 @@ import {
   errorMessageForAgent,
   POST_ERROR_KINDS,
 } from '@gitroom/nestjs-libraries/chat/tools/post.error.shared';
+import {
+  onPaidPlan,
+  orgFromContext,
+} from '@gitroom/nestjs-libraries/chat/tools/wallet.shared';
 
 const DEFAULT_RANGE_IN_DAYS = 30;
 
@@ -45,16 +49,6 @@ TO CHANGE A POST, use editPostTool with its "id". It edits in place and keeps wh
 Every post returns its "settings" too — the channel options it was scheduled with, such as which Discord channel it goes to or an X post's reply permissions and AI-disclosure flags. That is what you read back when you need to know how a post is configured, and what editPostTool merges into rather than replacing.
 
 TO LINK ONE POST TO ANOTHER (echoing a post to another channel): every post here returns a "linkReference" like "(post:<id>)". Put that string in another post's content and it is replaced with this post's real URL at the moment that post publishes. It works while "releaseURL" is still null - a queued post has no URL yet, and that is exactly the case this is for. Never copy "releaseURL" to build an echo; use "linkReference".
-Pass "state" to list only posts in one state, e.g. ERROR to find the ones that failed.
-A post that failed to publish has state "ERROR" and carries "error", a one-line reason, and "errorKind":
-- "wallet": the wallet could not pay for it when it was due. Tell the user to top up, then set it back on the schedule with postStatusTool (or move its date) if they still want it out.
-- "refresh_needed": the channel's login expired. The user has to reconnect the channel in the app; then reschedule the post.
-- "channel_disabled": the channel is disabled. The user has to enable it; then reschedule the post.
-- "reference": it links to a post that never published.
-- "provider": the platform rejected it; "error" carries the platform's own reason.
-- "unknown": anything else.
-A failed post is never retried on its own.
-
 "references" lists the posts THIS one points at. A chain is only as good as its links: if a post it references is deleted, the reference can never resolve and this post fails at publish time instead of going out with a broken link — a silent no-show. So edit posts rather than deleting them, and check what a delete would break before you run it (deletePostTool refuses and names them).`,
       mcp: {
         annotations: {
@@ -101,12 +95,14 @@ A failed post is never retried on its own.
               error: z
                 .string()
                 .nullable()
+                .optional()
                 .describe(
                   'Why the post failed to publish, when it did, in one short line'
                 ),
               errorKind: z
                 .enum(POST_ERROR_KINDS)
                 .nullable()
+                .optional()
                 .describe(
                   'Why it failed: wallet, refresh_needed, channel_disabled, reference, provider or unknown. Null when it did not fail.'
                 ),
@@ -183,6 +179,8 @@ A failed post is never retried on its own.
       }),
       execute: async (inputData, context) => {
         checkAuth(inputData, context);
+        // A paid plan gets the list as it always had it: no failure reasons.
+        const paidPlan = onPaidPlan(orgFromContext(context));
         try {
           const organizationId = JSON.parse(
             (context?.requestContext as any)?.get('organization') as string
@@ -206,7 +204,7 @@ A failed post is never retried on its own.
               includeMedia: true,
               includeSettings: true,
               includeThread: true,
-              includeError: true,
+              ...(paidPlan ? {} : { includeError: true }),
             }
           );
 
@@ -274,7 +272,7 @@ A failed post is never retried on its own.
             publishDate: new Date(post.publishDate).toISOString(),
             content: post.content || '',
             releaseURL: post.releaseURL ?? null,
-            ...describePostError(post.error, post.errorKind),
+            ...(paidPlan ? {} : describePostError(post.error, post.errorKind)),
             attachments: describeAttachments(post),
             comments: threadOf(post).map((item: any) => ({
               id: item.id,
@@ -296,7 +294,13 @@ A failed post is never retried on its own.
           return { total: output.length, posts: output };
         } catch (err) {
           return {
-            error: `Failed to list posts: ${errorMessageForAgent(err)}`,
+            error: `Failed to list posts: ${
+              paidPlan
+                ? err instanceof Error
+                  ? err.message
+                  : 'Unexpected error'
+                : errorMessageForAgent(err)
+            }`,
           };
         }
       },

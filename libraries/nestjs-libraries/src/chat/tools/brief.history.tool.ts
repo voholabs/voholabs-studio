@@ -18,7 +18,7 @@ export class BriefHistoryTool implements AgentToolInterface {
       id: 'briefHistory',
       description: `See what has changed in the agent brief since it was last marked as reviewed. Who made a change is not recorded, so this includes notes you wrote yourself — read a document before drawing a lesson from it, or you will be learning from your own writing.
 What matters is a rule that came back different from how you left it: that is somebody telling you the rule was wrong, and their version is the one to keep. Never restore what they removed.
-Returns one entry per document, with the rules added, removed or rewritten, and "change": "created" for a document written for the first time, "deleted" for one that was removed, "edited" otherwise. Removed words are marked [-like this-] and added words {+like this+}.
+Returns one entry per document, with the rules added, removed or rewritten. Removed words are marked [-like this-] and added words {+like this+}.
 Work out what the change implies beyond the document it happened in, write that down with briefLearnTool, then call markLearned with kind "brief" and the ids returned here, so the same edit is not reviewed again.`,
       mcp: {
         annotations: {

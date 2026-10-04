@@ -139,3 +139,14 @@ export const walletToolNames = [
 
 // What a wallet top-up can open that walletToolNames serves.
 export const walletToolKeys = ['brief', 'skills'];
+
+// Not served to a paid plan, whose MCP lists exactly the tools it had before
+// the wallet: the wallet tools (a paid plan never uses credits) and the
+// skills library.
+export const notOnPlanToolNames = [
+  'walletBalance',
+  'walletTransactions',
+  'walletPrices',
+  'skillsList',
+  'skillGet',
+];

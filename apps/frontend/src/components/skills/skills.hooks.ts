@@ -16,6 +16,8 @@ export interface SkillSummary {
   tags: string[];
   tools: string[];
   whenToUse: string | null;
+  // True when the skill reads the user's brief; false when it stands alone.
+  usesBrief?: boolean;
 }
 
 export interface SkillFull extends SkillSummary {

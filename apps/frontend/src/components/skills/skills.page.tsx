@@ -28,6 +28,7 @@ import {
   useSkill,
   useSkills,
 } from '@gitroom/frontend/components/skills/skills.hooks';
+import { HermesMarkdown } from '@gitroom/frontend/components/hermes/hermes.markdown';
 
 type T = ReturnType<typeof useT>;
 
@@ -42,9 +43,20 @@ export const skillsLockedCopy = (t: T) =>
 const toolLabel = (t: T, tool: string): string | null => {
   switch (tool) {
     case 'briefListTool':
-    case 'briefLearnTool':
     case 'briefSaveTool':
       return t('skill_tool_brief', 'Brief');
+    case 'briefLearnTool':
+      return t('skill_tool_brief_experience', 'Brief experience');
+    case 'briefHistory':
+      return t('skill_tool_brief_changes', 'Brief changes');
+    case 'postHistory':
+      return t('skill_tool_post_edits', 'Post edits');
+    case 'markLearned':
+      return t('skill_tool_mark_learned', 'Learning queue');
+    case 'postsList':
+      return t('skill_tool_posts', 'Your posts');
+    case 'editPostTool':
+      return t('skill_tool_edit_post', 'Post editing');
     case 'mediaList':
       return t('skill_tool_media_library', 'Media library');
     case 'integrationSchema':
@@ -165,6 +177,19 @@ const SkillDetail: FC<{
                 ))}
               </div>
             )}
+            {typeof skill?.usesBrief === 'boolean' && (
+              <div className="text-[12px] text-textItemBlur mt-[8px]">
+                {skill.usesBrief
+                  ? t(
+                      'skills_uses_brief',
+                      'Uses your brief. The more of it you fill in, the better it works.'
+                    )
+                  : t(
+                      'skills_standalone',
+                      'Works on its own. No brief needed.'
+                    )}
+              </div>
+            )}
           </div>
           <button
             type="button"
@@ -229,6 +254,22 @@ const SkillDetail: FC<{
                     'skills_studio_tools_note',
                     'The skill tells your agent to use these Studio routes, not outside tools.'
                   )}
+                </div>
+              </DetailSection>
+            )}
+            {!!data.body.trim() && (
+              <DetailSection title={t('skills_the_skill', 'The skill')}>
+                <div className="text-[12px] text-textItemBlur">
+                  {t(
+                    'skills_the_skill_note',
+                    'What your agent reads and follows, word for word.'
+                  )}
+                </div>
+                <div
+                  dir="auto"
+                  className="rounded-[8px] border border-newTableBorder bg-newBgColor p-[16px] text-[14px] leading-[1.6] break-words"
+                >
+                  <HermesMarkdown text={data.body} />
                 </div>
               </DetailSection>
             )}

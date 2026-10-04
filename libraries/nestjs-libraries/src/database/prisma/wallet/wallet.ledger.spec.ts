@@ -28,9 +28,12 @@ const matches = (row: Row, where: Row = {}) =>
     return value === cond;
   });
 
-const fakeDb = () => {
+const fakeDb = (actions: Row[] = [], settings: Record<string, string> = {}) => {
   const entries: Row[] = [];
   const wallets: Row[] = [];
+  // Entries are dated now, a second apart, so a "this month" allowance sees
+  // them whenever the tests run.
+  const start = Date.now();
   let clock = 0;
 
   const walletEntry = {
@@ -44,7 +47,7 @@ const fakeDb = () => {
       const row = {
         id: `e${entries.length + 1}`,
         quantity: 1,
-        createdAt: new Date(Date.UTC(2026, 9, 1, 0, 0, clock++)),
+        createdAt: new Date(start + 1000 * clock++),
         ...data,
       };
       entries.push(row);
@@ -104,18 +107,47 @@ const fakeDb = () => {
     }),
   };
 
+  // The used-units query of the free allowance: SPEND entries of an action
+  // since a date that were not refunded. Any other raw query (the row lock)
+  // returns nothing.
+  const $queryRaw = async (strings: TemplateStringsArray, ...values: any[]) => {
+    if (!strings.join('').includes('COALESCE(SUM')) {
+      return [];
+    }
+    const [organizationId, actionKey, since] = values;
+    const used = entries
+      .filter(
+        (e) =>
+          e.organizationId === organizationId &&
+          e.type === 'SPEND' &&
+          e.actionKey === actionKey &&
+          e.createdAt >= since &&
+          !entries.some((r) => r.idempotencyKey === `refund:${e.idempotencyKey}`)
+      )
+      .reduce((sum, e) => sum + (e.quantity ?? 1), 0);
+    return [{ used: BigInt(used) }];
+  };
+
   const model: Row = {
     walletEntry,
     wallet,
-    $queryRaw: async () => [],
+    billableAction: { findMany: async () => actions },
+    billingSetting: {
+      findMany: async () =>
+        Object.entries(settings).map(([key, value]) => ({ key, value })),
+    },
+    $queryRaw,
   };
   model.$transaction = async (cb: (tx: Row) => any) => cb(model);
 
   return { entries, wallets, model };
 };
 
-const setup = () => {
-  const db = fakeDb();
+const setup = (
+  actions: Row[] = [],
+  settings: Record<string, string> = {}
+) => {
+  const db = fakeDb(actions, settings);
   const repo = { model: db.model } as any;
   const repository = new WalletRepository(
     repo,
@@ -127,7 +159,8 @@ const setup = () => {
     repo,
     repo
   );
-  const service = new WalletService(repository);
+  const notifications = { inAppNotification: jest.fn() } as any;
+  const service = new WalletService(repository, notifications);
   return { db, repository, service };
 };
 
@@ -428,5 +461,211 @@ describe('WalletService.clawBack', () => {
       })
     ).toBeUndefined();
     expect(db.entries).toHaveLength(0);
+  });
+});
+
+describe('free allowance through WalletService.charge', () => {
+  const action = (over: Row = {}) => ({
+    key: 'brief.onboarding',
+    provider: 'brief',
+    category: 'brief',
+    name: 'Brief onboarding',
+    description: null,
+    unit: 'onboarding',
+    costMicros: 0,
+    costCurrency: 'USD',
+    multiplierBp: null,
+    fixedPrice: 25000,
+    freeUnits: 1,
+    freePeriod: 'ONCE',
+    billing: 'PER_USE',
+    requiresTopUp: true,
+    active: true,
+    ...over,
+  });
+  const SETTINGS = { wallet_currency: 'USD', credits_per_unit: '100' };
+
+  const charge = (
+    service: WalletService,
+    chargeKey: string,
+    actionKey = 'brief.onboarding',
+    quantity = 1
+  ) =>
+    service.charge({ organizationId: ORG, actionKey, chargeKey, quantity });
+
+  it('ONCE: the first charge is a zero "Included free" entry, even with no balance', async () => {
+    const { service, repository } = setup([action()], SETTINGS);
+    const entry = await charge(service, 'onboarding:1');
+    expect(entry.amount).toBe(0);
+    expect(entry.unitPrice).toBe(0);
+    expect(entry.description).toBe('Included free');
+    expect(entry.type).toBe('SPEND');
+    expect(await repository.balance(ORG)).toBe(0);
+  });
+
+  it('ONCE: the second charge is priced', async () => {
+    const { service, repository } = setup([action()], SETTINGS);
+    await credit(repository, 30000);
+    await charge(service, 'onboarding:1');
+    const second = await charge(service, 'onboarding:2');
+    expect(second.amount).toBe(-25000);
+    expect(second.unitPrice).toBe(25000);
+    expect(second.description).toBe('Brief onboarding');
+    expect(await repository.balance(ORG)).toBe(5000);
+  });
+
+  it('ONCE: the second charge needs the balance', async () => {
+    const { service } = setup([action()], SETTINGS);
+    await charge(service, 'onboarding:1');
+    await expect(charge(service, 'onboarding:2')).rejects.toBeInstanceOf(
+      InsufficientCreditsError
+    );
+  });
+
+  it('refunding a free charge gives its free unit back', async () => {
+    const { service, repository, db } = setup([action()], SETTINGS);
+    const free = await charge(service, 'onboarding:1');
+    const refund = await service.refund(free.idempotencyKey!, 'failed');
+    expect(refund?.type).toBe('REFUND');
+    expect(refund?.amount === 0).toBe(true);
+    expect(await service.freeUnitsRemaining(ORG, 'brief.onboarding')).toBe(1);
+    const again = await charge(service, 'onboarding:2');
+    expect(again.description).toBe('Included free');
+    expect(await repository.balance(ORG)).toBe(0);
+    expect(db.entries.filter((e) => e.type === 'SPEND')).toHaveLength(2);
+  });
+
+  it('MONTH: a charge larger than what is left is priced for the rest only', async () => {
+    const reads = action({
+      key: 'x.post_read',
+      provider: 'x',
+      fixedPrice: 75,
+      freeUnits: 5,
+      freePeriod: 'MONTH',
+    });
+    const { service, repository } = setup([reads], SETTINGS);
+    await credit(repository, 1000);
+    const first = await charge(service, 'reads:1', 'x.post_read', 3);
+    expect(first.amount).toBe(0);
+    expect(first.description).toBe('Included free');
+    const second = await charge(service, 'reads:2', 'x.post_read', 4);
+    // 2 free left, 2 charged
+    expect(second.amount).toBe(-150);
+    expect(second.quantity).toBe(4);
+    expect(JSON.parse(second.meta)).toEqual({ freeQuantity: 2 });
+    const third = await charge(service, 'reads:3', 'x.post_read', 1);
+    expect(third.amount).toBe(-75);
+    expect(await service.freeUnitsRemaining(ORG, 'x.post_read')).toBe(0);
+  });
+
+  it('MONTH: last month\'s use does not count', async () => {
+    const reads = action({
+      key: 'x.post_read',
+      provider: 'x',
+      fixedPrice: 75,
+      freeUnits: 1,
+      freePeriod: 'MONTH',
+    });
+    const { service, db } = setup([reads], SETTINGS);
+    const now = new Date();
+    db.entries.push({
+      id: 'old',
+      organizationId: ORG,
+      type: 'SPEND',
+      actionKey: 'x.post_read',
+      quantity: 1,
+      amount: 0,
+      idempotencyKey: 'reads:old#1',
+      createdAt: new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1) - 86_400_000
+      ),
+    });
+    expect((await charge(service, 'reads:1', 'x.post_read')).amount).toBe(0);
+  });
+
+  it('MONTHLY rows (storage) are charged in full: storage applies its free amount itself', async () => {
+    const storage = action({
+      key: 'storage.gb',
+      provider: 'storage',
+      unit: 'gb',
+      fixedPrice: 5000,
+      freeUnits: 2,
+      freePeriod: 'MONTH',
+      billing: 'MONTHLY',
+      requiresTopUp: false,
+    });
+    const { service, repository } = setup([storage], SETTINGS);
+    const entry = await service.charge({
+      organizationId: ORG,
+      actionKey: 'storage.gb',
+      chargeKey: 'storage:org-1:2026-10',
+      quantity: 1,
+      allowNegative: true,
+    });
+    expect(entry.amount).toBe(-5000);
+    expect(await repository.balance(ORG)).toBe(-5000);
+  });
+});
+
+describe('WalletService.grant and adjust idempotency', () => {
+  it('grants once per idempotency key', async () => {
+    const { service, repository, db } = setup();
+    const params = {
+      organizationId: ORG,
+      credits: 1000,
+      reason: 'goodwill',
+      actorId: 'admin-1',
+      idempotencyKey: 'ticket-7',
+    };
+    const a = await service.grant(params);
+    const b = await service.grant(params);
+    expect(b).toBe(a);
+    expect(a.idempotencyKey).toBe('admin:grant:org-1:ticket-7');
+    expect(a.actorId).toBe('admin-1');
+    expect(db.entries).toHaveLength(1);
+    expect(await repository.balance(ORG)).toBe(1000);
+  });
+
+  it('grants every time without a key', async () => {
+    const { service, repository } = setup();
+    const params = {
+      organizationId: ORG,
+      credits: 1000,
+      reason: 'goodwill',
+      actorId: 'admin-1',
+    };
+    await service.grant(params);
+    await service.grant(params);
+    expect(await repository.balance(ORG)).toBe(2000);
+  });
+
+  it('starts pay-as-you-go when the grant unlocks', async () => {
+    const { service, db } = setup();
+    await service.grant({
+      organizationId: ORG,
+      credits: 1000,
+      reason: 'pilot',
+      actorId: 'admin-1',
+      unlock: true,
+    });
+    expect(db.wallets[0].firstTopUpAt).toBeInstanceOf(Date);
+    expect(await service.isPayAsYouGo(ORG)).toBe(true);
+  });
+
+  it('adjusts once per idempotency key, separately from grants', async () => {
+    const { service, repository } = setup();
+    const params = {
+      organizationId: ORG,
+      credits: -300,
+      reason: 'correction',
+      actorId: 'admin-1',
+      idempotencyKey: 'ticket-7',
+    };
+    await service.grant({ ...params, credits: 1000 });
+    const a = await service.adjust(params);
+    const b = await service.adjust(params);
+    expect(b).toBe(a);
+    expect(a.idempotencyKey).toBe('admin:adjust:org-1:ticket-7');
+    expect(await repository.balance(ORG)).toBe(700);
   });
 });

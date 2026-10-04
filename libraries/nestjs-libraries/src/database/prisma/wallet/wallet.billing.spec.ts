@@ -47,6 +47,7 @@ const build = () => {
       entry: {},
     })),
     charge: jest.fn(),
+    notifyIfShort: jest.fn(async () => false),
   } as any;
   const stripe = {
     paymentIntents: {
@@ -84,7 +85,9 @@ describe('WalletBillingService checkout', () => {
       currency: 'USD',
       auto: false,
       paymentIntentId: 'pi_1',
+      receiptUrl: null,
     });
+    expect(wallet.notifyIfShort).toHaveBeenCalledWith('org-1', undefined);
     expect(walletAlert).not.toHaveBeenCalled();
   });
 
@@ -147,13 +150,23 @@ describe('WalletBillingService checkout', () => {
     const { service, wallet, stripe } = build();
     stripe.paymentIntents.retrieve.mockResolvedValueOnce({
       setup_future_usage: 'off_session',
-      payment_method: { id: 'pm_1', card: { brand: 'visa', last4: '4242' } },
+      payment_method: {
+        id: 'pm_1',
+        card: { brand: 'visa', last4: '4242', exp_month: 3, exp_year: 2029 },
+      },
+      latest_charge: { receipt_url: 'https://pay.stripe.com/receipts/r1' },
     } as any);
     await service.handleEvent(checkoutEvent(session()));
+    expect(wallet.addTopUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        receiptUrl: 'https://pay.stripe.com/receipts/r1',
+      })
+    );
     expect(wallet.updateWallet).toHaveBeenCalledWith('org-1', {
       paymentMethodId: 'pm_1',
       cardBrand: 'visa',
       cardLast4: '4242',
+      cardExp: '03/2029',
     });
   });
 });

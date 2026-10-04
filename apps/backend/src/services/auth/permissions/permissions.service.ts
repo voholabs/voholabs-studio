@@ -184,6 +184,14 @@ export class PermissionsService {
       }
 
       if (
+        section === Sections.SKILLS &&
+        (options.ai || (await this._walletService.unlocks(orgId, 'skills')))
+      ) {
+        can(action, section);
+        continue;
+      }
+
+      if (
         section === Sections.IMPORT_FROM_CHANNELS &&
         options.import_from_channels
       ) {

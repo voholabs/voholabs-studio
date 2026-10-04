@@ -1,11 +1,22 @@
 'use client';
 
 import { useTrackView } from '@gitroom/helpers/utils/use.fire.events';
-import { FC, useState } from 'react';
+import { FC, useEffect, useState } from 'react';
+import clsx from 'clsx';
+import { useSWRConfig } from 'swr';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
 import { AgentBrief } from '@gitroom/frontend/components/agent-brief/agent.brief';
-import { useBriefDocuments } from '@gitroom/frontend/components/agent-brief/use.brief.documents';
+import {
+  BRIEF_DOCUMENTS_KEY,
+  useBriefDocuments,
+} from '@gitroom/frontend/components/agent-brief/use.brief.documents';
+import {
+  BRIEF_ONBOARDING_KEY,
+  useBriefOnboarding,
+  useStartBriefOnboarding,
+} from '@gitroom/frontend/components/agent-brief/use.brief.onboarding';
+import { BTN_SIMPLE } from '@gitroom/frontend/components/wallet/wallet.ui';
 import {
   useFeatureTone,
   useWalletAccess,
@@ -63,45 +74,172 @@ const LockedBrief: FC = () => {
   );
 };
 
-// Pay-as-you-go with nothing written yet: the same page, open, with one way
-// in. What is free comes from the brief.onboarding price row, as on the
-// locked page.
-const BriefEmptyState: FC<{ onCreate: () => void }> = ({ onCreate }) => {
+// Nothing written yet: the same page, open, with one way in (the guided
+// onboarding) and a quieter one (write it by hand). What is free comes from
+// the brief.onboarding price row, as on the locked page; paid plans are never
+// charged, so they see no price.
+const BriefEmptyState: FC<{
+  onCreate: () => void;
+  onWrite?: () => void;
+  busy: boolean;
+  showFree: boolean;
+}> = ({ onCreate, onWrite, busy, showFree }) => {
   const t = useT();
   const tone = useFeatureTone('brief');
-  const { data: prices } = useWalletPrices();
+  const { data: prices } = useWalletPrices(showFree);
   const onboarding = findAction(prices, 'brief.onboarding');
-  const free = onboarding ? tFreeUse(t, onboarding) : '';
+  const free = showFree && onboarding ? tFreeUse(t, onboarding) : '';
   return (
     <LockedFeature
       icon={<BriefMenuIcon size={28} />}
       tone={tone}
       {...briefCopy(t)}
       action={{
-        label: t('brief_create', 'Create your brief'),
+        label: busy
+          ? t('brief_onboarding_opening', 'Opening...')
+          : t('brief_create', 'Create your brief'),
         onClick: onCreate,
+        disabled: busy,
       }}
+      secondary={
+        onWrite
+          ? {
+              label: t('brief_write_myself', 'Write it myself instead'),
+              onClick: onWrite,
+            }
+          : undefined
+      }
       gift={free || undefined}
       note={t('brief_create_note', 'Starts a short guided onboarding.')}
     />
   );
 };
 
-// Until the guided onboarding exists, "Create your brief" opens the brief
-// editor, and there is no "Redo onboarding".
-const PayAsYouGoBrief: FC = () => {
+// An onboarding was opened and has not reported back yet.
+const BriefOnboardingRunning: FC<{
+  onContinue: () => void;
+  onWrite: () => void;
+  busy: boolean;
+}> = ({ onContinue, onWrite, busy }) => {
+  const t = useT();
+  const tone = useFeatureTone('brief');
+  return (
+    <LockedFeature
+      icon={<BriefMenuIcon size={28} />}
+      tone={tone}
+      eyebrow={t('brief', 'Brief')}
+      title={t(
+        'brief_onboarding_running_title',
+        'Your onboarding is in progress'
+      )}
+      body={t(
+        'brief_onboarding_running_body',
+        'Finish the guided onboarding and your brief appears here. If you closed it, pick up where you left off.'
+      )}
+      action={{
+        label: busy
+          ? t('brief_onboarding_opening', 'Opening...')
+          : t('brief_onboarding_continue', 'Continue onboarding'),
+        onClick: onContinue,
+        disabled: busy,
+      }}
+      secondary={{
+        label: t('brief_write_myself', 'Write it myself instead'),
+        onClick: onWrite,
+      }}
+    />
+  );
+};
+
+const RedoOnboardingButton: FC<{ onClick: () => void; busy: boolean }> = ({
+  onClick,
+  busy,
+}) => {
+  const t = useT();
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={busy}
+      className={clsx(BTN_SIMPLE, '!h-[32px] !px-[12px] !text-[13px]')}
+    >
+      {busy
+        ? t('brief_onboarding_opening', 'Opening...')
+        : t('brief_onboarding_redo', 'Redo onboarding')}
+    </button>
+  );
+};
+
+// Back from the onboarding (?onboarding=done): read the brief again once and
+// tidy the address bar.
+const useOnboardingReturn = () => {
+  const { mutate } = useSWRConfig();
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has('onboarding')) {
+      return;
+    }
+    url.searchParams.delete('onboarding');
+    window.history.replaceState(null, '', url.pathname + url.search);
+    mutate(BRIEF_DOCUMENTS_KEY);
+    mutate(BRIEF_ONBOARDING_KEY);
+  }, [mutate]);
+};
+
+// Pay-as-you-go and paid plans: the guided onboarding when the brief is
+// empty, the brief (with a way to redo the onboarding) once it is written.
+const OpenBrief: FC<{ showFree: boolean }> = ({ showFree }) => {
+  useOnboardingReturn();
   const { data, isLoading } = useBriefDocuments();
+  const { data: onboarding, isLoading: onboardingLoading } =
+    useBriefOnboarding();
+  const { start, busy } = useStartBriefOnboarding();
   const [creating, setCreating] = useState(false);
 
-  if (isLoading && !data) {
+  if ((isLoading && !data) || (onboardingLoading && !onboarding)) {
     return <LoadingComponent />;
   }
 
-  if (!data?.documents?.length && !creating) {
-    return <BriefEmptyState onCreate={() => setCreating(true)} />;
+  // Without an onboarding site the page stays as it was: pay-as-you-go
+  // gets the editor behind the same button, paid plans the editor.
+  if (!onboarding?.available) {
+    if (!showFree || data?.documents?.length || creating) {
+      return <AgentBrief />;
+    }
+    return (
+      <BriefEmptyState
+        onCreate={() => setCreating(true)}
+        busy={false}
+        showFree={showFree}
+      />
+    );
   }
 
-  return <AgentBrief />;
+  if (!data?.documents?.length && !creating) {
+    if (onboarding.running) {
+      return (
+        <BriefOnboardingRunning
+          onContinue={start}
+          onWrite={() => setCreating(true)}
+          busy={busy}
+        />
+      );
+    }
+    return (
+      <BriefEmptyState
+        onCreate={start}
+        onWrite={() => setCreating(true)}
+        busy={busy}
+        showFree={showFree}
+      />
+    );
+  }
+
+  return (
+    <AgentBrief
+      headerAction={<RedoOnboardingButton onClick={start} busy={busy} />}
+    />
+  );
 };
 
 export const BriefPage: FC = () => {
@@ -116,8 +254,5 @@ export const BriefPage: FC = () => {
   if (access === 'free') {
     return <LockedBrief />;
   }
-  if (access === 'payg') {
-    return <PayAsYouGoBrief />;
-  }
-  return <AgentBrief />;
+  return <OpenBrief showFree={access === 'payg'} />;
 };

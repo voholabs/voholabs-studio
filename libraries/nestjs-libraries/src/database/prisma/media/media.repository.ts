@@ -66,11 +66,13 @@ export class MediaRepository {
     fileName: string,
     filePath: string,
     originalName?: string,
-    fileSize?: number
+    fileSize?: number,
+    type?: string
   ) {
     return this._media.model.media.create({
       data: {
         fileSize: Math.round(fileSize || 0),
+        ...(type ? { type } : {}),
         organization: {
           connect: {
             id: org,
@@ -193,6 +195,8 @@ export class MediaRepository {
           id: org,
         },
         deletedAt: null,
+        // Brief documents count towards storage but are not post media.
+        type: { not: 'document' },
         ...searchFilter,
       },
     };
@@ -201,6 +205,7 @@ export class MediaRepository {
       where: {
         organizationId: org,
         deletedAt: null,
+        type: { not: 'document' },
         ...searchFilter,
       },
       orderBy: {

@@ -77,7 +77,7 @@ export default function PrivacyPage() {
               service.
             </>,
             <>
-              <strong>Product usage data</strong> — which screens you open and
+              <strong>Product usage data:</strong> which screens you open and
               which features you use (for example connecting a channel,
               scheduling a post or topping up the wallet), linked to your account
               and organisation IDs and your plan. It never includes the text or

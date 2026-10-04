@@ -191,6 +191,8 @@ const setup = (options: { balance?: number; topUp?: number } = {}) => {
       });
       return (await repository.balance(ORG)) >= needed;
     }),
+    autoTopUp: jest.fn(async () => false),
+    notifyIfShort: jest.fn(async () => undefined),
   } as any;
   const service = new WalletPostsService(wallet, billing, repository);
   const credit = (amount: number) =>
@@ -388,6 +390,15 @@ describe('Charging posts when they are scheduled', () => {
     expect(err.getResponse()).toMatchObject({ wallet: true, url: '/wallet' });
     expect(t.spends()).toHaveLength(0);
     expect(await t.balance()).toBe(100);
+  });
+
+  it('checks the auto top-up threshold after every schedule charge', async () => {
+    const t = setup({ balance: 100000 });
+    await t.ready();
+    t.setRows([post({ id: 'p1' })]);
+    await settle(t);
+    expect(t.billing.autoTopUpFor).not.toHaveBeenCalled();
+    expect(t.billing.autoTopUp).toHaveBeenCalledWith(ORG);
   });
 
   it('tops up automatically first when that covers it', async () => {

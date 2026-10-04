@@ -147,6 +147,14 @@ export class WalletPostsService {
         throw walletPaymentRequired(notEnoughCreditsToScheduleMessage());
       }
       return this._repository.settleCharges(organizationId, items, reason);
+    } finally {
+      // Like every other charge: keep the balance above the auto top-up
+      // threshold for the next one, then check what is scheduled next.
+      this._billing
+        .autoTopUp(organizationId)
+        .catch(() => false)
+        .then(() => this._billing.notifyIfShort(organizationId))
+        .catch(() => undefined);
     }
   }
 

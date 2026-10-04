@@ -108,7 +108,12 @@ const NotificationComponent = () => {
   const loadNotifications = useCallback(async () => {
     return await (await fetch('/notifications')).json();
   }, []);
-  const { data, mutate } = useSWR('notifications-list', loadNotifications);
+  // Polled, so activity (a post published or failed, a top-up) shows on the
+  // bell without a reload.
+  const { data, mutate } = useSWR('notifications-list', loadNotifications, {
+    refreshInterval: 60000,
+    refreshWhenHidden: false,
+  });
   const changeShow = useCallback(() => {
     mutate(
       {

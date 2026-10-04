@@ -116,6 +116,20 @@ export const walletFrozenMessage = () =>
 export const notEnoughCreditsMessage = () =>
   "Not published: there weren't enough credits in your wallet when it was due. Top up, then reschedule it if you still want it out.";
 
+// An amount paid, in the smallest unit of its currency, for messages.
+const formatPaid = (amount: number, currency: string) => {
+  try {
+    const format = new Intl.NumberFormat('en', {
+      style: 'currency',
+      currency: currency.toUpperCase(),
+    });
+    const digits = format.resolvedOptions().maximumFractionDigits ?? 2;
+    return format.format(amount / 10 ** digits);
+  } catch {
+    return `${amount} ${currency}`;
+  }
+};
+
 const ceilDiv = (a: bigint, b: bigint) => (a + b - BigInt(1)) / b;
 
 const numberList = (value?: string) =>
@@ -636,7 +650,7 @@ export class WalletService {
     // Stripe's receipt for the payment, shown on the transaction.
     receiptUrl?: string | null;
   }) {
-    const entry = await this._wallet.add({
+    const { entry, created } = await this._wallet.addOnce({
       organizationId: params.organizationId,
       amount: params.credits,
       type: params.auto ? 'AUTO_TOPUP' : 'TOPUP',
@@ -656,7 +670,44 @@ export class WalletService {
         currency: wallet.currency || params.currency.toUpperCase(),
       });
     }
+    // In the bell, once per payment (the webhook and the browser's return
+    // both credit it).
+    if (created) {
+      const label = params.auto ? 'Automatic top-up' : 'Top-up';
+      await this.notify(
+        params.organizationId,
+        label,
+        `${label}: ${formatCredits(
+          params.credits
+        )} credits added to your wallet (${formatPaid(
+          params.amount,
+          params.currency
+        )}).`,
+        'success'
+      );
+    }
     return entry;
+  }
+
+  // An in-app notification (the bell). Never emails, never fails the caller.
+  async notify(
+    organizationId: string,
+    subject: string,
+    message: string,
+    type: 'success' | 'fail' | 'info' = 'info'
+  ) {
+    try {
+      await this._notifications.inAppNotification(
+        organizationId,
+        subject,
+        message,
+        false,
+        false,
+        type
+      );
+    } catch (err) {
+      this._logger.error(`Could not notify ${organizationId}: ${err}`);
+    }
   }
 
   autoTopUpSpentSince(organizationId: string, since: Date) {
@@ -1130,10 +1181,20 @@ export class WalletService {
           reference: params.paymentIntentId,
         })
       : undefined;
+    const wasFrozen = !!(await this._wallet.getWallet(topUp.organizationId))
+      ?.frozenAt;
     await this._wallet.updateWallet(topUp.organizationId, {
       frozenAt: new Date(),
       autoTopUp: false,
     });
+    if (!wasFrozen) {
+      await this.notify(
+        topUp.organizationId,
+        'Wallet on hold',
+        walletFrozenMessage(),
+        'fail'
+      );
+    }
     return { organizationId: topUp.organizationId, credits: amount, entry };
   }
 }

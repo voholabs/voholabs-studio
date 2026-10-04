@@ -585,6 +585,27 @@ export class WalletRepository {
     return sum._sum.paidAmount || 0;
   }
 
+  // Adds an entry once, saying whether this call wrote it (false when the
+  // idempotency key was already there).
+  async addOnce(entry: NewWalletEntry) {
+    try {
+      return {
+        entry: await this._entry.model.walletEntry.create({ data: entry }),
+        created: true,
+      };
+    } catch (err) {
+      if (!isUniqueViolation(err) || !entry.idempotencyKey) {
+        throw err;
+      }
+      return {
+        entry: await this._entry.model.walletEntry.findUniqueOrThrow({
+          where: { idempotencyKey: entry.idempotencyKey },
+        }),
+        created: false,
+      };
+    }
+  }
+
   // Adds an entry once. A repeated idempotency key returns the first entry.
   async add(entry: NewWalletEntry) {
     try {

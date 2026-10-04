@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { SkillsRepository } from '@gitroom/nestjs-libraries/database/prisma/skills/skills.repository';
 
+// A skill reads the user's brief when it names the brief reader among its
+// tools. Derived rather than stored, so it cannot drift from the tool list.
+export const BRIEF_READER = 'briefListTool';
+export const usesBrief = (tools: string[]) => tools.includes(BRIEF_READER);
+
 const clean = (value?: string, max = 200) => {
   const text = (value || '').trim().slice(0, max);
   return text || undefined;
@@ -32,15 +37,20 @@ export class SkillsService {
           .map((one) => one.key)
       : [];
 
-    const skills = await this._skills.list({ tag, search, searchTags });
+    const rows = await this._skills.list({ tag, search, searchTags });
+    const skills = rows.map((row) => ({
+      ...row,
+      usesBrief: usesBrief(row.tools),
+    }));
     return { tags, skills };
   }
 
-  get(slug: string) {
+  async get(slug: string) {
     const key = clean(slug, 128);
     if (!key) {
-      return Promise.resolve(null);
+      return null;
     }
-    return this._skills.get(key);
+    const skill = await this._skills.get(key);
+    return skill ? { ...skill, usesBrief: usesBrief(skill.tools) } : null;
   }
 }

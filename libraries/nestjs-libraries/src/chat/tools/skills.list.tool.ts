@@ -16,8 +16,9 @@ export class SkillsListTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'skillsList',
-      description: `List the Studio skills library: ready-made instructions for common jobs (articles, posts for each channel, hooks, images, videos, tips and tricks). Each skill says when to use it and which Studio tools it relies on.
-Check this before starting a content task: if a skill fits, read it with skillGet and follow it. Filter by tag (a key from "tags") or search by words. Using skills is free.`,
+      description: `The Studio skills library: proven, step-by-step methods for content jobs (editing out AI-sounding writing, hooks, writing in the user's voice, shaping a post for each channel, repurposing, learning from results).
+This returns a short catalog only: slug, name, one-line summary, when to use it, tags, and "usesBrief" (true when the skill reads the user's brief and works best once the brief is filled in). It never returns the instructions themselves.
+How to use it: call this once at the start of a content task, pick at most one or two skills whose "whenToUse" matches the task, then read only those with skillGet and follow them. Do not read every skill. Narrow the list with a tag key (from "tags") or a search word when it is long. Using skills is free.`,
       mcp: {
         annotations: {
           title: 'List Skills',
@@ -47,9 +48,9 @@ Check this before starting a content task: if a skill fits, read it with skillGe
               slug: z.string(),
               name: z.string(),
               summary: z.string(),
-              tags: z.array(z.string()),
-              tools: z.array(z.string()),
               whenToUse: z.string().nullable(),
+              tags: z.array(z.string()),
+              usesBrief: z.boolean(),
             })
           )
           .optional(),
@@ -69,9 +70,18 @@ Check this before starting a content task: if a skill fits, read it with skillGe
           });
           return {
             tags,
-            skills,
+            // A catalog, not the skills: the bodies and tool lists stay
+            // behind skillGet so listing never floods the agent's context.
+            skills: skills.map((skill) => ({
+              slug: skill.slug,
+              name: skill.name,
+              summary: skill.summary,
+              whenToUse: skill.whenToUse,
+              tags: skill.tags,
+              usesBrief: skill.usesBrief,
+            })),
             hint: skills.length
-              ? 'Use skillGet with a slug for the full instructions.'
+              ? 'Pick the one or two skills that fit this task and read only those with skillGet.'
               : 'No skills match. Try another tag or search, or omit both to see every skill.',
           };
         } catch (err) {

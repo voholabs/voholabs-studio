@@ -16,8 +16,8 @@ export class SkillGetTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'skillGet',
-      description: `Read one skill from the Studio skills library by its slug (from skillsList). Returns what it does, when to use it, the Studio tools it relies on and "body": the full step-by-step instructions.
-Follow the body as written, and use the Studio tools it names rather than outside tools.`,
+      description: `Read one skill from the Studio skills library by its slug (from skillsList). Returns what it does, when to use it, the Studio tools it relies on, "usesBrief", and "body": the full step-by-step instructions.
+Read only the skills you picked from skillsList for the task in hand, not the whole library. Follow the body as written and use the Studio tools it names rather than outside tools.`,
       mcp: {
         annotations: {
           title: 'Read Skill',
@@ -40,6 +40,7 @@ Follow the body as written, and use the Studio tools it names rather than outsid
             whenToUse: z.string().nullable(),
             tags: z.array(z.string()),
             tools: z.array(z.string()),
+            usesBrief: z.boolean(),
             version: z.string().nullable(),
             body: z.string(),
           })
@@ -68,6 +69,7 @@ Follow the body as written, and use the Studio tools it names rather than outsid
               whenToUse: skill.whenToUse,
               tags: skill.tags,
               tools: skill.tools,
+              usesBrief: skill.usesBrief,
               version: skill.version,
               body: skill.body,
             },

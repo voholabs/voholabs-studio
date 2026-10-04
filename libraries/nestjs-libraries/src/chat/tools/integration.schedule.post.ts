@@ -77,11 +77,14 @@ so you CAN schedule "here is my new X post: <link>" before the X post exists.
 
 WALLET CREDITS:
 On a workspace that pays per post from its wallet, each such post in the output
-carries "cost" (credits for the post and its replies, taken when it publishes, not
-now). If the credits will not cover it, the post still gets scheduled and carries
-"walletWarning": tell the user, and pass on the top-up link it contains.
-If the workspace has not unlocked a channel from its wallet yet, the call returns
-"errors" with the reason and a top-up link: pass both on to the user.
+carries "cost": the credits for the post and its replies, taken NOW, as it is
+scheduled (drafts cost nothing until they are scheduled). Deleting it, moving it
+back to drafts or a failed publish gives back what was not sent. A repeating post
+is charged per occurrence: each repeat is charged when it goes out.
+If the credits don't cover it (after an automatic top-up, when that is on), nothing
+is scheduled and the call returns "errors" with the reason and a top-up link: pass
+both on to the user. The same happens when the workspace has not unlocked a
+channel from its wallet yet.
 `,
       inputSchema: z.object({
         socialPost: z
@@ -160,7 +163,7 @@ If the workspace has not unlocked a channel from its wallet yet, the call return
                 .number()
                 .optional()
                 .describe(
-                  'Credits this post and its replies take from the wallet when it publishes'
+                  'Credits taken from the wallet for this post and its replies, now, as it is scheduled (per occurrence for a repeating post)'
                 ),
               walletWarning: z.string().optional(),
             })

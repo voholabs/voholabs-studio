@@ -179,11 +179,11 @@ export const useMenuItem = () => {
       path: '/skills',
       lockedTip: `${t(
         'skills_locked',
-        'Ready-made skills for articles, image and video generation, writing, hooks, and tips and tricks. Skills are available to your agent through MCP.'
+        'Ready-made skills for hooks, writing in your voice, removing AI slop, and shaping posts for every channel. Skills are available to your agent through MCP.'
       )} ${t('skills_locked_unlock', 'A single top-up unlocks them.')}`,
       titleInfo: t(
         'skills_title_info',
-        'Ready-made skills for articles, image and video generation, writing, hooks, and tips and tricks. Using them is free.'
+        'Ready-made skills for hooks, writing in your voice, removing AI slop, and shaping posts for every channel. Using them is free.'
       ),
     },
     {

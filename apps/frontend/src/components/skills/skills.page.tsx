@@ -35,7 +35,7 @@ type T = ReturnType<typeof useT>;
 export const skillsLockedCopy = (t: T) =>
   t(
     'skills_locked',
-    'Ready-made skills for articles, image and video generation, writing, hooks, and tips and tricks. Skills are available to your agent through MCP.'
+    'Ready-made skills for hooks, writing in your voice, removing AI slop, and shaping posts for every channel. Skills are available to your agent through MCP.'
   );
 
 // Friendly names for the Studio tools a skill names. A tool not listed here
@@ -470,7 +470,7 @@ const LockedSkills: FC = () => {
         ),
         t(
           'skills_locked_bullet_2',
-          'Articles, image and video generation, writing, hooks, and tips and tricks.'
+          'Hooks, writing in your voice, removing AI slop, and posts shaped for every channel.'
         ),
         t(
           'skills_locked_bullet_3',

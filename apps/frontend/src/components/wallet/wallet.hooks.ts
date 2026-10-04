@@ -44,7 +44,13 @@ const quiet = {
 export const useWallet = (enabled = true) => {
   const json = useJson();
   const load = useCallback(() => json('/wallet'), [json]);
-  return useSWR<WalletSummary>(enabled ? WALLET_KEY : null, load, quiet);
+  // Charges also happen outside this tab (publishing, refunds, MCP), so the
+  // balance refreshes on focus and every minute while the tab is visible.
+  return useSWR<WalletSummary>(enabled ? WALLET_KEY : null, load, {
+    ...quiet,
+    revalidateOnFocus: true,
+    refreshInterval: 60_000,
+  });
 };
 
 // type narrows the list: "TOPUP,AUTO_TOPUP", "SPEND" or "REFUND".

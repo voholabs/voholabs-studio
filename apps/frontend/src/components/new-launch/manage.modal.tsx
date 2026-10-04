@@ -48,7 +48,10 @@ import { useShortlinkPreference } from '@gitroom/frontend/components/settings/sh
 import dayjs from 'dayjs';
 import { Button } from '@gitroom/react/form/button';
 import { ReviewedCheckbox } from '@gitroom/frontend/components/launches/reviewed.checkbox';
-import { useWalletFormat } from '@gitroom/frontend/components/wallet/wallet.hooks';
+import {
+  useRefreshWallet,
+  useWalletFormat,
+} from '@gitroom/frontend/components/wallet/wallet.hooks';
 import {
   useComposerWalletCost,
   useWalletAvatarTip,
@@ -228,6 +231,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
     }
   }, [activateExitButton, dummy]);
 
+  const refreshWallet = useRefreshWallet();
   const deletePost = useCallback(async () => {
     setLoading(true);
     if (
@@ -246,9 +250,10 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
       method: 'DELETE',
     });
     mutate();
+    refreshWallet();
     modal.closeAll();
     return;
-  }, [existingData, mutate, modal]);
+  }, [existingData, mutate, modal, refreshWallet]);
 
   // Wallet workspaces: what the post costs, for the footer and the toast.
   // An edited group's standing charge counts towards its new price.
@@ -508,6 +513,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
         if (!addEditSets) fireEvents(postEventName(type), postEventProps(type, posts, { is_new: !existingData.integration }));
         if (!addEditSets) {
           mutate();
+          refreshWallet();
           toaster.show(
             // "Just update the post details" of a published post charges
             // nothing; scheduling and posting now do.
@@ -560,6 +566,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
       walletDue,
       walletFormat,
       walletMode,
+      refreshWallet,
     ]
   );
 

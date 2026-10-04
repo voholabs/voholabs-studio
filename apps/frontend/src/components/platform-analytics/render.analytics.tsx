@@ -307,10 +307,13 @@ export const RenderAnalytics: FC<{
     return load;
   }, [integration, date]);
 
+  // Reading analytics can charge reads, so show the new balance once loaded.
+  const refreshWalletAfterLoad = useRefreshWallet();
   const { data, mutate } = useSWR(
     `/analytics-${integration?.id}-${date}`,
     load,
     {
+      onSuccess: () => refreshWalletAfterLoad(),
       refreshInterval: 0,
       refreshWhenHidden: false,
       revalidateOnFocus: false,

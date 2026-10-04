@@ -1,40 +1,60 @@
 'use client';
 
-import { FC, useMemo } from 'react';
+import { FC, useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-// @ts-ignore
-import twitter from 'twitter-text';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
-import { stripHtmlValidation } from '@gitroom/helpers/utils/strip.html.validation';
 import { useLaunchStore } from '@gitroom/frontend/components/new-launch/store';
 import {
-  findPrice,
-  formatCredits,
-  useWalletAccess,
+  EstimateRequest,
+  findAction,
+  useSupportedChannels,
+  useWallet,
+  useWalletEstimate,
+  useWalletFormat,
   useWalletPrices,
+} from '@gitroom/frontend/components/wallet/wallet.hooks';
+import { titleCase } from '@gitroom/frontend/components/wallet/wallet.text';
+import { openTopUp } from '@gitroom/frontend/components/wallet/wallet.bridge';
+import { WalletEstimate } from '@gitroom/frontend/components/wallet/wallet.types';
+import {
+  TONE_TEXT,
+  toneFor,
+  useWalletAccess,
+  WalletAccess,
 } from '@gitroom/frontend/components/wallet-locks/wallet.access';
 import {
-  openTopUp,
-  useWalletSummary,
-} from '@gitroom/frontend/components/wallet/wallet.bridge';
-import { InfoIcon } from '@gitroom/frontend/components/wallet-locks/wallet.icons';
+  InfoIcon,
+  LockIcon,
+} from '@gitroom/frontend/components/wallet-locks/wallet.icons';
+import { ProviderLogo } from '@gitroom/frontend/components/wallet/wallet.ui';
 
-// X bills a post with a link at a higher rate, and counts bare domains as
-// links too, so the same parser X uses decides.
-const hasLink = (html: string) => {
-  const text = stripHtmlValidation('normal', html || '', true);
-  try {
-    return (twitter.extractUrls(text) as string[]).length > 0;
-  } catch {
-    return /https?:\/\/|www\./i.test(text);
-  }
+// Waits until the value has been stable for `ms` before passing it on, so
+// typing does not send an estimate per keystroke.
+const useDebounced = <V,>(value: V, ms: number) => {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setSettled(value), ms);
+    return () => clearTimeout(timer);
+  }, [value, ms]);
+  return settled;
 };
 
-const signed = (hundredths: number) =>
-  `${hundredths < 0 ? '−' : ''}${formatCredits(Math.abs(hundredths))}`;
+export interface ComposerWalletCost {
+  access?: WalletAccess;
+  // At least one channel is selected.
+  selected: boolean;
+  // Selected channels that charge per post, by provider.
+  priced: string[];
+  estimate?: WalletEstimate;
+  loading: boolean;
+}
 
-const WalletCostLineInner: FC = () => {
-  const t = useT();
+// What the post in the composer costs from the wallet: one estimate per
+// priced provider (POST /wallet/estimate, which owns the link rule), for
+// wallet workspaces only. Shared by the cost line and the schedule toast.
+export const useComposerWalletCost = (): ComposerWalletCost => {
+  const access = useWalletAccess();
+  const walletOrg = access === 'free' || access === 'payg';
   const { selectedIntegrations, global, internal } = useLaunchStore(
     useShallow((state) => ({
       selectedIntegrations: state.selectedIntegrations,
@@ -42,72 +62,129 @@ const WalletCostLineInner: FC = () => {
       internal: state.internal,
     }))
   );
+  const { data: prices } = useWalletPrices(walletOrg);
 
-  const xChannels = useMemo(
+  // Providers with a per-post price.
+  const pricedProviders = useMemo(
     () =>
-      selectedIntegrations.filter((p) => p.integration.identifier === 'x'),
-    [selectedIntegrations]
+      new Set(
+        (prices || [])
+          .flatMap((s) => s.actions)
+          .filter((a) => !!a.provider && a.billing === 'PER_USE')
+          .map((a) => a.provider as string)
+      ),
+    [prices]
   );
 
-  const { data: prices } = useWalletPrices('x', xChannels.length > 0);
-  const { data: wallet } = useWalletSummary(xChannels.length > 0);
-
-  const postPrice = findPrice(prices, 'x.post')?.price ?? 0;
-  const linkPrice = findPrice(prices, 'x.post_link')?.price ?? 0;
-
-  // Every tweet is charged on its own: the post, each thread reply, each X
-  // channel it goes to.
-  const { cost, link } = useMemo(() => {
-    let total = 0;
-    let anyLink = false;
-    for (const channel of xChannels) {
+  // Every post, thread reply and channel is charged on its own, so each
+  // provider gets every content it would send.
+  const requests = useMemo<EstimateRequest[]>(() => {
+    if (!walletOrg) return [];
+    const byProvider = new Map<string, string[]>();
+    for (const channel of selectedIntegrations) {
+      const provider = channel.integration.identifier;
+      if (!pricedProviders.has(provider)) continue;
       const own = internal.find(
         (i) => i.integration.id === channel.integration.id
       )?.integrationValue;
       const values = own?.length ? own : global;
-      for (const value of values) {
-        const withLink =
-          !channel.integration.stripLinks && hasLink(value.content);
-        anyLink = anyLink || withLink;
-        total += withLink ? linkPrice : postPrice;
-      }
+      byProvider.set(provider, [
+        ...(byProvider.get(provider) || []),
+        ...values.map((v) => v.content || ''),
+      ]);
     }
-    return { cost: total, link: anyLink };
-  }, [xChannels, internal, global, postPrice, linkPrice]);
+    return [...byProvider.entries()].map(([provider, contents]) => ({
+      provider,
+      contents,
+    }));
+  }, [walletOrg, selectedIntegrations, internal, global, pricedProviders]);
 
-  if (!xChannels.length || !prices || !wallet || !cost) {
-    return null;
-  }
-
-  const balance = wallet.balance ?? 0;
-  const after = balance - cost;
-  const enough = after >= 0;
-  const autoCovers = !enough && !!wallet.autoTopUp?.enabled;
-  // @ts-ignore - the summary has called this paidAmount
-  const autoAmount: number | null = wallet.autoTopUp?.amount ?? wallet.autoTopUp?.paidAmount ?? null;
-  const perUnit = wallet.topUp?.creditsPerUnit;
-  const afterAuto =
-    autoCovers && autoAmount && perUnit ? after + autoAmount * perUnit : null;
-
-  const explain = t(
-    'wallet_x_cost_info',
-    'X charges per post. {{post}} credits without a link, {{link}} with one. Other channels are free.',
-    { post: formatCredits(postPrice), link: formatCredits(linkPrice) }
+  const settled = useDebounced(requests, 400);
+  const { data: estimate, error } = useWalletEstimate(
+    settled.length ? settled : null
   );
 
+  return {
+    access,
+    selected: selectedIntegrations.length > 0,
+    priced: requests.map((r) => r.provider),
+    estimate: requests.length ? estimate : undefined,
+    loading:
+      (access === 'payg' && !prices) ||
+      (requests.length > 0 && !estimate && !error),
+  };
+};
+
+const signed = (credits: (n: number) => string, hundredths: number) =>
+  `${hundredths < 0 ? '−' : ''}${credits(Math.abs(hundredths))}`;
+
+const Skeleton: FC = () => (
+  <div className="flex flex-col gap-[6px]" aria-hidden="true">
+    <div className="h-[14px] w-[220px] max-w-full rounded-[4px] bg-newBgLineColor animate-pulse" />
+    <div className="h-[12px] w-[140px] max-w-full rounded-[4px] bg-newBgLineColor animate-pulse ms-[24px]" />
+  </div>
+);
+
+// The cost line in the composer footer: what the post costs and the balance
+// after, or why it may not go out. Scheduling is never blocked: credits are
+// taken when the post goes out.
+export const WalletCostLine: FC<{ cost: ComposerWalletCost }> = ({ cost }) => {
+  const t = useT();
+  const walletOrg = cost.access === 'free' || cost.access === 'payg';
+  const { data: wallet } = useWallet(walletOrg && cost.priced.length > 0);
+  const { data: prices } = useWalletPrices(walletOrg);
+  const f = useWalletFormat(wallet?.currency);
+
+  if (!walletOrg || !cost.selected) {
+    return null;
+  }
+  if (cost.loading || (cost.priced.length > 0 && !wallet)) {
+    return <Skeleton />;
+  }
+  if (cost.priced.length && !cost.estimate) {
+    // The estimate failed; the post itself is unaffected.
+    return null;
+  }
+  if (!cost.priced.length || !cost.estimate) {
+    return cost.access === 'payg' ? (
+      <div className="text-[13px] text-textItemBlur">
+        {t('wallet_no_credits_needed', 'No credits needed for these channels.')}
+      </div>
+    ) : null;
+  }
+
+  const { estimate } = cost;
+  const link = estimate.items.some((i) => /_link$/.test(i.actionKey));
+  const xPost = findAction(prices, 'x.post');
+  const xLink = findAction(prices, 'x.post_link');
+  const explain =
+    cost.priced.includes('x') && xPost && xLink
+      ? t(
+          'wallet_x_cost_info',
+          'X charges per post. {{post}} credits without a link, {{link}} with one. Other channels are free.',
+          { post: f.credits(xPost.price), link: f.credits(xLink.price) }
+        )
+      : '';
+  const perUnit = wallet?.topUp?.creditsPerUnit;
+  // autoAmount is money (smallest currency unit); the balance is credits.
+  const afterAuto =
+    estimate.autoCovers && estimate.autoAmount && perUnit
+      ? estimate.balanceAfter + f.creditsFor(estimate.autoAmount, perUnit)
+      : null;
+
   return (
-    <div className="px-[20px] py-[10px] border-t border-newBorder flex flex-col gap-[2px] select-none">
+    <div className="flex flex-col gap-[2px] min-w-0">
       <div className="flex items-center gap-[8px] text-[14px]">
-        <img
-          src="/icons/platforms/x.png"
-          alt=""
-          className="w-[16px] h-[16px] rounded-full"
-        />
-        <span>
+        <span className="flex items-center shrink-0">
+          {cost.priced.map((p) => (
+            <ProviderLogo key={p} provider={p} size={16} />
+          ))}
+        </span>
+        <span className="min-w-0">
           {t('wallet_post_costs', 'This post costs')}{' '}
           <span className="font-[600] tabular-nums">
             {t('wallet_n_credits', '{{credits}} credits', {
-              credits: formatCredits(cost),
+              credits: f.credits(estimate.price),
             })}
           </span>
           {link && (
@@ -117,35 +194,41 @@ const WalletCostLineInner: FC = () => {
             </span>
           )}
         </span>
-        <span
-          tabIndex={0}
-          role="img"
-          aria-label={explain}
-          data-tooltip-id="tooltip"
-          data-tooltip-content={explain}
-          data-tooltip-class-name="!max-w-[300px] !whitespace-normal !leading-[1.5]"
-          className="text-textItemBlur hover:text-newTextColor cursor-help"
-        >
-          <InfoIcon />
-        </span>
+        {!!explain && (
+          <span
+            tabIndex={0}
+            role="img"
+            aria-label={explain}
+            data-tooltip-id="tooltip"
+            data-tooltip-content={explain}
+            data-tooltip-class-name="!max-w-[300px] !whitespace-normal !leading-[1.5]"
+            className="text-textItemBlur hover:text-newTextColor cursor-help shrink-0"
+          >
+            <InfoIcon />
+          </span>
+        )}
       </div>
-      {enough ? (
+      {!estimate.short && !estimate.autoCovers ? (
         <div className="text-[13px] text-textItemBlur tabular-nums ps-[24px]">
           {t('wallet_balance_after_n', 'Balance after: {{credits}}', {
-            credits: signed(after),
+            credits: signed(f.credits, estimate.balanceAfter),
           })}
         </div>
-      ) : autoCovers ? (
+      ) : estimate.autoCovers ? (
         <div className="text-[13px] text-textItemBlur tabular-nums ps-[24px]">
-          {t('wallet_auto_top_up_first', 'Auto top-up runs first.')}
-          {afterAuto !== null &&
-            ' ' +
-              t('wallet_balance_after_n', 'Balance after: {{credits}}', {
-                credits: signed(afterAuto),
-              })}
+          {afterAuto !== null && estimate.autoAmount
+            ? t(
+                'wallet_auto_adds_first',
+                'Auto top-up adds {{amount}} first. Balance after: {{credits}}',
+                {
+                  amount: f.moneyShort(estimate.autoAmount),
+                  credits: signed(f.credits, afterAuto),
+                }
+              )
+            : t('wallet_auto_top_up_first', 'Auto top-up runs first.')}
         </div>
       ) : (
-        <div className="text-[13px] ps-[24px] text-[#f2555a]">
+        <div className="text-[13px] ps-[24px] text-danger">
           {t(
             'wallet_post_short',
             "Not enough credits yet. If you don't top up before it's due, this post won't go out."
@@ -159,7 +242,7 @@ const WalletCostLineInner: FC = () => {
           </button>{' '}
           <span className="text-textItemBlur tabular-nums">
             {t('wallet_balance_n', 'Balance: {{credits}}', {
-              credits: signed(balance),
+              credits: signed(f.credits, wallet?.balance ?? 0),
             })}
           </span>
         </div>
@@ -168,13 +251,66 @@ const WalletCostLineInner: FC = () => {
   );
 };
 
-// Shown on wallet workspaces only (free plan, with or without a top-up), and
-// only when an X channel is in the post. Scheduling is never blocked: credits
-// are taken when the post goes out.
-export const WalletCostLine: FC = () => {
+// Providers a top-up opens, with their display names.
+const useLockedProviders = (enabled: boolean) => {
+  const { data: prices } = useWalletPrices(enabled);
+  const { data: channels } = useSupportedChannels(enabled);
+  return useMemo(() => {
+    const seen = new Map<string, { name: string; billing: string }>();
+    for (const a of (prices || []).flatMap((s) => s.actions)) {
+      if (!a.provider || !a.requiresTopUp || seen.has(a.provider)) continue;
+      const channel = channels?.find((c) => c.identifier === a.provider);
+      seen.set(a.provider, {
+        name: channel
+          ? channel.name.replace(/\n\(.*\)/, '').trim()
+          : titleCase(a.provider),
+        billing: a.billing,
+      });
+    }
+    return [...seen.values()];
+  }, [prices, channels]);
+};
+
+// Free plan: beside the channel avatars, which channels a top-up opens.
+export const WalletLockHint: FC = () => {
+  const t = useT();
   const access = useWalletAccess();
-  if (access !== 'free' && access !== 'payg') {
+  const locked = useLockedProviders(access === 'free');
+  if (access !== 'free' || !locked.length) {
     return null;
   }
-  return <WalletCostLineInner />;
+  return (
+    <div className="text-[12px] text-textItemBlur flex items-center gap-[6px] ms-[4px] whitespace-nowrap">
+      <span className={TONE_TEXT[toneFor(locked[0].billing)]}>
+        <LockIcon size={10} />
+      </span>
+      {t('wallet_unlocks_on_top_up', '{{names}} unlocks when you top up', {
+        names: locked.map((l) => l.name).join(', '),
+        interpolation: { escapeValue: false },
+      })}
+    </div>
+  );
+};
+
+// Pay-as-you-go: the avatar tooltip of a channel that charges per post.
+export const useWalletAvatarTip = () => {
+  const t = useT();
+  const access = useWalletAccess();
+  const { data: prices } = useWalletPrices(access === 'payg');
+  return useMemo(() => {
+    if (access !== 'payg') return undefined;
+    const priced = new Set(
+      (prices || [])
+        .flatMap((s) => s.actions)
+        .filter((a) => !!a.provider && a.billing === 'PER_USE')
+        .map((a) => a.provider as string)
+    );
+    return (integration: { identifier: string; name: string }) =>
+      priced.has(integration.identifier)
+        ? t('wallet_avatar_charges', '{{name}}. Charges credits per post', {
+            name: integration.name,
+            interpolation: { escapeValue: false },
+          })
+        : integration.name;
+  }, [access, prices, t]);
 };

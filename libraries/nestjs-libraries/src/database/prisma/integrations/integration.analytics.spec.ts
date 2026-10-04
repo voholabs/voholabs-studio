@@ -36,7 +36,9 @@ import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
 
 const redis = ioRedis as unknown as { get: jest.Mock; set: jest.Mock };
 const org = { id: 'org-1' } as any;
-const rows = [{ label: 'Impressions', data: [{ total: 5, date: '2026-10-01' }] }];
+const rows = [
+  { label: 'Impressions', data: [{ total: 5, date: '2026-10-01' }] },
+];
 
 // An X channel on a workspace without a paid plan whose wallet pays for its
 // reads. `balance` is the wallet balance in hundredths of a credit; `room`
@@ -75,9 +77,7 @@ const make = (
     billsProvider: jest.fn(async () => true),
     price: jest.fn(async () => ({ action: {}, price: 225 })),
     balance: jest.fn(async () => balance),
-    lockedProviderMessageFor: jest.fn(
-      async () => 'Your wallet is on hold.'
-    ),
+    lockedProviderMessageFor: jest.fn(async () => 'Your wallet is on hold.'),
   };
   const provider = {
     analytics: jest.fn(

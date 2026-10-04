@@ -225,4 +225,20 @@ describe('BriefOnboardingService', () => {
     expect(status.available).toBe(true);
     expect(status.last).toMatchObject({ id, status: 'DONE' });
   });
+
+  it('says whether the next run takes credits', async () => {
+    expect((await build({ free: 1 }).service.status(ORG)).nextRunCharged).toBe(
+      false
+    );
+    expect((await build({ free: 0 }).service.status(ORG)).nextRunCharged).toBe(
+      true
+    );
+    expect(
+      (await build({ free: null }).service.status(ORG)).nextRunCharged
+    ).toBe(true);
+    expect(
+      (await build({ pays: false, free: 0 }).service.status(ORG))
+        .nextRunCharged
+    ).toBe(false);
+  });
 });

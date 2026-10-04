@@ -144,14 +144,29 @@ export class BriefOnboardingService {
     };
   }
 
+  // Whether the next finished run takes credits: the workspace pays from the
+  // wallet and has no free run left. The price itself is the price row's.
+  private async nextRunCharged(organizationId: string) {
+    if (!(await this._wallet.paysFromWallet(organizationId))) {
+      return false;
+    }
+    const free = await this._wallet.freeUnitsRemaining(
+      organizationId,
+      BRIEF_ONBOARDING_ACTION
+    );
+    return !free;
+  }
+
   async status(organizationId: string) {
     await this.closeStale(organizationId);
-    const [running, last] = await Promise.all([
+    const [running, last, nextRunCharged] = await Promise.all([
       this._repository.running(organizationId),
       this._repository.last(organizationId),
+      this.nextRunCharged(organizationId),
     ]);
     return {
       available: this.available(),
+      nextRunCharged,
       running: running
         ? { id: running.id, createdAt: running.createdAt }
         : null,

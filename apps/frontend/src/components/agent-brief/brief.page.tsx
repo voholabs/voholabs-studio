@@ -1,7 +1,7 @@
 'use client';
 
 import { useTrackView } from '@gitroom/helpers/utils/use.fire.events';
-import { FC, useEffect, useState } from 'react';
+import { FC, useCallback, useEffect, useState } from 'react';
 import clsx from 'clsx';
 import { useSWRConfig } from 'swr';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
@@ -16,13 +16,16 @@ import {
   useBriefOnboarding,
   useStartBriefOnboarding,
 } from '@gitroom/frontend/components/agent-brief/use.brief.onboarding';
-import { BTN_SIMPLE } from '@gitroom/frontend/components/wallet/wallet.ui';
+import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
 import {
+  TONE_TEXT,
+  useActionTone,
   useFeatureTone,
   useWalletAccess,
 } from '@gitroom/frontend/components/wallet-locks/wallet.access';
 import {
   findAction,
+  useWalletFormat,
   useWalletPrices,
 } from '@gitroom/frontend/components/wallet/wallet.hooks';
 import {
@@ -30,7 +33,10 @@ import {
   tTopUpGift,
 } from '@gitroom/frontend/components/wallet/wallet.text';
 import { LockedFeature } from '@gitroom/frontend/components/wallet-locks/locked.feature';
-import { BriefMenuIcon } from '@gitroom/frontend/components/wallet-locks/wallet.icons';
+import {
+  BriefMenuIcon,
+  CoinsIcon,
+} from '@gitroom/frontend/components/wallet-locks/wallet.icons';
 
 type T = ReturnType<typeof useT>;
 
@@ -151,18 +157,70 @@ const BriefOnboardingRunning: FC<{
   );
 };
 
-const RedoOnboardingButton: FC<{ onClick: () => void; busy: boolean }> = ({
-  onClick,
-  busy,
-}) => {
+// Redoing the onboarding is a paid action for wallet workspaces (the first
+// run is free, later ones cost the brief.onboarding price), so it carries the
+// warm accent and asks first. The price comes from the price row; paid plans
+// are never charged and only see that it starts over.
+const RedoOnboardingButton: FC<{
+  onConfirm: () => void;
+  busy: boolean;
+  wallet: boolean;
+  charged: boolean;
+}> = ({ onConfirm, busy, wallet, charged }) => {
   const t = useT();
+  const tone = useActionTone('brief.onboarding');
+  const format = useWalletFormat();
+  const { data: prices } = useWalletPrices(wallet);
+  const onboarding = findAction(prices, 'brief.onboarding');
+
+  const ask = useCallback(async () => {
+    const startsOver = t(
+      'brief_onboarding_redo_body',
+      'This starts the guided onboarding over, and your brief is written again from your new answers.'
+    );
+    let cost = '';
+    if (wallet && onboarding) {
+      cost =
+        charged && onboarding.price > 0
+          ? t(
+              'brief_onboarding_redo_cost',
+              'It costs {{credits}} credits from your wallet, taken when the new brief is saved.',
+              {
+                credits: format.credits(onboarding.price),
+                interpolation: { escapeValue: false },
+              }
+            )
+          : t(
+              'brief_onboarding_redo_free',
+              'This run is free. Later runs cost {{credits}} credits each.',
+              {
+                credits: format.credits(onboarding.price),
+                interpolation: { escapeValue: false },
+              }
+            );
+    }
+    const ok = await deleteDialog(
+      cost ? `${startsOver} ${cost}` : startsOver,
+      t('brief_onboarding_redo_confirm', 'Start over'),
+      t('brief_onboarding_redo_title', 'Redo the onboarding?'),
+      t('cancel', 'Cancel')
+    );
+    if (ok) {
+      onConfirm();
+    }
+  }, [t, wallet, onboarding, charged, format, onConfirm]);
+
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={ask}
       disabled={busy}
-      className={clsx(BTN_SIMPLE, '!h-[32px] !px-[12px] !text-[13px]')}
+      className={clsx(
+        'inline-flex items-center gap-[6px] h-[32px] px-[12px] rounded-[8px] border border-warmRing text-[13px] font-[600] hover:bg-warmHover transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
+        TONE_TEXT[tone]
+      )}
     >
+      {wallet && <CoinsIcon size={13} />}
       {busy
         ? t('brief_onboarding_opening', 'Opening...')
         : t('brief_onboarding_redo', 'Redo onboarding')}
@@ -237,7 +295,14 @@ const OpenBrief: FC<{ showFree: boolean }> = ({ showFree }) => {
 
   return (
     <AgentBrief
-      headerAction={<RedoOnboardingButton onClick={start} busy={busy} />}
+      headerAction={
+        <RedoOnboardingButton
+          onConfirm={start}
+          busy={busy}
+          wallet={showFree}
+          charged={!!onboarding.nextRunCharged}
+        />
+      }
     />
   );
 };

@@ -12,6 +12,9 @@ export const BRIEF_ONBOARDING_KEY = 'brief-onboarding';
 export interface BriefOnboardingStatus {
   // False when this install has no onboarding site configured.
   available: boolean;
+  // Whether the next finished run takes credits (wallet workspace, no free
+  // run left). Absent from older servers.
+  nextRunCharged?: boolean;
   running: { id: string; createdAt: string } | null;
   last: {
     id: string;

@@ -1124,5 +1124,6 @@
   "brief_onboarding_redo_line": "Starting over replaces your previous answers and rewrites your brief.",
   "brief_onboarding_redo_cost_line": "Pay per use: this costs {{credits}} credits, refunded if the onboarding is not finished.",
   "brief_onboarding_continue_cost_line": "Continuing is free. Starting a new one later costs {{credits}} credits.",
-  "brief_onboarding_redo_free_line": "This one is free. Later ones cost {{credits}} credits each."
+  "brief_onboarding_redo_free_line": "This one is free. Later ones cost {{credits}} credits each.",
+  "onboarding_next_agent": "Next: connect your agent"
 }

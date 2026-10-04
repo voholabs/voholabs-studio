@@ -179,11 +179,11 @@ const OnboardingStep1: FC<{
       <div className="flex justify-end pt-[24px] mt-[8px]">
         <button
           onClick={onNext}
-          className="group flex items-center gap-[12px] bg-gradient-to-r from-[#622aff] to-[#8b5cf6] hover:from-[#7c3aff] hover:to-[#9d6eff] text-white font-semibold px-[32px] py-[14px] rounded-[12px] text-[16px] transition-all shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40"
+          className="group flex items-center gap-[12px] bg-btnPrimary hover:brightness-110 text-white font-semibold px-[32px] py-[14px] rounded-[12px] text-[16px] transition-all"
         >
           {hasNext
             ? sortedIntegrations.length > 0
-              ? t('onboarding_next', 'Next')
+              ? t('onboarding_next_agent', 'Next: connect your agent')
               : t(
                   'onboarding_next_without_channels',
                   'Continue without channels'

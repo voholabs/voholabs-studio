@@ -16,6 +16,7 @@ import {
 } from '@gitroom/frontend/components/wallet-locks/wallet.access';
 import {
   CheckIcon,
+  GiftIcon,
   LockIcon,
   PlusIcon,
 } from '@gitroom/frontend/components/wallet-locks/wallet.icons';
@@ -23,7 +24,7 @@ import {
 // A feature a wallet top-up opens. Locked (before the first top-up) it offers
 // the top-up and the prices; open (`action` set) it shows the same page with
 // one primary button, for a feature that is open but not set up yet. The
-// tone follows how the feature is billed (teal for what a top-up opens).
+// accent is the warm one every paid or locked signal uses.
 export const LockedFeature: FC<{
   icon: ReactNode;
   title: string;
@@ -34,6 +35,8 @@ export const LockedFeature: FC<{
   tone?: WalletTone;
   action?: { label: string; onClick: () => void };
   note?: string;
+  // What a top-up gives for free, generated from the price row.
+  gift?: string;
 }> = ({
   icon,
   title,
@@ -41,9 +44,10 @@ export const LockedFeature: FC<{
   eyebrow,
   bullets,
   cta,
-  tone = 'teal',
+  tone = 'warm',
   action,
   note,
+  gift,
 }) => {
   const t = useT();
   return (
@@ -103,6 +107,20 @@ export const LockedFeature: FC<{
               </li>
             ))}
           </ul>
+        )}
+        {!!gift && (
+          <div
+            className={clsx(
+              'flex items-center gap-[10px] rounded-[10px] px-[14px] py-[10px] text-[14px] font-[500] text-start mt-[4px]',
+              TONE_SOFT[tone],
+              TONE_TEXT[tone]
+            )}
+          >
+            <span className="shrink-0">
+              <GiftIcon size={18} />
+            </span>
+            <span>{gift}</span>
+          </div>
         )}
         <div className="flex flex-wrap justify-center gap-[8px] mt-[8px]">
           {action ? (

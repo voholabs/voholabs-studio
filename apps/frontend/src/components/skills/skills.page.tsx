@@ -13,6 +13,11 @@ import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
 import { useWalletAccess } from '@gitroom/frontend/components/wallet-locks/wallet.access';
 import { LockedFeature } from '@gitroom/frontend/components/wallet-locks/locked.feature';
 import {
+  findAction,
+  useWalletPrices,
+} from '@gitroom/frontend/components/wallet/wallet.hooks';
+import { tTopUpGift } from '@gitroom/frontend/components/wallet/wallet.text';
+import {
   InfoIcon,
   SkillsIcon,
 } from '@gitroom/frontend/components/wallet-locks/wallet.icons';
@@ -398,24 +403,52 @@ const SkillsLibrary: FC = () => {
   );
 };
 
-export const SkillsPage: FC = () => {
+// Free plan, nothing topped up: the same layout as the locked brief. What the
+// top-up gives for free comes from the skills.library price row.
+const LockedSkills: FC = () => {
   const t = useT();
+  const { data: prices } = useWalletPrices();
+  const library = findAction(prices, 'skills.library');
+  return (
+    <LockedFeature
+      icon={<SkillsIcon size={28} />}
+      eyebrow={t('skills', 'Skills')}
+      title={t(
+        'skills_locked_title',
+        'Skills make posting easy: your agent already knows how'
+      )}
+      body={t(
+        'skills_locked_body',
+        'Ready-made skills teach your agent how to write, make media and schedule for each channel. It finds them through MCP and picks the right one for each task.'
+      )}
+      bullets={[
+        t(
+          'skills_locked_bullet_1',
+          'Ask for a post in plain words. The skill handles the format for each channel.'
+        ),
+        t(
+          'skills_locked_bullet_2',
+          'Articles, image and video generation, writing, hooks, and tips and tricks.'
+        ),
+        t(
+          'skills_locked_bullet_3',
+          'Works with Claude, ChatGPT or any agent connected through MCP.'
+        ),
+      ]}
+      gift={prices ? tTopUpGift(t, library) : undefined}
+      cta={t('skills_locked_cta', 'Top up to unlock skills')}
+    />
+  );
+};
+
+export const SkillsPage: FC = () => {
   const access = useWalletAccess();
 
   if (!access) {
     return <LoadingComponent />;
   }
   if (access === 'free') {
-    return (
-      <LockedFeature
-        icon={<SkillsIcon size={28} />}
-        title={t('skills', 'Skills')}
-        body={`${skillsLockedCopy(t)} ${t(
-          'skills_locked_unlock',
-          'A single top-up unlocks them.'
-        )}`}
-      />
-    );
+    return <LockedSkills />;
   }
   return <SkillsLibrary />;
 };

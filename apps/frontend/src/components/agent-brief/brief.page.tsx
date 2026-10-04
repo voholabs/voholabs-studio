@@ -13,6 +13,10 @@ import {
   findAction,
   useWalletPrices,
 } from '@gitroom/frontend/components/wallet/wallet.hooks';
+import {
+  tFreeUse,
+  tTopUpGift,
+} from '@gitroom/frontend/components/wallet/wallet.text';
 import { LockedFeature } from '@gitroom/frontend/components/wallet-locks/locked.feature';
 import { BriefMenuIcon } from '@gitroom/frontend/components/wallet-locks/wallet.icons';
 
@@ -40,30 +44,33 @@ const briefCopy = (t: T) => ({
   ],
 });
 
-// Free plan, nothing topped up: the brief is shown, not opened.
+// Free plan, nothing topped up: the brief is shown, not opened. What the
+// top-up gives for free comes from the brief.onboarding price row.
 const LockedBrief: FC = () => {
   const t = useT();
   const tone = useFeatureTone('brief');
+  const { data: prices } = useWalletPrices();
+  const onboarding = findAction(prices, 'brief.onboarding');
   return (
     <LockedFeature
       icon={<BriefMenuIcon size={28} />}
       tone={tone}
       {...briefCopy(t)}
+      gift={prices ? tTopUpGift(t, onboarding) : undefined}
       cta={t('brief_locked_cta', 'Top up to start the brief onboarding')}
     />
   );
 };
 
 // Pay-as-you-go with nothing written yet: the same page, open, with one way
-// in. The note on the first onboarding being free comes from the
-// brief.onboarding price row.
+// in. What is free comes from the brief.onboarding price row, as on the
+// locked page.
 const BriefEmptyState: FC<{ onCreate: () => void }> = ({ onCreate }) => {
   const t = useT();
   const tone = useFeatureTone('brief');
   const { data: prices } = useWalletPrices();
   const onboarding = findAction(prices, 'brief.onboarding');
-  const firstFree =
-    onboarding?.freePeriod === 'ONCE' && (onboarding?.freeUnits || 0) >= 1;
+  const free = onboarding ? tFreeUse(t, onboarding) : '';
   return (
     <LockedFeature
       icon={<BriefMenuIcon size={28} />}
@@ -73,16 +80,8 @@ const BriefEmptyState: FC<{ onCreate: () => void }> = ({ onCreate }) => {
         label: t('brief_create', 'Create your brief'),
         onClick: onCreate,
       }}
-      note={
-        !prices
-          ? undefined
-          : firstFree
-          ? t(
-              'brief_create_note_first_free',
-              'Starts a short guided onboarding. Your first one is free.'
-            )
-          : t('brief_create_note', 'Starts a short guided onboarding.')
-      }
+      gift={free || undefined}
+      note={t('brief_create_note', 'Starts a short guided onboarding.')}
     />
   );
 };

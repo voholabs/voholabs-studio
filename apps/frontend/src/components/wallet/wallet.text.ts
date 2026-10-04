@@ -105,6 +105,47 @@ export const tPrice = (t: T, f: WalletFormat, a: WalletPricedAction) =>
         ...raw,
       });
 
+// What using a feature costs once it is open, from its price row: "Free,
+// unlimited use." for an unlock, the free units for a priced action, or ''
+// when nothing is free.
+export const tFreeUse = (t: T, a: WalletPricedAction) => {
+  if (a.billing === 'UNLOCK')
+    return t('wallet_free_unlimited', 'Free, unlimited use.');
+  const n = a.freeUnits || 0;
+  if (!n) return '';
+  const units = unitLabel(t, a.unit, n);
+  if (a.freePeriod === 'ONCE')
+    return n === 1
+      ? t('wallet_free_first_one', 'Your first {{unit}} is free.', {
+          unit: units,
+          ...raw,
+        })
+      : t('wallet_free_first_n', 'Your first {{n}} {{units}} are free.', {
+          n,
+          units,
+          ...raw,
+        });
+  if (a.freePeriod === 'MONTH')
+    return t('wallet_free_monthly', '{{n}} {{units}} free each month.', {
+      n,
+      units,
+      ...raw,
+    });
+  return t('wallet_free_included', '{{n}} {{units}} included free.', {
+    n,
+    units,
+    ...raw,
+  });
+};
+
+// The line a locked feature shows on what a top-up gives, e.g. "Any top-up
+// opens it. Your first onboarding is free."
+export const tTopUpGift = (t: T, a?: WalletPricedAction) => {
+  const opens = t('wallet_gift_opens', 'Any top-up opens it.');
+  const free = a ? tFreeUse(t, a) : '';
+  return free ? `${opens} ${free}` : opens;
+};
+
 // One sentence on how something is paid, e.g. for a page's coins hint.
 export const tPaidHint = (t: T, f: WalletFormat, a: WalletPricedAction) => {
   const n = a.freeUnits || 0;

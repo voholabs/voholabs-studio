@@ -497,6 +497,7 @@ const AutoTopUpCard: FC<{ wallet: WalletSummary; f: WalletFormat }> = ({
                   <span className="text-textItemBlur ms-[6px] tabular-nums">
                     {t('wallet_card_expires', 'Expires {{exp}}', {
                       exp: wallet.card.exp,
+                      interpolation: { escapeValue: false },
                     })}
                   </span>
                 )}

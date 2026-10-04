@@ -11,6 +11,8 @@ import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { useDecisionModal } from '@gitroom/frontend/components/layout/new-modal';
 import { DeveloperComponent } from '@gitroom/frontend/components/developer/developer.component';
 import clsx from 'clsx';
+import { useWalletAccess } from '@gitroom/frontend/components/wallet-locks/wallet.access';
+import { LegacyPublicComponent } from '@gitroom/frontend/components/public-api/public.component.legacy';
 
 const mcpClients = [
   'Claude Code',
@@ -613,7 +615,7 @@ const ConnectSection = ({
   const { config, hint } = getMcpConfig(activeClient, mcpBase, apiKey);
 
   // Agent sandboxes allowlist outbound hosts, so both directions fail until
-  // the host is added (see "Using images and videos" below). Uploading a
+  // the host is added (Claude's step 4 below). Uploading a
   // local file goes to us; reading a photo or video back comes from wherever
   // media is stored, which is a different host when that is object storage.
   const hostOf = (url: string) => {
@@ -726,36 +728,24 @@ const ConnectSection = ({
                 </PathChip>
               </div>
             </ShortStep>
-          </ol>
-          <TryItBox />
-          <div className="flex flex-col gap-[8px]">
-            <MoreHelp title={t('agent_more_help', 'More help')}>
-              <div>
+            <ShortStep index={4}>
+              <div className="font-[600]">
                 {t(
-                  'claude_connector_intro',
-                  'Connectors live in your Claude account, so adding this once turns it on everywhere you use Claude: Cowork, the desktop app, claude.ai and mobile.'
+                  'agent_claude_step_allowlist',
+                  "Allow Studio's file domains"
                 )}
               </div>
               <div>
-                {t(
-                  'leave_advanced_settings_empty',
-                  'Leave "Advanced settings" (OAuth Client ID and Secret) empty. The link already signs you in. Click Add, and Claude will connect straight away.'
-                )}
-              </div>
-              <div>{securityDetail}</div>
-              <HelpLink
-                href={docsHref}
-                label={t('agent_claude_docs', 'Claude help: custom connectors')}
-              />
-            </MoreHelp>
-            <MoreHelp
-              title={t('agent_images_and_videos', 'Using images and videos')}
-            >
-              <div>
-                {t(
-                  'allow_uploads_from_your_computer_detail',
-                  'Claude blocks its own outgoing connections by default, so sending it a photo or video, or opening one already in your library, fails until you allow these. In Claude: Settings → Capabilities → domain allowlist → add both:'
-                )}
+                {t('agent_claude_allowlist_in', 'In Claude:')}{' '}
+                <PathChip>
+                  {t(
+                    'agent_claude_allowlist_path',
+                    'Settings › Capabilities › Domain allowlist'
+                  )}
+                </PathChip>
+                {allowlistHosts.length > 1
+                  ? t('agent_claude_allowlist_add_both', ', add both:')
+                  : t('agent_claude_allowlist_add_one', ', add:')}
               </div>
               <div className="flex items-start gap-[8px]">
                 <div className="flex-1 min-w-0">
@@ -770,22 +760,34 @@ const ConnectSection = ({
                   }
                 />
               </div>
-              {allowlistHosts.length > 1 && (
-                <div>
-                  {t(
-                    'allowlist_two_domains_why',
-                    'Both are needed and they do different jobs: the first is Voholabs Studio itself, which is where a file you upload goes. The second is where your photos and videos are kept, and it is the one that lets the assistant open an image or video already in your library, to look at it or to attach it to a post it is drafting. Allow only the first and uploads work while your existing media stays unreadable.'
-                  )}
-                </div>
-              )}
-              <div>
+              <SubLine>
                 {t(
-                  'allow_uploads_from_your_computer_hint',
-                  'Skip this if you only post text, or images Claude generates or finds online. If Claude ever says it cannot reach Voholabs Studio, cannot open one of your own images or videos, or offers to put your file on another website first, this is the setting to change.'
+                  'agent_claude_allowlist_why',
+                  "Without this, Claude can't send or open your images and videos."
                 )}
-              </div>
-            </MoreHelp>
-          </div>
+              </SubLine>
+            </ShortStep>
+          </ol>
+          <TryItBox />
+          <MoreHelp title={t('agent_more_help', 'More help')}>
+            <div>
+              {t(
+                'claude_connector_intro',
+                'Connectors live in your Claude account, so adding this once turns it on everywhere you use Claude — Cowork, the desktop app, claude.ai and mobile.'
+              )}
+            </div>
+            <div>
+              {t(
+                'leave_advanced_settings_empty',
+                'Leave "Advanced settings" (OAuth Client ID and Secret) empty — the link already signs you in. Click Add, and Claude will connect straight away.'
+              )}
+            </div>
+            <div>{securityDetail}</div>
+            <HelpLink
+              href={docsHref}
+              label={t('agent_claude_docs', 'Claude help: custom connectors')}
+            />
+          </MoreHelp>
         </>
       )}
 
@@ -846,7 +848,7 @@ const ConnectSection = ({
             <div>
               {t(
                 'chatgpt_connector_intro',
-                'ChatGPT needs developer mode to add a connector of your own. It is on Plus, Pro, Business, Enterprise and Edu, and only on the web. The phone apps cannot add one.'
+                'ChatGPT needs developer mode to add a connector of your own. It is on Plus, Pro, Business, Enterprise and Edu, and only on the web — the phone apps cannot add one.'
               )}
             </div>
             <div>
@@ -858,13 +860,13 @@ const ConnectSection = ({
             <div>
               {t(
                 'no_authentication_is_correct',
-                '"No authentication" is the right choice here, even though it sounds wrong: your link already carries the key that signs you in, and ChatGPT has no field to put one in separately. Treat the link like a password: anyone holding it can post as you.'
+                '"No authentication" is the right choice here, even though it sounds wrong: your link already carries the key that signs you in, and ChatGPT has no field to put one in separately. Treat the link like a password — anyone holding it can post as you.'
               )}
             </div>
             <div>
               {t(
                 'chatgpt_ready_after_saving',
-                'Save it and you are done. Start a chat and ask it to list your channels or schedule a post. There is nothing else to switch on.'
+                'Save it and you are done. Start a chat and ask it to list your channels or schedule a post — there is nothing else to switch on.'
               )}
             </div>
             <div>{securityDetail}</div>
@@ -1056,7 +1058,7 @@ const PublicApiContent = () => {
       title: t('rotate_api_key', 'Rotate API Key?'),
       description: t(
         'rotate_api_key_description',
-        'This will generate a new API key and invalidate the current one. Any integrations using the old key will stop working, including agents you connected with a connector link.'
+        'This will generate a new API key and invalidate the current one. Any integrations using the old key will stop working — including agents you connected with a connector link.'
       ),
       approveLabel: t('rotate', 'Rotate'),
       cancelLabel: t('cancel', 'Cancel'),
@@ -1175,7 +1177,7 @@ const PublicApiContent = () => {
       <div className="text-[13px] text-customColor18 leading-[1.7]">
         {t(
           'api_auth_note_line2',
-          'Building a product that schedules posts on behalf of other Voholabs users? Create an OAuth App under the "Apps" tab. Your users authorize it with OAuth2 and you receive a pos_ prefixed token that works with the API, MCP and CLI, just like an API Key.'
+          'Building a product that schedules posts on behalf of other Voholabs users? Create an OAuth App under the "Apps" tab — your users authorize it with OAuth2 and you receive a pos_ prefixed token that works with the API, MCP and CLI, just like an API Key.'
         )}
       </div>
     </div>
@@ -1200,7 +1202,16 @@ export const ConnectAgentPanel: FC<{ bare?: boolean }> = ({ bare }) => {
   );
 };
 
-export const PublicComponent = () => {
+// A paid plan keeps the panel it always had; every other plan gets the new
+// connect-agent panel, the same one onboarding shows.
+export const PublicComponent = () =>
+  useWalletAccess() === 'plan' ? (
+    <LegacyPublicComponent />
+  ) : (
+    <WalletPublicComponent />
+  );
+
+const WalletPublicComponent = () => {
   const t = useT();
   const [subTab, setSubTab] = useState<'api' | 'developer'>('api');
 

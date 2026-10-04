@@ -17,12 +17,13 @@ import { MediaService } from '@gitroom/nestjs-libraries/database/prisma/media/me
 import { CreatePostDto } from '@gitroom/nestjs-libraries/dtos/posts/create.post.dto';
 import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 import {
-  onPaidPlan,
+  addPendingWalletPost,
   orgFromContext,
-  postCost,
-  shortWarning,
+  PendingWalletPosts,
   toCredits,
-  walletForecast,
+  walletPostCost,
+  walletRefusal,
+  walletWarning,
 } from '@gitroom/nestjs-libraries/chat/tools/wallet.shared';
 
 @Injectable()
@@ -34,45 +35,6 @@ export class IntegrationSchedulePostTool implements AgentToolInterface {
     private _walletService: WalletService
   ) {}
   name = 'integrationSchedulePostTool';
-
-  // Units of credit for a post on a channel the wallet charges for, or
-  // undefined when the workspace does not pay for it from the wallet.
-  private async walletCost(
-    organization: any,
-    identifier: string,
-    contents: string[]
-  ) {
-    try {
-      if (
-        !organization?.id ||
-        onPaidPlan(organization) ||
-        !(await this._walletService.billsProvider(identifier))
-      ) {
-        return undefined;
-      }
-      return await postCost(this._walletService, identifier, contents);
-    } catch (err) {
-      return undefined;
-    }
-  }
-
-  // Set when the credits will not cover what is scheduled: the scheduled
-  // usage forecast is short, or these posts alone are more than the balance
-  // and auto top-up is off.
-  private async walletWarning(organizationId: string, units: number) {
-    try {
-      const [forecast, balance, wallet] = await Promise.all([
-        walletForecast(this._walletService, organizationId),
-        this._walletService.balance(organizationId),
-        this._walletService.getWallet(organizationId),
-      ]);
-      const short =
-        forecast?.short || (units > balance && !wallet?.autoTopUp);
-      return short ? shortWarning() : undefined;
-    } catch (err) {
-      return undefined;
-    }
-  }
 
   run() {
     return createTool({
@@ -118,6 +80,8 @@ On a workspace that pays per post from its wallet, each such post in the output
 carries "cost" (credits for the post and its replies, taken when it publishes, not
 now). If the credits will not cover it, the post still gets scheduled and carries
 "walletWarning": tell the user, and pass on the top-up link it contains.
+If the workspace has not unlocked a channel from its wallet yet, the call returns
+"errors" with the reason and a top-up link: pass both on to the user.
 `,
       inputSchema: z.object({
         socialPost: z
@@ -211,6 +175,10 @@ now). If the credits will not cover it, the post still gets scheduled and carrie
         // Wallet posts that will publish, so the warning can be added once
         // every post is on the calendar.
         const walletPosts: { cost: number }[] = [];
+        // What those posts take from the wallet, priced before any of them is
+        // queued (see walletWarning).
+        const pending: PendingWalletPosts = new Map();
+        const costs = new Map<number, number>();
 
         const integrations = {} as Record<string, Integration>;
         for (const platform of inputData.socialPost) {
@@ -309,7 +277,42 @@ now). If the credits will not cover it, the post still gets scheduled and carrie
           };
         }
 
-        for (const post of inputData.socialPost) {
+        // What the wallet will take when each post publishes, read from the
+        // content as createPost saves it. Never blocks the schedule.
+        for (const [index, post] of inputData.socialPost.entries()) {
+          const integration = integrations[post.integrationId];
+          if (!integration) {
+            continue;
+          }
+          const contents = post.postsAndComments.map((p: any) =>
+            withPostLinks(p)
+          );
+          const cost = await walletPostCost(
+            this._walletService,
+            organization,
+            integration.providerIdentifier,
+            contents
+          );
+          if (cost === undefined) {
+            continue;
+          }
+          costs.set(index, cost);
+          if (post.type !== 'draft') {
+            addPendingWalletPost(
+              pending,
+              integration.providerIdentifier,
+              contents,
+              cost
+            );
+          }
+        }
+        const warning = await walletWarning(
+          this._walletService,
+          organizationId,
+          pending
+        );
+
+        for (const [index, post] of inputData.socialPost.entries()) {
           const integration = integrations[post.integrationId];
 
           if (!integration) {
@@ -348,19 +351,33 @@ now). If the credits will not cover it, the post still gets scheduled and carrie
               },
             ],
           };
-          const output = await this._postsService.createPost(
-            organizationId,
-            body,
-            'MCP'
-          );
+          let output;
+          try {
+            output = await this._postsService.createPost(
+              organizationId,
+              body,
+              'MCP'
+            );
+          } catch (err) {
+            // A channel the wallet has not opened yet: the agent gets the
+            // reason and the top-up link, not a raw tool failure.
+            const refusal = walletRefusal(err);
+            if (!refusal) {
+              throw err;
+            }
+            const scheduled = finalOutput.map((p: any) => p.postId);
+            return {
+              output: {
+                errors: scheduled.length
+                  ? `${refusal} Already scheduled in this call, do not schedule them again: ${scheduled.join(
+                      ', '
+                    )}.`
+                  : refusal,
+              },
+            };
+          }
 
-          // What the wallet will take when this publishes, read from the
-          // content as createPost saved it. Never blocks the schedule.
-          const cost = await this.walletCost(
-            organization,
-            integration.providerIdentifier,
-            (body.posts[0].value || []).map((p: { content: string }) => p.content)
-          );
+          const cost = costs.get(index);
           for (const item of output) {
             if (cost !== undefined) {
               item.cost = toCredits(cost);
@@ -372,15 +389,9 @@ now). If the credits will not cover it, the post still gets scheduled and carrie
           finalOutput.push(...output);
         }
 
-        if (walletPosts.length) {
-          const warning = await this.walletWarning(
-            organizationId,
-            walletPosts.reduce((all, p) => all + Math.round(p.cost * 100), 0)
-          );
-          if (warning) {
-            for (const item of walletPosts) {
-              (item as any).walletWarning = warning;
-            }
+        if (warning) {
+          for (const item of walletPosts) {
+            (item as any).walletWarning = warning;
           }
         }
 

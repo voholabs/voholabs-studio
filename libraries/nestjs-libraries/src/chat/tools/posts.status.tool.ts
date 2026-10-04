@@ -4,18 +4,76 @@ import { Injectable } from '@nestjs/common';
 import z from 'zod';
 import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
 import { PostsService } from '@gitroom/nestjs-libraries/database/prisma/posts/posts.service';
+import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
+import {
+  addPendingWalletPost,
+  orgFromContext,
+  PendingWalletPosts,
+  toCredits,
+  walletPostCost,
+  walletWarning,
+} from '@gitroom/nestjs-libraries/chat/tools/wallet.shared';
 
 @Injectable()
 export class PostsStatusTool implements AgentToolInterface {
-  constructor(private _postsService: PostsService) {}
+  constructor(
+    private _postsService: PostsService,
+    private _walletService: WalletService
+  ) {}
   name = 'postStatusTool';
+
+  // What a post put back on the schedule will take from the wallet, and the
+  // warning when the credits will not cover it. Read before the post is
+  // queued, so the forecast does not already count it. Never blocks.
+  private async walletLine(organization: any, id: string) {
+    try {
+      const posts = await this._postsService.getPostsRecursively(
+        id,
+        true,
+        organization?.id,
+        true
+      );
+      const identifier = (posts?.[0] as any)?.integration?.providerIdentifier;
+      if (!identifier) {
+        return {};
+      }
+      const contents = posts.map((p) => p.content || '');
+      const cost = await walletPostCost(
+        this._walletService,
+        organization,
+        identifier,
+        contents
+      );
+      if (cost === undefined) {
+        return {};
+      }
+      const pending: PendingWalletPosts = new Map();
+      // Already queued: the forecast counts it, so counting it here again
+      // would warn about credits it does not need.
+      if (posts[0].state !== 'QUEUE') {
+        addPendingWalletPost(pending, identifier, contents, cost);
+      }
+      const warning = await walletWarning(
+        this._walletService,
+        organization.id,
+        pending
+      );
+      return {
+        cost: toCredits(cost),
+        ...(warning ? { walletWarning: warning } : {}),
+      };
+    } catch (err) {
+      return {};
+    }
+  }
 
   run() {
     return createTool({
       id: 'postStatusTool',
       description: `Move a post between draft and the schedule.
 Setting it to DRAFT takes a queued post off the schedule so it will not publish, without deleting it. Setting it to QUEUE puts a draft back on the schedule at its existing time, so check that time is still in the future before doing it, or it may go out immediately.
-Use postsList to find the post. This does nothing to a post that has already been published.`,
+Use postsList to find the post. This does nothing to a post that has already been published.
+On a workspace that pays per post from its wallet, QUEUE also returns "cost" (credits taken when it publishes) and, when the credits will not cover it, "walletWarning": tell the user and pass on the top-up link it contains.`,
       mcp: {
         annotations: {
           title: 'Change Post Status',
@@ -34,22 +92,34 @@ Use postsList to find the post. This does nothing to a post that has already bee
       outputSchema: z.object({
         changed: z.boolean().optional(),
         status: z.string().optional(),
+        cost: z
+          .number()
+          .optional()
+          .describe(
+            'Credits this post and its replies take from the wallet when it publishes'
+          ),
+        walletWarning: z.string().optional(),
         error: z.string().optional(),
       }),
       execute: async (inputData, context) => {
         checkAuth(inputData, context);
         try {
-          const organizationId = JSON.parse(
-            (context?.requestContext as any)?.get('organization') as string
-          ).id;
+          const organization = orgFromContext(context);
+          const organizationId = organization.id;
 
+          const wallet =
+            inputData.status === 'QUEUE'
+              ? await this.walletLine(organization, inputData.id)
+              : {};
+
+          // changePostStatus takes 'draft' | 'schedule'.
           await this._postsService.changePostStatus(
             organizationId,
             inputData.id,
-            inputData.status
+            inputData.status === 'DRAFT' ? 'draft' : 'schedule'
           );
 
-          return { changed: true, status: inputData.status };
+          return { changed: true, status: inputData.status, ...wallet };
         } catch (err) {
           return {
             error: `Failed to change the post status: ${

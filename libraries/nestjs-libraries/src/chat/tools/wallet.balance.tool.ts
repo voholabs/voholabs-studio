@@ -23,7 +23,7 @@ export class WalletBalanceTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'walletBalance',
-      description: `Get the workspace's available wallet credits: the balance, whether it is on pay-as-you-go, whether the wallet is frozen, the auto top-up settings, and whether the paid usage scheduled for the next 48 hours is covered.
+      description: `Get the workspace's available wallet credits: the balance, whether it is on pay-as-you-go, whether the wallet is frozen, the auto top-up settings, and whether the paid usage scheduled in the coming hours is covered (the window is "forecast.windowHours").
 Pay-per-use features (such as some channels) are paid from these credits when each post is published, never when it is scheduled. A post whose credits are short when it is due does not go out.
 For the transaction history call walletTransactions; for what things cost call walletPrices.`,
       inputSchema: z.object({}),

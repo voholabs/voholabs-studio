@@ -9,6 +9,7 @@ import { createOAuthMiddleware } from './oauth-middleware';
 import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
 import {
   paidToolNames,
+  walletToolKeys,
   walletToolNames,
 } from '@gitroom/nestjs-libraries/chat/tools/tool.list';
 import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
@@ -127,16 +128,20 @@ export const startMcp = async (app: INestApplication) => {
   };
   const walletServer = new MCPServer(walletServerConfig);
 
+  // The wallet server once the top-up opens any of its features (the brief or
+  // the skills); each of its tools still checks its own key (paidOnly).
+  const opensWalletTools = (org: any) =>
+    walletToolKeys.some((key) => org?.walletUnlocks?.includes(key));
   const configFor = (org: any) =>
     hasAccess(org)
       ? serverConfig
-      : org?.walletUnlocks?.includes('brief')
+      : opensWalletTools(org)
       ? walletServerConfig
       : freeServerConfig;
   const serverFor = (org: any) =>
     hasAccess(org)
       ? server
-      : org?.walletUnlocks?.includes('brief')
+      : opensWalletTools(org)
       ? walletServer
       : freeServer;
 

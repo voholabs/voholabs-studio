@@ -40,6 +40,8 @@ import { MediaMcpCallTool } from '@gitroom/nestjs-libraries/chat/tools/media.mcp
 import { WalletBalanceTool } from '@gitroom/nestjs-libraries/chat/tools/wallet.balance.tool';
 import { WalletTransactionsTool } from '@gitroom/nestjs-libraries/chat/tools/wallet.transactions.tool';
 import { WalletPricesTool } from '@gitroom/nestjs-libraries/chat/tools/wallet.prices.tool';
+import { SkillsListTool } from '@gitroom/nestjs-libraries/chat/tools/skills.list.tool';
+import { SkillGetTool } from '@gitroom/nestjs-libraries/chat/tools/skills.get.tool';
 
 export const toolList = [
   AccountInfoTool,
@@ -50,6 +52,8 @@ export const toolList = [
   BriefAssetTool,
   BriefHistoryTool,
   MarkLearnedTool,
+  SkillsListTool,
+  SkillGetTool,
   IntegrationListTool,
   GroupListTool,
   IntegrationValidationTool,
@@ -98,7 +102,7 @@ export const toolList = [
   UploadFromUrlTool,
 ];
 
-// Not part of the free plan: the brief, and AI media. The MCP leaves them out
+// Not part of the free plan: the brief, the skills library, and AI media. The MCP leaves them out
 // of what it lists to a free organization, so the free plan is a complete
 // product on its own terms rather than one with locked doors in it. Each of
 // these also refuses by itself (see paidOnly), for the routes that cannot pick
@@ -111,12 +115,16 @@ export const paidToolNames = [
   'briefAssetTool',
   'briefHistory',
   'markLearned',
+  'skillsList',
+  'skillGet',
   'mediaMcpList',
   'mediaMcpCall',
 ];
 
-// The paid tools a wallet top-up opens, when a price row opens the brief
-// (WalletService.unlockedKeys). AI media generation is never among them.
+// The paid tools a wallet top-up opens, when a price row opens the brief or
+// the skills (WalletService.unlockedKeys). AI media generation is never among
+// them. Each tool still refuses on its own when its own key is not open
+// (paidOnly(context, feature, 'brief' | 'skills')).
 export const walletToolNames = [
   'briefListTool',
   'briefSaveTool',
@@ -125,4 +133,9 @@ export const walletToolNames = [
   'briefAssetTool',
   'briefHistory',
   'markLearned',
+  'skillsList',
+  'skillGet',
 ];
+
+// What a wallet top-up can open that walletToolNames serves.
+export const walletToolKeys = ['brief', 'skills'];

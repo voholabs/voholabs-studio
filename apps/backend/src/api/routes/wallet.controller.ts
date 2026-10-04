@@ -30,6 +30,7 @@ import {
   WalletCheckoutDto,
   WalletEstimateDto,
 } from '@gitroom/nestjs-libraries/dtos/wallet/wallet.dto';
+import { hasAccess } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 
 type OrgWithRole = Organization & { users?: { role?: string }[] };
 
@@ -38,6 +39,13 @@ const assertAdmin = (org: OrgWithRole) => {
   const role = org.users?.[0]?.role;
   if (role !== 'ADMIN' && role !== 'SUPERADMIN') {
     throw new HttpException('Only an admin of this workspace can do this', 403);
+  }
+};
+
+// A paid plan never spends credits, so it is not offered a top-up or a card.
+const assertNoPlan = (org: Organization) => {
+  if (hasAccess(org as any)) {
+    throw new HttpException('Your plan does not use wallet credits.', 400);
   }
 };
 
@@ -183,6 +191,7 @@ export class WalletController {
     @Body() body: WalletCheckoutDto
   ) {
     assertAdmin(org);
+    assertNoPlan(org);
     if (!walletPaymentsEnabled()) {
       throw new HttpException('Top-ups are not available yet', 503);
     }
@@ -211,6 +220,7 @@ export class WalletController {
     @GetUserFromRequest() user: User
   ) {
     assertAdmin(org);
+    assertNoPlan(org);
     if (!walletPaymentsEnabled()) {
       throw new HttpException('Top-ups are not available yet', 503);
     }
@@ -266,6 +276,10 @@ export class WalletController {
     @Body() body: WalletAutoTopUpDto
   ) {
     assertAdmin(org);
+    // Turning it off stays possible on any plan.
+    if (body.enabled) {
+      assertNoPlan(org);
+    }
     const wallet = await this._wallet.ensureWallet(org.id);
     if (body.enabled) {
       if (wallet.frozenAt) {

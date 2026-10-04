@@ -11,7 +11,7 @@ import React, {
 } from 'react';
 import Link from 'next/link';
 import clsx from 'clsx';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
@@ -75,16 +75,14 @@ export const useHasWallet = () => {
   return user?.tier?.current === 'FREE';
 };
 
+// A paid plan has no wallet: its URLs go to the plan's own billing page, as
+// they did before the wallet existed.
 export const NoWallet: FC = () => {
-  const t = useT();
-  return (
-    <div className="flex-1 bg-newBgColorInner flex items-center justify-center text-textItemBlur text-[14px] p-[20px] text-center">
-      {t(
-        'wallet_paid_plan',
-        'Paid plans have no wallet. Everything is included.'
-      )}
-    </div>
-  );
+  const router = useRouter();
+  useEffect(() => {
+    router.replace('/billing');
+  }, [router]);
+  return null;
 };
 
 export const Loading: FC = () => (
@@ -1093,11 +1091,15 @@ export { PageShell as WalletPageShell };
 
 // The Billing page: balance, auto top-up, usage and transactions.
 export const WalletBillingPage: FC = () => {
+  const hasWallet = useHasWallet();
+  return hasWallet ? <WalletBilling /> : <NoWallet />;
+};
+
+const WalletBilling: FC = () => {
   const t = useT();
   useTrackView('wallet_opened');
-  const hasWallet = useHasWallet();
   const params = useSearchParams();
-  const { data: wallet, error } = useWallet(hasWallet);
+  const { data: wallet, error } = useWallet(true);
   const f = useWalletFormat(wallet?.currency);
   const [tab, setTab] = useState(
     params.get('tab') === 'transactions' ? 'transactions' : 'usage'
@@ -1107,8 +1109,6 @@ export const WalletBillingPage: FC = () => {
     const p = params.get('tab');
     if (p === 'transactions' || p === 'usage') setTab(p);
   }, [params]);
-
-  if (!hasWallet) return <NoWallet />;
 
   return (
     <>

@@ -198,12 +198,16 @@ const PriceTable: FC<{ rows: Row[] }> = ({ rows }) => {
 
 // The Prices page, generated only from GET /wallet/prices: no per-row copy.
 export const WalletPricesPage: FC = () => {
+  const hasWallet = useHasWallet();
+  return hasWallet ? <WalletPrices /> : <NoWallet />;
+};
+
+const WalletPrices: FC = () => {
   const t = useT();
   useTrackView('prices_viewed');
-  const hasWallet = useHasWallet();
-  const { data: wallet } = useWallet(hasWallet);
-  const { data: sections, error } = useWalletPrices(hasWallet);
-  const { data: channels } = useSupportedChannels(hasWallet);
+  const { data: wallet } = useWallet(true);
+  const { data: sections, error } = useWalletPrices(true);
+  const { data: channels } = useSupportedChannels(true);
   const f = useWalletFormat(wallet?.currency);
 
   const rendered = useMemo(
@@ -229,7 +233,6 @@ export const WalletPricesPage: FC = () => {
     [sections, channels, t, f]
   );
 
-  if (!hasWallet) return <NoWallet />;
   if (!sections) {
     return error ? (
       <div className="flex-1 bg-newBgColorInner flex items-center justify-center text-textItemBlur text-[14px] p-[20px]">

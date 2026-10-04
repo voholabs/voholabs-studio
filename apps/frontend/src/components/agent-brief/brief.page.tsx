@@ -378,6 +378,10 @@ export const BriefPage: FC = () => {
   if (!access) {
     return <LoadingComponent />;
   }
+  // A paid plan gets the brief editor as it always did.
+  if (access === 'plan') {
+    return <AgentBrief />;
+  }
   // Locked before the brief API is called: it answers 402 for this workspace,
   // which would open the top-up on its own.
   if (access === 'free') {

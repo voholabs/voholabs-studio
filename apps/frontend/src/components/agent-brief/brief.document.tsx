@@ -4,6 +4,7 @@ import { FC, ReactNode, useCallback, useState } from 'react';
 import { useSWRConfig } from 'swr';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
+import { useBriefClassic } from '@gitroom/frontend/components/agent-brief/brief.classic';
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
@@ -71,15 +72,22 @@ const ActionButton: FC<{
   label: string;
   onClick: () => void;
   icon: 'plus' | 'trash';
-}> = ({ label, onClick, icon }) => (
-  <div
-    onClick={onClick}
-    className="self-start cursor-pointer select-none flex items-center gap-[8px] rounded-[8px] border border-newTableBorder px-[14px] h-[38px] text-[14px] text-textItemBlur hover:border-tealText hover:text-tealText hover:bg-tealHover transition-colors"
-  >
-    {icon === 'plus' ? <PlusIcon /> : <TrashIcon />}
-    {label}
-  </div>
-);
+}> = ({ label, onClick, icon }) => {
+  const classic = useBriefClassic();
+  return (
+    <div
+      onClick={onClick}
+      className={
+        classic
+          ? 'self-start cursor-pointer select-none flex items-center gap-[8px] rounded-[8px] border border-newTableBorder px-[14px] h-[38px] text-[14px] text-textItemBlur hover:border-warm hover:text-warm hover:bg-warmHover transition-colors'
+          : 'self-start cursor-pointer select-none flex items-center gap-[8px] rounded-[8px] border border-newTableBorder px-[14px] h-[38px] text-[14px] text-textItemBlur hover:border-tealText hover:text-tealText hover:bg-tealHover transition-colors'
+      }
+    >
+      {icon === 'plus' ? <PlusIcon /> : <TrashIcon />}
+      {label}
+    </div>
+  );
+};
 
 // Mounted with a key of category + document, so every document gets its own
 // autosave controller.
@@ -90,6 +98,7 @@ export const BriefDocument: FC<{
   headerAction?: ReactNode;
 }> = ({ document, content, onDeleted, headerAction }) => {
   const t = useT();
+  const classic = useBriefClassic();
   const fetch = useFetch();
   const toaster = useToaster();
   const { mutate } = useSWRConfig();
@@ -202,13 +211,17 @@ export const BriefDocument: FC<{
       <div className="flex items-start gap-[16px]">
         <div className="flex-1 flex flex-col gap-[6px] min-w-0">
           <div className="flex items-center gap-[8px] text-[12px] text-textItemBlur">
-            <span>{t('brief', 'Brief')}</span>
+            <span>
+              {classic ? t('brief_title', 'Agent Brief') : t('brief', 'Brief')}
+            </span>
             <span>/</span>
             <span>
               {t(document.category.labelKey, document.category.label)}
             </span>
             <span>/</span>
-            <bdi className="text-tealText">{document.label}</bdi>
+            <bdi className={classic ? 'text-warm' : 'text-tealText'}>
+              {document.label}
+            </bdi>
           </div>
           {canRename ? (
             <input
@@ -233,7 +246,13 @@ export const BriefDocument: FC<{
             </div>
           )}
         </div>
-        <div className="flex items-center gap-[12px] pt-[4px] flex-wrap justify-end">
+        <div
+          className={
+            classic
+              ? 'flex items-center gap-[12px] pt-[4px]'
+              : 'flex items-center gap-[12px] pt-[4px] flex-wrap justify-end'
+          }
+        >
           {headerAction}
           <BriefSaveIndicator state={state} onRetry={retry} />
         </div>
@@ -255,7 +274,13 @@ export const BriefDocument: FC<{
 
       {agentKept && (
         <div className="flex items-center gap-[8px] text-[12px] text-textItemBlur">
-          <span className="w-[6px] h-[6px] rounded-full bg-tealText" />
+          <span
+            className={
+              classic
+                ? 'w-[6px] h-[6px] rounded-full bg-warm'
+                : 'w-[6px] h-[6px] rounded-full bg-tealText'
+            }
+          />
           {t(
             'brief_agent_kept',
             'Written by the agent as it learns. Correct anything it got wrong.'
@@ -288,7 +313,11 @@ export const BriefDocument: FC<{
               onClick={removeBlock(block.id)}
               data-tooltip-id="tooltip"
               data-tooltip-content={t('brief_remove_block', 'Remove')}
-              className="shrink-0 mt-[4px] cursor-pointer select-none w-[28px] h-[28px] rounded-[6px] flex items-center justify-center text-textItemBlur hover:text-tealText hover:bg-tealHover transition-colors"
+              className={
+                classic
+                  ? 'shrink-0 mt-[4px] cursor-pointer select-none w-[28px] h-[28px] rounded-[6px] flex items-center justify-center text-textItemBlur hover:text-warm hover:bg-warmHover transition-colors'
+                  : 'shrink-0 mt-[4px] cursor-pointer select-none w-[28px] h-[28px] rounded-[6px] flex items-center justify-center text-textItemBlur hover:text-tealText hover:bg-tealHover transition-colors'
+              }
             >
               <TrashIcon />
             </div>

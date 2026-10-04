@@ -36,6 +36,7 @@ import {
 import {
   InsufficientCreditsError,
   WalletService,
+  walletFrozenMessage,
   walletRequiredMessage,
 } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 import { WalletBillingService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.billing.service';
@@ -44,6 +45,10 @@ import { walletAlert } from '@gitroom/nestjs-libraries/database/prisma/wallet/wa
 // Paid reads and lookups on a provider's API, priced by the `<provider>.<action>`
 // wallet rows.
 export type PaidApiAction = 'post_read' | 'user_lookup';
+
+// Channel analytics reads each post twice: once in the timeline, then again
+// for its stats. Both reads are billed by X.
+const READS_PER_ANALYTICS_POST = 2;
 
 const providerKey = (identifier: string) =>
   (identifier || '').toLowerCase().split('-')[0];
@@ -453,7 +458,8 @@ export class IntegrationService {
       if (integrationProvider.analytics) {
         // A wallet workspace pays for each post read (only on a cache miss,
         // above). It needs credits for at least one read before X is asked;
-        // the reads are then charged by how many posts came back.
+        // the reads are then charged by how many posts came back, two reads
+        // per post (the timeline, then each post's stats).
         const walletPays = await this.paysFromWallet(
           org.id,
           getIntegration.providerIdentifier
@@ -507,7 +513,7 @@ export class IntegrationService {
             orgId: org.id,
             identifier: getIntegration.providerIdentifier,
             action: 'post_read',
-            quantity: postsRead,
+            quantity: postsRead * READS_PER_ANALYTICS_POST,
             chargeKey: `${providerKey(
               getIntegration.providerIdentifier
             )}read:${getIntegration.id}:${dayjs
@@ -757,10 +763,17 @@ export class IntegrationService {
     return charge;
   }
 
-  async lockedProviderMessage(identifier: string) {
-    return (await this._walletService.billsProvider(identifier))
-      ? walletRequiredMessage(identifier)
-      : paidOnlyChannelMessage();
+  // Why a provider the free plan locks is refused. With the workspace given,
+  // a wallet on hold (after a refunded or disputed top-up) says so instead of
+  // asking for a top-up.
+  // TODO(merge): use WalletService.lockedProviderMessageFor(orgId, identifier).
+  async lockedProviderMessage(identifier: string, orgId?: string) {
+    if (!(await this._walletService.billsProvider(identifier))) {
+      return paidOnlyChannelMessage();
+    }
+    return orgId && (await this._walletService.isFrozen(orgId))
+      ? walletFrozenMessage()
+      : walletRequiredMessage(identifier);
   }
 
   async processInternalPlug(

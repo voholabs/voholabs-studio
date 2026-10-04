@@ -8,7 +8,11 @@ import {
   paidOnlyChannelMessage,
   providerNeedsPaidPlan,
 } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
-import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
+import {
+  notEnoughCreditsMessage,
+  WalletService,
+  walletFrozenMessage,
+} from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 import { PostsRepository } from '@gitroom/nestjs-libraries/database/prisma/posts/posts.repository';
 import { CreatePostDto } from '@gitroom/nestjs-libraries/dtos/posts/create.post.dto';
 import dayjs from 'dayjs';
@@ -59,6 +63,39 @@ type PostUrl = {
   state: State;
   deletedAt: Date | null;
 };
+
+// Why a post failed, in a form the app and the API can act on without reading
+// the message: 'wallet' when the wallet stopped it (not enough credits when it
+// was due, or a wallet on hold), otherwise null. Derived from the stored error,
+// which holds the message as is or inside a serialized failure.
+export type PostErrorKind = 'wallet' | null;
+
+const WALLET_ERROR_MESSAGES = [notEnoughCreditsMessage(), walletFrozenMessage()];
+
+export const postErrorKind = (error?: string | null): PostErrorKind =>
+  !!error &&
+  WALLET_ERROR_MESSAGES.some(
+    (message) =>
+      error.includes(message) ||
+      error.includes(JSON.stringify(message).slice(1, -1))
+  )
+    ? 'wallet'
+    : null;
+
+// Adds `errorKind` next to a post's `error`.
+const withErrorKind = <T extends { error?: string | null }>(post: T) => ({
+  ...post,
+  errorKind: postErrorKind(post.error),
+});
+
+// Adds `errorKind` and drops `error`, for lists that never carried the error.
+const errorKindOnly = <T extends { error?: string | null }>({
+  error,
+  ...post
+}: T) => ({
+  ...post,
+  errorKind: postErrorKind(error),
+});
 
 export type PostDependencies = {
   status: 'ready' | 'pending' | 'dead';
@@ -481,9 +518,14 @@ export class PostsService {
       includeMedia?: boolean;
       includeSettings?: boolean;
       includeThread?: boolean;
+      // Also return the stored `error` (every item has `errorKind`).
+      includeError?: boolean;
     }
   ) {
-    return this._postRepository.getPosts(orgId, query, options);
+    const posts = await this._postRepository.getPosts(orgId, query, options);
+    return posts.map((post: { error?: string | null }) =>
+      options?.includeError ? withErrorKind(post) : errorKindOnly(post)
+    );
   }
 
   async getPostIdsInGroup(orgId: string, group: string) {
@@ -507,14 +549,16 @@ export class PostsService {
 
   async getPostsMinified(orgId: string, query: GetPostsDto) {
     return minifyPosts({
-      posts: await this._postRepository.getPosts(orgId, query),
+      posts: await this.getPosts(orgId, query),
     });
   }
 
   async getPostsList(orgId: string, query: GetPostsListDto) {
-    return minifyPostsList(
-      await this._postRepository.getPostsList(orgId, query)
-    );
+    const list = await this._postRepository.getPostsList(orgId, query);
+    return minifyPostsList({
+      ...list,
+      posts: list.posts.map(errorKindOnly),
+    });
   }
 
   async updateMedia(id: string, imagesList: any[], convertToJPEG = false) {
@@ -672,7 +716,7 @@ export class PostsService {
       group: posts?.[0]?.group,
       posts: await Promise.all(
         (posts || []).map(async (post) => ({
-          ...post,
+          ...withErrorKind(post),
           image: await this.updateMedia(
             post.id,
             JSON.parse(post.image || '[]'),
@@ -710,7 +754,7 @@ export class PostsService {
       group: posts?.[0]?.group,
       posts: await Promise.all(
         (posts || []).map(async (post) => ({
-          ...post,
+          ...withErrorKind(post),
           image: await this.updateMedia(
             post.id,
             JSON.parse(post.image || '[]'),

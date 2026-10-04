@@ -23,7 +23,10 @@ import {
 import { Integration, Post, State } from '@prisma/client';
 import { stripHtmlValidation } from '@gitroom/helpers/utils/strip.html.validation';
 import { IntegrationManager } from '@gitroom/nestjs-libraries/integrations/integration.manager';
-import { AuthTokenDetails } from '@gitroom/nestjs-libraries/integrations/social/social.integrations.interface';
+import {
+  AuthTokenDetails,
+  PostResponse,
+} from '@gitroom/nestjs-libraries/integrations/social/social.integrations.interface';
 import { RefreshIntegrationService } from '@gitroom/nestjs-libraries/integrations/refresh.integration.service';
 import { timer } from '@gitroom/helpers/utils/timer';
 import { IntegrationService } from '@gitroom/nestjs-libraries/database/prisma/integrations/integration.service';
@@ -65,6 +68,8 @@ function slimPost(post: any) {
 // same rules as twitter-text (bare domains such as example.com count). The
 // shared rule lives in the wallet, so the cost shown and the cost charged
 // cannot drift apart.
+// TODO(merge): replace with WalletService.postActionKey(provider, sentText,
+// { sent: true }) once the core stream adds it.
 const postActionKey = (provider: string, text: string) =>
   `${provider}.${xPostActionKey(text).split('.')[1]}`;
 
@@ -118,7 +123,8 @@ export class PostActivity {
       '',
       '',
       await this._integrationService.lockedProviderMessage(
-        integration.providerIdentifier
+        integration.providerIdentifier,
+        integration.organizationId
       )
     );
   }
@@ -154,10 +160,37 @@ export class PostActivity {
     }
   }
 
-  // Publishes, charging each post first and refunding it if publishing fails.
-  // `sentText` gives the text the provider will actually send for a message
-  // (e.g. with links stripped), which is what the network bills.
-  private async publishPaid<T>(
+  // Gives back the credits taken for a post the network did not publish.
+  private async refundPost(
+    integration: Integration,
+    postId: string,
+    charge: string
+  ) {
+    try {
+      await this._walletService.refund(
+        charge,
+        'Refund: the post was not published'
+      );
+    } catch (refundErr) {
+      // The post failed but its credits were not given back.
+      await walletAlert(
+        `Refund failed for post ${postId} (charge ${charge}, organization ${integration.organizationId})`
+      ).catch(() => undefined);
+      this._logger.error(
+        `[wallet] REFUND FAILED for post ${postId} (charge ${charge}, organization ${integration.organizationId}): ${
+          refundErr instanceof Error ? refundErr.stack : refundErr
+        }`
+      );
+    }
+  }
+
+  // Publishes, charging each post first. Only the posts the network did not
+  // publish are refunded: on success, those missing from the result; on
+  // failure, all of them except any the error lists as already published
+  // (`postedIds`, for a provider that sends several posts in one call and
+  // fails part way). `sentText` gives the text the provider will actually send
+  // for a message (e.g. with links stripped), which is what the network bills.
+  private async publishPaid<T extends PostResponse[]>(
     integration: Integration,
     posts: { id: string; message: string }[],
     sentText: (message: string) => string,
@@ -167,6 +200,7 @@ export class PostActivity {
       return publish();
     }
     const charges: { postId: string; charge: string }[] = [];
+    let published: T;
     try {
       for (const post of posts) {
         charges.push({
@@ -178,28 +212,27 @@ export class PostActivity {
           ),
         });
       }
-      return await publish();
+      published = await publish();
     } catch (err) {
+      const postedIds = new Set<string>(
+        Array.isArray((err as { postedIds?: unknown })?.postedIds)
+          ? (err as { postedIds: string[] }).postedIds
+          : []
+      );
       for (const { postId, charge } of charges) {
-        try {
-          await this._walletService.refund(
-            charge,
-            'Refund: the post was not published'
-          );
-        } catch (refundErr) {
-          // The post failed but its credits were not given back.
-          await walletAlert(
-            `Refund failed for post ${postId} (charge ${charge}, organization ${integration.organizationId})`
-          ).catch(() => undefined);
-          this._logger.error(
-            `[wallet] REFUND FAILED for post ${postId} (charge ${charge}, organization ${integration.organizationId}): ${
-              refundErr instanceof Error ? refundErr.stack : refundErr
-            }`
-          );
+        if (!postedIds.has(postId)) {
+          await this.refundPost(integration, postId, charge);
         }
       }
       throw err;
     }
+    const returned = new Set((published || []).map((p) => p.id));
+    for (const { postId, charge } of charges) {
+      if (!returned.has(postId)) {
+        await this.refundPost(integration, postId, charge);
+      }
+    }
+    return published;
   }
 
   @ActivityMethod()

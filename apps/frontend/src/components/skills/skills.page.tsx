@@ -57,6 +57,11 @@ const toolLabel = (t: T, tool: string): string | null => {
       return t('skill_tool_posts', 'Your posts');
     case 'editPostTool':
       return t('skill_tool_edit_post', 'Post editing');
+    case 'postStatusTool':
+      return t('skill_tool_post_status', 'Post status');
+    case 'sanityMcpList':
+    case 'sanityMcpCall':
+      return t('skill_tool_sanity', 'Sanity CMS');
     case 'mediaList':
       return t('skill_tool_media_library', 'Media library');
     case 'integrationSchema':

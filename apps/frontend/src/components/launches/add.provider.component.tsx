@@ -23,11 +23,15 @@ import { web3List } from '@gitroom/frontend/components/launches/web3/web3.list';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { useUser } from '@gitroom/frontend/components/layout/user.context';
 import {
-  findPrice,
-  formatCredits,
+  TONE_TEXT,
+  useActionTone,
   useWalletAccess,
-  useWalletPrices,
 } from '@gitroom/frontend/components/wallet-locks/wallet.access';
+import {
+  findAction,
+  useWalletFormat,
+  useWalletPrices,
+} from '@gitroom/frontend/components/wallet/wallet.hooks';
 import {
   CoinsIcon,
   LockIcon,
@@ -861,9 +865,20 @@ export const AddProviderComponent: FC<{
   const walletAccess = useWalletAccess();
   const walletWorkspace =
     walletAccess === 'free' || walletAccess === 'payg';
-  const { data: xPrices } = useWalletPrices('x', walletWorkspace);
-  const xPost = formatCredits(findPrice(xPrices, 'x.post')?.price ?? 0);
-  const xPostLink = formatCredits(findPrice(xPrices, 'x.post_link')?.price ?? 0);
+  const { data: prices } = useWalletPrices(walletWorkspace);
+  const walletFormat = useWalletFormat();
+  const xTone = useActionTone('x.post', 'warm', walletWorkspace);
+  const xPostAction = findAction(prices, 'x.post');
+  const xLinkAction = findAction(prices, 'x.post_link');
+  // No numbers until the prices are in: the tile shows its lock, and the
+  // tooltip waits.
+  const xPrices =
+    xPostAction && xLinkAction
+      ? {
+          post: walletFormat.credits(xPostAction.price),
+          link: walletFormat.credits(xLinkAction.price),
+        }
+      : null;
   const walletMode = (identifier: string) =>
     identifier !== 'x' || !walletWorkspace
       ? undefined
@@ -872,11 +887,14 @@ export const AddProviderComponent: FC<{
       : ('metered' as const);
   const walletTip = (identifier: string, toolTip?: string) => {
     const mode = walletMode(identifier);
+    if (mode && !xPrices) {
+      return mode === 'metered' ? toolTip : undefined;
+    }
     if (mode === 'locked') {
       return t(
         'x_wallet_locked',
         'X charges per post from your wallet credits: {{post}} credits per post, {{link}} with a link. Top up to connect X.',
-        { post: xPost, link: xPostLink }
+        { post: xPrices!.post, link: xPrices!.link }
       );
     }
     if (mode === 'metered') {
@@ -884,7 +902,7 @@ export const AddProviderComponent: FC<{
         t(
           'x_wallet_metered',
           "{{post}} credits per post. {{link}} with a link. Prices follow X's API price.",
-          { post: xPost, link: xPostLink }
+          { post: xPrices!.post, link: xPrices!.link }
         ),
         toolTip,
       ]
@@ -942,7 +960,7 @@ export const AddProviderComponent: FC<{
                   mode === 'locked'
                     ? () => {
                         modal.closeAll();
-                        openTopUp();
+                        openTopUp(tip);
                       }
                     : getSocialLink(
                         props.invite,
@@ -963,7 +981,7 @@ export const AddProviderComponent: FC<{
                 {...(mode === 'locked'
                   ? {
                       role: 'button',
-                      'aria-label': `${item.name}. ${tip}`,
+                      'aria-label': tip ? `${item.name}. ${tip}` : item.name,
                     }
                   : {})}
                 className={clsx(
@@ -977,7 +995,12 @@ export const AddProviderComponent: FC<{
                 )}
               >
                 {!!mode && (
-                  <span className="absolute top-[10px] end-[10px] text-warm">
+                  <span
+                    className={clsx(
+                      'absolute top-[10px] end-[10px]',
+                      TONE_TEXT[xTone]
+                    )}
+                  >
                     {mode === 'locked' ? (
                       <LockIcon size={14} />
                     ) : (

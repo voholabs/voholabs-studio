@@ -1,42 +1,54 @@
 'use client';
 
 import { FC } from 'react';
+import clsx from 'clsx';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import {
-  findPrice,
-  formatCredits,
-  useWalletAccess,
+  findAction,
+  useWalletFormat,
   useWalletPrices,
+} from '@gitroom/frontend/components/wallet/wallet.hooks';
+import { tPaidHint } from '@gitroom/frontend/components/wallet/wallet.text';
+import {
+  isFeature,
+  TONE_TEXT,
+  toneFor,
+  useWalletAccess,
 } from '@gitroom/frontend/components/wallet-locks/wallet.access';
 import {
   CoinsIcon,
   InfoIcon,
 } from '@gitroom/frontend/components/wallet-locks/wallet.icons';
 
-// Which price a page's coins hint explains.
+// Which price a page's coins hint explains. UI wiring only: the words and
+// numbers come from the price row.
 const PAGE_ACTION: Record<string, string> = {
+  '/media': 'storage.gb',
   '/brief': 'brief.onboarding',
 };
 
-const TOOLTIP_CLASS = '!max-w-[320px] !whitespace-normal !leading-[1.5] !text-[13px] !font-[400]';
+export const hasTitleExtras = (path: string) => !!PAGE_ACTION[path];
 
-// Pay-as-you-go only: how the page's paid action is charged. Teal, because
-// the page is a feature the top-up opened.
-const PageCoins: FC<{ actionKey: string }> = ({ actionKey }) => {
+const TOOLTIP_CLASS =
+  '!max-w-[320px] !whitespace-normal !leading-[1.5] !text-[13px] !font-[400]';
+
+// How the page's paid action is charged, in one generated sentence. Warm
+// marks pay-per-use; a page for a feature a top-up opens (brief) stays teal.
+const PageCoins: FC<{ path: string; actionKey: string }> = ({
+  path,
+  actionKey,
+}) => {
   const t = useT();
+  const f = useWalletFormat();
   const { data } = useWalletPrices();
-  const action = findPrice(data, actionKey);
+  const action = findAction(data, actionKey);
   if (!action || action.billing === 'UNLOCK') {
     return null;
   }
-  const price = formatCredits(action.price);
-  const free = action.freeUnits || 0;
-  const hint =
-    free && action.freePeriod === 'ONCE'
-      ? free === 1
-        ? t('wallet_hint_first_free', 'First time free, then {{price}} credits each time.', { price })
-        : t('wallet_hint_first_n_free', 'First {{count}} times free, then {{price}} credits each time.', { count: free, price })
-      : t('wallet_hint_each', '{{price}} credits each time.', { price });
+  const hint = tPaidHint(t, f, action);
+  const tone = isFeature(path.replace(/^\//, ''))
+    ? 'teal'
+    : toneFor(action.billing);
   return (
     <span
       tabIndex={0}
@@ -45,26 +57,30 @@ const PageCoins: FC<{ actionKey: string }> = ({ actionKey }) => {
       data-tooltip-id="tooltip"
       data-tooltip-content={hint}
       data-tooltip-class-name={TOOLTIP_CLASS}
-      className="text-tealText cursor-help"
+      className={clsx('cursor-help', TONE_TEXT[tone])}
     >
       <CoinsIcon size={16} />
     </span>
   );
 };
 
+// The (i) and the coins hint beside a page title. Paid plans never see a
+// price; the brief keeps today's look on paid plans, so its (i) shows on the
+// wallet tiers only; a locked page explains itself, so no (i) on free.
 export const TitleExtras: FC<{ path: string; info?: string }> = ({
   path,
   info,
 }) => {
   const access = useWalletAccess();
-  // A locked page explains itself; the hints come once it is open.
-  if (!access || access === 'free') {
+  if (!access) {
     return null;
   }
-  const actionKey = PAGE_ACTION[path];
+  const showInfo =
+    !!info && access !== 'free' && !(access === 'plan' && path === '/brief');
+  const actionKey = access !== 'plan' ? PAGE_ACTION[path] : undefined;
   return (
     <>
-      {!!info && (
+      {showInfo && (
         <span
           tabIndex={0}
           role="img"
@@ -77,7 +93,7 @@ export const TitleExtras: FC<{ path: string; info?: string }> = ({
           <InfoIcon />
         </span>
       )}
-      {access === 'payg' && !!actionKey && <PageCoins actionKey={actionKey} />}
+      {!!actionKey && <PageCoins path={path} actionKey={actionKey} />}
     </>
   );
 };

@@ -3,7 +3,10 @@
 import { usePathname } from 'next/navigation';
 import { useMemo } from 'react';
 import { useMenuItem } from '@gitroom/frontend/components/layout/top.menu';
-import { TitleExtras } from '@gitroom/frontend/components/wallet-locks/title.extras';
+import {
+  hasTitleExtras,
+  TitleExtras,
+} from '@gitroom/frontend/components/wallet-locks/title.extras';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 export const Title = () => {
   const path = usePathname();
@@ -19,7 +22,7 @@ export const Title = () => {
     ? t('wallet_billing_title', 'Billing')
     : undefined;
 
-  if (!current?.titleInfo) {
+  if (!current || (!current.titleInfo && !hasTitleExtras(current.path))) {
     return <h1>{current?.name || walletTitle}</h1>;
   }
 

@@ -1,9 +1,10 @@
 'use client';
 
-import useSWR from 'swr';
-import { useCallback } from 'react';
-import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { useUser } from '@gitroom/frontend/components/layout/user.context';
+import {
+  findAction,
+  useWalletPrices,
+} from '@gitroom/frontend/components/wallet/wallet.hooks';
 
 // plan: a paid plan (or an instance without billing). Never sees the wallet.
 // payg: free plan with a wallet top-up; X, the brief and skills are open.
@@ -22,58 +23,48 @@ export const useWalletAccess = (): WalletAccess | undefined => {
   return user.payAsYouGo ? 'payg' : 'free';
 };
 
-export interface WalletPriceAction {
-  key: string;
-  provider: string | null;
-  category: string;
-  name: string;
-  description: string | null;
-  unit: string;
-  freeUnits: number;
-  freePeriod: string | null;
-  billing: 'PER_USE' | 'MONTHLY' | 'UNLOCK' | string;
-  requiresTopUp: boolean;
-  // Hundredths of a credit.
-  price: number;
-}
+// Lock and coins colour, derived from how something is billed: warm for
+// pay-per-use (PER_USE, MONTHLY), teal for what a top-up opens once.
+export type WalletTone = 'warm' | 'teal';
 
-export interface WalletPriceSection {
-  key: string;
-  actions: WalletPriceAction[];
-}
+export const toneFor = (billing?: string | null): WalletTone =>
+  billing === 'PER_USE' || billing === 'MONTHLY' ? 'warm' : 'teal';
 
-export const useWalletPrices = (provider?: string, enabled = true) => {
-  const fetch = useFetch();
-  const load = useCallback(async () => {
-    const response = await fetch(
-      `/wallet/prices${provider ? `?provider=${encodeURIComponent(provider)}` : ''}`
-    );
-    if (!response.ok) {
-      return [] as WalletPriceSection[];
-    }
-    return (await response.json()) as WalletPriceSection[];
-  }, [fetch, provider]);
-  return useSWR<WalletPriceSection[]>(
-    enabled ? `wallet-prices:${provider || ''}` : null,
-    load,
-    { revalidateOnFocus: false }
+export const TONE_TEXT: Record<WalletTone, string> = {
+  warm: 'text-warm',
+  teal: 'text-tealText',
+};
+
+export const TONE_SOFT: Record<WalletTone, string> = {
+  warm: 'bg-warmSoft',
+  teal: 'bg-tealSoft',
+};
+
+// Opening a feature is a one-time unlock even if using it later has a price,
+// so a feature's lock follows the row that opens it (none: an unlock).
+const FEATURE_UNLOCK_ACTION: Record<string, string | undefined> = {
+  brief: undefined,
+  skills: 'skills.library',
+};
+
+export const isFeature = (key: string) => key in FEATURE_UNLOCK_ACTION;
+
+export const useFeatureTone = (feature: string): WalletTone => {
+  const actionKey = FEATURE_UNLOCK_ACTION[feature];
+  const { data } = useWalletPrices(!!actionKey);
+  return toneFor(
+    actionKey ? findAction(data, actionKey)?.billing || 'UNLOCK' : 'UNLOCK'
   );
 };
 
-export const findPrice = (
-  sections: WalletPriceSection[] | undefined,
-  key: string
-) =>
-  (sections || []).flatMap((section) => section.actions).find((a) => a.key === key);
-
-// 225 -> "2.25"
-export const formatCredits = (hundredths: number) =>
-  (hundredths / 100).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-
-// Matches the publish error the wallet writes when a post could not be paid
-// for (notEnoughCreditsMessage in wallet.service.ts).
-export const isNotEnoughCreditsError = (error?: string | null) =>
-  !!error && /enough credits/i.test(error);
+// The tone of one priced action (e.g. a channel's per-post price), or the
+// fallback while prices load.
+export const useActionTone = (
+  actionKey: string,
+  fallback: WalletTone = 'warm',
+  enabled = true
+): WalletTone => {
+  const { data } = useWalletPrices(enabled);
+  const action = findAction(data, actionKey);
+  return action ? toneFor(action.billing) : fallback;
+};

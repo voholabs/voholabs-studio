@@ -11,6 +11,9 @@ import { MenuItem } from '@gitroom/frontend/components/new-layout/menu-item';
 import { useModals } from '@gitroom/frontend/components/layout/new-modal';
 import { AgentMediaModal } from '@gitroom/frontend/components/layout/agent.media.modal';
 import {
+  TONE_SOFT,
+  TONE_TEXT,
+  useFeatureTone,
   useWalletAccess,
   WalletAccess,
 } from '@gitroom/frontend/components/wallet-locks/wallet.access';
@@ -174,10 +177,10 @@ export const useMenuItem = () => {
       name: t('skills', 'Skills'),
       icon: <SkillsIcon />,
       path: '/skills',
-      lockedTip: t(
+      lockedTip: `${t(
         'skills_locked',
         'Ready-made skills for articles, image and video generation, writing, hooks, and tips and tricks. Skills are available to your agent through MCP.'
-      ),
+      )} ${t('skills_locked_unlock', 'A single top-up unlocks them.')}`,
       titleInfo: t(
         'skills_title_info',
         'Ready-made skills for articles, image and video generation, writing, hooks, and tips and tricks. Using them is free.'
@@ -417,7 +420,8 @@ const useEndSide = () => {
 
 // A feature the first wallet top-up opens, seen on the free plan. It still
 // leads to its page, which explains it and offers the top-up. Teal: opening
-// it is a one-time unlock, not pay-per-use.
+// it is a one-time unlock, not pay-per-use (the tone follows the row that
+// opens the feature).
 const LockedMenuItem: FC<{
   label: string;
   icon: ReactNode;
@@ -428,6 +432,7 @@ const LockedMenuItem: FC<{
   const currentPath = usePathname();
   const place = useEndSide();
   const isActive = currentPath.indexOf(path) === 0;
+  const tone = useFeatureTone(path.replace(/^\//, ''));
   return (
     <Link
       prefetch={true}
@@ -451,7 +456,13 @@ const LockedMenuItem: FC<{
       <div className="custom:text-[9px] minCustom:text-[10px] leading-[1.1] text-center opacity-60 group-hover:opacity-90">
         {label}
       </div>
-      <span className="absolute top-[5px] end-[9px] w-[16px] h-[16px] rounded-full bg-tealSoft border border-newBgColorInner text-tealText flex items-center justify-center">
+      <span
+        className={clsx(
+          'absolute top-[5px] end-[9px] w-[16px] h-[16px] rounded-full border border-newBgColorInner flex items-center justify-center',
+          TONE_SOFT[tone],
+          TONE_TEXT[tone]
+        )}
+      >
         <LockIcon size={9} />
       </span>
     </Link>

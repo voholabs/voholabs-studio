@@ -206,9 +206,20 @@ export const fractionDigits = (currency: string) => {
 
 // Number, money and date formatting for the wallet, in the current language
 // and the wallet's currency (never a literal currency symbol).
+// The i18n language as a tag Intl accepts ("ka_ge" -> "ka-ge"), or 'en'.
+const intlLocale = (language?: string) => {
+  const tag = (language || 'en').replace(/_/g, '-');
+  try {
+    new Intl.NumberFormat(tag);
+    return tag;
+  } catch {
+    return 'en';
+  }
+};
+
 export const useWalletFormat = (currency?: string) => {
   const { i18n } = useTranslation();
-  const locale = i18n?.language || 'en';
+  const locale = intlLocale(i18n?.language);
   return useMemo(() => {
     const safe = (fn: () => Intl.NumberFormat) => {
       try {
@@ -225,6 +236,13 @@ export const useWalletFormat = (currency?: string) => {
         })
     );
     const whole = safe(() => new Intl.NumberFormat(locale));
+    const oneDp = safe(
+      () =>
+        new Intl.NumberFormat(locale, {
+          minimumFractionDigits: 1,
+          maximumFractionDigits: 1,
+        })
+    );
     // Two decimals without grouping, for a value the user edits.
     const plain = safe(
       () =>
@@ -279,6 +297,8 @@ export const useWalletFormat = (currency?: string) => {
       credits: (hundredths: number) =>
         twoDp ? twoDp.format(hundredths / 100) : (hundredths / 100).toFixed(2),
       number: (n: number) => (whole ? whole.format(n) : String(n)),
+      // 5 -> "5.0" (or "5,0")
+      oneDecimal: (n: number) => (oneDp ? oneDp.format(n) : n.toFixed(1)),
       // Hundredths of a credit -> "1234.50" (or "1234,50"), for an input.
       plainCredits: (hundredths: number) =>
         plain ? plain.format(hundredths / 100) : (hundredths / 100).toFixed(2),

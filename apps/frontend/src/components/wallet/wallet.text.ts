@@ -228,8 +228,8 @@ export const tMonthly = (
       'wallet_monthly_example_1',
       'Example: usage goes from {{from}} to {{to}} {{many}} on 10 {{month}}. That is 1 {{one}} over, so {{p}} credits are charged then, covering you to {{last}} {{month}}. Still above on 1 {{next}}: {{p}} again.',
       {
-        from: n.toFixed(1),
-        to: (n + 0.1).toFixed(1),
+        from: f.oneDecimal(n),
+        to: f.oneDecimal(n + 0.1),
         many,
         month,
         one,
@@ -242,7 +242,7 @@ export const tMonthly = (
     t(
       'wallet_monthly_example_2',
       'Going to {{to}} {{many}} means 2 {{many}} over, so {{p2}} credits a month. If that happens mid-month, only the extra {{one}} is charged then ({{p}}), and the next month charges both ({{p2}}).',
-      { to: (n + 1.1).toFixed(1), many, p2, one, p, ...raw }
+      { to: f.oneDecimal(n + 1.1), many, p2, one, p, ...raw }
     ),
   ];
   return [line, '', ...rules.map((r) => `• ${r}`), '', ...example].join('\n');

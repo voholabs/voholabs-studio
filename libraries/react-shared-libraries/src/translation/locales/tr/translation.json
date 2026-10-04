@@ -873,6 +873,7 @@
   "wallet_price_credits": "{{credits}} kredi",
   "wallet_hint_paid": "{{credits}} kredi {{model}}",
   "wallet_hint_free_monthly": "Her ay {{n}} {{units}} ücretsiz",
+  "wallet_hint_free_included": "{{n}} {{units}} ücretsiz dahil",
   "wallet_hint_free_then": "{{free}}, sonrasında {{paid}}.",
   "wallet_monthly_line_free": "{{n}} ücretsiz {{nUnits}} üzerindeki her {{one}} için, üzerinde kaldığınız her ay ücretlendirilir.",
   "wallet_monthly_line": "Her {{one}} için, kullandığınız her ay ücretlendirilir.",

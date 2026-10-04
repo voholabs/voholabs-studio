@@ -873,6 +873,7 @@
   "wallet_price_credits": "{{credits}} кредитов",
   "wallet_hint_paid": "{{credits}} кредитов {{model}}",
   "wallet_hint_free_monthly": "{{n}} {{units}} бесплатно каждый месяц",
+  "wallet_hint_free_included": "{{n}} {{units}} включено бесплатно",
   "wallet_hint_free_then": "{{free}}, затем {{paid}}.",
   "wallet_monthly_line_free": "Оплата за каждый {{one}} сверх {{n}} {{nUnits}} бесплатно, в каждом месяце, когда вы выше лимита.",
   "wallet_monthly_line": "Оплата за каждый {{one}}, в каждом месяце использования.",

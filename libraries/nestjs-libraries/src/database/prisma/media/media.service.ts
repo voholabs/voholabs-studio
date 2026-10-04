@@ -1,4 +1,4 @@
-import { HttpException, Injectable, Logger } from '@nestjs/common';
+import { HttpException, Injectable } from '@nestjs/common';
 import { MediaRepository } from '@gitroom/nestjs-libraries/database/prisma/media/media.repository';
 import { OpenaiService } from '@gitroom/nestjs-libraries/openai/openai.service';
 import { generationError } from '@gitroom/nestjs-libraries/openai/generation.error';
@@ -20,7 +20,6 @@ import {
 @Injectable()
 export class MediaService {
   private storage = UploadFactory.createStorage();
-  private _logger = new Logger(MediaService.name);
 
   constructor(
     private _mediaRepository: MediaRepository,
@@ -78,7 +77,7 @@ export class MediaService {
     fileSize?: number,
     type?: string
   ) {
-    const saved = await this._mediaRepository.saveFile(
+    return this._mediaRepository.saveFile(
       org,
       fileName,
       filePath,
@@ -86,45 +85,59 @@ export class MediaService {
       fileSize,
       type
     );
-    if (fileSize && fileSize > 0) {
-      await this.chargeStorage(org);
-    }
-    return saved;
-  }
-
-  // An organization that pays from its wallet is charged for storage above
-  // the free amount once the file is in its library. The file is kept
-  // whatever happens here.
-  private async chargeStorage(org: string) {
-    try {
-      await this._walletStorage.chargeCrossing(org);
-    } catch (err) {
-      this._logger.error(`Storage charge failed for ${org}: ${err}`);
-    }
   }
 
   // Bytes the organization may still upload. The usage is the sum of what is
   // in its media library, so there is no counter to keep in step. Files saved
   // before sizes were recorded count as zero. A free-plan organization that
-  // pays from its wallet has no cap: storage above the free amount is charged
-  // instead (see WalletStorageService), even into a negative balance.
+  // pays from its wallet has no cap: storage above the free amount is paid
+  // for when it is uploaded instead (see assertStorage).
   async storageLeft(org: string) {
     const subscription =
       await this._subscriptionService.getSubscriptionByOrganizationId(org);
-    if (
-      planOf(subscription) === 'FREE' &&
-      (await this._walletStorage.liftsCap(org))
-    ) {
+    if (await this.paysStorageFromWallet(org, subscription)) {
       return Number.POSITIVE_INFINITY;
     }
-    const limit = pricing[planOf(subscription)].storage_mb * 1024 * 1024;
+    return this.planStorageLeft(org, subscription);
+  }
 
+  private async planStorageLeft(
+    org: string,
+    subscription: Parameters<typeof planOf>[0]
+  ) {
+    const limit = pricing[planOf(subscription)].storage_mb * 1024 * 1024;
     return limit - (await this._mediaRepository.getStorageUsed(org));
   }
 
+  private async paysStorageFromWallet(
+    org: string,
+    subscription: Parameters<typeof planOf>[0]
+  ) {
+    return (
+      planOf(subscription) === 'FREE' &&
+      (await this._walletStorage.liftsCap(org))
+    );
+  }
+
   // Call before the bytes go to storage, so a refused file is never stored.
-  async assertStorage(org: string, incomingBytes: number) {
-    if ((incomingBytes || 0) > (await this.storageLeft(org))) {
+  // A free-plan organization that pays from its wallet pays here for any
+  // storage unit above the free amount the file takes it into (a 402 when it
+  // cannot); `charge: false` only checks it could pay, for a size announced
+  // before the file arrives. Everyone else is held to the plan's cap (413).
+  async assertStorage(
+    org: string,
+    incomingBytes: number,
+    options: { charge?: boolean } = {}
+  ) {
+    const subscription =
+      await this._subscriptionService.getSubscriptionByOrganizationId(org);
+    if (await this.paysStorageFromWallet(org, subscription)) {
+      await this._walletStorage.payForUpload(org, incomingBytes, options);
+      return;
+    }
+    if (
+      (incomingBytes || 0) > (await this.planStorageLeft(org, subscription))
+    ) {
       const message =
         'Your media library is full. Delete files you no longer need, or upgrade for more storage.';
       throw new HttpException({ msg: message, message }, 413);

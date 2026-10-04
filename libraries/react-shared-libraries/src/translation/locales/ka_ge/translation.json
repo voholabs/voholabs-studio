@@ -683,6 +683,7 @@
     "wallet_price_credits": "{{credits}} კრედიტი",
     "wallet_hint_paid": "{{credits}} კრედიტი {{model}}",
     "wallet_hint_free_monthly": "{{n}} {{units}} უფასოდ ყოველთვე",
+    "wallet_hint_free_included": "{{n}} {{units}} უფასოდ შედის",
     "wallet_hint_free_then": "{{free}}, შემდეგ {{paid}}.",
     "wallet_monthly_line_free": "ფასი თითო {{one}}-ზე, {{n}} უფასო {{nUnits}}-ის ზემოთ, ყოველ თვეს, როცა ზღვარს აჭარბებთ.",
     "wallet_monthly_line": "ფასი თითო {{one}}-ზე, ყოველ თვეს, როცა იყენებთ.",

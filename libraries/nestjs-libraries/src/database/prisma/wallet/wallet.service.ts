@@ -419,6 +419,11 @@ export class WalletService {
     return this._wallet.balance(organizationId);
   }
 
+  // See WalletRepository.standingChargesOf.
+  standingChargesOf(organizationId: string, actionKey: string) {
+    return this._wallet.standingChargesOf(organizationId, actionKey);
+  }
+
   // Pay-as-you-go starts with the first successful top-up, and stops while
   // the wallet is frozen (a top-up was refunded or disputed). Every gate reads
   // this one predicate.

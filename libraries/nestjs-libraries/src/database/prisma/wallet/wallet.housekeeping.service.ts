@@ -5,7 +5,6 @@ import {
   WalletBillingService,
   walletPaymentsEnabled,
 } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.billing.service';
-import { WalletStorageService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.storage.service';
 import { walletAlert } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.alert';
 import { hasAccess } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 
@@ -14,8 +13,9 @@ import { hasAccess } from '@gitroom/nestjs-libraries/database/prisma/subscriptio
 const RECONCILE_DAYS = 2;
 const RECONCILE_HOUR_UTC = 6;
 
-// Periodic wallet jobs, run hourly by the wallet-housekeeping workflow. Every
-// step is idempotent and cheap, and one failing step never stops the others.
+// Periodic wallet jobs, run hourly by the wallet-housekeeping workflow (only
+// where RUN_CRON starts it). Every step is idempotent and cheap, and one
+// failing step never stops the others.
 @Injectable()
 export class WalletHousekeepingService {
   private _logger = new Logger(WalletHousekeepingService.name);
@@ -24,21 +24,20 @@ export class WalletHousekeepingService {
   constructor(
     private _media: MediaRepository,
     private _wallet: WalletService,
-    private _billing: WalletBillingService,
-    private _storage: WalletStorageService
+    private _billing: WalletBillingService
   ) {}
 
+  // Storage is not charged here: it is paid for when a file is uploaded
+  // (WalletStorageService), once per unit, so nothing depends on this
+  // workflow running.
   async run() {
-    const storage = await this.step('storage month pass', () =>
-      this._storage.monthPass()
-    );
     const notified = await this.step('short forecast notices', () =>
       this.notifyShort()
     );
     const reconciled = await this.step('reconciliation', () =>
       this.reconcile()
     );
-    return { storage, notified, reconciled };
+    return { notified, reconciled };
   }
 
   private async step<T>(name: string, fn: () => Promise<T>) {

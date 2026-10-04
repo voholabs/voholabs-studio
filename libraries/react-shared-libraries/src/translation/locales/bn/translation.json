@@ -873,6 +873,7 @@
   "wallet_price_credits": "{{credits}} ক্রেডিট",
   "wallet_hint_paid": "{{credits}} ক্রেডিট {{model}}",
   "wallet_hint_free_monthly": "প্রতি মাসে {{n}} {{units}} বিনামূল্যে",
+  "wallet_hint_free_included": "{{n}} {{units}} বিনামূল্যে অন্তর্ভুক্ত",
   "wallet_hint_free_then": "{{free}}, তারপর {{paid}}।",
   "wallet_monthly_line_free": "{{n}} {{nUnits}} বিনামূল্যের বেশি হলে প্রতি {{one}} চার্জ হয়, যে মাসে আপনি সীমার উপরে থাকেন।",
   "wallet_monthly_line": "প্রতি {{one}} চার্জ হয়, যে মাসে আপনি ব্যবহার করেন।",

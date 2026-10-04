@@ -8,9 +8,12 @@ jest.mock(
 );
 
 import {
+  notEnoughCreditsToStoreMessage,
   STORAGE_ACTION_KEY,
+  storageUnitChargeKey,
   WalletStorageService,
 } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.storage.service';
+import { InsufficientCreditsError } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.repository';
 import { WalletHousekeepingService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.housekeeping.service';
 import { walletAlert } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.alert';
 
@@ -21,28 +24,19 @@ const GB = 1024 ** 3;
 const FREE_PLAN = { cancelAt: new Date(Date.now() - 86_400_000) };
 const PAID_PLAN = { cancelAt: null };
 
-const monthKey = (org: string) => {
-  const now = new Date();
-  return `storage:${org}:${now.getUTCFullYear()}-${String(
-    now.getUTCMonth() + 1
-  ).padStart(2, '0')}`;
-};
-
 const build = (
   opts: {
-    covered?: number;
     bytes?: number;
     balance?: number;
     pays?: boolean;
     unit?: string;
-    organizations?: any[];
+    standing?: { chargeKey: string; quantity: number }[];
+    topUpCovers?: boolean;
+    headroom?: number;
   } = {}
 ) => {
   const media = {
     getStorageUsed: jest.fn(async () => opts.bytes ?? 0),
-    storageOfWalletOrganizations: jest.fn(
-      async () => opts.organizations || []
-    ),
   } as any;
   const wallet = {
     price: jest.fn(async (key: string) =>
@@ -54,16 +48,12 @@ const build = (
         : undefined
     ),
     paysFromWallet: jest.fn(async () => opts.pays ?? true),
-    usage: jest.fn(async () => ({
-      byAction: opts.covered
-        ? [{ key: STORAGE_ACTION_KEY, quantity: opts.covered }]
-        : [],
-      byDay: [],
-    })),
+    standingChargesOf: jest.fn(async () => opts.standing || []),
     balance: jest.fn(async () => opts.balance ?? 0),
+    autoTopUpHeadroom: jest.fn(async () => opts.headroom ?? 0),
   } as any;
   const billing = {
-    autoTopUp: jest.fn(async () => false),
+    autoTopUpFor: jest.fn(async () => opts.topUpCovers ?? true),
     charge: jest.fn(async (params: any) => ({
       quantity: params.quantity,
       idempotencyKey: `${params.chargeKey}#1`,
@@ -72,6 +62,9 @@ const build = (
   const service = new WalletStorageService(media, wallet, billing);
   return { service, media, wallet, billing };
 };
+
+const keys = (billing: any) =>
+  billing.charge.mock.calls.map((c: any) => c[0].chargeKey);
 
 describe('WalletStorageService units over free', () => {
   const rule = { unitBytes: GB, freeUnits: 2 };
@@ -103,83 +96,117 @@ describe('WalletStorageService units over free', () => {
   });
 });
 
-describe('WalletStorageService.chargeCrossing', () => {
-  it('charges the month once for every unit above the free amount', async () => {
-    const { service, billing } = build();
-    expect(await service.chargeCrossing('org-1', 4.5 * GB)).toBe(3);
+describe('WalletStorageService.payForUpload', () => {
+  it('charges nothing while the upload stays within the free amount', async () => {
+    const { service, billing } = build({ bytes: GB });
+    expect(await service.payForUpload('org-1', 0.5 * GB)).toBe(0);
+    expect(billing.charge).not.toHaveBeenCalled();
+  });
+
+  it('charges the started unit the upload crosses into, once, under its own key', async () => {
+    const { service, billing } = build({ bytes: 1.9 * GB, balance: 9000 });
+    expect(await service.payForUpload('org-1', 0.2 * GB)).toBe(1);
     expect(billing.charge).toHaveBeenCalledTimes(1);
     expect(billing.charge).toHaveBeenCalledWith({
       organizationId: 'org-1',
       actionKey: STORAGE_ACTION_KEY,
-      chargeKey: monthKey('org-1'),
-      quantity: 3,
-      allowNegative: true,
+      chargeKey: storageUnitChargeKey('org-1', 1),
+      quantity: 1,
     });
+    expect(billing.charge.mock.calls[0][0].allowNegative).toBeUndefined();
   });
 
-  it('charges each further unit in the month under its own chargeKey', async () => {
-    const { service, billing } = build({ covered: 1 });
-    expect(await service.chargeCrossing('org-1', 4.5 * GB)).toBe(2);
-    expect(billing.charge.mock.calls.map((c: any) => c[0].chargeKey)).toEqual(
-      [`${monthKey('org-1')}:2`, `${monthKey('org-1')}:3`]
-    );
-    expect(
-      billing.charge.mock.calls.every((c: any) => c[0].quantity === 1)
-    ).toBe(true);
+  it('charges every unpaid unit a large upload crosses into', async () => {
+    const { service, billing } = build({ bytes: 2 * GB });
+    expect(await service.payForUpload('org-1', 2.5 * GB)).toBe(3);
+    expect(keys(billing)).toEqual([
+      'storage:org-1:1',
+      'storage:org-1:2',
+      'storage:org-1:3',
+    ]);
+    expect(billing.autoTopUpFor).toHaveBeenCalledWith('org-1', 15000);
   });
 
-  it('charges nothing for units the month already paid for', async () => {
-    const { service, billing } = build({ covered: 3 });
-    expect(await service.chargeCrossing('org-1', 4.5 * GB)).toBe(0);
+  it('does not charge a unit already paid for', async () => {
+    const { service, billing } = build({
+      bytes: 2.5 * GB,
+      standing: [{ chargeKey: 'storage:org-1:1', quantity: 1 }],
+    });
+    expect(await service.payForUpload('org-1', 0.4 * GB)).toBe(0);
     expect(billing.charge).not.toHaveBeenCalled();
   });
 
-  it('skips the ledger once it knows the month is covered', async () => {
-    const { service, wallet } = build();
-    await service.chargeCrossing('org-1', 4.5 * GB);
-    wallet.usage.mockClear();
-    expect(await service.chargeCrossing('org-1', 3.5 * GB)).toBe(0);
-    expect(wallet.usage).not.toHaveBeenCalled();
+  it('treats units charged under the old monthly keys as paid', async () => {
+    const { service, billing } = build({
+      bytes: 4 * GB,
+      standing: [
+        { chargeKey: 'storage:org-1:2026-09', quantity: 1 },
+        { chargeKey: 'storage:org-1:2026-09:2', quantity: 1 },
+        { chargeKey: 'storage:org-1:2026-10', quantity: 1 },
+        { chargeKey: 'storage:other-org:5', quantity: 1 },
+      ],
+    });
+    expect(await service.payForUpload('org-1', 0.5 * GB)).toBe(1);
+    expect(keys(billing)).toEqual(['storage:org-1:3']);
+  });
+
+  it('refuses with the wallet 402 and charges nothing when the balance cannot pay', async () => {
+    const { service, billing } = build({
+      bytes: 2 * GB,
+      balance: 100,
+      topUpCovers: false,
+    });
+    const refused = await service.payForUpload('org-1', 1).catch((err) => err);
+    expect(refused.getStatus()).toBe(402);
+    expect(refused.getResponse()).toEqual({
+      message: notEnoughCreditsToStoreMessage(),
+      wallet: true,
+      url: '/wallet',
+    });
+    expect(billing.autoTopUpFor).toHaveBeenCalledWith('org-1', 5000);
+    expect(billing.charge).not.toHaveBeenCalled();
+  });
+
+  it('charges after auto top-up covers a short balance', async () => {
+    const { service, billing } = build({
+      bytes: 2 * GB,
+      balance: 100,
+      topUpCovers: true,
+    });
+    expect(await service.payForUpload('org-1', 1)).toBe(1);
+    expect(billing.autoTopUpFor).toHaveBeenCalledWith('org-1', 5000);
+    expect(keys(billing)).toEqual(['storage:org-1:1']);
+  });
+
+  it('turns a balance spent in the meantime into the wallet 402', async () => {
+    const { service, billing } = build({ bytes: 2 * GB });
+    billing.charge.mockRejectedValueOnce(new InsufficientCreditsError(5000, 0));
+    const refused = await service.payForUpload('org-1', 1).catch((err) => err);
+    expect(refused.getStatus()).toBe(402);
+  });
+
+  it('only checks a size announced before the upload, without charging', async () => {
+    const short = build({ bytes: 2 * GB, balance: 100, headroom: 1000 });
+    const refused = await short.service
+      .payForUpload('org-1', 1, { charge: false })
+      .catch((err) => err);
+    expect(refused.getStatus()).toBe(402);
+
+    const covered = build({ bytes: 2 * GB, balance: 100, headroom: 10000 });
+    expect(
+      await covered.service.payForUpload('org-1', 1, { charge: false })
+    ).toBe(0);
+    for (const b of [short, covered]) {
+      expect(b.billing.charge).not.toHaveBeenCalled();
+      expect(b.billing.autoTopUpFor).not.toHaveBeenCalled();
+    }
   });
 
   it('never charges an organization that does not pay from its wallet', async () => {
-    const { service, billing, wallet } = build({ pays: false });
-    expect(await service.chargeCrossing('org-1', 10 * GB)).toBe(0);
+    const { service, billing, wallet } = build({ pays: false, bytes: 9 * GB });
+    expect(await service.payForUpload('org-1', GB)).toBe(0);
     expect(wallet.price).not.toHaveBeenCalled();
     expect(billing.charge).not.toHaveBeenCalled();
-  });
-
-  it('tries auto top-up first when the balance is short, then charges anyway', async () => {
-    const { service, billing } = build({ balance: 100 });
-    await service.chargeCrossing('org-1', 3 * GB);
-    expect(billing.autoTopUp).toHaveBeenCalledWith('org-1', 5000);
-    expect(billing.charge).toHaveBeenCalledWith(
-      expect.objectContaining({ allowNegative: true })
-    );
-  });
-
-  it('reads the library size when it is not given', async () => {
-    const { service, media } = build({ bytes: 3 * GB });
-    expect(await service.chargeCrossing('org-1')).toBe(1);
-    expect(media.getStorageUsed).toHaveBeenCalledWith('org-1');
-  });
-});
-
-describe('WalletStorageService.monthPass', () => {
-  it('charges wallet organizations above the free amount and skips paid plans', async () => {
-    const { service, billing } = build({
-      organizations: [
-        { organizationId: 'a', subscription: FREE_PLAN, bytes: 3 * GB },
-        { organizationId: 'b', subscription: PAID_PLAN, bytes: 9 * GB },
-        { organizationId: 'c', subscription: FREE_PLAN, bytes: GB },
-      ],
-    });
-    expect(await service.monthPass()).toEqual({
-      charged: 1,
-      organizations: 1,
-    });
-    expect(billing.charge).toHaveBeenCalledTimes(1);
-    expect(billing.charge.mock.calls[0][0].chargeKey).toBe(monthKey('a'));
   });
 });
 
@@ -198,11 +225,8 @@ describe('WalletHousekeepingService', () => {
         mismatched: [],
       })),
     } as any;
-    const storage = {
-      monthPass: jest.fn(async () => ({ charged: 0, organizations: 0 })),
-    } as any;
     return {
-      service: new WalletHousekeepingService(media, wallet, billing, storage),
+      service: new WalletHousekeepingService(media, wallet, billing),
       wallet,
       billing,
     };
@@ -212,6 +236,11 @@ describe('WalletHousekeepingService', () => {
   afterEach(() => {
     process.env.WALLET_STRIPE_SECRET_KEY = env;
     jest.useRealTimers();
+  });
+
+  it('no longer charges storage', async () => {
+    const { service } = housekeeping();
+    expect(await service.run()).not.toHaveProperty('storage');
   });
 
   it('sends short-forecast notices to wallet organizations not on a paid plan', async () => {

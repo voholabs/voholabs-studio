@@ -34,7 +34,7 @@ export class MediaRepository {
 
   // Organizations that have topped up their wallet (pay-as-you-go, also when
   // frozen), with their plan and the bytes in their media library, for the
-  // monthly storage pass. Two queries whatever the number of organizations.
+  // wallet housekeeping. Two queries whatever the number of organizations.
   async storageOfWalletOrganizations() {
     const organizations = await this._organization.model.organization.findMany({
       where: { wallet: { firstTopUpAt: { not: null } } },

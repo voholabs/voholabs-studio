@@ -155,12 +155,19 @@ export const tPaidHint = (t: T, f: WalletFormat, a: WalletPricedAction) => {
     ...raw,
   });
   if (!n) return `${paid.charAt(0).toUpperCase()}${paid.slice(1)}.`;
+  const units = unitLabel(t, a.unit, n);
   const free =
     a.freePeriod === 'ONCE'
       ? firstFree(t, n)
-      : t('wallet_hint_free_monthly', '{{n}} {{units}} free each month', {
+      : a.freePeriod === 'MONTH'
+      ? t('wallet_hint_free_monthly', '{{n}} {{units}} free each month', {
           n,
-          units: unitLabel(t, a.unit, n),
+          units,
+          ...raw,
+        })
+      : t('wallet_hint_free_included', '{{n}} {{units}} included free', {
+          n,
+          units,
           ...raw,
         });
   return t('wallet_hint_free_then', '{{free}}, then {{paid}}.', {

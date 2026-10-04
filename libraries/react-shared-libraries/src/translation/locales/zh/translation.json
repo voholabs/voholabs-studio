@@ -873,6 +873,7 @@
   "wallet_price_credits": "{{credits}} 积分",
   "wallet_hint_paid": "{{credits}} 积分 {{model}}",
   "wallet_hint_free_monthly": "每月免费 {{n}} {{units}}",
+  "wallet_hint_free_included": "含 {{n}} {{units}} 免费额度",
   "wallet_hint_free_then": "{{free}}，之后 {{paid}}。",
   "wallet_monthly_line_free": "每月超出 {{n}} {{nUnits}} 免费额度时，按每{{one}}计费。",
   "wallet_monthly_line": "按每{{one}}计费，在您使用的每个月收取。",

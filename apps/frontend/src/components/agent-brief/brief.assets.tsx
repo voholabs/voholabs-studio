@@ -3,6 +3,10 @@
 import { FC, useCallback, useRef, useState } from 'react';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
+import {
+  openTopUpIfWalletRefused,
+  WALLET_INLINE_REQUEST,
+} from '@gitroom/frontend/components/wallet/wallet.bridge';
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import { useVariables } from '@gitroom/react/helpers/variable.context';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
@@ -68,9 +72,16 @@ export const BriefAssets: FC<{
           form.append('file', file);
 
           const response = await fetch('/media/upload-simple', {
+            ...WALLET_INLINE_REQUEST,
             method: 'POST',
             body: form,
           });
+
+          // Not enough credits to store it: the top-up opens with the
+          // reason, and the rest of the files wait for it.
+          if (await openTopUpIfWalletRefused(response)) {
+            break;
+          }
 
           if (!response.ok) {
             toaster.show(

@@ -1,8 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { MediaRepository } from '@gitroom/nestjs-libraries/database/prisma/media/media.repository';
-import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
+import {
+  InsufficientCreditsError,
+  WalletService,
+  walletPaymentRequired,
+} from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 import { WalletBillingService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.billing.service';
-import { hasAccess } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 
 // The price row for media storage. Its unit, free amount and price come from
 // the row; nothing about the size of a unit or the free amount is in code.
@@ -20,37 +23,22 @@ const UNIT_BYTES: Record<string, number> = {
 const bytesPerUnit = (unit: string) =>
   UNIT_BYTES[(unit || '').toLowerCase().split('_')[0]];
 
-// The UTC month a charge belongs to, and where it starts.
-const monthOf = (date = new Date()) => ({
-  key: `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(
-    2,
-    '0'
-  )}`,
-  start: new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1)),
-});
+export const notEnoughCreditsToStoreMessage = () =>
+  'Not enough credits to store this file. Top up to upload it.';
+
+// The chargeKey of one storage unit: charged once per organization, ever.
+export const storageUnitChargeKey = (organizationId: string, unit: number) =>
+  `storage:${organizationId}:${unit}`;
 
 // Media storage above the free amount, for organizations that pay from their
-// wallet. Storage is already used when it is charged, so it may take the
-// balance below zero; an upload is never refused for the balance.
-//
-// Every started unit above the free amount is charged once per UTC month:
-// when the library first goes above it (covering to the month's end), and
-// again at the start of each month for every unit still above. Going into a
-// further unit mid-month charges only that unit.
-//
-// What a month already covers is read from the ledger, so deleting files and
-// uploading them again in the same month never charges twice. The first charge
-// of a month is one entry under `storage:<org>:<YYYY-MM>`; units added later
-// that month are one entry each under `storage:<org>:<YYYY-MM>:<unit>`. Both
-// are idempotent chargeKeys, so concurrent uploads and repeated monthly passes
-// cannot charge a unit twice.
+// wallet. Checked before an upload is stored: when the file takes the library
+// into a started unit above the free amount that is not paid for yet, that
+// unit is charged then, once. A balance that cannot pay (after auto top-up)
+// refuses the upload with the wallet 402, so the file is never stored.
+// Deleting files gives nothing back, and a unit paid for stays paid for.
 @Injectable()
 export class WalletStorageService {
   private _logger = new Logger(WalletStorageService.name);
-  // Units known to be paid for, per "<org>:<YYYY-MM>", so the hourly pass and
-  // repeated uploads skip the ledger read once a month is covered. Only ever
-  // a lower bound of the ledger (storage charges are not refunded).
-  private _covered = new Map<string, number>();
 
   constructor(
     private _media: MediaRepository,
@@ -98,9 +86,17 @@ export class WalletStorageService {
     );
   }
 
-  // After an upload: charge the units the library has gone into this month
-  // that are not paid for yet. Never throws for the balance.
-  async chargeCrossing(organizationId: string, bytesAfter?: number) {
+  // Before an upload of `incomingBytes` is stored: pays for every unit above
+  // the free amount the library would then be in that is not paid for yet.
+  // Tops up automatically when that can cover it, otherwise throws the wallet
+  // 402 and charges nothing. `charge: false` only checks that it could be
+  // paid (balance plus what auto top-up can still add), for a size announced
+  // before the bytes arrive. Returns the units charged now.
+  async payForUpload(
+    organizationId: string,
+    incomingBytes: number,
+    options: { charge?: boolean } = {}
+  ) {
     if (!(await this._wallet.paysFromWallet(organizationId))) {
       return 0;
     }
@@ -108,147 +104,85 @@ export class WalletStorageService {
     if (!rule) {
       return 0;
     }
-    const bytes =
-      bytesAfter ?? (await this._media.getStorageUsed(organizationId));
-    return this.coverUpTo(organizationId, this.unitsOver(bytes, rule), rule);
+    const used = await this._media.getStorageUsed(organizationId);
+    const units = this.unitsOver(used + Math.max(0, incomingBytes || 0), rule);
+    if (!units) {
+      return 0;
+    }
+    const unpaid = await this.unpaidUnits(organizationId, units);
+    if (!unpaid.length) {
+      return 0;
+    }
+    const cost = unpaid.length * rule.price;
+
+    if (options.charge === false) {
+      const balance = await this._wallet.balance(organizationId);
+      if (
+        balance < cost &&
+        balance + (await this._wallet.autoTopUpHeadroom(organizationId)) < cost
+      ) {
+        throw walletPaymentRequired(notEnoughCreditsToStoreMessage());
+      }
+      return 0;
+    }
+
+    if (!(await this._billing.autoTopUpFor(organizationId, cost))) {
+      throw walletPaymentRequired(notEnoughCreditsToStoreMessage());
+    }
+    for (const unit of unpaid) {
+      try {
+        await this._billing.charge({
+          organizationId,
+          actionKey: STORAGE_ACTION_KEY,
+          chargeKey: storageUnitChargeKey(organizationId, unit),
+          quantity: 1,
+        });
+      } catch (err) {
+        if (err instanceof InsufficientCreditsError) {
+          throw walletPaymentRequired(notEnoughCreditsToStoreMessage());
+        }
+        throw err;
+      }
+    }
+    return unpaid.length;
   }
 
-  // The monthly charge for one organization: every unit still above the free
-  // amount, once per month. Organizations on a paid plan are never charged;
-  // a frozen wallet is still charged for storage it keeps using.
-  async chargeMonth(organizationId: string) {
-    const rule = await this.rule();
-    if (!rule) {
-      return 0;
-    }
-    const org = (await this._media.storageOfWalletOrganizations()).find(
-      (o) => o.organizationId === organizationId
-    );
-    if (!org || hasAccess({ subscription: org.subscription })) {
-      return 0;
-    }
-    return this.coverUpTo(
+  // Units 1..units above the free amount that no standing storage charge
+  // pays for. A unit is paid by its own entry (storage:<org>:<unit>), or by
+  // an earlier monthly charge: under the old scheme a month's entries
+  // (storage:<org>:<YYYY-MM> and storage:<org>:<YYYY-MM>:<unit>) paid for
+  // units 1..their total quantity, so the largest month counts as paid.
+  async unpaidUnits(organizationId: string, units: number) {
+    const prefix = `storage:${organizationId}:`;
+    const paid = new Set<number>();
+    const months = new Map<string, number>();
+    for (const charge of await this._wallet.standingChargesOf(
       organizationId,
-      this.unitsOver(org.bytes, rule),
-      rule
-    );
-  }
-
-  // The monthly pass over every organization that has topped up. Safe to run
-  // any time and as often as wanted: a month is charged once.
-  async monthPass() {
-    const rule = await this.rule();
-    if (!rule) {
-      return { charged: 0, organizations: 0 };
-    }
-    let charged = 0;
-    let organizations = 0;
-    for (const org of await this._media.storageOfWalletOrganizations()) {
-      const units = this.unitsOver(org.bytes, rule);
-      if (!units || hasAccess({ subscription: org.subscription })) {
+      STORAGE_ACTION_KEY
+    )) {
+      if (!charge.chargeKey?.startsWith(prefix)) {
         continue;
       }
-      try {
-        const added = await this.coverUpTo(org.organizationId, units, rule);
-        if (added) {
-          charged += added;
-          organizations++;
-        }
-      } catch (err) {
-        this._logger.error(
-          `Storage month charge failed for ${org.organizationId}: ${err}`
+      const rest = charge.chargeKey.slice(prefix.length);
+      if (/^\d+$/.test(rest)) {
+        paid.add(Number(rest));
+        continue;
+      }
+      const month = /^(\d{4}-\d{2})(?::\d+)?$/.exec(rest);
+      if (month) {
+        months.set(
+          month[1],
+          (months.get(month[1]) || 0) + Math.max(0, charge.quantity || 0)
         );
       }
     }
-    return { charged, organizations };
-  }
-
-  // Units of storage this month's ledger already pays for (charges less
-  // refunds).
-  private async coveredThisMonth(organizationId: string, start: Date) {
-    // Storage applies freeUnits itself, as a level and not a count of uses.
-    // WalletService.charge only applies free units to PER_USE rows, so the
-    // MONTHLY storage row is charged in full for the units passed here.
-    const usage = await this._wallet.usage(organizationId, start);
-    return Math.max(
-      0,
-      usage.byAction.find((a) => a.key === STORAGE_ACTION_KEY)?.quantity || 0
-    );
-  }
-
-  // Charges what is missing for `units` units this month. Returns the units
-  // charged now.
-  private async coverUpTo(
-    organizationId: string,
-    units: number,
-    rule: { price: number }
-  ) {
-    if (units <= 0) {
-      return 0;
-    }
-    const month = monthOf();
-    const cacheKey = `${organizationId}:${month.key}`;
-    if ((this._covered.get(cacheKey) || 0) >= units) {
-      return 0;
-    }
-    let covered = await this.coveredThisMonth(organizationId, month.start);
-    if (covered >= units) {
-      this.remember(cacheKey, covered);
-      return 0;
-    }
-    const monthKey = `storage:${organizationId}:${month.key}`;
-    const before = covered;
-
-    if (!covered) {
-      const entry = await this.charge(
-        organizationId,
-        monthKey,
-        units,
-        rule.price
-      );
-      // Someone else may have charged this month's entry first, for fewer
-      // units; the rest are charged one by one below.
-      covered = Math.max(0, entry.quantity || 0);
-    }
-
-    for (let unit = covered + 1; unit <= units; unit++) {
-      await this.charge(organizationId, `${monthKey}:${unit}`, 1, rule.price);
-    }
-    this.remember(cacheKey, units);
-    return units - before;
-  }
-
-  private remember(cacheKey: string, units: number) {
-    if (this._covered.size > 10_000) {
-      this._covered.clear();
-    }
-    this._covered.set(cacheKey, units);
-  }
-
-  // Tries auto top-up first when the balance does not cover it, then charges
-  // into a negative balance if it still does not.
-  private async charge(
-    organizationId: string,
-    chargeKey: string,
-    quantity: number,
-    price: number
-  ) {
-    const amount = price * quantity;
-    try {
-      if ((await this._wallet.balance(organizationId)) < amount) {
-        await this._billing.autoTopUp(organizationId, amount);
+    const byMonths = Math.max(0, ...months.values());
+    const unpaid: number[] = [];
+    for (let unit = byMonths + 1; unit <= units; unit++) {
+      if (!paid.has(unit)) {
+        unpaid.push(unit);
       }
-    } catch (err) {
-      this._logger.error(
-        `Auto top-up before a storage charge failed for ${organizationId}: ${err}`
-      );
     }
-    return this._billing.charge({
-      organizationId,
-      actionKey: STORAGE_ACTION_KEY,
-      chargeKey,
-      quantity,
-      allowNegative: true,
-    });
+    return unpaid;
   }
 }

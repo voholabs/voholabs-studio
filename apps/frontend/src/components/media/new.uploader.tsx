@@ -13,6 +13,24 @@ import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import { useLaunchStore } from '@gitroom/frontend/components/new-launch/store';
 import { uniqBy } from 'lodash';
+import { openTopUp } from '@gitroom/frontend/components/wallet/wallet.bridge';
+
+// The JSON body of a refused upload: on the error for the multipart
+// endpoints (uppy.upload.ts), on the request for a direct upload.
+const refusedBody = (error: any, request: any) => {
+  if (error?.body) {
+    return error.body;
+  }
+  const response = request?.response ?? request?.responseText;
+  if (response && typeof response === 'object') {
+    return response;
+  }
+  try {
+    return JSON.parse(response || '');
+  } catch {
+    return undefined;
+  }
+};
 
 export class CompressionWrapper<M = any, B = any> extends Compressor<any, any> {
   override async prepareUpload(fileIDs: string[]) {
@@ -201,9 +219,27 @@ export function useUppyUploader(props: {
     uppy2.on('upload-start', () => {
       props.onStart();
     });
+    // A refused file says why: a wallet that cannot pay for the storage opens
+    // the top-up, anything else (a full library on the free plan, say) shows
+    // its message.
+    uppy2.on('upload-error', (file, error, request) => {
+      const body = refusedBody(error, request);
+      if (body?.wallet) {
+        openTopUp(body.message);
+        return;
+      }
+      toast.show(
+        body?.message ||
+          body?.msg ||
+          (file?.name
+            ? `${file.name} could not be uploaded.`
+            : 'Upload failed.'),
+        'warning'
+      );
+    });
     uppy2.on('complete', async (result) => {
       console.log(result);
-      for (const file of [...result.successful]) {
+      for (const file of [...result.successful, ...(result.failed || [])]) {
         uppy2.removeFile(file.id);
       }
 
@@ -214,6 +250,12 @@ export function useUppyUploader(props: {
         const orderB = +((b.meta as any)?.addedOrder ?? 0);
         return orderA - orderB;
       });
+
+      if (!sortedSuccessful.length) {
+        setLocked(false);
+        fileOrderIndex = 0;
+        return;
+      }
 
       if (storageProvider === 'local') {
         setLocked(false);

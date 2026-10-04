@@ -873,6 +873,7 @@
   "wallet_price_credits": "{{credits}} クレジット",
   "wallet_hint_paid": "{{credits}} クレジット {{model}}",
   "wallet_hint_free_monthly": "毎月 {{n}} {{units}} まで無料",
+  "wallet_hint_free_included": "{{n}} {{units}} まで無料",
   "wallet_hint_free_then": "{{free}}、以降は {{paid}}。",
   "wallet_monthly_line_free": "毎月 {{n}} {{nUnits}} の無料枠を超えた分について、{{one}} ごとに課金されます。",
   "wallet_monthly_line": "利用した月ごとに、{{one}} 単位で課金されます。",

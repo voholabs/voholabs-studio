@@ -976,6 +976,7 @@
   "wallet_price_credits": "{{credits}} credits",
   "wallet_hint_paid": "{{credits}} credits {{model}}",
   "wallet_hint_free_monthly": "{{n}} {{units}} free each month",
+  "wallet_hint_free_included": "{{n}} {{units}} included free",
   "wallet_hint_free_then": "{{free}}, then {{paid}}.",
   "wallet_monthly_line_free": "Charged per {{one}} above {{n}} {{nUnits}} free, each month you're above it.",
   "wallet_monthly_line": "Charged per {{one}}, each month you use it.",

@@ -873,6 +873,7 @@
   "wallet_price_credits": "{{credits}} credits",
   "wallet_hint_paid": "{{credits}} credits {{model}}",
   "wallet_hint_free_monthly": "{{n}} {{units}} miễn phí mỗi tháng",
+  "wallet_hint_free_included": "{{n}} {{units}} miễn phí kèm theo",
   "wallet_hint_free_then": "{{free}}, sau đó {{paid}}.",
   "wallet_monthly_line_free": "Tính phí mỗi {{one}} vượt quá {{n}} {{nUnits}} miễn phí, cho mỗi tháng bạn vượt mức.",
   "wallet_monthly_line": "Tính phí mỗi {{one}}, cho mỗi tháng bạn sử dụng.",

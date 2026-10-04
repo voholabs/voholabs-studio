@@ -873,6 +873,7 @@
   "wallet_price_credits": "{{credits}} 크레딧",
   "wallet_hint_paid": "{{credits}} 크레딧 {{model}}",
   "wallet_hint_free_monthly": "매월 {{n}} {{units}} 무료",
+  "wallet_hint_free_included": "{{n}} {{units}} 무료 포함",
   "wallet_hint_free_then": "{{free}}, 이후 {{paid}}.",
   "wallet_monthly_line_free": "매월 무료 {{n}} {{nUnits}}를 초과하는 달마다 {{one}} 단위로 청구됩니다.",
   "wallet_monthly_line": "사용하는 달마다 {{one}} 단위로 청구됩니다.",

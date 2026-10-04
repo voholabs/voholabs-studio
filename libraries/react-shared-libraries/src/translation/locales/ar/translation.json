@@ -873,6 +873,7 @@
   "wallet_price_credits": "{{credits}} رصيد",
   "wallet_hint_paid": "{{credits}} رصيد {{model}}",
   "wallet_hint_free_monthly": "{{n}} {{units}} مجانًا كل شهر",
+  "wallet_hint_free_included": "{{n}} {{units}} مشمولة مجانًا",
   "wallet_hint_free_then": "{{free}}، ثم {{paid}}.",
   "wallet_monthly_line_free": "يُحتسب لكل {{one}} فوق {{n}} {{nUnits}} مجانية، في كل شهر تتجاوز فيه الحد.",
   "wallet_monthly_line": "يُحتسب لكل {{one}}، في كل شهر تستخدمه فيه.",

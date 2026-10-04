@@ -873,6 +873,7 @@
   "wallet_price_credits": "{{credits}} crédits",
   "wallet_hint_paid": "{{credits}} crédits {{model}}",
   "wallet_hint_free_monthly": "{{n}} {{units}} gratuits chaque mois",
+  "wallet_hint_free_included": "{{n}} {{units}} inclus gratuitement",
   "wallet_hint_free_then": "{{free}}, puis {{paid}}.",
   "wallet_monthly_line_free": "Facturé par {{one}} au-delà de {{n}} {{nUnits}} gratuits, chaque mois où vous les dépassez.",
   "wallet_monthly_line": "Facturé par {{one}}, chaque mois où vous l'utilisez.",

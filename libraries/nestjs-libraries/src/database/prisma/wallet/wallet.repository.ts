@@ -363,6 +363,31 @@ export class WalletRepository {
     return standing;
   }
 
+  // Every standing (not refunded) charge of an action for an organization,
+  // with its chargeKey and quantity, e.g. to tell which storage units are
+  // already paid for.
+  async standingChargesOf(organizationId: string, actionKey: string) {
+    const spends = await this._entry.model.walletEntry.findMany({
+      where: { organizationId, type: WalletEntryType.SPEND, actionKey },
+      select: { chargeKey: true, quantity: true, idempotencyKey: true },
+    });
+    if (!spends.length) {
+      return [];
+    }
+    const refunds = await this._entry.model.walletEntry.findMany({
+      where: {
+        idempotencyKey: {
+          in: spends.map((e) => `refund:${e.idempotencyKey}`),
+        },
+      },
+      select: { idempotencyKey: true },
+    });
+    const refunded = new Set(refunds.map((r) => r.idempotencyKey));
+    return spends
+      .filter((e) => !refunded.has(`refund:${e.idempotencyKey}`))
+      .map((e) => ({ chargeKey: e.chargeKey, quantity: e.quantity }));
+  }
+
   // Brings several charges to what they should be now, all or nothing, under
   // the wallet lock: charges what has no standing charge, re-prices a
   // standing charge whose action changed (refund, then charge again) and

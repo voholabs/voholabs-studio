@@ -873,6 +873,7 @@
   "wallet_price_credits": "{{credits}} קרדיטים",
   "wallet_hint_paid": "{{credits}} קרדיטים {{model}}",
   "wallet_hint_free_monthly": "{{n}} {{units}} בחינם בכל חודש",
+  "wallet_hint_free_included": "{{n}} {{units}} כלולים בחינם",
   "wallet_hint_free_then": "{{free}}, ואז {{paid}}.",
   "wallet_monthly_line_free": "חיוב לכל {{one}} מעבר ל-{{n}} {{nUnits}} בחינם, בכל חודש שבו אתם מעל.",
   "wallet_monthly_line": "חיוב לכל {{one}}, בכל חודש שבו אתם משתמשים.",

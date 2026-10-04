@@ -1,5 +1,6 @@
 'use client';
 
+import { useTrackView } from '@gitroom/helpers/utils/use.fire.events';
 import { FC, useState } from 'react';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
@@ -105,6 +106,7 @@ const PayAsYouGoBrief: FC = () => {
 
 export const BriefPage: FC = () => {
   const access = useWalletAccess();
+  useTrackView('brief_viewed');
 
   if (!access) {
     return <LoadingComponent />;

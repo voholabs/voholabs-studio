@@ -1,5 +1,6 @@
 'use client';
 
+import { useTrackView } from '@gitroom/helpers/utils/use.fire.events';
 import {
   FC,
   ReactNode,
@@ -443,6 +444,7 @@ const LockedSkills: FC = () => {
 
 export const SkillsPage: FC = () => {
   const access = useWalletAccess();
+  useTrackView('skills_viewed');
 
   if (!access) {
     return <LoadingComponent />;

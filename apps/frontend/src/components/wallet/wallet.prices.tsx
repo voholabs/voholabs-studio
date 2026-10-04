@@ -1,5 +1,6 @@
 'use client';
 
+import { useTrackView } from '@gitroom/helpers/utils/use.fire.events';
 import React, { FC, ReactNode, useMemo } from 'react';
 import clsx from 'clsx';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
@@ -198,6 +199,7 @@ const PriceTable: FC<{ rows: Row[] }> = ({ rows }) => {
 // The Prices page, generated only from GET /wallet/prices: no per-row copy.
 export const WalletPricesPage: FC = () => {
   const t = useT();
+  useTrackView('prices_viewed');
   const hasWallet = useHasWallet();
   const { data: wallet } = useWallet(hasWallet);
   const { data: sections, error } = useWalletPrices(hasWallet);

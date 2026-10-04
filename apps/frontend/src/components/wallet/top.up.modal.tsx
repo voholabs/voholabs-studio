@@ -1,5 +1,6 @@
 'use client';
 
+import { useFireEvents, useTrackView } from '@gitroom/helpers/utils/use.fire.events';
 import React, {
   FC,
   useCallback,
@@ -46,6 +47,8 @@ export const cardLabel = (card: { brand: string | null; last4: string }) =>
 
 export const TopUpModal: FC<{ context?: string }> = ({ context }) => {
   const t = useT();
+  const fireEvents = useFireEvents();
+  useTrackView('topup_dialog_opened', { context });
   const fetch = useFetch();
   const isAdmin = useIsWalletAdmin();
   const { data: wallet } = useWallet();
@@ -96,6 +99,7 @@ export const TopUpModal: FC<{ context?: string }> = ({ context }) => {
     if (!valid || blocked) return;
     setError('');
     setStep('redirect');
+    fireEvents('topup_started', { amount_minor: amount, currency: wallet?.currency, save_card: keepsCard || save, context }, { send_instantly: true });
     try {
       const res = await fetch('/wallet/checkout', {
         method: 'POST',
@@ -133,7 +137,7 @@ export const TopUpModal: FC<{ context?: string }> = ({ context }) => {
         )
       );
     }
-  }, [fetch, t, valid, blocked, amount, keepsCard, save, wallet?.payAsYouGo]);
+  }, [fetch, t, valid, blocked, amount, keepsCard, save, wallet?.payAsYouGo, wallet?.currency, context, fireEvents]);
 
   if (step === 'redirect') {
     return (

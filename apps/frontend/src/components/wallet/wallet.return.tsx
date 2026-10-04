@@ -1,5 +1,6 @@
 'use client';
 
+import { useFireEvents } from '@gitroom/helpers/utils/use.fire.events';
 import { FC, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
@@ -53,6 +54,7 @@ export const WalletCheckoutReturn: FC = () => {
   const sessionId = params.get('session_id');
   const wasPayAsYouGo = !!user?.payAsYouGo;
   const f = useWalletFormat();
+  const fireEvents = useFireEvents();
 
   useEffect(() => {
     if (handled.current || (!topup && !card)) return;
@@ -83,6 +85,7 @@ export const WalletCheckoutReturn: FC = () => {
     if (topup !== 'success' || !sessionId) {
       readMemo();
       clean();
+      fireEvents('topup_cancelled');
       toaster.show(
         t('wallet_topup_cancelled', 'Top-up cancelled. Nothing was charged.'),
         'warning'
@@ -127,6 +130,7 @@ export const WalletCheckoutReturn: FC = () => {
       const first = memo
         ? !memo.wasPayAsYouGo && summary.payAsYouGo
         : !wasPayAsYouGo && summary.payAsYouGo;
+      fireEvents('topup_completed', { first: !!first, amount_minor: memo?.amount, currency: summary.currency });
 
       if (first) {
         showSuccess(credits);
@@ -156,6 +160,7 @@ export const WalletCheckoutReturn: FC = () => {
     showSuccess,
     wasPayAsYouGo,
     f,
+    fireEvents,
   ]);
 
   return null;

@@ -1,5 +1,6 @@
 'use client';
 
+import { useFireEvents, postEventName, postEventProps } from '@gitroom/helpers/utils/use.fire.events';
 import React, {
   FC,
   ReactNode,
@@ -268,6 +269,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
         'Not enough credits to schedule this post. Top up, or save it as a draft.'
       )
     : undefined;
+  const fireEvents = useFireEvents();
 
   const schedule = useCallback(
     (type: 'draft' | 'now' | 'schedule' | 'update') => async () => {
@@ -494,6 +496,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
               body: JSON.stringify(data),
             });
 
+        if (!addEditSets) fireEvents(postEventName(type), postEventProps(type, posts, { is_new: !existingData.integration }));
         if (!addEditSets) {
           mutate();
           toaster.show(

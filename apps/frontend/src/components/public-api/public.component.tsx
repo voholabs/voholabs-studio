@@ -895,6 +895,23 @@ const PublicApiContent = () => {
   );
 };
 
+// The "Connect an AI agent" panel on its own, for the onboarding step.
+// Nothing shows without an API key.
+export const ConnectAgentPanel: FC = () => {
+  const user = useUser();
+  const { backendUrl, mcpUrl, cloudflareUrl } = useVariables();
+  if (!user?.publicApi) {
+    return null;
+  }
+  return (
+    <ConnectSection
+      apiKey={user.publicApi}
+      mcpBase={mcpUrl || backendUrl}
+      cloudflareUrl={cloudflareUrl}
+    />
+  );
+};
+
 export const PublicComponent = () => {
   const t = useT();
   const [subTab, setSubTab] = useState<'api' | 'developer'>('api');

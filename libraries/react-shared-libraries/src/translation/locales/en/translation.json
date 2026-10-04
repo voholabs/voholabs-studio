@@ -1119,5 +1119,10 @@
   "brief_onboarding_continue_title": "Continue your onboarding?",
   "support": "Support",
   "agent_media_title": "UGC videos by AgentMedia",
-  "brief_asset_failed_named": "{{name}} could not be uploaded"
+  "brief_asset_failed_named": "{{name}} could not be uploaded",
+  "brief_onboarding_continue_line": "You have an onboarding in progress. Continue where you left off.",
+  "brief_onboarding_redo_line": "Starting over replaces your previous answers and rewrites your brief.",
+  "brief_onboarding_redo_cost_line": "Pay per use: this costs {{credits}} credits, refunded if the onboarding is not finished.",
+  "brief_onboarding_continue_cost_line": "Continuing is free. Starting a new one later costs {{credits}} credits.",
+  "brief_onboarding_redo_free_line": "This one is free. Later ones cost {{credits}} credits each."
 }

@@ -16,7 +16,7 @@ import {
   useBriefOnboarding,
   useStartBriefOnboarding,
 } from '@gitroom/frontend/components/agent-brief/use.brief.onboarding';
-import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
+import { useModals } from '@gitroom/frontend/components/layout/new-modal';
 import {
   TONE_TEXT,
   useActionTone,
@@ -175,63 +175,103 @@ const RedoOnboardingButton: FC<{
   const { data: prices } = useWalletPrices(wallet);
   const onboarding = findAction(prices, 'brief.onboarding');
 
-  const ask = useCallback(async () => {
-    const startsOver = t(
-      'brief_onboarding_redo_body',
-      'This starts the guided onboarding over, and your brief is written again from your new answers.'
-    );
-    let cost = '';
-    if (wallet && onboarding && !reopens) {
-      cost =
-        charged && onboarding.price > 0
-          ? t(
-              'brief_onboarding_redo_cost',
-              'Starting over costs {{credits}} credits, taken from your wallet now. If the onboarding fails or is not finished, they are refunded.',
-              {
-                credits: format.credits(onboarding.price),
-                interpolation: { escapeValue: false },
-              }
-            )
-          : t(
-              'brief_onboarding_redo_free',
-              'This run is free. Later runs cost {{credits}} credits each.',
-              {
-                credits: format.credits(onboarding.price),
-                interpolation: { escapeValue: false },
-              }
-            );
-    }
-    // An onboarding already open is continued, not restarted: say so, and
-    // what a new one costs, so the dialog never reads as a free redo.
-    const ok = reopens
-      ? await deleteDialog(
-          wallet && onboarding && onboarding.price > 0
-            ? t(
-                'brief_onboarding_continue_body_cost',
-                'You have an onboarding in progress. Continuing it costs nothing extra. Starting a new one after it costs {{credits}} credits.',
-                {
-                  credits: format.credits(onboarding.price),
-                  interpolation: { escapeValue: false },
-                }
-              )
-            : t(
-                'brief_onboarding_continue_body',
-                'You have an onboarding in progress. Continue where you left off.'
-              ),
-          t('brief_onboarding_continue_confirm', 'Continue'),
-          t('brief_onboarding_continue_title', 'Continue your onboarding?'),
-          t('cancel', 'Cancel')
-        )
-      : await deleteDialog(
-          cost ? `${startsOver} ${cost}` : startsOver,
-          t('brief_onboarding_redo_confirm', 'Start over'),
-          t('brief_onboarding_redo_title', 'Redo the onboarding?'),
-          t('cancel', 'Cancel')
-        );
-    if (ok) {
-      onConfirm();
-    }
-  }, [t, wallet, onboarding, charged, reopens, format, onConfirm]);
+  const modals = useModals();
+  const ask = useCallback(() => {
+    // Line 1 says what happens; line 2 (pay per use, warm) says what it
+    // costs. Reopening an open run says it continues and costs nothing.
+    const price =
+      wallet && onboarding && onboarding.price > 0
+        ? format.credits(onboarding.price)
+        : '';
+    const paid = !reopens && charged && !!price;
+    const id = 'brief-redo-confirm';
+    modals.openModal({
+      id,
+      title: reopens
+        ? t('brief_onboarding_continue_title', 'Continue your onboarding?')
+        : t('brief_onboarding_redo_title', 'Redo the onboarding?'),
+      size: 'min(480px, calc(100vw - 32px))',
+      children: (
+        <div className="flex flex-col gap-[16px]">
+          <p className="text-[14px] text-newTextColor">
+            {reopens
+              ? t(
+                  'brief_onboarding_continue_line',
+                  'You have an onboarding in progress. Continue where you left off.'
+                )
+              : t(
+                  'brief_onboarding_redo_line',
+                  'Starting over replaces your previous answers and rewrites your brief.'
+                )}
+          </p>
+          {!!price && (
+            <p
+              className={clsx(
+                'flex items-start gap-[8px] text-[14px] font-[600]',
+                TONE_TEXT.warm
+              )}
+            >
+              <CoinsIcon size={16} />
+              <span>
+                {paid
+                  ? t(
+                      'brief_onboarding_redo_cost_line',
+                      'Pay per use: this costs {{credits}} credits, refunded if the onboarding is not finished.',
+                      {
+                        credits: price,
+                        interpolation: { escapeValue: false },
+                      }
+                    )
+                  : reopens
+                  ? t(
+                      'brief_onboarding_continue_cost_line',
+                      'Continuing is free. Starting a new one later costs {{credits}} credits.',
+                      {
+                        credits: price,
+                        interpolation: { escapeValue: false },
+                      }
+                    )
+                  : t(
+                      'brief_onboarding_redo_free_line',
+                      'This one is free. Later ones cost {{credits}} credits each.',
+                      {
+                        credits: price,
+                        interpolation: { escapeValue: false },
+                      }
+                    )}
+              </span>
+            </p>
+          )}
+          <div className="flex gap-[8px] justify-end">
+            <button
+              type="button"
+              onClick={() => modals.closeById(id)}
+              className="h-[40px] px-[16px] rounded-[8px] bg-btnSimple text-btnText text-[14px] font-[600] hover:brightness-125 transition"
+            >
+              {t('cancel', 'Cancel')}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                modals.closeById(id);
+                onConfirm();
+              }}
+              className={clsx(
+                'h-[40px] px-[16px] rounded-[8px] text-[14px] font-[600] hover:brightness-110 transition',
+                paid
+                  ? 'bg-warm text-newBgColor'
+                  : 'bg-btnPrimary text-white'
+              )}
+            >
+              {reopens
+                ? t('brief_onboarding_continue_confirm', 'Continue')
+                : t('brief_onboarding_redo_confirm', 'Start over')}
+            </button>
+          </div>
+        </div>
+      ),
+    });
+  }, [t, wallet, onboarding, charged, reopens, format, onConfirm, modals]);
 
   return (
     <button

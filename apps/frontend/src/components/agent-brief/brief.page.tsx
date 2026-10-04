@@ -166,7 +166,9 @@ const RedoOnboardingButton: FC<{
   busy: boolean;
   wallet: boolean;
   charged: boolean;
-}> = ({ onConfirm, busy, wallet, charged }) => {
+  // A run is already open: confirming reopens it, nothing is charged.
+  reopens: boolean;
+}> = ({ onConfirm, busy, wallet, charged, reopens }) => {
   const t = useT();
   const tone = useActionTone('brief.onboarding');
   const format = useWalletFormat();
@@ -179,7 +181,7 @@ const RedoOnboardingButton: FC<{
       'This starts the guided onboarding over, and your brief is written again from your new answers.'
     );
     let cost = '';
-    if (wallet && onboarding) {
+    if (wallet && onboarding && !reopens) {
       cost =
         charged && onboarding.price > 0
           ? t(
@@ -208,7 +210,7 @@ const RedoOnboardingButton: FC<{
     if (ok) {
       onConfirm();
     }
-  }, [t, wallet, onboarding, charged, format, onConfirm]);
+  }, [t, wallet, onboarding, charged, reopens, format, onConfirm]);
 
   return (
     <button
@@ -301,6 +303,7 @@ const OpenBrief: FC<{ showFree: boolean }> = ({ showFree }) => {
           busy={busy}
           wallet={showFree}
           charged={!!onboarding.nextRunCharged}
+          reopens={!!onboarding.running}
         />
       }
     />

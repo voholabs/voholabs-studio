@@ -304,6 +304,8 @@ export class PostsRepository {
         group: true,
         creationMethod: true,
         reviewed: true,
+        // Read for `errorKind`; the service drops it unless asked for.
+        error: true,
         // Off by default: the calendar renders thousands of these and these
         // two are the heaviest fields on the row. Only the callers that need
         // to know what is attached, or how the post is configured, ask.
@@ -465,6 +467,8 @@ export class PostsRepository {
           group: true,
           creationMethod: true,
           reviewed: true,
+          // Read for `errorKind`; the service drops it.
+          error: true,
           tags: {
             select: {
               tag: true,

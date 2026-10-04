@@ -58,6 +58,62 @@ const usedUnitsQuery = async (
   return Number(rows[0]?.used || 0);
 };
 
+type WalletTx = Pick<
+  Prisma.TransactionClient,
+  'wallet' | 'walletEntry' | '$queryRaw'
+>;
+
+// Locks the organization's wallet row (creating it first) for the rest of
+// the transaction, so two charges at once cannot both see the same balance.
+const lockWallet = async (tx: WalletTx, organizationId: string) => {
+  await tx.wallet.upsert({
+    where: { organizationId },
+    update: {},
+    create: { organizationId },
+  });
+  await tx.$queryRaw`SELECT id FROM "Wallet" WHERE "organizationId" = ${organizationId} FOR UPDATE`;
+};
+
+// Applies an action's free allowance to a charge about to be written: units
+// still free are not charged, and a charge that is entirely free becomes
+// "Included free". Must run under the wallet lock.
+const applyFree = async (
+  tx: WalletTx,
+  data: NewWalletEntry,
+  free?: FreeAllowance,
+  meta: Record<string, unknown> = {}
+) => {
+  if (!free || free.units <= 0 || !data.actionKey) {
+    return;
+  }
+  const used = await usedUnitsQuery(
+    tx,
+    data.organizationId,
+    data.actionKey,
+    free.since
+  );
+  const quantity = data.quantity ?? 1;
+  const freeQuantity = Math.min(quantity, Math.max(0, free.units - used));
+  if (freeQuantity > 0) {
+    data.amount = (quantity - freeQuantity) * (data.unitPrice || 0);
+    data.meta = JSON.stringify({ ...meta, freeQuantity });
+    if (freeQuantity === quantity) {
+      data.unitPrice = 0;
+      data.description = FREE_DESCRIPTION;
+    }
+  }
+};
+
+// The items a charge made by spendItems paid for.
+const itemsOf = (meta: string | null) => {
+  try {
+    const items = JSON.parse(meta || '{}')?.items;
+    return Array.isArray(items) ? (items as string[]) : [];
+  } catch {
+    return [];
+  }
+};
+
 const isUniqueViolation = (err: unknown) =>
   (err as { code?: string })?.code === 'P2002';
 
@@ -644,12 +700,7 @@ export class WalletRepository {
   ) {
     const { chargeKey, allowNegative, free, ...data } = entry;
     return this._transaction.model.$transaction(async (tx) => {
-      await tx.wallet.upsert({
-        where: { organizationId: data.organizationId },
-        update: {},
-        create: { organizationId: data.organizationId },
-      });
-      await tx.$queryRaw`SELECT id FROM "Wallet" WHERE "organizationId" = ${data.organizationId} FOR UPDATE`;
+      await lockWallet(tx, data.organizationId);
 
       const previous = {
         organizationId: data.organizationId,
@@ -672,27 +723,7 @@ export class WalletRepository {
         return latest;
       }
 
-      if (free && free.units > 0 && data.actionKey) {
-        const used = await usedUnitsQuery(
-          tx,
-          data.organizationId,
-          data.actionKey,
-          free.since
-        );
-        const quantity = data.quantity ?? 1;
-        const freeQuantity = Math.min(
-          quantity,
-          Math.max(0, free.units - used)
-        );
-        if (freeQuantity > 0) {
-          data.amount = (quantity - freeQuantity) * (data.unitPrice || 0);
-          data.meta = JSON.stringify({ freeQuantity });
-          if (freeQuantity === quantity) {
-            data.unitPrice = 0;
-            data.description = FREE_DESCRIPTION;
-          }
-        }
-      }
+      await applyFree(tx, data, free);
 
       if (data.amount > 0) {
         const sum = await tx.walletEntry.aggregate({
@@ -711,6 +742,92 @@ export class WalletRepository {
           amount: data.amount ? -data.amount : 0,
           chargeKey,
           idempotencyKey: `${chargeKey}#${count + 1}`,
+        },
+      });
+    });
+  }
+
+  // Charges for the items (e.g. posts read) not already charged under
+  // `chargePrefix`, under the wallet lock, so each item is paid at most once
+  // per prefix whichever request asks first. The prefix names the period
+  // and the organization (e.g. xread:<org>:<UTC day>:); each charge under it
+  // is <prefix><n> and lists its items in `meta`. A refunded charge frees its
+  // items again. Returns null when every item was already charged.
+  async spendItems(
+    entry: Omit<NewWalletEntry, 'amount' | 'quantity' | 'chargeKey'> & {
+      chargePrefix: string;
+      items: string[];
+      // Units charged per new item.
+      unitsPerItem: number;
+      allowNegative?: boolean;
+      free?: FreeAllowance;
+    }
+  ) {
+    const { chargePrefix, items, unitsPerItem, allowNegative, free, ...rest } =
+      entry;
+    return this._transaction.model.$transaction(async (tx) => {
+      await lockWallet(tx, rest.organizationId);
+
+      const earlier = await tx.walletEntry.findMany({
+        where: {
+          organizationId: rest.organizationId,
+          type: WalletEntryType.SPEND,
+          chargeKey: { startsWith: chargePrefix },
+        },
+      });
+      const refunded = new Set(
+        (
+          await tx.walletEntry.findMany({
+            where: {
+              idempotencyKey: {
+                in: earlier.map((e) => `refund:${e.idempotencyKey}`),
+              },
+            },
+            select: { idempotencyKey: true },
+          })
+        ).map((r) => r.idempotencyKey)
+      );
+      const charged = new Set<string>();
+      for (const e of earlier) {
+        if (refunded.has(`refund:${e.idempotencyKey}`)) {
+          continue;
+        }
+        for (const item of itemsOf(e.meta)) {
+          charged.add(item);
+        }
+      }
+      const fresh = [...new Set(items)].filter((i) => !charged.has(i));
+      if (!fresh.length) {
+        return null;
+      }
+
+      const quantity = fresh.length * unitsPerItem;
+      const data: NewWalletEntry = {
+        ...rest,
+        quantity,
+        amount: quantity * (rest.unitPrice || 0),
+        meta: JSON.stringify({ items: fresh }),
+      };
+      await applyFree(tx, data, free, { items: fresh });
+
+      if (data.amount > 0 && !allowNegative) {
+        const sum = await tx.walletEntry.aggregate({
+          where: { organizationId: rest.organizationId },
+          _sum: { amount: true },
+        });
+        const balance = sum._sum.amount || 0;
+        if (balance < data.amount) {
+          throw new InsufficientCreditsError(data.amount, balance);
+        }
+      }
+
+      const chargeKey = `${chargePrefix}${earlier.length + 1}`;
+      return tx.walletEntry.create({
+        data: {
+          ...data,
+          amount: data.amount ? -data.amount : 0,
+          chargeKey,
+          idempotencyKey: `${chargeKey}#1`,
         },
       });
     });

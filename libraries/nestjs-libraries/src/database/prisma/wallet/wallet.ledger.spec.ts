@@ -62,6 +62,8 @@ const fakeDb = (actions: Row[] = [], settings: Record<string, string> = {}) => {
       }
       return row;
     },
+    findMany: async ({ where }: { where: Row }) =>
+      entries.filter((e) => matches(e, where)),
     findFirst: async ({ where }: { where: Row }) =>
       entries
         .filter((e) => matches(e, where))
@@ -698,5 +700,157 @@ describe('WalletService.grant and adjust idempotency', () => {
     expect(b).toBe(a);
     expect(a.idempotencyKey).toBe('admin:adjust:org-1:ticket-7');
     expect(await repository.balance(ORG)).toBe(700);
+  });
+});
+
+describe('WalletService.chargeItems (analytics reads, once per post per day)', () => {
+  const reads = (over: Row = {}) => ({
+    key: 'x.post_read',
+    provider: 'x',
+    category: 'x',
+    name: 'X post read',
+    description: null,
+    unit: 'read',
+    costMicros: 0,
+    costCurrency: 'USD',
+    multiplierBp: null,
+    fixedPrice: 75,
+    freeUnits: 0,
+    freePeriod: null,
+    billing: 'PER_USE',
+    requiresTopUp: true,
+    active: true,
+    ...over,
+  });
+  const SETTINGS = { wallet_currency: 'USD', credits_per_unit: '100' };
+  const DAY = 'xread:org-1:2026-10-04:';
+
+  const read = (
+    service: WalletService,
+    items: string[],
+    extra: { org?: string; prefix?: string } = {}
+  ) =>
+    service.chargeItems({
+      organizationId: extra.org || ORG,
+      actionKey: 'x.post_read',
+      chargePrefix: extra.prefix || DAY,
+      items,
+      unitsPerItem: 2,
+      allowNegative: true,
+      reference: 'channel-1',
+    });
+
+  it('charges two reads per post and lists the posts on the entry', async () => {
+    const { service, repository } = setup([reads()], SETTINGS);
+    await credit(repository, 10000);
+    const entry = await read(service, ['a', 'b']);
+    expect(entry?.quantity).toBe(4);
+    expect(entry?.amount).toBe(-300);
+    expect(entry?.unitPrice).toBe(75);
+    expect(entry?.chargeKey).toBe(`${DAY}1`);
+    expect(entry?.idempotencyKey).toBe(`${DAY}1#1`);
+    expect(JSON.parse(entry!.meta)).toEqual({ items: ['a', 'b'] });
+    expect(await repository.balance(ORG)).toBe(10000 - 300);
+  });
+
+  it('the 7, 30 and 90 day windows and a refresh charge each post once', async () => {
+    const { service, repository, db } = setup([reads()], SETTINGS);
+    await credit(repository, 10000);
+    // 7 days
+    expect((await read(service, ['a', 'b']))?.quantity).toBe(4);
+    // 30 days: a and b were paid for already
+    const month = await read(service, ['a', 'b', 'c', 'd']);
+    expect(month?.quantity).toBe(4);
+    expect(JSON.parse(month!.meta).items).toEqual(['c', 'd']);
+    // 90 days
+    expect((await read(service, ['a', 'b', 'c', 'd', 'e']))?.quantity).toBe(2);
+    // Refresh (fresh=1) of any window the same day: nothing new
+    expect(await read(service, ['a', 'b', 'c', 'd', 'e'])).toBeNull();
+    expect(await read(service, ['b', 'a'])).toBeNull();
+    const spends = db.entries.filter((e) => e.type === 'SPEND');
+    expect(spends).toHaveLength(3);
+    // 5 posts x 2 reads x 75
+    expect(await repository.balance(ORG)).toBe(10000 - 750);
+  });
+
+  it('a duplicated post in one read is charged once', async () => {
+    const { service } = setup([reads()], SETTINGS);
+    expect((await read(service, ['a', 'a', 'b']))?.quantity).toBe(4);
+  });
+
+  it('a new UTC day charges the posts again', async () => {
+    const { service, repository } = setup([reads()], SETTINGS);
+    await credit(repository, 10000);
+    await read(service, ['a', 'b']);
+    const tomorrow = await read(service, ['a', 'b'], {
+      prefix: 'xread:org-1:2026-10-05:',
+    });
+    expect(tomorrow?.quantity).toBe(4);
+    expect(await repository.balance(ORG)).toBe(10000 - 600);
+  });
+
+  it('another workspace reading the same posts pays for its own reads', async () => {
+    const { service, repository } = setup([reads()], SETTINGS);
+    await read(service, ['a']);
+    const other = await read(service, ['a'], {
+      org: 'org-2',
+      prefix: 'xread:org-2:2026-10-04:',
+    });
+    expect(other?.quantity).toBe(2);
+    expect(other?.idempotencyKey).toBe('xread:org-2:2026-10-04:1#1');
+    expect(await repository.balance(ORG)).toBe(-150);
+  });
+
+  it('a refunded read charge frees its posts to be charged again', async () => {
+    const { service, repository } = setup([reads()], SETTINGS);
+    await credit(repository, 10000);
+    const first = await read(service, ['a', 'b']);
+    await service.refund(first!.idempotencyKey!, 'test');
+    const again = await read(service, ['a', 'b']);
+    expect(again?.quantity).toBe(4);
+    expect(again?.chargeKey).toBe(`${DAY}2`);
+    expect(await repository.balance(ORG)).toBe(10000 - 300);
+  });
+
+  it('reads already made are charged into a negative balance', async () => {
+    const { service, repository } = setup([reads()], SETTINGS);
+    await read(service, ['a']);
+    expect(await repository.balance(ORG)).toBe(-150);
+  });
+
+  it('without allowNegative a short balance is refused and nothing is written', async () => {
+    const { service, db } = setup([reads()], SETTINGS);
+    await expect(
+      service.chargeItems({
+        organizationId: ORG,
+        actionKey: 'x.post_read',
+        chargePrefix: DAY,
+        items: ['a'],
+        unitsPerItem: 2,
+      })
+    ).rejects.toBeInstanceOf(InsufficientCreditsError);
+    expect(db.entries).toHaveLength(0);
+  });
+
+  it('applies the monthly free reads and keeps the posts on the entry', async () => {
+    const { service, repository } = setup(
+      [reads({ freeUnits: 3, freePeriod: 'MONTH' })],
+      SETTINGS
+    );
+    await credit(repository, 10000);
+    const entry = await read(service, ['a', 'b']);
+    // 4 reads, 3 free
+    expect(entry?.amount).toBe(-75);
+    expect(JSON.parse(entry!.meta)).toEqual({
+      items: ['a', 'b'],
+      freeQuantity: 3,
+    });
+    expect(await read(service, ['a', 'b'])).toBeNull();
+  });
+
+  it('nothing to read charges nothing', async () => {
+    const { service, db } = setup([reads()], SETTINGS);
+    expect(await read(service, [])).toBeNull();
+    expect(db.entries).toHaveLength(0);
   });
 });

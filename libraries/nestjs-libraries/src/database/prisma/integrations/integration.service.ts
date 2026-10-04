@@ -47,7 +47,15 @@ export type PaidApiAction = 'post_read' | 'user_lookup';
 
 // Channel analytics reads each post twice: once in the timeline, then again
 // for its stats. Both reads are billed by X.
-const READS_PER_ANALYTICS_POST = 2;
+export const READS_PER_ANALYTICS_POST = 2;
+
+// A post's channel-analytics reads are charged at most once per UTC day per
+// workspace, whichever window (7, 30, 90 days) or refresh reads it first.
+export const analyticsReadPrefix = (
+  identifier: string,
+  orgId: string,
+  day = dayjs.utc().format('YYYY-MM-DD')
+) => `${providerKey(identifier)}read:${orgId}:${day}:`;
 
 // Upstream's one-hour cache of a channel's analytics for one window.
 const analyticsCacheKey = (orgId: string, integration: string, date: string) =>
@@ -494,25 +502,25 @@ export class IntegrationService {
           return [];
         }
 
-        // A provider the wallet pays for takes a 4th argument that is told how
-        // many posts were read (XProvider.analytics). Other providers use the
+        // A provider the wallet pays for takes a 4th argument that is told
+        // which posts were read (XProvider.analytics). Other providers use the
         // 4th argument for something else, so it is only passed here.
-        let postsRead = 0;
+        const postsRead: string[] = [];
         const loadAnalytics = walletPays
           ? await (
               integrationProvider.analytics as (
                 id: string,
                 accessToken: string,
                 date: number,
-                onPostsRead: (count: number) => void
+                onPostsRead: (count: number, ids: string[]) => void
               ) => Promise<AnalyticsData[]>
             ).call(
               integrationProvider,
               getIntegration.internalId,
               getIntegration.token,
               +date,
-              (count: number) => {
-                postsRead += count;
+              (_count: number, ids: string[]) => {
+                postsRead.push(...ids);
               }
             )
           : await integrationProvider.analytics(
@@ -520,21 +528,15 @@ export class IntegrationService {
               getIntegration.token,
               +date
             );
-        if (walletPays && postsRead > 0) {
+        if (walletPays && postsRead.length > 0) {
           // The reads already happened, so they are charged even into a
-          // negative balance. One charge per channel, UTC day and window.
-          await this.chargeApiUse({
+          // negative balance: two reads per post, and only for posts not
+          // already charged today (another window or a refresh).
+          await this.chargeApiReads({
             orgId: org.id,
             identifier: getIntegration.providerIdentifier,
-            action: 'post_read',
-            quantity: postsRead * READS_PER_ANALYTICS_POST,
-            chargeKey: `${providerKey(
-              getIntegration.providerIdentifier
-            )}read:${getIntegration.id}:${dayjs
-              .utc()
-              .format('YYYY-MM-DD')}:${date}`,
+            postIds: postsRead,
             reference: getIntegration.id,
-            allowNegative: true,
           });
         }
         const ttl =
@@ -684,6 +686,44 @@ export class IntegrationService {
         );
       }
       return false;
+    }
+  }
+
+  // Charges the channel-analytics reads of these posts, skipping posts this
+  // workspace already paid to read today (UTC). Returns the ledger entry, or
+  // null when nothing new was charged.
+  async chargeApiReads(params: {
+    orgId: string;
+    identifier: string;
+    postIds: string[];
+    reference?: string;
+  }) {
+    if (
+      !params.postIds.length ||
+      !(await this._walletService.unlocksProvider(
+        params.orgId,
+        params.identifier
+      ))
+    ) {
+      return null;
+    }
+    const chargePrefix = analyticsReadPrefix(params.identifier, params.orgId);
+    try {
+      return await this._walletBilling.chargeItems({
+        organizationId: params.orgId,
+        actionKey: `${providerKey(params.identifier)}.post_read`,
+        chargePrefix,
+        items: params.postIds,
+        unitsPerItem: READS_PER_ANALYTICS_POST,
+        reference: params.reference,
+        allowNegative: true,
+      });
+    } catch (err) {
+      console.error(
+        `[wallet] Could not charge ${chargePrefix} for organization ${params.orgId}:`,
+        err
+      );
+      return null;
     }
   }
 

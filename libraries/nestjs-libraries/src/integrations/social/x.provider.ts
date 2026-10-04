@@ -715,7 +715,8 @@ export class XProvider extends SocialAbstract implements SocialProvider {
     id: string,
     accessToken: string,
     date: number,
-    onPostsRead?: (count: number) => void
+    // Told which posts were read (each is read twice: timeline, then stats).
+    onPostsRead?: (count: number, ids: string[]) => void
   ): Promise<AnalyticsData[]> {
     if (process.env.DISABLE_X_ANALYTICS) {
       return [];
@@ -743,7 +744,7 @@ export class XProvider extends SocialAbstract implements SocialProvider {
         (p) => p.id
       );
 
-      onPostsRead?.(tweets.length);
+      onPostsRead?.(tweets.length, tweets.map((p) => p.id));
 
       if (tweets.length === 0) {
         return [];

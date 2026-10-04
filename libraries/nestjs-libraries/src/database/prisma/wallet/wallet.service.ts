@@ -617,6 +617,41 @@ export class WalletService {
     });
   }
 
+  // Charges `unitsPerItem` units of an action for each item not already
+  // charged under `chargePrefix` (see WalletRepository.spendItems). Returns
+  // the ledger entry, or null when every item was already paid for.
+  async chargeItems(params: {
+    organizationId: string;
+    actionKey: string;
+    chargePrefix: string;
+    items: string[];
+    unitsPerItem: number;
+    reference?: string;
+    description?: string;
+    allowNegative?: boolean;
+  }) {
+    const priced = await this.price(params.actionKey);
+    if (!priced) {
+      throw new Error(`No price for ${params.actionKey}`);
+    }
+    if (!params.items.length || params.unitsPerItem < 1) {
+      return null;
+    }
+    return this._wallet.spendItems({
+      organizationId: params.organizationId,
+      type: 'SPEND',
+      actionKey: params.actionKey,
+      unitPrice: priced.price,
+      description: params.description || priced.action.name,
+      chargePrefix: params.chargePrefix,
+      items: params.items,
+      unitsPerItem: params.unitsPerItem,
+      allowNegative: params.allowNegative,
+      reference: params.reference,
+      free: this.freeAllowance(priced.action),
+    });
+  }
+
   // Gives back a charge, once. Does nothing if the charge never happened. A
   // free charge is refunded at zero, which gives its free unit back.
   async refund(chargeKey: string, reason?: string) {

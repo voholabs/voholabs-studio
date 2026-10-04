@@ -87,7 +87,7 @@ const AnalyticsFreshness: FC<{
               'data-tooltip-id': 'tooltip',
               'data-tooltip-content': t(
                 'analytics_refresh_cost',
-                'Refreshing reads your posts again from the network. Each post read can cost {{price}} credits ({{action}}).',
+                'Refreshing reads your posts again from the network. Each post is charged once a day, whichever period or refresh reads it first: {{price}} credits per read ({{action}}). Posts already read today are not charged again.',
                 {
                   price: format.credits(readAction.price),
                   action: readAction.name,

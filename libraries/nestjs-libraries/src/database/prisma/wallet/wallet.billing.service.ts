@@ -785,23 +785,40 @@ export class WalletBillingService {
   }
 
   // Charges an action, topping up first if auto top-up can cover it.
-  async charge(params: Parameters<WalletService['charge']>[0]) {
+  charge(params: Parameters<WalletService['charge']>[0]) {
+    return this.withAutoTopUp(params.organizationId, () =>
+      this._wallet.charge(params)
+    );
+  }
+
+  // Charges the items not already charged under the prefix (see
+  // WalletService.chargeItems), topping up first like `charge`.
+  chargeItems(params: Parameters<WalletService['chargeItems']>[0]) {
+    return this.withAutoTopUp(params.organizationId, () =>
+      this._wallet.chargeItems(params)
+    );
+  }
+
+  private async withAutoTopUp<T>(
+    organizationId: string,
+    run: () => Promise<T>
+  ) {
     try {
-      return await this._wallet.charge(params);
+      return await run();
     } catch (err) {
       if (!(err instanceof InsufficientCreditsError)) {
         throw err;
       }
-      if (!(await this.autoTopUp(params.organizationId, err.needed))) {
+      if (!(await this.autoTopUp(organizationId, err.needed))) {
         throw err;
       }
-      return this._wallet.charge(params);
+      return run();
     } finally {
       // Keep the balance above the threshold for the next one, then check
       // whether what is scheduled next can still be paid for.
-      this.autoTopUp(params.organizationId)
+      this.autoTopUp(organizationId)
         .catch(() => false)
-        .then(() => this.notifyIfShort(params.organizationId))
+        .then(() => this.notifyIfShort(organizationId))
         .catch(() => undefined);
     }
   }

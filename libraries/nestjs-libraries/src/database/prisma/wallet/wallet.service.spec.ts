@@ -489,6 +489,25 @@ describe('WalletService free allowance in charge', () => {
   });
 });
 
+describe('WalletService whole top-up amounts', () => {
+  const service = new WalletService(stubRepo(), notifications());
+
+  it('accepts whole dollars only (amounts in cents)', async () => {
+    expect(await service.minorPerUnit()).toBe(100);
+    expect(await service.isWholeAmount(2500)).toBe(true);
+    expect(await service.isWholeAmount(2550)).toBe(false);
+    expect(await service.isWholeAmount(25.5)).toBe(false);
+  });
+
+  it('follows the currency: yen has no minor unit', async () => {
+    const yen = new WalletService(
+      stubRepo({}, { ...SETTINGS, wallet_currency: 'JPY' }),
+      notifications()
+    );
+    expect(await yen.isWholeAmount(1001)).toBe(true);
+  });
+});
+
 describe('WalletService.postActionKey', () => {
   const service = new WalletService(stubRepo(), notifications());
 

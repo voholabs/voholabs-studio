@@ -171,6 +171,123 @@ describe('WalletBillingService checkout', () => {
   });
 });
 
+describe('WalletBillingService top-up dialog choices', () => {
+  const env = process.env.WALLET_STRIPE_SECRET_KEY;
+  beforeEach(() => {
+    process.env.WALLET_STRIPE_SECRET_KEY = 'sk_test_stub';
+  });
+  afterAll(() => {
+    process.env.WALLET_STRIPE_SECRET_KEY = env;
+  });
+
+  const rules = {
+    minAmount: 1000,
+    options: [1000, 2500],
+    creditsPerUnit: 100,
+    autoOptions: [2500, 5000],
+    capOptions: [10000, 20000],
+    defaultThreshold: 25000,
+  };
+
+  const savedCardIntent = {
+    setup_future_usage: 'off_session',
+    payment_method: { id: 'pm_1', card: { brand: 'visa', last4: '4242' } },
+    latest_charge: null,
+  };
+
+  const withWallet = (walletRow: any) => {
+    const built = build();
+    built.wallet.getWallet = jest.fn(async () => walletRow);
+    built.wallet.topUpRules = jest.fn(async () => rules);
+    built.stripe.paymentIntents.retrieve.mockResolvedValueOnce(
+      savedCardIntent as any
+    );
+    return built;
+  };
+
+  it('turns auto top-up on with the defaults after a paid checkout that asked for it', async () => {
+    const { service, wallet } = withWallet({
+      autoTopUp: false,
+      frozenAt: null,
+      paymentMethodId: 'pm_1',
+      autoTopUpAmount: null,
+      autoTopUpMonthlyCap: null,
+      autoTopUpThreshold: null,
+    });
+    await service.handleEvent(
+      checkoutEvent(session({ metadata: { ...metadata, autoTopUp: '1' } }))
+    );
+    expect(wallet.updateWallet).toHaveBeenLastCalledWith('org-1', {
+      autoTopUp: true,
+      autoTopUpAmount: 2500,
+      autoTopUpMonthlyCap: 10000,
+      autoTopUpThreshold: 25000,
+    });
+  });
+
+  it('keeps the wallet\'s own auto top-up settings when it has them', async () => {
+    const { service, wallet } = withWallet({
+      autoTopUp: false,
+      frozenAt: null,
+      paymentMethodId: 'pm_1',
+      autoTopUpAmount: 5000,
+      autoTopUpMonthlyCap: 2000,
+      autoTopUpThreshold: 1000,
+    });
+    await service.handleEvent(
+      checkoutEvent(session({ metadata: { ...metadata, autoTopUp: '1' } }))
+    );
+    expect(wallet.updateWallet).toHaveBeenLastCalledWith('org-1', {
+      autoTopUp: true,
+      autoTopUpAmount: 5000,
+      // Never below one top-up.
+      autoTopUpMonthlyCap: 5000,
+      autoTopUpThreshold: 1000,
+    });
+  });
+
+  it('leaves auto top-up off when the checkout did not ask for it', async () => {
+    const { service, wallet } = withWallet({
+      autoTopUp: false,
+      paymentMethodId: 'pm_1',
+    });
+    await service.handleEvent(checkoutEvent(session()));
+    expect(wallet.updateWallet).not.toHaveBeenCalledWith(
+      'org-1',
+      expect.objectContaining({ autoTopUp: true })
+    );
+  });
+
+  it('leaves auto top-up off when no card was saved', async () => {
+    const { service, wallet, stripe } = build();
+    wallet.getWallet = jest.fn(async () => ({ autoTopUp: false }));
+    stripe.paymentIntents.retrieve.mockResolvedValueOnce({
+      setup_future_usage: null,
+      payment_method: null,
+    } as any);
+    await service.handleEvent(
+      checkoutEvent(session({ metadata: { ...metadata, autoTopUp: '1' } }))
+    );
+    expect(wallet.updateWallet).not.toHaveBeenCalled();
+  });
+
+  it('refuses a top-up that is not a whole amount of the currency', async () => {
+    const { service, wallet } = build();
+    wallet.isFrozen = jest.fn(async () => false);
+    wallet.topUpRules = jest.fn(async () => rules);
+    wallet.isWholeAmount = jest.fn(async (a: number) => a % 100 === 0);
+    wallet.wholeAmountMessage = jest.fn(async () => 'whole amounts only');
+    await expect(
+      service.createCheckout({
+        organizationId: 'org-1',
+        amount: 1050,
+        saveCard: false,
+        returnUrl: 'https://app/wallet',
+      })
+    ).rejects.toThrow('whole amounts only');
+  });
+});
+
 describe('WalletBillingService refunds and disputes', () => {
   beforeEach(() => (walletAlert as jest.Mock).mockClear());
 

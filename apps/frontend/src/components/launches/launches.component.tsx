@@ -480,6 +480,7 @@ export const LaunchesComponent = () => {
       );
     }
     if (search.get('added')) {
+      fireEvents('channel_added');
       fireEvents('channel_connected', { provider: search.get('added') === 'true' ? undefined : search.get('added') }, { send_instantly: true });
       window?.opener?.postMessage(
         {

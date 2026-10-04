@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { MediaRepository } from '@gitroom/nestjs-libraries/database/prisma/media/media.repository';
 import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
-import { WalletBillingService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.billing.service';
+import {
+  WalletBillingService,
+  walletPaymentsEnabled,
+} from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.billing.service';
 import { WalletStorageService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.storage.service';
 import { walletAlert } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.alert';
 import { hasAccess } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
@@ -10,22 +13,6 @@ import { hasAccess } from '@gitroom/nestjs-libraries/database/prisma/subscriptio
 // hour on.
 const RECONCILE_DAYS = 2;
 const RECONCILE_HOUR_UTC = 6;
-
-interface ReconcileResult {
-  stripeOnly?: unknown[];
-  ledgerOnly?: unknown[];
-  mismatched?: unknown[];
-}
-
-// Methods other streams add to the wallet services. Looked up at run time so
-// this works before and after they land.
-// TODO(merge): call them directly once WalletService.notifyIfShort and the
-// reconciliation (WalletService or WalletBillingService .reconcile(days)) are
-// merged.
-type MaybeNotify = { notifyIfShort?: (organizationId: string) => unknown };
-type MaybeReconcile = {
-  reconcile?: (days: number) => Promise<ReconcileResult | undefined>;
-};
 
 // Periodic wallet jobs, run hourly by the wallet-housekeeping workflow. Every
 // step is idempotent and cheap, and one failing step never stops the others.
@@ -68,18 +55,13 @@ export class WalletHousekeepingService {
   // only looks at providers charged per post (X today) and returns at once
   // for an organization with nothing scheduled there.
   private async notifyShort() {
-    const notify = (this._wallet as WalletService & MaybeNotify).notifyIfShort;
-    if (typeof notify !== 'function') {
-      // TODO(merge): WalletService.notifyIfShort (stream S1).
-      return 0;
-    }
     let checked = 0;
     for (const org of await this._media.storageOfWalletOrganizations()) {
       if (hasAccess({ subscription: org.subscription })) {
         continue;
       }
       try {
-        await notify.call(this._wallet, org.organizationId);
+        await this._wallet.notifyIfShort(org.organizationId);
         checked++;
       } catch (err) {
         this._logger.error(
@@ -96,28 +78,21 @@ export class WalletHousekeepingService {
     const now = new Date();
     const today = now.toISOString().slice(0, 10);
     if (
+      !walletPaymentsEnabled() ||
       this._reconciledOn === today ||
       now.getUTCHours() < RECONCILE_HOUR_UTC
     ) {
       return false;
     }
-    const owner = [this._billing, this._wallet].find(
-      (s) => typeof (s as unknown as MaybeReconcile).reconcile === 'function'
-    ) as unknown as Required<MaybeReconcile> | undefined;
-    if (!owner) {
-      // TODO(merge): reconciliation (stream S1).
-      return false;
-    }
-    const result = await owner.reconcile(RECONCILE_DAYS);
+    const result = await this._billing.reconcile(RECONCILE_DAYS);
     this._reconciledOn = today;
 
-    const count = (list?: unknown[]) => (Array.isArray(list) ? list.length : 0);
-    const stripeOnly = count(result?.stripeOnly);
-    const ledgerOnly = count(result?.ledgerOnly);
-    const mismatched = count(result?.mismatched);
+    const stripeOnly = result.stripeOnly.length;
+    const ledgerOnly = result.ledgerOnly.length;
+    const mismatched = result.mismatched.length;
     if (stripeOnly || ledgerOnly || mismatched) {
       await walletAlert(
-        `Reconciliation (last ${RECONCILE_DAYS} days): ${stripeOnly} paid in Stripe but not credited, ${ledgerOnly} credited without a Stripe payment, ${mismatched} with different amounts. Details: GET /admin/wallet/reconcile?days=${RECONCILE_DAYS}`
+        `Reconciliation (last ${result.days} days): ${stripeOnly} paid in Stripe but not credited, ${ledgerOnly} credited without a Stripe payment, ${mismatched} with different amounts. Details: GET /admin/wallet/reconcile?days=${result.days}`
       );
     }
     return true;

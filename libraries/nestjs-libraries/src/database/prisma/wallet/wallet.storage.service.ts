@@ -166,10 +166,9 @@ export class WalletStorageService {
   // Units of storage this month's ledger already pays for (charges less
   // refunds).
   private async coveredThisMonth(organizationId: string, start: Date) {
-    // TODO(merge): WalletService.charge applies an action's free units (B1).
-    // Storage applies freeUnits itself, as a level and not a count of uses, so
-    // storage.gb must be left out of that, or the first units above the free
-    // amount would be given away each month.
+    // Storage applies freeUnits itself, as a level and not a count of uses.
+    // WalletService.charge only applies free units to PER_USE rows, so the
+    // MONTHLY storage row is charged in full for the units passed here.
     const usage = await this._wallet.usage(organizationId, start);
     return Math.max(
       0,

@@ -36,7 +36,6 @@ import {
 import {
   InsufficientCreditsError,
   WalletService,
-  walletFrozenMessage,
   walletRequiredMessage,
 } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 import { WalletBillingService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.billing.service';
@@ -766,14 +765,14 @@ export class IntegrationService {
   // Why a provider the free plan locks is refused. With the workspace given,
   // a wallet on hold (after a refunded or disputed top-up) says so instead of
   // asking for a top-up.
-  // TODO(merge): use WalletService.lockedProviderMessageFor(orgId, identifier).
   async lockedProviderMessage(identifier: string, orgId?: string) {
+    if (orgId) {
+      return this._walletService.lockedProviderMessageFor(orgId, identifier);
+    }
     if (!(await this._walletService.billsProvider(identifier))) {
       return paidOnlyChannelMessage();
     }
-    return orgId && (await this._walletService.isFrozen(orgId))
-      ? walletFrozenMessage()
-      : walletRequiredMessage(identifier);
+    return walletRequiredMessage(identifier);
   }
 
   async processInternalPlug(

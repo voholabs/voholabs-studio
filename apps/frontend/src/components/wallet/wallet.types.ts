@@ -1,8 +1,8 @@
 // Shapes returned by the wallet API. Credits are integers in hundredths
 // (225 = 2.25 credits); money is in the smallest unit of the wallet currency.
 
-export type WalletBilling = 'PER_USE' | 'MONTHLY' | 'UNLOCK';
-export type WalletFreePeriod = 'ONCE' | 'MONTH';
+type WalletBilling = 'PER_USE' | 'MONTHLY' | 'UNLOCK';
+type WalletFreePeriod = 'ONCE' | 'MONTH';
 export type WalletEntryType =
   | 'TOPUP'
   | 'AUTO_TOPUP'
@@ -11,7 +11,7 @@ export type WalletEntryType =
   | 'GRANT'
   | 'ADJUST';
 
-export interface WalletForecastItem {
+interface WalletForecastItem {
   actionKey: string;
   quantity: number;
   at: string;
@@ -28,8 +28,14 @@ export interface WalletSummary {
     minAmount: number;
     options: number[];
     creditsPerUnit: number;
+    // Auto top-up choices (smallest currency unit) and the default threshold
+    // (hundredths of a credit), from the billing settings.
+    autoOptions?: number[];
+    capOptions?: number[];
+    defaultThreshold?: number;
   } | null;
-  card: { brand: string | null; last4: string } | null;
+  // exp is "MM/YY".
+  card: { brand: string | null; last4: string; exp?: string | null } | null;
   autoTopUp: {
     enabled: boolean;
     threshold: number | null;
@@ -54,6 +60,7 @@ export interface WalletTransaction {
   unitPrice: number | null;
   actionKey: string | null;
   reference: string | null;
+  receiptUrl?: string | null;
   createdAt: string;
 }
 
@@ -94,4 +101,15 @@ export interface WalletPriceSection {
 export interface SupportedChannel {
   identifier: string;
   name: string;
+}
+
+// POST /wallet/estimate: what publishing these contents to a provider costs.
+export interface WalletEstimate {
+  items: { actionKey: string; price: number }[];
+  price: number;
+  balanceAfter: number;
+  short: boolean;
+  autoCovers: boolean;
+  // Smallest currency unit auto top-up would add first, when it covers.
+  autoAmount: number | null;
 }

@@ -7,6 +7,8 @@ import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { ENABLED_PROVIDERS } from '@gitroom/frontend/components/launches/add.provider.component';
 import {
   SupportedChannel,
+  WalletEstimate,
+  WalletPricedAction,
   WalletPriceSection,
   WalletSummary,
   WalletTransactions,
@@ -14,7 +16,7 @@ import {
 } from '@gitroom/frontend/components/wallet/wallet.types';
 
 // Every wallet SWR key starts with this, so one call refreshes them all.
-export const WALLET_KEY = 'wallet-summary';
+const WALLET_KEY = 'wallet-summary';
 const WALLET_PREFIX = 'wallet-';
 
 const useJson = () => {
@@ -45,18 +47,25 @@ export const useWallet = (enabled = true) => {
   return useSWR<WalletSummary>(enabled ? WALLET_KEY : null, load, quiet);
 };
 
+// type narrows the list: "TOPUP,AUTO_TOPUP", "SPEND" or "REFUND".
 export const useWalletTransactions = (
   page: number,
   size: number,
-  enabled = true
+  enabled = true,
+  type = ''
 ) => {
   const json = useJson();
   const load = useCallback(
-    () => json(`/wallet/transactions?page=${page}&size=${size}`),
-    [json, page, size]
+    () =>
+      json(
+        `/wallet/transactions?page=${page}&size=${size}${
+          type ? `&type=${encodeURIComponent(type)}` : ''
+        }`
+      ),
+    [json, page, size, type]
   );
   return useSWR<WalletTransactions>(
-    enabled ? `${WALLET_PREFIX}transactions-${page}-${size}` : null,
+    enabled ? `${WALLET_PREFIX}transactions-${page}-${size}-${type}` : null,
     load,
     { ...quiet, keepPreviousData: true }
   );
@@ -83,6 +92,62 @@ export const useWalletPrices = (enabled = true) => {
     load,
     quiet
   );
+};
+
+export const findAction = (
+  sections: WalletPriceSection[] | undefined,
+  key: string
+): WalletPricedAction | undefined =>
+  (sections || []).flatMap((s) => s.actions).find((a) => a.key === key);
+
+export interface EstimateRequest {
+  provider: string;
+  contents: string[];
+}
+
+// What publishing the composer's contents would cost (POST /wallet/estimate),
+// one request per priced provider, added up. Pass null to skip.
+export const useWalletEstimate = (requests: EstimateRequest[] | null) => {
+  const fetch = useFetch();
+  const prefix = `${WALLET_PREFIX}estimate-`;
+  const key = requests?.length ? prefix + JSON.stringify(requests) : null;
+  const load = useCallback(
+    async (k: string): Promise<WalletEstimate> => {
+      const list = JSON.parse(k.slice(prefix.length)) as EstimateRequest[];
+      const results: WalletEstimate[] = await Promise.all(
+        list.map(async (body) => {
+          const res = await fetch('/wallet/estimate', {
+            method: 'POST',
+            body: JSON.stringify(body),
+          });
+          if (!res.ok) {
+            throw new Error(`${res.status}`);
+          }
+          return res.json();
+        })
+      );
+      if (results.length === 1) {
+        return results[0];
+      }
+      const price = results.reduce((sum, r) => sum + r.price, 0);
+      const first = results[0];
+      const balanceAfter = first.balanceAfter + first.price - price;
+      const autoCovers = results.every((r) => r.autoCovers || !r.short);
+      return {
+        items: results.flatMap((r) => r.items),
+        price,
+        balanceAfter,
+        short: balanceAfter < 0 && !autoCovers,
+        autoCovers: balanceAfter < 0 && autoCovers,
+        autoAmount: results.find((r) => r.autoAmount)?.autoAmount ?? null,
+      };
+    },
+    [fetch, prefix]
+  );
+  return useSWR<WalletEstimate>(key, load, {
+    ...quiet,
+    keepPreviousData: true,
+  });
 };
 
 // Channels the app can connect today: the provider list, narrowed to the
@@ -160,6 +225,17 @@ export const useWalletFormat = (currency?: string) => {
         })
     );
     const whole = safe(() => new Intl.NumberFormat(locale));
+    // Two decimals without grouping, for a value the user edits.
+    const plain = safe(
+      () =>
+        new Intl.NumberFormat(locale, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+          useGrouping: false,
+        })
+    );
+    const decimal =
+      plain?.formatToParts(1.5).find((p) => p.type === 'decimal')?.value || '.';
     const money = currency
       ? safe(
           () => new Intl.NumberFormat(locale, { style: 'currency', currency })
@@ -203,6 +279,22 @@ export const useWalletFormat = (currency?: string) => {
       credits: (hundredths: number) =>
         twoDp ? twoDp.format(hundredths / 100) : (hundredths / 100).toFixed(2),
       number: (n: number) => (whole ? whole.format(n) : String(n)),
+      // Hundredths of a credit -> "1234.50" (or "1234,50"), for an input.
+      plainCredits: (hundredths: number) =>
+        plain ? plain.format(hundredths / 100) : (hundredths / 100).toFixed(2),
+      // What the user typed (either decimal mark) -> hundredths of a credit.
+      parseCredits: (text: string) => {
+        const n = parseFloat(
+          text
+            .replace(/\s/g, '')
+            .replace(decimal === ',' ? /\./g : /,/g, '')
+            .replace(',', '.')
+        );
+        return Number.isFinite(n) ? Math.round(n * 100) : 0;
+      },
+      // Keeps digits and the locale's decimal mark while typing.
+      creditsInput: (text: string) =>
+        text.replace(decimal === ',' ? /[^0-9,]/g : /[^0-9.]/g, ''),
       // Smallest currency unit -> "$12.50"
       money: (minor: number) => (money ? money.format(minor / factor) : ''),
       // Smallest currency unit -> "$10" when whole, "$12.50" otherwise

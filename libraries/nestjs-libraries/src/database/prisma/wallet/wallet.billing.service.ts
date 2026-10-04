@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import Stripe from 'stripe';
 import dayjs from 'dayjs';
 import {
+  Forecast,
   InsufficientCreditsError,
   WalletService,
   formatCredits,
@@ -65,6 +66,34 @@ const isTransientError = (err: unknown) => {
 const paymentIntentIdOf = (value: string | { id: string } | null | undefined) =>
   typeof value === 'string' ? value : value?.id;
 
+// A saved card's expiry as stored on the wallet, "MM/YYYY".
+const cardExpOf = (card?: Stripe.PaymentMethod.Card | null) =>
+  card?.exp_month && card?.exp_year
+    ? `${String(card.exp_month).padStart(2, '0')}/${card.exp_year}`
+    : null;
+
+const RECONCILE_MAX_DAYS = 90;
+
+export interface ReconcileStripe {
+  paymentIntentId: string;
+  organizationId: string | null;
+  amount: number;
+  currency: string;
+  credits: number | null;
+  created: Date;
+}
+
+export interface ReconcileLedger {
+  entryId: string;
+  organizationId: string;
+  paymentIntentId: string | null;
+  type: string;
+  paidAmount: number | null;
+  currency: string | null;
+  credits: number;
+  createdAt: Date;
+}
+
 @Injectable()
 export class WalletBillingService {
   private _logger = new Logger(WalletBillingService.name);
@@ -117,6 +146,42 @@ export class WalletBillingService {
       );
     }
     return current;
+  }
+
+  // Checkout in setup mode: saves a new card for automatic top-ups without
+  // charging it. Returns to /wallet?card=saved (with the session id) or
+  // ?card=cancelled; the webhook (or the return) stores the card.
+  async createCardSetup(params: {
+    organizationId: string;
+    email?: string;
+    name?: string;
+    returnUrl: string;
+  }) {
+    if (await this._wallet.isFrozen(params.organizationId)) {
+      throw new Error(walletFrozenMessage());
+    }
+    const currency = await this.currencyFor(params.organizationId);
+    const customer = await this.customerFor(
+      params.organizationId,
+      params.email,
+      params.name
+    );
+    const metadata = {
+      service: SERVICE,
+      kind: 'card',
+      organizationId: params.organizationId,
+    };
+    const session = await this.stripe.checkout.sessions.create({
+      mode: 'setup',
+      customer,
+      currency: currency.toLowerCase(),
+      payment_method_types: ['card'],
+      setup_intent_data: { metadata },
+      metadata,
+      success_url: `${params.returnUrl}?card=saved&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${params.returnUrl}?card=cancelled`,
+    });
+    return { url: session.url };
   }
 
   async createCheckout(params: {
@@ -261,6 +326,9 @@ export class WalletBillingService {
   }
 
   private async checkoutPaid(session: Stripe.Checkout.Session) {
+    if (session.metadata?.service === SERVICE && session.mode === 'setup') {
+      return this.cardSetUp(session);
+    }
     if (
       session.metadata?.service !== SERVICE ||
       session.payment_status !== 'paid'
@@ -279,20 +347,50 @@ export class WalletBillingService {
       );
     }
 
+    // Credits come from the metadata above; the payment is only read for its
+    // receipt and saved card, and never blocks the credit.
+    const intent = await this.stripe.paymentIntents
+      .retrieve(paymentIntentId, {
+        expand: ['payment_method', 'latest_charge'],
+      })
+      .catch((err) => {
+        this._logger.error(
+          `Could not read payment ${paymentIntentId} for its receipt: ${err}`
+        );
+        return undefined;
+      });
     await this._wallet.addTopUp({
       ...paid,
       auto: false,
       paymentIntentId,
+      receiptUrl: intent ? await this.receiptUrl(intent) : null,
     });
-    await this.rememberCard(paid.organizationId, paymentIntentId);
+    if (intent) {
+      await this.rememberCard(paid.organizationId, intent);
+    }
+    this.notifyIfShort(paid.organizationId).catch(() => undefined);
     return { ok: true };
   }
 
+  // Stripe's receipt link for a payment, or null if it can't be read.
+  private async receiptUrl(intent: Stripe.PaymentIntent) {
+    try {
+      const charge =
+        typeof intent.latest_charge === 'string'
+          ? await this.stripe.charges.retrieve(intent.latest_charge)
+          : intent.latest_charge;
+      return charge?.receipt_url || null;
+    } catch (err) {
+      this._logger.error(`Could not read the receipt of ${intent.id}: ${err}`);
+      return null;
+    }
+  }
+
   // Keeps the card saved during checkout, if the customer agreed to save it.
-  private async rememberCard(organizationId: string, paymentIntentId: string) {
-    const intent = await this.stripe.paymentIntents.retrieve(paymentIntentId, {
-      expand: ['payment_method'],
-    });
+  private async rememberCard(
+    organizationId: string,
+    intent: Stripe.PaymentIntent
+  ) {
     const method = intent.payment_method as Stripe.PaymentMethod | null;
     if (!intent.setup_future_usage || !method?.id) {
       return;
@@ -301,7 +399,39 @@ export class WalletBillingService {
       paymentMethodId: method.id,
       cardBrand: method.card?.brand || null,
       cardLast4: method.card?.last4 || null,
+      cardExp: cardExpOf(method.card),
     });
+  }
+
+  // A setup-mode Checkout finished: the new card replaces the saved one.
+  private async cardSetUp(session: Stripe.Checkout.Session) {
+    const organizationId = session.metadata?.organizationId;
+    const setupIntentId = paymentIntentIdOf(session.setup_intent);
+    if (session.status !== 'complete' || !organizationId || !setupIntentId) {
+      return { ok: true };
+    }
+    const wallet = await this._wallet.getWallet(organizationId);
+    const customer = paymentIntentIdOf(session.customer);
+    if (!wallet?.stripeCustomerId || wallet.stripeCustomerId !== customer) {
+      await walletAlert(
+        `Card setup ${session.id} for org ${organizationId} does not match its wallet's Stripe customer. No card was saved.`
+      );
+      return { ok: true };
+    }
+    const intent = await this.stripe.setupIntents.retrieve(setupIntentId, {
+      expand: ['payment_method'],
+    });
+    const method = intent.payment_method as Stripe.PaymentMethod | null;
+    if (intent.status !== 'succeeded' || !method?.id) {
+      return { ok: true };
+    }
+    await this._wallet.updateWallet(organizationId, {
+      paymentMethodId: method.id,
+      cardBrand: method.card?.brand || null,
+      cardLast4: method.card?.last4 || null,
+      cardExp: cardExpOf(method.card),
+    });
+    return { ok: true };
   }
 
   private async autoTopUpPaid(intent: Stripe.PaymentIntent) {
@@ -319,6 +449,7 @@ export class WalletBillingService {
       ...paid,
       auto: true,
       paymentIntentId: intent.id,
+      receiptUrl: await this.receiptUrl(intent),
     });
     return { ok: true };
   }
@@ -551,8 +682,132 @@ export class WalletBillingService {
       }
       return this._wallet.charge(params);
     } finally {
-      // Keep the balance above the threshold for the next one.
-      this.autoTopUp(params.organizationId).catch(() => undefined);
+      // Keep the balance above the threshold for the next one, then check
+      // whether what is scheduled next can still be paid for.
+      this.autoTopUp(params.organizationId)
+        .catch(() => false)
+        .then(() => this.notifyIfShort(params.organizationId))
+        .catch(() => undefined);
     }
+  }
+
+  // See WalletService.notifyIfShort.
+  notifyIfShort(organizationId: string, forecast?: Forecast) {
+    return this._wallet.notifyIfShort(organizationId, forecast);
+  }
+
+  // Compares wallet payments in Stripe (PaymentIntents with metadata
+  // service=wallet that succeeded) with the top-ups in the ledger over the
+  // last `days` days. stripeOnly: paid but never credited. ledgerOnly:
+  // credited with no matching successful payment. mismatched: both exist
+  // but the workspace, amount, currency or credits differ.
+  async reconcile(days = 7) {
+    const span = Math.min(
+      Math.max(Math.floor(days) || 7, 1),
+      RECONCILE_MAX_DAYS
+    );
+    const since = new Date(Date.now() - span * 86_400_000);
+
+    const intents = new Map<string, Stripe.PaymentIntent>();
+    for await (const intent of this.stripe.paymentIntents.list({
+      created: { gte: Math.floor(since.getTime() / 1000) },
+      limit: 100,
+    })) {
+      if (
+        intent.metadata?.service === SERVICE &&
+        intent.status === 'succeeded'
+      ) {
+        intents.set(intent.id, intent);
+      }
+    }
+
+    const recent = await this._wallet.topUpsSince(since);
+    const byPayment = new Map(
+      recent.filter((e) => e.reference).map((e) => [e.reference!, e])
+    );
+    // Payments made in the window but credited before it would not be in
+    // `recent`; look those up by key.
+    const missing = [...intents.keys()].filter((id) => !byPayment.has(id));
+    for (const entry of await this._wallet.topUpEntries(missing)) {
+      if (entry.reference) {
+        byPayment.set(entry.reference, entry);
+      }
+    }
+
+    const stripeView = (intent: Stripe.PaymentIntent): ReconcileStripe => ({
+      paymentIntentId: intent.id,
+      organizationId: intent.metadata?.organizationId || null,
+      amount: intent.amount_received || intent.amount,
+      currency: intent.currency.toUpperCase(),
+      credits: Number.isInteger(Number(intent.metadata?.credits))
+        ? Number(intent.metadata.credits)
+        : null,
+      created: new Date(intent.created * 1000),
+    });
+    const ledgerView = (
+      entry: Awaited<ReturnType<WalletService['topUpsSince']>>[number]
+    ): ReconcileLedger => ({
+      entryId: entry.id,
+      organizationId: entry.organizationId,
+      paymentIntentId: entry.reference,
+      type: entry.type,
+      paidAmount: entry.paidAmount,
+      currency: entry.currency,
+      credits: entry.amount,
+      createdAt: entry.createdAt,
+    });
+
+    const stripeOnly: ReconcileStripe[] = [];
+    const mismatched: { stripe: ReconcileStripe; ledger: ReconcileLedger }[] =
+      [];
+    for (const intent of intents.values()) {
+      const entry = byPayment.get(intent.id);
+      if (!entry) {
+        stripeOnly.push(stripeView(intent));
+        continue;
+      }
+      const stripe = stripeView(intent);
+      if (
+        stripe.organizationId !== entry.organizationId ||
+        stripe.amount !== entry.paidAmount ||
+        stripe.currency !== (entry.currency || '').toUpperCase() ||
+        stripe.credits !== entry.amount
+      ) {
+        mismatched.push({ stripe, ledger: ledgerView(entry) });
+      }
+    }
+
+    // Ledger top-ups whose payment was not among the window's successful
+    // wallet payments: check each one directly before calling it unmatched.
+    const ledgerOnly: ReconcileLedger[] = [];
+    for (const entry of recent) {
+      if (entry.reference && intents.has(entry.reference)) {
+        continue;
+      }
+      const intent = entry.reference
+        ? await this.stripe.paymentIntents
+            .retrieve(entry.reference)
+            .catch(() => undefined)
+        : undefined;
+      if (
+        !intent ||
+        intent.status !== 'succeeded' ||
+        intent.metadata?.service !== SERVICE
+      ) {
+        ledgerOnly.push(ledgerView(entry));
+        continue;
+      }
+      const stripe = stripeView(intent);
+      if (
+        stripe.organizationId !== entry.organizationId ||
+        stripe.amount !== entry.paidAmount ||
+        stripe.currency !== (entry.currency || '').toUpperCase() ||
+        stripe.credits !== entry.amount
+      ) {
+        mismatched.push({ stripe, ledger: ledgerView(entry) });
+      }
+    }
+
+    return { days: span, since, stripeOnly, ledgerOnly, mismatched };
   }
 }

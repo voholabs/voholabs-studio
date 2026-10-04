@@ -11,12 +11,13 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { Organization, User } from '@prisma/client';
+import { Organization, User, WalletEntryType } from '@prisma/client';
 import dayjs from 'dayjs';
 import { GetOrgFromRequest } from '@gitroom/nestjs-libraries/user/org.from.request';
 import { GetUserFromRequest } from '@gitroom/nestjs-libraries/user/user.from.request';
 import {
   WalletService,
+  receiptUrlOf,
   walletFrozenMessage,
 } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 import {
@@ -27,6 +28,7 @@ import {
 import {
   WalletAutoTopUpDto,
   WalletCheckoutDto,
+  WalletEstimateDto,
 } from '@gitroom/nestjs-libraries/dtos/wallet/wallet.dto';
 
 type OrgWithRole = Organization & { users?: { role?: string }[] };
@@ -38,6 +40,15 @@ const assertAdmin = (org: OrgWithRole) => {
     throw new HttpException('Only an admin of this workspace can do this', 403);
   }
 };
+
+const ENTRY_TYPES = Object.values(WalletEntryType) as string[];
+
+// "TOPUP,AUTO_TOPUP" -> the entry types to list; unknown names are ignored.
+const entryTypes = (value?: string) =>
+  (value || '')
+    .split(',')
+    .map((v) => v.trim().toUpperCase())
+    .filter((v) => ENTRY_TYPES.includes(v)) as WalletEntryType[];
 
 @ApiTags('Wallet')
 @Controller('/wallet')
@@ -61,6 +72,8 @@ export class WalletController {
         this._wallet.currency().catch(() => null),
         this._wallet.forecast(org.id),
       ]);
+    // The daily short-forecast notice, sent at most once per UTC day.
+    this._wallet.notifyIfShort(org.id, forecast).catch(() => undefined);
     return {
       balance,
       payAsYouGo: !!wallet?.firstTopUpAt && !wallet.frozenAt,
@@ -69,7 +82,11 @@ export class WalletController {
       paymentsEnabled: walletPaymentsEnabled(),
       topUp: rules || null,
       card: wallet?.cardLast4
-        ? { brand: wallet.cardBrand, last4: wallet.cardLast4 }
+        ? {
+            brand: wallet.cardBrand,
+            last4: wallet.cardLast4,
+            exp: wallet.cardExp || null,
+          }
         : null,
       autoTopUp: {
         enabled: !!wallet?.autoTopUp,
@@ -100,16 +117,30 @@ export class WalletController {
     return estimate;
   }
 
+  // A post and its replies on one channel, priced with the rule that charges
+  // them: what it costs, the balance after, and whether the balance (with
+  // auto top-up) covers it on top of what is already scheduled.
+  @Post('/estimate')
+  estimatePost(
+    @GetOrgFromRequest() org: Organization,
+    @Body() body: WalletEstimateDto
+  ) {
+    return this._wallet.estimateContents(org.id, body.provider, body.contents);
+  }
+
+  // `type` filters by entry type, comma separated (e.g. TOPUP,AUTO_TOPUP).
   @Get('/transactions')
   async transactions(
     @GetOrgFromRequest() org: Organization,
     @Query('page') page = '0',
-    @Query('size') size = '20'
+    @Query('size') size = '20',
+    @Query('type') type?: string
   ) {
     const [items, total] = await this._wallet.entries(
       org.id,
       Math.max(0, Number(page) || 0),
-      Math.max(1, Number(size) || 20)
+      Math.max(1, Number(size) || 20),
+      entryTypes(type)
     );
     return {
       total,
@@ -122,6 +153,7 @@ export class WalletController {
         unitPrice: e.unitPrice,
         actionKey: e.actionKey,
         reference: e.reference,
+        receiptUrl: receiptUrlOf(e),
         createdAt: e.createdAt,
       })),
     };
@@ -158,6 +190,31 @@ export class WalletController {
         name: org.name,
         amount: body.amount,
         saveCard: !!body.saveCard,
+        returnUrl: `${process.env.FRONTEND_URL}/wallet`,
+      });
+    } catch (err) {
+      throw new HttpException((err as Error).message, 400);
+    }
+  }
+
+  // Saves a new card for automatic top-ups (Stripe Checkout in setup mode,
+  // nothing is charged). Stripe returns to /wallet?card=saved&session_id=...
+  // or /wallet?card=cancelled; GET /wallet/checkout/:sessionId stores the
+  // card at once, the webhook otherwise.
+  @Post('/card')
+  async card(
+    @GetOrgFromRequest() org: OrgWithRole,
+    @GetUserFromRequest() user: User
+  ) {
+    assertAdmin(org);
+    if (!walletPaymentsEnabled()) {
+      throw new HttpException('Top-ups are not available yet', 503);
+    }
+    try {
+      return await this._billing.createCardSetup({
+        organizationId: org.id,
+        email: user.email,
+        name: org.name,
         returnUrl: `${process.env.FRONTEND_URL}/wallet`,
       });
     } catch (err) {

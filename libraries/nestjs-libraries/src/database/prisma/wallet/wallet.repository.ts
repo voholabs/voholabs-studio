@@ -28,6 +28,36 @@ export interface NewWalletEntry {
   actorId?: string;
 }
 
+// Free allowance applied inside a charge: `units` free per period, counted
+// from `since` (undefined for once ever).
+export interface FreeAllowance {
+  units: number;
+  since?: Date;
+}
+
+export const FREE_DESCRIPTION = 'Included free';
+
+// Sum of quantity of SPEND entries for an action that were not refunded.
+const usedUnitsQuery = async (
+  client: Pick<Prisma.TransactionClient, '$queryRaw'>,
+  organizationId: string,
+  actionKey: string,
+  since?: Date
+) => {
+  const rows = await client.$queryRaw<{ used: bigint | number | null }[]>`
+    SELECT COALESCE(SUM(s."quantity"), 0) AS used
+    FROM "WalletEntry" s
+    WHERE s."organizationId" = ${organizationId}
+      AND s."type" = 'SPEND'
+      AND s."actionKey" = ${actionKey}
+      AND s."createdAt" >= ${since || new Date(0)}
+      AND NOT EXISTS (
+        SELECT 1 FROM "WalletEntry" r
+        WHERE r."idempotencyKey" = 'refund:' || s."idempotencyKey"
+      )`;
+  return Number(rows[0]?.used || 0);
+};
+
 const isUniqueViolation = (err: unknown) =>
   (err as { code?: string })?.code === 'P2002';
 
@@ -163,16 +193,70 @@ export class WalletRepository {
     return sum._sum.amount || 0;
   }
 
-  entries(organizationId: string, page: number, size: number) {
+  entries(
+    organizationId: string,
+    page: number,
+    size: number,
+    types?: WalletEntryType[]
+  ) {
+    const where: Prisma.WalletEntryWhereInput = {
+      organizationId,
+      ...(types?.length ? { type: { in: types } } : {}),
+    };
     return Promise.all([
       this._entry.model.walletEntry.findMany({
-        where: { organizationId },
+        where,
         orderBy: { createdAt: 'desc' },
         skip: page * size,
         take: size,
       }),
-      this._entry.model.walletEntry.count({ where: { organizationId } }),
+      this._entry.model.walletEntry.count({ where }),
     ]);
+  }
+
+  // Units of an action charged and not refunded, since a date (or ever), for
+  // the free allowance.
+  usedUnits(organizationId: string, actionKey: string, since?: Date) {
+    return this._transaction.model.$transaction((tx) =>
+      usedUnitsQuery(tx, organizationId, actionKey, since)
+    );
+  }
+
+  // Marks today's short-forecast notice as sent. True only for the first
+  // caller of the UTC day, so concurrent callers notify once.
+  async claimForecastNotice(organizationId: string, dayStart: Date) {
+    const result = await this._wallet.model.wallet.updateMany({
+      where: {
+        organizationId,
+        OR: [
+          { forecastNotifiedAt: null },
+          { forecastNotifiedAt: { lt: dayStart } },
+        ],
+      },
+      data: { forecastNotifiedAt: new Date() },
+    });
+    return result.count > 0;
+  }
+
+  // Every top-up recorded since a date, across workspaces, for reconciling
+  // with Stripe.
+  topUpsSince(since: Date) {
+    return this._entry.model.walletEntry.findMany({
+      where: {
+        type: { in: ['TOPUP', 'AUTO_TOPUP'] },
+        createdAt: { gte: since },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  entriesByKeys(idempotencyKeys: string[]) {
+    if (!idempotencyKeys.length) {
+      return Promise.resolve([]);
+    }
+    return this._entry.model.walletEntry.findMany({
+      where: { idempotencyKey: { in: idempotencyKeys } },
+    });
   }
 
   // Spending per action since a date, for the usage breakdown.
@@ -233,10 +317,18 @@ export class WalletRepository {
   // allowNegative charges even when the balance does not cover it, for
   // things already used (storage above the free amount), so the balance goes
   // below zero instead of the charge being lost.
+  //
+  // free applies the action's free allowance under the same lock: units still
+  // free are not charged, and a charge that is entirely free is written as a
+  // zero SPEND ("Included free") so it counts against the allowance.
   async spend(
-    entry: NewWalletEntry & { chargeKey: string; allowNegative?: boolean }
+    entry: NewWalletEntry & {
+      chargeKey: string;
+      allowNegative?: boolean;
+      free?: FreeAllowance;
+    }
   ) {
-    const { chargeKey, allowNegative, ...data } = entry;
+    const { chargeKey, allowNegative, free, ...data } = entry;
     return this._transaction.model.$transaction(async (tx) => {
       await tx.wallet.upsert({
         where: { organizationId: data.organizationId },
@@ -266,19 +358,43 @@ export class WalletRepository {
         return latest;
       }
 
-      const sum = await tx.walletEntry.aggregate({
-        where: { organizationId: data.organizationId },
-        _sum: { amount: true },
-      });
-      const balance = sum._sum.amount || 0;
-      if (!allowNegative && balance < data.amount) {
-        throw new InsufficientCreditsError(data.amount, balance);
+      if (free && free.units > 0 && data.actionKey) {
+        const used = await usedUnitsQuery(
+          tx,
+          data.organizationId,
+          data.actionKey,
+          free.since
+        );
+        const quantity = data.quantity ?? 1;
+        const freeQuantity = Math.min(
+          quantity,
+          Math.max(0, free.units - used)
+        );
+        if (freeQuantity > 0) {
+          data.amount = (quantity - freeQuantity) * (data.unitPrice || 0);
+          data.meta = JSON.stringify({ freeQuantity });
+          if (freeQuantity === quantity) {
+            data.unitPrice = 0;
+            data.description = FREE_DESCRIPTION;
+          }
+        }
+      }
+
+      if (data.amount > 0) {
+        const sum = await tx.walletEntry.aggregate({
+          where: { organizationId: data.organizationId },
+          _sum: { amount: true },
+        });
+        const balance = sum._sum.amount || 0;
+        if (!allowNegative && balance < data.amount) {
+          throw new InsufficientCreditsError(data.amount, balance);
+        }
       }
 
       return tx.walletEntry.create({
         data: {
           ...data,
-          amount: -data.amount,
+          amount: data.amount ? -data.amount : 0,
           chargeKey,
           idempotencyKey: `${chargeKey}#${count + 1}`,
         },

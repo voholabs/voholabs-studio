@@ -26,6 +26,13 @@ export class WalletGrantDto {
   @MaxLength(500)
   reason: string;
 
+  // Makes a retried request safe: the same key for the same workspace
+  // returns the first entry instead of adding another.
+  @IsString()
+  @IsOptional()
+  @MaxLength(200)
+  idempotencyKey?: string;
+
   // Also starts pay-as-you-go, as a first top-up would.
   @IsBoolean()
   @IsOptional()
@@ -43,6 +50,24 @@ export class WalletAdjustDto {
   @Min(-100000000)
   @Max(100000000)
   credits: number;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  reason: string;
+
+  // Makes a retried request safe: the same key for the same workspace
+  // returns the first entry instead of adding another.
+  @IsString()
+  @IsOptional()
+  @MaxLength(200)
+  idempotencyKey?: string;
+}
+
+export class WalletUnfreezeDto {
+  @IsString()
+  @IsNotEmpty()
+  organizationId: string;
 
   @IsString()
   @IsNotEmpty()

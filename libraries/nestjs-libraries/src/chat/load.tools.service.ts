@@ -5,12 +5,38 @@ import { Memory } from '@mastra/memory';
 import { pStore } from '@gitroom/nestjs-libraries/chat/mastra.store';
 import { array, object, string } from 'zod';
 import { ModuleRef } from '@nestjs/core';
-import { toolList } from '@gitroom/nestjs-libraries/chat/tools/tool.list';
+import {
+  notOnPlanToolNames,
+  toolList,
+} from '@gitroom/nestjs-libraries/chat/tools/tool.list';
+import { hasAccess } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 import dayjs from 'dayjs';
 
 export const AgentState = object({
   proverbs: array(string()).default([]),
 });
+
+// The tools the agent is given for one request. A paid plan gets exactly the
+// tools it had before the wallet; without an organization in the context
+// (listing the tools at boot) every tool is returned.
+export const toolsForRequest = (
+  tools: Record<string, any>,
+  requestContext?: { get: (key: string) => unknown }
+) => {
+  let organization: any;
+  try {
+    const raw = requestContext?.get('organization');
+    organization = typeof raw === 'string' ? JSON.parse(raw) : undefined;
+  } catch (err) {
+    organization = undefined;
+  }
+  if (!organization || !hasAccess(organization)) {
+    return tools;
+  }
+  return Object.fromEntries(
+    Object.entries(tools).filter(([name]) => !notOnPlanToolNames.includes(name))
+  );
+};
 
 const renderArray = (list: string[], show: boolean) => {
   if (!show) return '';
@@ -112,7 +138,8 @@ export class LoadToolsService {
 `;
       },
       model: openai('gpt-5.2'),
-      tools,
+      tools: ({ requestContext }) =>
+        toolsForRequest(tools, requestContext as any),
       memory: new Memory({
         storage: pStore,
         options: {

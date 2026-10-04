@@ -12,6 +12,7 @@ import { useModals } from '@gitroom/frontend/components/layout/new-modal';
 import { useUser } from '@gitroom/frontend/components/layout/user.context';
 import { ConnectAgentPanel } from '@gitroom/frontend/components/public-api/public.component';
 import clsx from 'clsx';
+import { useWalletAccess } from '@gitroom/frontend/components/wallet-locks/wallet.access';
 
 interface OnboardingModalProps {
   onClose: () => void;
@@ -21,13 +22,20 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
   const modals = useModals();
   const t = useT();
   const user = useUser();
+  // A paid plan keeps the onboarding it always had: channels only.
+  const paidPlan = useWalletAccess() === 'plan';
   // After the channels: connect an agent over MCP. It needs the workspace's
   // API key, so without one onboarding ends after the channels as before.
-  const hasAgentStep = !!user?.publicApi;
+  const hasAgentStep = !paidPlan && !!user?.publicApi;
   const [step, setStep] = useState<'channels' | 'agent'>('channels');
 
   return (
-    <div className="w-full min-h-full flex-1 p-[8px] sm:p-[40px] flex relative">
+    <div
+      className={clsx(
+        'w-full min-h-full flex-1 flex relative',
+        paidPlan ? 'p-[40px]' : 'p-[8px] sm:p-[40px]'
+      )}
+    >
       <style>
         {`#support-discord {display: none}`}
       </style>
@@ -52,8 +60,18 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
             ></path>
           </svg>
         </button>
-        <div className="flex-1 flex p-[16px] pt-[56px] sm:p-[40px]">
-          <div className="flex flex-col gap-[24px] flex-1 min-w-0">
+        <div
+          className={clsx(
+            'flex-1 flex',
+            paidPlan ? 'p-[40px]' : 'p-[16px] pt-[56px] sm:p-[40px]'
+          )}
+        >
+          <div
+            className={clsx(
+              'flex flex-col gap-[24px] flex-1',
+              !paidPlan && 'min-w-0'
+            )}
+          >
             {hasAgentStep && (
               <OnboardingStepper
                 step={step}
@@ -65,6 +83,7 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
                 onNext={hasAgentStep ? () => setStep('agent') : onClose}
                 onSkip={onClose}
                 hasNext={hasAgentStep}
+                paidPlan={paidPlan}
               />
             ) : (
               <OnboardingAgentStep
@@ -174,7 +193,9 @@ const OnboardingStep1: FC<{
   onNext: () => void;
   onSkip: () => void;
   hasNext?: boolean;
-}> = ({ onNext, onSkip, hasNext }) => {
+  // The look a paid plan always had.
+  paidPlan?: boolean;
+}> = ({ onNext, onSkip, hasNext, paidPlan }) => {
   const fetch = useFetch();
   const t = useT();
   useTrackView('onboarding_step', { step: 'connect_channel' });
@@ -278,7 +299,11 @@ const OnboardingStep1: FC<{
         <button
           type="button"
           onClick={onNext}
-          className="group flex items-center justify-center gap-[12px] w-full sm:w-auto bg-btnPrimary hover:brightness-110 text-white font-semibold px-[32px] py-[14px] rounded-[12px] text-[16px] transition-all"
+          className={
+            paidPlan
+              ? 'group flex items-center gap-[12px] bg-gradient-to-r from-[#622aff] to-[#8b5cf6] hover:from-[#7c3aff] hover:to-[#9d6eff] text-white font-semibold px-[32px] py-[14px] rounded-[12px] text-[16px] transition-all shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40'
+              : 'group flex items-center justify-center gap-[12px] w-full sm:w-auto bg-btnPrimary hover:brightness-110 text-white font-semibold px-[32px] py-[14px] rounded-[12px] text-[16px] transition-all'
+          }
         >
           {hasNext
             ? t('onboarding_next_agent', 'Next: connect your agent')
@@ -295,7 +320,11 @@ const OnboardingStep1: FC<{
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
-            className="group-hover:translate-x-1 rtl:group-hover:-translate-x-1 rtl:-scale-x-100 transition-transform"
+            className={
+              paidPlan
+                ? 'group-hover:translate-x-1 transition-transform'
+                : 'group-hover:translate-x-1 rtl:group-hover:-translate-x-1 rtl:-scale-x-100 transition-transform'
+            }
           >
             <path d="M5 12h14" />
             <path d="m12 5 7 7-7 7" />

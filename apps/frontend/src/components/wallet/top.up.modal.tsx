@@ -229,10 +229,7 @@ export const TopUpModal: FC<{ context?: string }> = ({ context }) => {
           className={clsx('text-[12px] text-danger', !tooLow && 'hidden')}
         >
           {notWhole
-            ? t(
-                'wallet_whole_amount',
-                'Enter a whole amount, without cents.'
-              )
+            ? t('wallet_whole_amount', 'Enter a whole amount, without cents.')
             : t('wallet_min_topup', 'The minimum top-up is {{amount}}', {
                 amount: f.money(minAmount),
               })}

@@ -35,7 +35,11 @@ const providerOf = (identifier?: string) =>
 
 // When the channel analytics on screen were read from the network (null:
 // not cached). GET /analytics/:integration/updated.
-const useAnalyticsUpdatedAt = (integrationId: string, date: number) => {
+const useAnalyticsUpdatedAt = (
+  integrationId: string,
+  date: number,
+  enabled = true
+) => {
   const fetch = useFetch();
   const load = useCallback(async () => {
     const res = await fetch(`/analytics/${integrationId}/updated?date=${date}`);
@@ -44,12 +48,16 @@ const useAnalyticsUpdatedAt = (integrationId: string, date: number) => {
     }
     return ((await res.json())?.updatedAt as string | null) || null;
   }, [fetch, integrationId, date]);
-  return useSWR(`/analytics-updated-${integrationId}-${date}`, load, {
-    revalidateOnFocus: false,
-    revalidateOnReconnect: false,
-    refreshWhenHidden: false,
-    refreshWhenOffline: false,
-  });
+  return useSWR(
+    enabled ? `/analytics-updated-${integrationId}-${date}` : null,
+    load,
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      refreshWhenHidden: false,
+      refreshWhenOffline: false,
+    }
+  );
 };
 
 // "Updated <time>" with a Refresh button. On a pay-as-you-go workspace whose
@@ -304,6 +312,8 @@ export const RenderAnalytics: FC<{
   const { integration, date } = props;
   const [loading, setLoading] = useState(true);
   const fetch = useFetch();
+  // A paid plan sees analytics as before: no freshness line or refresh.
+  const paidPlan = useWalletAccess() === 'plan';
   // A wallet that cannot pay for a live read: not asked at all.
   const gate = useAnalyticsWalletGate(integration.providerIdentifier);
 
@@ -322,7 +332,11 @@ export const RenderAnalytics: FC<{
     gate.state === 'open' ? `/analytics-${integration?.id}-${date}` : null,
     load,
     {
-      onSuccess: () => refreshWalletAfterLoad(),
+      onSuccess: () => {
+        if (!paidPlan) {
+          refreshWalletAfterLoad();
+        }
+      },
       refreshInterval: 0,
       refreshWhenHidden: false,
       revalidateOnFocus: false,
@@ -354,7 +368,11 @@ export const RenderAnalytics: FC<{
   );
 
   const t = useT();
-  const { mutate: mutateUpdated } = useAnalyticsUpdatedAt(integration.id, date);
+  const { mutate: mutateUpdated } = useAnalyticsUpdatedAt(
+    integration.id,
+    date,
+    !paidPlan
+  );
   const refreshWallet = useRefreshWallet();
   const [refreshing, setRefreshing] = useState(false);
   // Skips the one-hour cache and reads the network again.
@@ -420,12 +438,14 @@ export const RenderAnalytics: FC<{
 
   return (
     <>
-      <AnalyticsFreshness
-        integration={integration}
-        date={date}
-        refreshing={refreshing}
-        onRefresh={refreshNow}
-      />
+      {!paidPlan && (
+        <AnalyticsFreshness
+          integration={integration}
+          date={date}
+          refreshing={refreshing}
+          onRefresh={refreshNow}
+        />
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[16px]">
         {items.length === 0 && (
           <EmptyState onRefresh={refreshChannel(integration as any)} />

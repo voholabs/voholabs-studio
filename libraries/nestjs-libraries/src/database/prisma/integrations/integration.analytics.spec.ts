@@ -211,6 +211,26 @@ describe('IntegrationService.checkAnalytics wallet pre-check', () => {
     expect(wallet.chargeItems).not.toHaveBeenCalled();
   });
 
+  it('ignores fresh on a paid plan: the cached numbers come back', async () => {
+    redis.get.mockResolvedValue(JSON.stringify(rows));
+    const { service, provider } = make({ balance: 0, paidPlan: true });
+    expect(
+      await service.checkAnalytics(org, 'channel-1', '7', false, true)
+    ).toEqual(rows);
+    expect(redis.get).toHaveBeenCalled();
+    expect(provider.analytics).not.toHaveBeenCalled();
+  });
+
+  it('honours fresh without a paid plan: the cache is skipped', async () => {
+    redis.get.mockResolvedValue(JSON.stringify(rows));
+    const { service, provider } = make({ balance: 500 });
+    expect(
+      await service.checkAnalytics(org, 'channel-1', '7', false, true)
+    ).toEqual(rows);
+    expect(redis.get).not.toHaveBeenCalled();
+    expect(provider.analytics).toHaveBeenCalledTimes(1);
+  });
+
   it('refuses a wallet that has not opened the provider with its own reason', async () => {
     const { service, provider } = make({ balance: 500, unlocked: false });
     const err = await refusal(service.checkAnalytics(org, 'channel-1', '7'));

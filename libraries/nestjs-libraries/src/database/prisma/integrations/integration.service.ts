@@ -428,7 +428,8 @@ export class IntegrationService {
   }
 
   // `fresh` skips the cache and reads the network again (a wallet workspace
-  // pays for those reads, see below).
+  // pays for those reads, see below). A paid plan always gets the cache, as
+  // before: `fresh` is ignored for it.
   async checkAnalytics(
     org: Organization,
     integration: string,
@@ -444,6 +445,10 @@ export class IntegrationService {
 
     if (getIntegration.type !== 'social') {
       return [];
+    }
+
+    if (fresh && (await this.organizationHasPaidPlan(org.id))) {
+      fresh = false;
     }
 
     const integrationProvider = this._integrationManager.getSocialIntegration(

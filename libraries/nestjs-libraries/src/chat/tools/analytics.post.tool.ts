@@ -3,7 +3,11 @@ import { createTool } from '@mastra/core/tools';
 import { Injectable } from '@nestjs/common';
 import z from 'zod';
 import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
-import { walletRefusal } from '@gitroom/nestjs-libraries/chat/tools/wallet.shared';
+import {
+  onPaidPlan,
+  orgFromContext,
+  walletRefusal,
+} from '@gitroom/nestjs-libraries/chat/tools/wallet.shared';
 import { PostsService } from '@gitroom/nestjs-libraries/database/prisma/posts/posts.service';
 
 @Injectable()
@@ -17,8 +21,7 @@ export class AnalyticsPostTool implements AgentToolInterface {
       description: `How one published post performed: likes, comments, shares, impressions and whatever else that network reports for a single post.
 Use postsList first to get the post id. Only published posts have analytics; a queued or draft post has nothing to report yet.
 A post can come back marked "missing", which means it was published but is not linked to the message on the network, so the network cannot be asked about it. That is fixable by connecting its release id, not a failure of this tool.
-What comes back differs by network. Read the labels rather than assuming a fixed set, and say which network the numbers came from.
-A single post's numbers are not cached: every call reads the network ("cachedAt" is null). On a workspace that pays from its wallet, a post read is charged at most once per post per day, and when its credits are used up "error" says so with a top-up link instead.`,
+What comes back differs by network. Read the labels rather than assuming a fixed set, and say which network the numbers came from.`,
       mcp: {
         annotations: {
           title: 'Post Analytics',
@@ -77,6 +80,10 @@ A single post's numbers are not cached: every call reads the network ("cachedAt"
             };
           }
 
+          // A paid plan gets the answer as it always had it.
+          if (onPaidPlan(orgFromContext(context))) {
+            return { analytics };
+          }
           return {
             analytics,
             cachedAt: null,

@@ -1,11 +1,20 @@
-import { HttpException, Injectable } from '@nestjs/common';
-import { BillableAction } from '@prisma/client';
+import { HttpException, Injectable, Logger } from '@nestjs/common';
+import { NotificationService } from '@gitroom/nestjs-libraries/database/prisma/notifications/notification.service';
+import { BillableAction, WalletEntry, WalletEntryType } from '@prisma/client';
 import {
+  FreeAllowance,
   InsufficientCreditsError,
   WalletRepository,
 } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.repository';
-import { xPostActionKey } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.x';
-import { hasAccess } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
+import {
+  POST_REFERENCE_REGEX,
+  referenceUrlPlaceholder,
+  textHasLink,
+} from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.x';
+import {
+  hasAccess,
+  paidOnlyChannelMessage,
+} from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 import { stripHtmlValidation } from '@gitroom/helpers/utils/strip.html.validation';
 import { stripLinks } from '@gitroom/helpers/utils/strip.links';
 import dayjs from 'dayjs';
@@ -26,6 +35,12 @@ export const BILLING = {
   fxPrefix: 'fx.',
   minTopUp: 'min_topup',
   topUpOptions: 'topup_options',
+  // Auto top-up form defaults: the threshold (hundredths of a credit), the
+  // amounts and monthly limits offered (smallest currency unit), each a
+  // comma-separated list.
+  autoTopUpThreshold: 'auto_topup_threshold',
+  autoTopUpOptions: 'auto_topup_options',
+  autoTopUpCapOptions: 'auto_topup_cap_options',
 } as const;
 
 const SETTINGS_TTL_MS = 30_000;
@@ -103,12 +118,57 @@ export const notEnoughCreditsMessage = () =>
 
 const ceilDiv = (a: bigint, b: bigint) => (a + b - BigInt(1)) / b;
 
+const numberList = (value?: string) =>
+  (value || '')
+    .split(',')
+    .map((v) => v.trim())
+    .filter((v) => v !== '' && !isNaN(Number(v)))
+    .map(Number);
+
+const startOfUtcMonth = (at = new Date()) =>
+  new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), 1));
+
+// The receipt link stored on a top-up entry's meta, if any.
+export const receiptUrlOf = (entry: Pick<WalletEntry, 'meta'>) => {
+  if (!entry.meta) {
+    return null;
+  }
+  try {
+    const meta = JSON.parse(entry.meta);
+    return typeof meta?.receiptUrl === 'string' ? meta.receiptUrl : null;
+  } catch {
+    return null;
+  }
+};
+
+export interface EstimateItem {
+  actionKey: string;
+  price: number;
+}
+
+export interface Estimate {
+  items: EstimateItem[];
+  price: number;
+  balanceAfter: number;
+  short: boolean;
+  // Auto top-up can cover what the balance can't.
+  autoCovers: boolean;
+  // What auto top-up would charge the card for that, in the smallest unit
+  // of the wallet currency; null when it isn't needed or can't cover it.
+  autoAmount: number | null;
+}
+
 @Injectable()
 export class WalletService {
   private _settings?: { at: number; values: Record<string, string> };
   private _actions?: { at: number; values: BillableAction[] };
 
-  constructor(private _wallet: WalletRepository) {}
+  private _logger = new Logger(WalletService.name);
+
+  constructor(
+    private _wallet: WalletRepository,
+    private _notifications: NotificationService
+  ) {}
 
   async settings() {
     if (!this._settings || Date.now() - this._settings.at > SETTINGS_TTL_MS) {
@@ -140,14 +200,26 @@ export class WalletService {
   async topUpRules() {
     const settings = await this.settings();
     const minAmount = await this.numberSetting(BILLING.minTopUp);
-    const options = (settings[BILLING.topUpOptions] || '')
-      .split(',')
-      .map((v) => Number(v.trim()))
-      .filter((v) => v >= minAmount);
+    const options = numberList(settings[BILLING.topUpOptions]).filter(
+      (v) => v >= minAmount
+    );
+    // The auto top-up form's choices. Optional: without them the form offers
+    // nothing preset (nothing here gives credit away).
+    const threshold = settings[BILLING.autoTopUpThreshold];
     return {
       minAmount,
       options,
       creditsPerUnit: await this.numberSetting(BILLING.creditsPerUnit),
+      autoOptions: numberList(settings[BILLING.autoTopUpOptions]).filter(
+        (v) => v >= minAmount
+      ),
+      capOptions: numberList(settings[BILLING.autoTopUpCapOptions]).filter(
+        (v) => v > 0
+      ),
+      defaultThreshold:
+        threshold !== undefined && threshold !== '' && !isNaN(Number(threshold))
+          ? Number(threshold)
+          : null,
     };
   }
 
@@ -324,6 +396,31 @@ export class WalletService {
     return (await this.topUpKeys()).has(providerOf(identifier));
   }
 
+  // Why a provider the free plan locks is refused for this workspace: the
+  // wallet is on hold, a top-up is needed, or (no price row opens it) only a
+  // paid plan opens it.
+  async lockedProviderMessageFor(organizationId: string, identifier: string) {
+    if (!(await this.billsProvider(identifier))) {
+      return paidOnlyChannelMessage();
+    }
+    return (await this.isFrozen(organizationId))
+      ? walletFrozenMessage()
+      : walletRequiredMessage(identifier);
+  }
+
+  // Superadmin: lifts the hold a refund or dispute put on a wallet. Auto
+  // top-up stays off until the workspace turns it back on.
+  async unfreeze(organizationId: string) {
+    const wallet = await this._wallet.getWallet(organizationId);
+    if (!wallet) {
+      return undefined;
+    }
+    if (wallet.frozenAt) {
+      await this._wallet.updateWallet(organizationId, { frozenAt: null });
+    }
+    return { wasFrozen: !!wallet.frozenAt };
+  }
+
   // The providers and features this workspace's top-up has opened.
   async unlockedKeys(organizationId: string) {
     return (await this.isPayAsYouGo(organizationId))
@@ -341,8 +438,18 @@ export class WalletService {
     return this.unlocks(organizationId, providerOf(identifier));
   }
 
-  entries(organizationId: string, page = 0, size = 20) {
-    return this._wallet.entries(organizationId, page, Math.min(size, 100));
+  entries(
+    organizationId: string,
+    page = 0,
+    size = 20,
+    types?: WalletEntryType[]
+  ) {
+    return this._wallet.entries(
+      organizationId,
+      page,
+      Math.min(size, 100),
+      types
+    );
   }
 
   async usage(organizationId: string, since: Date) {
@@ -370,10 +477,45 @@ export class WalletService {
     };
   }
 
-  // Charges an action once per chargeKey (see WalletRepository.spend). Throws
-  // InsufficientCreditsError when the balance does not cover it, and an Error
-  // when the action has no price, so nothing is ever given away by accident.
-  // Refund with the returned entry's idempotencyKey.
+  // The free allowance of a per-use action, counted from the ledger: once
+  // ever (ONCE) or per UTC calendar month (MONTH). Monthly-billed rows
+  // (storage) apply their free amount to usage before charging, so it is not
+  // applied again here.
+  private freeAllowance(action: BillableAction): FreeAllowance | undefined {
+    if (action.billing !== 'PER_USE' || !action.freeUnits) {
+      return undefined;
+    }
+    if (action.freePeriod === 'MONTH') {
+      return { units: action.freeUnits, since: startOfUtcMonth() };
+    }
+    if (action.freePeriod === 'ONCE') {
+      return { units: action.freeUnits };
+    }
+    return undefined;
+  }
+
+  // Free units of an action this workspace has left (this month for MONTH,
+  // ever for ONCE), or null when the action has no free allowance.
+  async freeUnitsRemaining(organizationId: string, actionKey: string) {
+    const priced = await this.price(actionKey);
+    const free = priced && this.freeAllowance(priced.action);
+    if (!free) {
+      return null;
+    }
+    const used = await this._wallet.usedUnits(
+      organizationId,
+      actionKey,
+      free.since
+    );
+    return Math.max(0, free.units - used);
+  }
+
+  // Charges an action once per chargeKey (see WalletRepository.spend). Units
+  // still in the action's free allowance cost nothing (a fully free charge is
+  // a zero "Included free" entry). Throws InsufficientCreditsError when the
+  // balance does not cover it, and an Error when the action has no price, so
+  // nothing is ever given away by accident. Refund with the returned entry's
+  // idempotencyKey.
   async charge(params: {
     organizationId: string;
     actionKey: string;
@@ -400,13 +542,15 @@ export class WalletService {
       chargeKey: params.chargeKey,
       allowNegative: params.allowNegative,
       reference: params.reference,
+      free: this.freeAllowance(priced.action),
     });
   }
 
-  // Gives back a charge, once. Does nothing if the charge never happened.
+  // Gives back a charge, once. Does nothing if the charge never happened. A
+  // free charge is refunded at zero, which gives its free unit back.
   async refund(chargeKey: string, reason?: string) {
     const charge = await this._wallet.entryByKey(chargeKey);
-    if (!charge || charge.amount >= 0) {
+    if (!charge || charge.type !== 'SPEND' || charge.amount > 0) {
       return undefined;
     }
     return this._wallet.add({
@@ -432,6 +576,8 @@ export class WalletService {
     currency: string;
     auto: boolean;
     paymentIntentId: string;
+    // Stripe's receipt for the payment, shown on the transaction.
+    receiptUrl?: string | null;
   }) {
     const entry = await this._wallet.add({
       organizationId: params.organizationId,
@@ -442,6 +588,9 @@ export class WalletService {
       currency: params.currency.toUpperCase(),
       idempotencyKey: `topup:${params.paymentIntentId}`,
       reference: params.paymentIntentId,
+      meta: params.receiptUrl
+        ? JSON.stringify({ receiptUrl: params.receiptUrl })
+        : undefined,
     });
     const wallet = await this._wallet.ensureWallet(params.organizationId);
     if (!wallet.firstTopUpAt || !wallet.currency) {
@@ -476,25 +625,46 @@ export class WalletService {
       .map((a) => a.provider);
   }
 
-  private async postActionKey(provider: string, content: string) {
-    const text = stripHtmlValidation(
-      'normal',
-      content,
-      true,
-      false,
-      !/<\/?[a-z][\s\S]*>/i.test(content)
-    );
-    if (provider === 'x') {
-      return xPostActionKey(
-        process.env.STRIP_LINKS_FROM_X_POSTS ? stripLinks(text) : text
-      );
+  // The one rule for what a post is charged as: `<provider>.post_link` when
+  // the text carries a link (X's URL rules, bare domains included, and a
+  // "(post:<id>)" reference counts as the URL it becomes) and that row is
+  // priced, else `<provider>.post`.
+  //
+  // `sent: true` means `content` is the exact text sent to the network (plain
+  // text, links already stripped). Otherwise it is the stored post (HTML or
+  // text): it is turned into text and, for X with STRIP_LINKS_FROM_X_POSTS,
+  // has its links stripped the way the X provider will.
+  async postActionKey(
+    identifier: string,
+    content: string,
+    options: { sent?: boolean } = {}
+  ) {
+    const provider = providerOf(identifier);
+    let text = content || '';
+    if (!options.sent) {
+      text = stripHtmlValidation(
+        'normal',
+        text,
+        true,
+        false,
+        !/<\/?[a-z][\s\S]*>/i.test(text)
+      ).replace(POST_REFERENCE_REGEX, referenceUrlPlaceholder);
+      if (provider === 'x' && process.env.STRIP_LINKS_FROM_X_POSTS) {
+        text = stripLinks(text);
+      }
+    }
+    if (textHasLink(text) && (await this.price(`${provider}.post_link`))) {
+      return `${provider}.post_link`;
     }
     return `${provider}.post`;
   }
 
-  // Credits auto top-up could still add this month, or Infinity without a
-  // monthly limit. Zero when it is off or has no saved card.
-  async autoTopUpHeadroom(organizationId: string) {
+  // What auto top-up can still do this month: the credits one top-up adds,
+  // how many top-ups the monthly limit still allows (Infinity without one),
+  // and the amount charged each time. Zero when it is off, frozen or has no
+  // saved card.
+  private async autoTopUpRoom(organizationId: string) {
+    const none = { perTopUp: 0, topUps: 0, amount: 0 };
     const wallet = await this._wallet.getWallet(organizationId);
     if (
       !wallet?.autoTopUp ||
@@ -502,19 +672,31 @@ export class WalletService {
       !wallet.paymentMethodId ||
       !wallet.autoTopUpAmount
     ) {
-      return 0;
+      return none;
     }
+    const perTopUp = await this.unitsForAmount(wallet.autoTopUpAmount);
     if (!wallet.autoTopUpMonthlyCap) {
-      return Infinity;
+      return { perTopUp, topUps: Infinity, amount: wallet.autoTopUpAmount };
     }
     const spent = await this.autoTopUpSpentSince(
       organizationId,
       dayjs().startOf('month').toDate()
     );
-    const topUps = Math.floor(
-      Math.max(0, wallet.autoTopUpMonthlyCap - spent) / wallet.autoTopUpAmount
-    );
-    return topUps * (await this.unitsForAmount(wallet.autoTopUpAmount));
+    return {
+      perTopUp,
+      topUps: Math.floor(
+        Math.max(0, wallet.autoTopUpMonthlyCap - spent) /
+          wallet.autoTopUpAmount
+      ),
+      amount: wallet.autoTopUpAmount,
+    };
+  }
+
+  // Credits auto top-up could still add this month, or Infinity without a
+  // monthly limit. Zero when it is off or has no saved card.
+  async autoTopUpHeadroom(organizationId: string) {
+    const room = await this.autoTopUpRoom(organizationId);
+    return room.topUps === Infinity ? Infinity : room.topUps * room.perTopUp;
   }
 
   // Paid usage scheduled in the next 48 hours, priced now. `short` means the
@@ -545,15 +727,11 @@ export class WalletService {
     const items: ForecastItem[] = [];
     let needed = 0;
     for (const post of posts) {
-      const provider = post.integration.providerIdentifier
-        .toLowerCase()
-        .split('-')[0];
-      let actionKey = await this.postActionKey(provider, post.content);
-      let priced = await this.price(actionKey);
-      if (!priced) {
-        actionKey = `${provider}.post`;
-        priced = await this.price(actionKey);
-      }
+      const actionKey = await this.postActionKey(
+        post.integration.providerIdentifier,
+        post.content
+      );
+      const priced = await this.price(actionKey);
       if (!priced) {
         continue;
       }
@@ -584,27 +762,87 @@ export class WalletService {
     if (!priced) {
       return undefined;
     }
-    const price = priced.price * quantity;
-    const [balance, forecast, headroom] = await Promise.all([
-      this.balance(organizationId),
-      this.forecast(organizationId),
-      this.autoTopUpHeadroom(organizationId),
+    const result = await this.estimateTotal(organizationId, [
+      { actionKey, price: priced.price * quantity },
     ]);
-    const needed = price + forecast.needed;
     return {
-      price,
-      balanceAfter: balance - price,
-      short: needed > balance && needed > balance + headroom,
+      price: result.price,
+      balanceAfter: result.balanceAfter,
+      short: result.short,
     };
   }
 
-  // Superadmin: give credits, optionally starting pay-as-you-go.
+  // A post and its replies on one channel, priced with the same link rule
+  // that charges them, for the composer and the MCP. Channels the wallet
+  // does not charge give no items and a price of 0. Units still in a free
+  // allowance are priced at 0.
+  async estimateContents(
+    organizationId: string,
+    identifier: string,
+    contents: string[]
+  ): Promise<Estimate> {
+    const items: EstimateItem[] = [];
+    const freeLeft = new Map<string, number | null>();
+    for (const content of contents) {
+      const actionKey = await this.postActionKey(identifier, content);
+      const priced = await this.price(actionKey);
+      if (!priced) {
+        continue;
+      }
+      if (!freeLeft.has(actionKey)) {
+        freeLeft.set(
+          actionKey,
+          await this.freeUnitsRemaining(organizationId, actionKey)
+        );
+      }
+      const left = freeLeft.get(actionKey);
+      if (left) {
+        freeLeft.set(actionKey, left - 1);
+        items.push({ actionKey, price: 0 });
+        continue;
+      }
+      items.push({ actionKey, price: priced.price });
+    }
+    return this.estimateTotal(organizationId, items);
+  }
+
+  // Totals priced items against the balance, the usage already scheduled in
+  // the forecast window, and what auto top-up can still add this month.
+  private async estimateTotal(
+    organizationId: string,
+    items: EstimateItem[]
+  ): Promise<Estimate> {
+    const price = items.reduce((sum, item) => sum + item.price, 0);
+    const [balance, forecast, room] = await Promise.all([
+      this.balance(organizationId),
+      this.forecast(organizationId),
+      this.autoTopUpRoom(organizationId),
+    ]);
+    const needed = price + forecast.needed;
+    const missing = needed - balance;
+    const topUpsNeeded =
+      missing > 0 && room.perTopUp > 0 ? Math.ceil(missing / room.perTopUp) : 0;
+    const autoCovers =
+      missing > 0 && topUpsNeeded > 0 && topUpsNeeded <= room.topUps;
+    return {
+      items,
+      price,
+      balanceAfter: balance - price,
+      short: missing > 0 && !autoCovers,
+      autoCovers,
+      autoAmount: autoCovers ? topUpsNeeded * room.amount : null,
+    };
+  }
+
+  // Superadmin: give credits, optionally starting pay-as-you-go. A repeated
+  // idempotencyKey returns the first entry instead of granting twice.
   async grant(params: {
     organizationId: string;
     credits: number;
     reason: string;
     actorId: string;
     unlock?: boolean;
+    idempotencyKey?: string;
   }) {
     const entry = await this._wallet.add({
       organizationId: params.organizationId,
@@ -612,6 +850,9 @@ export class WalletService {
       type: 'GRANT',
       description: params.reason,
       actorId: params.actorId,
+      idempotencyKey: params.idempotencyKey
+        ? `admin:grant:${params.organizationId}:${params.idempotencyKey}`
+        : undefined,
     });
     const wallet = await this._wallet.ensureWallet(params.organizationId);
     if (params.unlock && !wallet.firstTopUpAt) {
@@ -622,12 +863,14 @@ export class WalletService {
     return entry;
   }
 
-  // Superadmin: correct the balance either way; may take it below zero.
+  // Superadmin: correct the balance either way; may take it below zero. A
+  // repeated idempotencyKey returns the first entry.
   async adjust(params: {
     organizationId: string;
     credits: number;
     reason: string;
     actorId: string;
+    idempotencyKey?: string;
   }) {
     await this._wallet.ensureWallet(params.organizationId);
     return this._wallet.add({
@@ -636,7 +879,34 @@ export class WalletService {
       type: 'ADJUST',
       description: params.reason,
       actorId: params.actorId,
+      idempotencyKey: params.idempotencyKey
+        ? `admin:adjust:${params.organizationId}:${params.idempotencyKey}`
+        : undefined,
     });
+  }
+
+  // Top-ups recorded since a date and the entries for given payment ids,
+  // for reconciling with Stripe.
+  topUpsSince(since: Date) {
+    return this._wallet.topUpsSince(since);
+  }
+
+  topUpEntries(paymentIntentIds: string[]) {
+    return this._wallet.entriesByKeys(
+      paymentIntentIds.map((id) => `topup:${id}`)
+    );
+  }
+
+  // Records that today's short-forecast notice went out; false if it already
+  // had today (UTC).
+  private claimForecastNotice(organizationId: string) {
+    const now = new Date();
+    return this._wallet.claimForecastNotice(
+      organizationId,
+      new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+      )
+    );
   }
 
   // Superadmin: everything support needs to look at a wallet.
@@ -652,6 +922,52 @@ export class WalletService {
       wallet,
       entries,
     };
+  }
+
+  // One in-app notification per UTC day while the paid usage scheduled in
+  // the forecast window can't be covered (balance plus what auto top-up can
+  // still add). Pass a forecast already computed to save reading it again.
+  // Returns whether a notification was sent.
+  async notifyIfShort(organizationId: string, forecast?: Forecast) {
+    const current = forecast || (await this.forecast(organizationId));
+    if (!current.short) {
+      return false;
+    }
+    const wallet = await this._wallet.getWallet(organizationId);
+    const now = new Date();
+    if (
+      wallet?.forecastNotifiedAt &&
+      wallet.forecastNotifiedAt.toISOString().slice(0, 10) ===
+        now.toISOString().slice(0, 10)
+    ) {
+      return false;
+    }
+    if (!(await this.claimForecastNotice(organizationId))) {
+      return false;
+    }
+    const balance = await this.balance(organizationId);
+    try {
+      await this._notifications.inAppNotification(
+        organizationId,
+        'Not enough credits for scheduled usage',
+        `Scheduled usage in the next ${
+          current.windowHours
+        } hours needs ${formatCredits(
+          current.needed
+        )} credits. You have ${formatCredits(
+          balance
+        )}. Anything not covered won't go out. Top up your wallet to keep it on schedule.`,
+        false,
+        false,
+        'fail'
+      );
+    } catch (err) {
+      this._logger.error(
+        `Could not notify ${organizationId} of a short forecast: ${err}`
+      );
+      return false;
+    }
+    return true;
   }
 
   // Takes back the credits of a refunded or disputed top-up, up to `share`

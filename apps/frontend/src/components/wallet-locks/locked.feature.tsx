@@ -55,7 +55,7 @@ export const LockedFeature: FC<{
   const t = useT();
   return (
     <div className="flex-1 bg-newBgColorInner flex items-center justify-center p-[40px] overflow-y-auto">
-      <div className="max-w-[520px] flex flex-col items-center text-center gap-[14px]">
+      <div className="max-w-[760px] flex flex-col items-center text-center gap-[14px]">
         <div className="relative w-[64px] h-[64px] rounded-full bg-newBgLineColor text-textItemBlur flex items-center justify-center">
           {icon}
           {!action && (
@@ -81,13 +81,15 @@ export const LockedFeature: FC<{
         )}
         <h2
           className={clsx(
-            'text-[22px] font-[600] leading-[1.3]',
+            // Wide enough for the headline on one line; balanced lines when the
+            // screen is narrower, so no single word sits alone on line two.
+            'text-[22px] font-[600] leading-[1.3] text-balance',
             !eyebrow && 'mt-[6px]'
           )}
         >
           {title}
         </h2>
-        <div className="text-[14px] text-textItemBlur leading-[1.55]">
+        <div className="text-[14px] text-textItemBlur leading-[1.55] max-w-[520px] text-balance">
           {body}
         </div>
         {!!bullets?.length && (

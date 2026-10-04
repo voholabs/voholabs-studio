@@ -25,3 +25,15 @@ export const xPostActionKey = (text: string) =>
   textHasLink(text) ? 'x.post_link' : 'x.post';
 
 export const referenceUrlPlaceholder = REFERENCE_URL;
+
+// Marks the integration handed to a provider's post/comment when the wallet
+// pays for that publish, so the provider can apply the stricter reading of
+// the network's answer that charging needs. Any other publish (a paid plan,
+// a channel the wallet does not charge) gets the integration unchanged.
+export const withWalletPublish = <T extends object>(
+  integration: T,
+  walletPays: boolean
+): T => (walletPays ? { ...integration, walletPublish: true } : integration);
+
+export const isWalletPublish = (integration: unknown) =>
+  !!(integration as { walletPublish?: boolean } | undefined)?.walletPublish;

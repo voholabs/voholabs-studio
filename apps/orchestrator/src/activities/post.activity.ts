@@ -16,6 +16,7 @@ import {
 import { Context } from '@temporalio/activity';
 import { WalletBillingService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.billing.service';
 import { walletAlert } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.alert';
+import { withWalletPublish } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.x';
 import {
   Activity,
   ActivityMethod,
@@ -204,11 +205,13 @@ export class PostActivity {
   // (`postedIds`, for a provider that sends several posts in one call and
   // fails part way). `sentText` gives the text the provider will actually send
   // for a message (e.g. with links stripped), which is what the network bills.
+  // `publish` is told whether the wallet pays for this publish, so it can
+  // hand the provider an integration marked for it (withWalletPublish).
   private async publishPaid<T extends PostResponse[]>(
     integration: Integration,
     posts: { id: string; message: string }[],
     sentText: (message: string) => string,
-    publish: () => Promise<T>
+    publish: (walletPays: boolean) => Promise<T>
   ) {
     if (!(await this.paysFromWallet(integration))) {
       // Paid when it was scheduled, but this workspace no longer pays from
@@ -225,7 +228,7 @@ export class PostActivity {
           )
           .catch(() => undefined);
       }
-      return publish();
+      return publish(false);
     }
     const charges: { postId: string; charge: string }[] = [];
     let published: T;
@@ -240,7 +243,7 @@ export class PostActivity {
           ),
         });
       }
-      published = await publish();
+      published = await publish(true);
     } catch (err) {
       const postedIds = new Set<string>(
         Array.isArray((err as { postedIds?: unknown })?.postedIds)
@@ -396,14 +399,14 @@ export class PostActivity {
       integration,
       prepared,
       sentTextFor(getIntegration),
-      () =>
+      (walletPays) =>
         getIntegration.comment(
           integration.internalId,
           postId,
           lastPostId,
           integration.token,
           prepared,
-          integration
+          withWalletPublish(integration, walletPays)
         )
     );
   }
@@ -448,12 +451,12 @@ export class PostActivity {
       integration,
       prepared,
       sentTextFor(getIntegration),
-      () =>
+      (walletPays) =>
         getIntegration.post(
           integration.internalId,
           integration.token,
           prepared,
-          integration
+          withWalletPublish(integration, walletPays)
         )
     );
 

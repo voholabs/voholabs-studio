@@ -158,7 +158,7 @@ export const UsageComponent: FC = () => {
           <div className="text-[13px] text-customColor18">
             {t(
               'media_usage_unavailable',
-              "The usage figure can't be fetched right now. This does not affect your ability to use media editing — check back in a bit."
+              "The usage figure can't be fetched right now. This does not affect your ability to use media editing. Check back in a bit."
             )}
           </div>
         )}

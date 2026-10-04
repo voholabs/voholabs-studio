@@ -300,7 +300,7 @@ export const HermesChat = () => {
 
           if (!response.ok) {
             setAttachError(
-              `${file.name} could not be uploaded — only MP4 video is supported`
+              `${file.name} could not be uploaded. Only MP4 video is supported.`
             );
             continue;
           }
@@ -350,7 +350,7 @@ export const HermesChat = () => {
       }
 
       setAttachError(
-        `${file.name} cannot be attached — images, MP4 video, or text and code files`
+        `${file.name} cannot be attached. Attach images, MP4 video, or text and code files.`
       );
     }
   }, [fetch]);
@@ -723,7 +723,7 @@ export const HermesChat = () => {
             </div>
             <div className="text-[11px] text-textItemBlur mt-[6px] text-center">
               {streaming
-                ? t('hermes_stop_hint', 'Working — press stop to interrupt')
+                ? t('hermes_stop_hint', 'Working. Press stop to interrupt.')
                 : t('hermes_hint', 'Enter to send · Shift + Enter for a new line')}
             </div>
           </div>

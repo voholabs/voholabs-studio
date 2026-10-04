@@ -415,7 +415,7 @@ export const ReviewPostCard: FC<{
 
     if (
       !(await deleteDialog(
-        `${post.sanityDocument.title || post.sanityDocument.id} — ${
+        `${post.sanityDocument.title || post.sanityDocument.id}: ${
           published
             ? t(
                 'sanity_delete_published',
@@ -638,7 +638,7 @@ export const ReviewPostCard: FC<{
               active={reviewed}
               label={
                 reviewed
-                  ? t('reviewed_click_to_undo', 'Reviewed — click to undo')
+                  ? t('reviewed_click_to_undo', 'Reviewed. Click to undo.')
                   : t('mark_as_reviewed', 'Mark as reviewed')
               }
             >

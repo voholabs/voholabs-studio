@@ -45,7 +45,7 @@ export const ReviewedCheckbox: FC<{
       data-tooltip-id="tooltip"
       data-tooltip-content={t(
         'reviewed_hint',
-        'Just a note to yourself — it does not change when or how the post goes out'
+        'Just a note to yourself. It does not change when or how the post goes out.'
       )}
       className={clsx(
         'flex items-center gap-[8px] px-[12px] rounded-[8px] border select-none transition-all',

@@ -180,7 +180,10 @@ export class BriefService {
     // Keep the document's history and record the removal in it, rather than
     // wiping it. Used when a redone onboarding replaces the brief, so what it
     // removed can still be seen afterwards.
-    keepHistory = false
+    keepHistory = false,
+    // Answer { deleted: false } when nothing is stored under that key, rather
+    // than reporting a delete.
+    reportMissing = false
   ) {
     const definition = findCategory(category);
     if (!definition || !resolveDocumentDef(category, key)) {
@@ -198,30 +201,20 @@ export class BriefService {
     }
 
     const storageKey = await this.toStorageKey(orgId, category, key);
-    const existing = await this._briefRepository.getDocument(
-      orgId,
-      category,
-      storageKey
-    );
+    const existing =
+      keepHistory || reportMissing
+        ? await this._briefRepository.getDocument(orgId, category, storageKey)
+        : null;
 
-    // Nothing stored under that key: say so rather than report a delete.
-    if (!existing) {
+    if (reportMissing && !existing) {
       return { deleted: false };
     }
 
     await this._briefRepository.deleteDocument(orgId, category, storageKey);
 
-    // The removal itself is recorded either way, so the agent's history shows
-    // that the document went. Only its name is kept in that record.
-    const { title } = this.parseContent(existing.content);
-    const tombstone: BriefDocumentContent = {
-      ...emptyContent(),
-      ...(title ? { title } : {}),
-    };
-
     if (!keepHistory) {
-      // A document that is gone leaves no content behind, same as a deleted
-      // post: its earlier revisions are wiped.
+      // A document that is gone leaves no history behind, same as a deleted
+      // post.
       try {
         await this._briefRevisionService.deleteDocument(
           orgId,
@@ -229,11 +222,18 @@ export class BriefService {
           storageKey
         );
       } catch (err) {}
+    } else if (existing) {
+      // The history is kept and the removal recorded in it. Only the
+      // document's name is kept in that record.
+      const { title } = this.parseContent(existing.content);
+      await this.capture(
+        orgId,
+        category,
+        storageKey,
+        { ...emptyContent(), ...(title ? { title } : {}) },
+        { deleted: true }
+      );
     }
-
-    await this.capture(orgId, category, storageKey, tombstone, {
-      deleted: true,
-    });
 
     return { deleted: true };
   }

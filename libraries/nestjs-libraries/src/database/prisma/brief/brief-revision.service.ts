@@ -115,18 +115,23 @@ export class BriefRevisionService {
 
       // Compare against the last state that was signed off. Falling back to the
       // oldest revision kept means a document nobody has reviewed yet still
-      // shows its whole history of change rather than nothing at all. A
-      // document with no earlier revision was just written for the first
-      // time, and is compared against nothing.
+      // shows its whole history of change rather than nothing at all.
       const older = revisions.slice(1);
       const baseline =
         older.find((revision) => !!revision.learnedAt) ||
         older[older.length - 1];
 
       const deleted = this.isDeleted(latest.content);
+
+      // A document written for the first time has nothing to compare against.
+      // Only its removal is reported without an earlier revision.
+      if (!baseline && !deleted) {
+        return queue;
+      }
+
       const change: BriefRevisionChange = deleted
         ? 'deleted'
-        : !baseline || this.isDeleted(baseline.content)
+        : this.isDeleted(baseline.content)
         ? 'created'
         : 'edited';
 
@@ -139,12 +144,8 @@ export class BriefRevisionService {
         revisionId: latest.id,
         change,
         diff: this.computeDiff(
-          baseline
-            ? this.parseContent(baseline.content)
-            : deleted
-            ? // Its content was wiped with it: nothing left to compare.
-              this.parseContent(latest.content)
-            : { v: 1, blocks: [] },
+          // A removal with no earlier revision: nothing left to compare.
+          this.parseContent((baseline || latest).content),
           this.parseContent(latest.content)
         ),
       });

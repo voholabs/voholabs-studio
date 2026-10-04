@@ -12,10 +12,20 @@ import { BriefService } from '@gitroom/nestjs-libraries/database/prisma/brief/br
 
 // The brief tools over a stub BriefService, as a paid organization.
 
-const context = () => {
+const WALLET = {
+  id: 'org-1',
+  walletUnlocks: ['brief'],
+  subscription: { subscriptionTier: 'FREE', cancelAt: '2020-01-01' },
+};
+const PAID = {
+  id: 'org-1',
+  subscription: { subscriptionTier: 'ULTIMATE', cancelAt: null },
+};
+
+const context = (org: any = WALLET) => {
   const store = new Map<string, string>();
   return {
-    mcp: { extra: { authInfo: { id: 'org-1', walletUnlocks: ['brief'] } } },
+    mcp: { extra: { authInfo: org } },
     requestContext: {
       set: (key: string, value: string) => store.set(key, value),
       get: (key: string) => store.get(key),
@@ -61,15 +71,39 @@ describe('briefListTool', () => {
 });
 
 describe('briefDeleteTool', () => {
-  it('says a missing document did not exist', async () => {
+  it('says a missing document did not exist without a paid plan', async () => {
     const service = { deleteDocument: jest.fn(async () => ({ deleted: false })) };
     const tool = new BriefDeleteTool(service as any).run() as any;
     const result = await tool.execute(
       { category: 'sources', key: 'nope' },
       context()
     );
+    expect(service.deleteDocument).toHaveBeenCalledWith(
+      'org-1',
+      'sources',
+      'nope',
+      true,
+      false,
+      true
+    );
     expect(result.deleted).toBe(false);
     expect(result.error).toMatch(/no "nope" document/);
+  });
+
+  it('answers a paid plan as before, without checking the document exists', async () => {
+    const service = { deleteDocument: jest.fn(async () => ({ deleted: true })) };
+    const tool = new BriefDeleteTool(service as any).run() as any;
+    await expect(
+      tool.execute({ category: 'sources', key: 'nope' }, context(PAID))
+    ).resolves.toEqual({ deleted: true });
+    expect(service.deleteDocument).toHaveBeenCalledWith(
+      'org-1',
+      'sources',
+      'nope',
+      true,
+      false,
+      false
+    );
   });
 
   it('reports a real delete', async () => {

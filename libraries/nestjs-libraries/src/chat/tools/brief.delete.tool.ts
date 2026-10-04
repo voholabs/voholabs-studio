@@ -7,6 +7,7 @@ import {
   paidOnly,
 } from '@gitroom/nestjs-libraries/chat/auth.context';
 import { BriefService } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.service';
+import { hasAccess } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 
 @Injectable()
 export class BriefDeleteTool implements AgentToolInterface {
@@ -43,15 +44,19 @@ Retire an Experience document when what is in it turned out to be wrong or no lo
           return { error: blocked };
         }
         try {
-          const organizationId = JSON.parse(
+          const organization = JSON.parse(
             (context?.requestContext as any)?.get('organization') as string
-          ).id;
+          );
 
+          // A paid plan is answered as before: a delete of a document that
+          // is not there reports deleted.
           const { deleted } = await this._briefService.deleteDocument(
-            organizationId,
+            organization.id,
             inputData.category,
             inputData.key,
-            true
+            true,
+            false,
+            !hasAccess(organization)
           );
 
           if (!deleted) {

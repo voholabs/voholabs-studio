@@ -40,7 +40,7 @@ const build = (revisions: any[]) => {
 const rule = (heading: string, body = 'x') => ({ id: heading, heading, body });
 
 describe('BriefRevisionService.getLearningQueue', () => {
-  it('includes a document written for the first time', async () => {
+  it('leaves out a document written for the first time', async () => {
     const { service } = build([
       revision(
         'additional-info',
@@ -48,25 +48,22 @@ describe('BriefRevisionService.getLearningQueue', () => {
         1,
         { category: 'foundation' }
       ),
+      revision('forum', { v: 1, blocks: [rule('Use')], title: 'Forum' }, 2),
     ]);
-    const [entry] = await service.getLearningQueue(ORG);
-    expect(entry).toMatchObject({
-      id: 'foundation/additional-info',
-      change: 'created',
-    });
-    expect(entry.diff.blocksAdded).toEqual(['Hours']);
+    await expect(service.getLearningQueue(ORG)).resolves.toEqual([]);
   });
 
-  it('includes a source that was created', async () => {
+  it('reports a document written a second time as edited', async () => {
     const { service } = build([
-      revision('forum', { v: 1, blocks: [rule('Use')], title: 'Forum' }, 1),
+      revision('forum', { v: 1, blocks: [], title: 'Forum' }, 1),
+      revision('forum', { v: 1, blocks: [rule('Use')], title: 'Forum' }, 2),
     ]);
     const [entry] = await service.getLearningQueue(ORG);
-    expect(entry.change).toBe('created');
-    expect(entry.diff.changed).toContain('title');
+    expect(entry.change).toBe('edited');
+    expect(entry.diff.blocksAdded).toEqual(['Use']);
   });
 
-  it('includes a deleted source whose history was wiped', async () => {
+  it('includes a deleted source with no earlier revision', async () => {
     const { service } = build([
       revision('forum', { v: 1, blocks: [], title: 'Forum', deleted: true }, 2),
     ]);

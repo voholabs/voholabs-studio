@@ -7,7 +7,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { BriefService } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.service';
 
 // BriefService with stub repositories. A plain delete wipes the document's
-// earlier revisions, keepHistory keeps them; both record the removal.
+// revisions, as before; keepHistory keeps them and records the removal.
 
 const ORG = 'org-1';
 
@@ -35,6 +35,7 @@ describe('BriefService.deleteDocument', () => {
     await expect(
       service.deleteDocument(ORG, 'sources', 'old-site')
     ).resolves.toEqual({ deleted: true });
+    expect(repository.getDocument).not.toHaveBeenCalled();
     expect(repository.deleteDocument).toHaveBeenCalledWith(
       ORG,
       'sources',
@@ -45,20 +46,32 @@ describe('BriefService.deleteDocument', () => {
       'sources',
       'old-site'
     );
-    expect(revisions.capture).toHaveBeenCalledWith(
-      ORG,
-      'sources',
-      'old-site',
-      { v: 1, blocks: [] },
-      { deleted: true }
-    );
+    expect(revisions.capture).not.toHaveBeenCalled();
+  });
+
+  it('reports a delete of a missing document as deleted by default', async () => {
+    const { service, revisions } = build(null);
+    await expect(
+      service.deleteDocument(ORG, 'sources', 'missing')
+    ).resolves.toEqual({ deleted: true });
+    expect(revisions.capture).not.toHaveBeenCalled();
+  });
+
+  it('says nothing was deleted when asked to report a missing document', async () => {
+    const { service, repository, revisions } = build(null);
+    await expect(
+      service.deleteDocument(ORG, 'sources', 'missing', false, false, true)
+    ).resolves.toEqual({ deleted: false });
+    expect(repository.deleteDocument).not.toHaveBeenCalled();
+    expect(revisions.capture).not.toHaveBeenCalled();
+    expect(revisions.deleteDocument).not.toHaveBeenCalled();
   });
 
   it('keeps only the name of a deleted source in its record', async () => {
     const { service, revisions } = build({
       content: JSON.stringify({ blocks: [{ heading: 'a' }], title: 'Forum' }),
     });
-    await service.deleteDocument(ORG, 'sources', 'forum');
+    await service.deleteDocument(ORG, 'sources', 'forum', false, true);
     expect(revisions.capture).toHaveBeenCalledWith(
       ORG,
       'sources',
@@ -66,16 +79,6 @@ describe('BriefService.deleteDocument', () => {
       { v: 1, blocks: [], title: 'Forum' },
       { deleted: true }
     );
-  });
-
-  it('says nothing was deleted when the document does not exist', async () => {
-    const { service, repository, revisions } = build(null);
-    await expect(
-      service.deleteDocument(ORG, 'sources', 'missing')
-    ).resolves.toEqual({ deleted: false });
-    expect(repository.deleteDocument).not.toHaveBeenCalled();
-    expect(revisions.capture).not.toHaveBeenCalled();
-    expect(revisions.deleteDocument).not.toHaveBeenCalled();
   });
 
   it('keeps the history and records the removal with keepHistory', async () => {

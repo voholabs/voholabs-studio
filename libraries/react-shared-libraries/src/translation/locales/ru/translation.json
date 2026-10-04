@@ -957,5 +957,21 @@
   "reviewed_click_to_undo": "Проверено. Нажмите, чтобы отменить.",
   "agent_media_plan_creator": "Creator: $39/мес · 3 900 кредитов",
   "agent_media_plan_pro": "Pro: $69/мес · 6 900 кредитов",
-  "onboarding_start": "Начать"
+  "onboarding_start": "Начать",
+  "wallet_connect_lookup": "Подключение {{channel}} стоит {{price}} кредитов: один {{action}}.",
+  "analytics_updated_at": "Обновлено {{time}}",
+  "analytics_updated_now": "Только что обновлено",
+  "analytics_refresh": "Обновить",
+  "analytics_refreshing": "Обновление...",
+  "analytics_refresh_cost": "Обновление заново читает ваши посты из сети. Каждый пост оплачивается раз в день, независимо от того, какой период или какое обновление прочитает его первым: {{price}} кредитов за чтение ({{action}}). Посты, уже прочитанные сегодня, повторно не оплачиваются.",
+  "analytics_read_spend": "Чтения аналитики, последние {{days}} дн.: {{credits}} кредитов",
+  "wallet_per_occurrence": "за каждый повтор",
+  "wallet_repeat_charged_each": "Каждый повтор оплачивается при публикации.",
+  "wallet_update_charges_more": "Изменение спишет ещё {{credits}} кредитов",
+  "wallet_update_gives_back": "Изменение вернёт {{credits}} кредитов",
+  "wallet_update_no_change": "Стоимость не меняется",
+  "wallet_update_short": "Недостаточно кредитов для изменения. Пополните баланс или сохраните как черновик.",
+  "wallet_update_blocked_tip": "Недостаточно кредитов, чтобы изменить этот пост. Пополните баланс или сохраните как черновик.",
+  "wallet_update_charged_toast": "Обновлено. Списано ещё {{credits}} кредитов.",
+  "wallet_update_refunded_toast": "Обновлено. Возвращено {{credits}} кредитов."
 }

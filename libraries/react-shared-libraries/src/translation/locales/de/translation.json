@@ -957,5 +957,21 @@
   "reviewed_click_to_undo": "Geprüft. Zum Rückgängigmachen klicken.",
   "agent_media_plan_creator": "Creator: $39/Monat · 3.900 Credits",
   "agent_media_plan_pro": "Pro: $69/Monat · 6.900 Credits",
-  "onboarding_start": "Starten"
+  "onboarding_start": "Starten",
+  "wallet_connect_lookup": "Das Verbinden von {{channel}} kostet {{price}} Credits: ein {{action}}.",
+  "analytics_updated_at": "Aktualisiert {{time}}",
+  "analytics_updated_now": "Gerade aktualisiert",
+  "analytics_refresh": "Aktualisieren",
+  "analytics_refreshing": "Wird aktualisiert...",
+  "analytics_refresh_cost": "Beim Aktualisieren werden deine Beiträge erneut aus dem Netzwerk gelesen. Jeder Beitrag wird einmal pro Tag berechnet, egal welcher Zeitraum oder welche Aktualisierung ihn zuerst liest: {{price}} Credits pro Abruf ({{action}}). Heute bereits gelesene Beiträge werden nicht erneut berechnet.",
+  "analytics_read_spend": "Analytics-Abrufe, letzte {{days}} Tage: {{credits}} Credits",
+  "wallet_per_occurrence": "pro Wiederholung",
+  "wallet_repeat_charged_each": "Jede Wiederholung wird berechnet, wenn sie veröffentlicht wird.",
+  "wallet_update_charges_more": "Aktualisieren berechnet {{credits}} Credits mehr",
+  "wallet_update_gives_back": "Aktualisieren erstattet {{credits}} Credits",
+  "wallet_update_no_change": "Keine Kostenänderung",
+  "wallet_update_short": "Nicht genug Credits zum Aktualisieren. Lade auf oder speichere als Entwurf.",
+  "wallet_update_blocked_tip": "Nicht genug Credits, um diesen Beitrag zu aktualisieren. Lade auf oder speichere als Entwurf.",
+  "wallet_update_charged_toast": "Aktualisiert. {{credits}} Credits zusätzlich berechnet.",
+  "wallet_update_refunded_toast": "Aktualisiert. {{credits}} Credits erstattet."
 }

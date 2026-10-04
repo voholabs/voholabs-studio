@@ -957,5 +957,21 @@
   "reviewed_click_to_undo": "পর্যালোচিত। পূর্বাবস্থায় ফেরাতে ক্লিক করুন।",
   "agent_media_plan_creator": "Creator: $39/মাস · 3,900 ক্রেডিট",
   "agent_media_plan_pro": "Pro: $69/মাস · 6,900 ক্রেডিট",
-  "onboarding_start": "শুরু করুন"
+  "onboarding_start": "শুরু করুন",
+  "wallet_connect_lookup": "{{channel}} সংযোগ করতে {{price}} ক্রেডিট লাগে: একটি {{action}}।",
+  "analytics_updated_at": "আপডেট হয়েছে {{time}}",
+  "analytics_updated_now": "এইমাত্র আপডেট হয়েছে",
+  "analytics_refresh": "রিফ্রেশ",
+  "analytics_refreshing": "রিফ্রেশ হচ্ছে...",
+  "analytics_refresh_cost": "রিফ্রেশ করলে আপনার পোস্টগুলো নেটওয়ার্ক থেকে আবার পড়া হয়। প্রতিটি পোস্টের জন্য দিনে একবারই চার্জ হয়, যে সময়কাল বা রিফ্রেশ প্রথমে পড়ুক না কেন: প্রতি রিডে {{price}} ক্রেডিট ({{action}})। আজ ইতিমধ্যে পড়া পোস্টের জন্য আবার চার্জ হয় না।",
+  "analytics_read_spend": "অ্যানালিটিক্স রিড, গত {{days}} দিন: {{credits}} ক্রেডিট",
+  "wallet_per_occurrence": "প্রতি পুনরাবৃত্তিতে",
+  "wallet_repeat_charged_each": "প্রতিটি পুনরাবৃত্তি প্রকাশের সময় চার্জ হয়।",
+  "wallet_update_charges_more": "আপডেট করলে আরও {{credits}} ক্রেডিট চার্জ হবে",
+  "wallet_update_gives_back": "আপডেট করলে {{credits}} ক্রেডিট ফেরত আসবে",
+  "wallet_update_no_change": "খরচে কোনো পরিবর্তন নেই",
+  "wallet_update_short": "আপডেট করার মতো যথেষ্ট ক্রেডিট নেই। টপ আপ করুন, অথবা খসড়া হিসেবে সংরক্ষণ করুন।",
+  "wallet_update_blocked_tip": "এই পোস্ট আপডেট করার মতো যথেষ্ট ক্রেডিট নেই। টপ আপ করুন, অথবা খসড়া হিসেবে সংরক্ষণ করুন।",
+  "wallet_update_charged_toast": "আপডেট হয়েছে। আরও {{credits}} ক্রেডিট চার্জ হয়েছে।",
+  "wallet_update_refunded_toast": "আপডেট হয়েছে। {{credits}} ক্রেডিট ফেরত দেওয়া হয়েছে।"
 }

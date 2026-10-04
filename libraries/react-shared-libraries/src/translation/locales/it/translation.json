@@ -957,5 +957,21 @@
   "reviewed_click_to_undo": "Revisionato. Clicca per annullare.",
   "agent_media_plan_creator": "Creator: $39/mese · 3.900 crediti",
   "agent_media_plan_pro": "Pro: $69/mese · 6.900 crediti",
-  "onboarding_start": "Inizia"
+  "onboarding_start": "Inizia",
+  "wallet_connect_lookup": "Collegare {{channel}} costa {{price}} crediti: una {{action}}.",
+  "analytics_updated_at": "Aggiornato {{time}}",
+  "analytics_updated_now": "Aggiornato ora",
+  "analytics_refresh": "Aggiorna",
+  "analytics_refreshing": "Aggiornamento...",
+  "analytics_refresh_cost": "Aggiornare rilegge i tuoi post dalla rete. Ogni post viene addebitato una volta al giorno, qualunque periodo o aggiornamento lo legga per primo: {{price}} crediti per lettura ({{action}}). I post già letti oggi non vengono addebitati di nuovo.",
+  "analytics_read_spend": "Letture analytics, ultimi {{days}} giorni: {{credits}} crediti",
+  "wallet_per_occurrence": "per ripetizione",
+  "wallet_repeat_charged_each": "Ogni ripetizione viene addebitata quando viene pubblicata.",
+  "wallet_update_charges_more": "Aggiornando si addebitano {{credits}} crediti in più",
+  "wallet_update_gives_back": "Aggiornando si restituiscono {{credits}} crediti",
+  "wallet_update_no_change": "Nessuna variazione di costo",
+  "wallet_update_short": "Crediti insufficienti per aggiornarlo. Ricarica o salvalo come bozza.",
+  "wallet_update_blocked_tip": "Crediti insufficienti per aggiornare questo post. Ricarica o salvalo come bozza.",
+  "wallet_update_charged_toast": "Aggiornato. {{credits}} crediti in più addebitati.",
+  "wallet_update_refunded_toast": "Aggiornato. {{credits}} crediti restituiti."
 }

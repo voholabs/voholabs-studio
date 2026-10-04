@@ -957,5 +957,21 @@
   "reviewed_click_to_undo": "已审核。点击撤销。",
   "agent_media_plan_creator": "Creator：$39/月 · 3,900 积分",
   "agent_media_plan_pro": "Pro：$69/月 · 6,900 积分",
-  "onboarding_start": "开始"
+  "onboarding_start": "开始",
+  "wallet_connect_lookup": "连接 {{channel}} 需要 {{price}} 积分：一次{{action}}。",
+  "analytics_updated_at": "更新于 {{time}}",
+  "analytics_updated_now": "刚刚更新",
+  "analytics_refresh": "刷新",
+  "analytics_refreshing": "正在刷新...",
+  "analytics_refresh_cost": "刷新会从网络重新读取您的帖子。每个帖子每天只收费一次，无论哪个时间段或哪次刷新先读取它：每次读取 {{price}} 积分（{{action}}）。今天已读取的帖子不会再次收费。",
+  "analytics_read_spend": "分析读取，最近 {{days}} 天：{{credits}} 积分",
+  "wallet_per_occurrence": "每次",
+  "wallet_repeat_charged_each": "每次重复在发布时收费。",
+  "wallet_update_charges_more": "更新将额外扣除 {{credits}} 积分",
+  "wallet_update_gives_back": "更新将退还 {{credits}} 积分",
+  "wallet_update_no_change": "费用不变",
+  "wallet_update_short": "积分不足，无法更新。请充值或保存为草稿。",
+  "wallet_update_blocked_tip": "积分不足，无法更新此帖子。请充值或保存为草稿。",
+  "wallet_update_charged_toast": "已更新。额外扣除 {{credits}} 积分。",
+  "wallet_update_refunded_toast": "已更新。已退还 {{credits}} 积分。"
 }

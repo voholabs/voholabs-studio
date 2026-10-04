@@ -957,5 +957,21 @@
   "reviewed_click_to_undo": "تمت المراجعة. انقر للتراجع.",
   "agent_media_plan_creator": "Creator: $39/شهر · 3,900 رصيد",
   "agent_media_plan_pro": "Pro: $69/شهر · 6,900 رصيد",
-  "onboarding_start": "ابدأ"
+  "onboarding_start": "ابدأ",
+  "wallet_connect_lookup": "ربط {{channel}} يكلّف {{price}} رصيد: {{action}} واحد.",
+  "analytics_updated_at": "حُدِّث {{time}}",
+  "analytics_updated_now": "حُدِّث للتو",
+  "analytics_refresh": "تحديث",
+  "analytics_refreshing": "جارٍ التحديث...",
+  "analytics_refresh_cost": "التحديث يقرأ منشوراتك من الشبكة مرة أخرى. يُحتسب كل منشور مرة واحدة في اليوم، أيًّا كانت الفترة أو التحديث الذي يقرؤه أولًا: {{price}} رصيد لكل قراءة ({{action}}). المنشورات التي قُرئت اليوم لا تُحتسب مرة أخرى.",
+  "analytics_read_spend": "قراءات التحليلات، آخر {{days}} يومًا: {{credits}} رصيد",
+  "wallet_per_occurrence": "لكل تكرار",
+  "wallet_repeat_charged_each": "يُخصم كل تكرار عند نشره.",
+  "wallet_update_charges_more": "التحديث يخصم {{credits}} رصيد إضافي",
+  "wallet_update_gives_back": "التحديث يعيد {{credits}} رصيد",
+  "wallet_update_no_change": "لا تغيير في التكلفة",
+  "wallet_update_short": "الرصيد غير كافٍ للتحديث. اشحن، أو احفظه كمسودة.",
+  "wallet_update_blocked_tip": "الرصيد غير كافٍ لتحديث هذا المنشور. اشحن، أو احفظه كمسودة.",
+  "wallet_update_charged_toast": "تم التحديث. خُصم {{credits}} رصيد إضافي.",
+  "wallet_update_refunded_toast": "تم التحديث. أُعيد {{credits}} رصيد."
 }

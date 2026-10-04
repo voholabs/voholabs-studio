@@ -957,5 +957,21 @@
   "reviewed_click_to_undo": "確認済み。クリックで元に戻す。",
   "agent_media_plan_creator": "Creator：月額 $39 · 3,900 クレジット",
   "agent_media_plan_pro": "Pro：月額 $69 · 6,900 クレジット",
-  "onboarding_start": "開始"
+  "onboarding_start": "開始",
+  "wallet_connect_lookup": "{{channel}} の接続には {{price}} クレジットかかります: {{action}} 1 回。",
+  "analytics_updated_at": "{{time}} に更新",
+  "analytics_updated_now": "たった今更新",
+  "analytics_refresh": "更新",
+  "analytics_refreshing": "更新中...",
+  "analytics_refresh_cost": "更新すると投稿をネットワークから再度読み込みます。各投稿の料金は 1 日 1 回のみで、どの期間や更新が最初に読み込んだかは関係ありません: 1 回の読み込みにつき {{price}} クレジット ({{action}})。今日すでに読み込んだ投稿は再度請求されません。",
+  "analytics_read_spend": "分析の読み込み、過去 {{days}} 日間: {{credits}} クレジット",
+  "wallet_per_occurrence": "1 回ごと",
+  "wallet_repeat_charged_each": "繰り返しの投稿は、それぞれ投稿されるときに請求されます。",
+  "wallet_update_charges_more": "更新すると {{credits}} クレジットが追加で請求されます",
+  "wallet_update_gives_back": "更新すると {{credits}} クレジットが返金されます",
+  "wallet_update_no_change": "料金の変更はありません",
+  "wallet_update_short": "更新するにはクレジットが足りません。チャージするか、下書きとして保存してください。",
+  "wallet_update_blocked_tip": "この投稿を更新するにはクレジットが足りません。チャージするか、下書きとして保存してください。",
+  "wallet_update_charged_toast": "更新しました。{{credits}} クレジットが追加で請求されました。",
+  "wallet_update_refunded_toast": "更新しました。{{credits}} クレジットが返金されました。"
 }

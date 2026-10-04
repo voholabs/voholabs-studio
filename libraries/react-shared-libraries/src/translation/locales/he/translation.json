@@ -957,5 +957,21 @@
   "reviewed_click_to_undo": "נבדק. לחצו כדי לבטל.",
   "agent_media_plan_creator": "Creator: $39 לחודש · 3,900 קרדיטים",
   "agent_media_plan_pro": "Pro: $69 לחודש · 6,900 קרדיטים",
-  "onboarding_start": "התחלה"
+  "onboarding_start": "התחלה",
+  "wallet_connect_lookup": "חיבור {{channel}} עולה {{price}} קרדיטים: {{action}} אחד.",
+  "analytics_updated_at": "עודכן {{time}}",
+  "analytics_updated_now": "עודכן כרגע",
+  "analytics_refresh": "רענון",
+  "analytics_refreshing": "מרענן...",
+  "analytics_refresh_cost": "רענון קורא שוב את הפוסטים שלכם מהרשת. כל פוסט מחויב פעם אחת ביום, לא משנה איזו תקופה או איזה רענון קוראים אותו ראשונים: {{price}} קרדיטים לכל קריאה ({{action}}). פוסטים שכבר נקראו היום לא מחויבים שוב.",
+  "analytics_read_spend": "קריאות אנליטיקה, {{days}} הימים האחרונים: {{credits}} קרדיטים",
+  "wallet_per_occurrence": "לכל חזרה",
+  "wallet_repeat_charged_each": "כל חזרה מחויבת כשהיא יוצאת.",
+  "wallet_update_charges_more": "העדכון מחייב עוד {{credits}} קרדיטים",
+  "wallet_update_gives_back": "העדכון מחזיר {{credits}} קרדיטים",
+  "wallet_update_no_change": "אין שינוי בעלות",
+  "wallet_update_short": "אין מספיק קרדיטים לעדכון. טענו, או שמרו כטיוטה.",
+  "wallet_update_blocked_tip": "אין מספיק קרדיטים לעדכון הפוסט. טענו, או שמרו כטיוטה.",
+  "wallet_update_charged_toast": "עודכן. חויבו עוד {{credits}} קרדיטים.",
+  "wallet_update_refunded_toast": "עודכן. הוחזרו {{credits}} קרדיטים."
 }

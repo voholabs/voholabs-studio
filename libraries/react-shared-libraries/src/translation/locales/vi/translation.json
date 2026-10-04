@@ -957,5 +957,21 @@
   "reviewed_click_to_undo": "Đã duyệt. Nhấn để hoàn tác.",
   "agent_media_plan_creator": "Creator: $39/tháng · 3.900 credits",
   "agent_media_plan_pro": "Pro: $69/tháng · 6.900 credits",
-  "onboarding_start": "Bắt đầu"
+  "onboarding_start": "Bắt đầu",
+  "wallet_connect_lookup": "Kết nối {{channel}} tốn {{price}} credits: một lần {{action}}.",
+  "analytics_updated_at": "Đã cập nhật {{time}}",
+  "analytics_updated_now": "Vừa cập nhật",
+  "analytics_refresh": "Làm mới",
+  "analytics_refreshing": "Đang làm mới...",
+  "analytics_refresh_cost": "Làm mới sẽ đọc lại bài đăng của bạn từ mạng. Mỗi bài đăng chỉ bị tính phí một lần mỗi ngày, bất kể khoảng thời gian hay lần làm mới nào đọc nó trước: {{price}} credits mỗi lần đọc ({{action}}). Các bài đăng đã đọc hôm nay sẽ không bị tính phí lại.",
+  "analytics_read_spend": "Lượt đọc phân tích, {{days}} ngày qua: {{credits}} credits",
+  "wallet_per_occurrence": "mỗi lần lặp",
+  "wallet_repeat_charged_each": "Mỗi lần lặp được tính phí khi được đăng.",
+  "wallet_update_charges_more": "Cập nhật sẽ tính thêm {{credits}} credits",
+  "wallet_update_gives_back": "Cập nhật sẽ hoàn lại {{credits}} credits",
+  "wallet_update_no_change": "Chi phí không đổi",
+  "wallet_update_short": "Không đủ credits để cập nhật. Hãy nạp tiền hoặc lưu làm bản nháp.",
+  "wallet_update_blocked_tip": "Không đủ credits để cập nhật bài đăng này. Hãy nạp tiền hoặc lưu làm bản nháp.",
+  "wallet_update_charged_toast": "Đã cập nhật. Đã trừ thêm {{credits}} credits.",
+  "wallet_update_refunded_toast": "Đã cập nhật. Đã hoàn lại {{credits}} credits."
 }

@@ -1060,5 +1060,21 @@
   "reviewed_click_to_undo": "Reviewed. Click to undo.",
   "agent_media_plan_creator": "Creator: $39/mo · 3,900 credits",
   "agent_media_plan_pro": "Pro: $69/mo · 6,900 credits",
-  "onboarding_start": "Start"
+  "onboarding_start": "Start",
+  "wallet_connect_lookup": "Connecting {{channel}} costs {{price}} credits: one {{action}}.",
+  "analytics_updated_at": "Updated {{time}}",
+  "analytics_updated_now": "Updated just now",
+  "analytics_refresh": "Refresh",
+  "analytics_refreshing": "Refreshing...",
+  "analytics_refresh_cost": "Refreshing reads your posts again from the network. Each post is charged once a day, whichever period or refresh reads it first: {{price}} credits per read ({{action}}). Posts already read today are not charged again.",
+  "analytics_read_spend": "Analytics reads, last {{days}} days: {{credits}} credits",
+  "wallet_per_occurrence": "per occurrence",
+  "wallet_repeat_charged_each": "Each repeat is charged when it goes out.",
+  "wallet_update_charges_more": "Updating charges {{credits}} more credits",
+  "wallet_update_gives_back": "Updating gives back {{credits}} credits",
+  "wallet_update_no_change": "No change in cost",
+  "wallet_update_short": "Not enough credits to update it. Top up, or save it as a draft.",
+  "wallet_update_blocked_tip": "Not enough credits to update this post. Top up, or save it as a draft.",
+  "wallet_update_charged_toast": "Updated. {{credits}} more credits charged.",
+  "wallet_update_refunded_toast": "Updated. {{credits}} credits given back."
 }

@@ -957,5 +957,21 @@
   "reviewed_click_to_undo": "İncelendi. Geri almak için tıklayın.",
   "agent_media_plan_creator": "Creator: $39/ay · 3.900 kredi",
   "agent_media_plan_pro": "Pro: $69/ay · 6.900 kredi",
-  "onboarding_start": "Başla"
+  "onboarding_start": "Başla",
+  "wallet_connect_lookup": "{{channel}} bağlamak {{price}} kredi tutar: bir {{action}}.",
+  "analytics_updated_at": "Güncellendi: {{time}}",
+  "analytics_updated_now": "Az önce güncellendi",
+  "analytics_refresh": "Yenile",
+  "analytics_refreshing": "Yenileniyor...",
+  "analytics_refresh_cost": "Yenileme gönderilerinizi ağdan yeniden okur. Her gönderi, hangi dönem veya yenileme onu önce okursa okusun, günde bir kez ücretlendirilir: okuma başına {{price}} kredi ({{action}}). Bugün zaten okunan gönderiler yeniden ücretlendirilmez.",
+  "analytics_read_spend": "Analiz okumaları, son {{days}} gün: {{credits}} kredi",
+  "wallet_per_occurrence": "tekrar başına",
+  "wallet_repeat_charged_each": "Her tekrar yayınlandığında ücretlendirilir.",
+  "wallet_update_charges_more": "Güncelleme {{credits}} kredi daha düşer",
+  "wallet_update_gives_back": "Güncelleme {{credits}} krediyi iade eder",
+  "wallet_update_no_change": "Maliyette değişiklik yok",
+  "wallet_update_short": "Güncellemek için yeterli kredi yok. Bakiye yükleyin veya taslak olarak kaydedin.",
+  "wallet_update_blocked_tip": "Bu gönderiyi güncellemek için yeterli kredi yok. Bakiye yükleyin veya taslak olarak kaydedin.",
+  "wallet_update_charged_toast": "Güncellendi. {{credits}} kredi daha düşüldü.",
+  "wallet_update_refunded_toast": "Güncellendi. {{credits}} kredi iade edildi."
 }

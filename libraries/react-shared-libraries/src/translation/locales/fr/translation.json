@@ -957,5 +957,21 @@
   "reviewed_click_to_undo": "Vérifiée. Cliquez pour annuler.",
   "agent_media_plan_creator": "Creator : 39 $/mois · 3 900 crédits",
   "agent_media_plan_pro": "Pro : 69 $/mois · 6 900 crédits",
-  "onboarding_start": "Commencer"
+  "onboarding_start": "Commencer",
+  "wallet_connect_lookup": "Connecter {{channel}} coûte {{price}} crédits : une {{action}}.",
+  "analytics_updated_at": "Mis à jour {{time}}",
+  "analytics_updated_now": "Mis à jour à l'instant",
+  "analytics_refresh": "Actualiser",
+  "analytics_refreshing": "Actualisation...",
+  "analytics_refresh_cost": "Actualiser relit vos publications depuis le réseau. Chaque publication est facturée une fois par jour, quelle que soit la période ou l'actualisation qui la lit en premier : {{price}} crédits par lecture ({{action}}). Les publications déjà lues aujourd'hui ne sont pas facturées à nouveau.",
+  "analytics_read_spend": "Lectures d'analyses, {{days}} derniers jours : {{credits}} crédits",
+  "wallet_per_occurrence": "par occurrence",
+  "wallet_repeat_charged_each": "Chaque répétition est facturée à sa publication.",
+  "wallet_update_charges_more": "La modification facture {{credits}} crédits de plus",
+  "wallet_update_gives_back": "La modification rend {{credits}} crédits",
+  "wallet_update_no_change": "Aucun changement de coût",
+  "wallet_update_short": "Pas assez de crédits pour la modifier. Rechargez, ou enregistrez-la en brouillon.",
+  "wallet_update_blocked_tip": "Pas assez de crédits pour modifier cette publication. Rechargez, ou enregistrez-la en brouillon.",
+  "wallet_update_charged_toast": "Modifiée. {{credits}} crédits de plus débités.",
+  "wallet_update_refunded_toast": "Modifiée. {{credits}} crédits rendus."
 }

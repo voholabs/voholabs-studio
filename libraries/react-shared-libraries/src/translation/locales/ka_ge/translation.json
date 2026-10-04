@@ -767,5 +767,21 @@
     "reviewed_click_to_undo": "განხილულია. დააჭირეთ გასაუქმებლად.",
     "agent_media_plan_creator": "Creator: $39/თვე · 3,900 კრედიტი",
     "agent_media_plan_pro": "Pro: $69/თვე · 6,900 კრედიტი",
-    "onboarding_start": "დაწყება"
+    "onboarding_start": "დაწყება",
+    "wallet_connect_lookup": "{{channel}}-ის დაკავშირება ღირს {{price}} კრედიტი: ერთი {{action}}.",
+    "analytics_updated_at": "განახლდა {{time}}",
+    "analytics_updated_now": "ახლახან განახლდა",
+    "analytics_refresh": "განახლება",
+    "analytics_refreshing": "ახლდება...",
+    "analytics_refresh_cost": "განახლება თქვენს პოსტებს ქსელიდან ხელახლა კითხულობს. თითოეული პოსტი დღეში ერთხელ ჩამოიჭრება, მიუხედავად იმისა, რომელი პერიოდი ან განახლება წაიკითხავს მას პირველად: {{price}} კრედიტი თითო წაკითხვაზე ({{action}}). დღეს უკვე წაკითხულ პოსტებზე თანხა აღარ ჩამოიჭრება.",
+    "analytics_read_spend": "ანალიტიკის წაკითხვები, ბოლო {{days}} დღე: {{credits}} კრედიტი",
+    "wallet_per_occurrence": "თითო გამეორებაზე",
+    "wallet_repeat_charged_each": "თითოეული გამეორება ჩამოიჭრება მისი გამოქვეყნებისას.",
+    "wallet_update_charges_more": "განახლება ჩამოჭრის დამატებით {{credits}} კრედიტს",
+    "wallet_update_gives_back": "განახლება დააბრუნებს {{credits}} კრედიტს",
+    "wallet_update_no_change": "ღირებულება არ იცვლება",
+    "wallet_update_short": "განახლებისთვის კრედიტი არ არის საკმარისი. შეავსეთ ბალანსი ან შეინახეთ მონახაზად.",
+    "wallet_update_blocked_tip": "ამ პოსტის განახლებისთვის კრედიტი არ არის საკმარისი. შეავსეთ ბალანსი ან შეინახეთ მონახაზად.",
+    "wallet_update_charged_toast": "განახლდა. დამატებით ჩამოიჭრა {{credits}} კრედიტი.",
+    "wallet_update_refunded_toast": "განახლდა. დაბრუნდა {{credits}} კრედიტი."
 }

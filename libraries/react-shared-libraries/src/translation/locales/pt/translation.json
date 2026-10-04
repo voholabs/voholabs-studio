@@ -957,5 +957,21 @@
   "reviewed_click_to_undo": "Revisada. Clique para desfazer.",
   "agent_media_plan_creator": "Creator: US$ 39/mês · 3.900 créditos",
   "agent_media_plan_pro": "Pro: US$ 69/mês · 6.900 créditos",
-  "onboarding_start": "Começar"
+  "onboarding_start": "Começar",
+  "wallet_connect_lookup": "Conectar {{channel}} custa {{price}} créditos: uma {{action}}.",
+  "analytics_updated_at": "Atualizado {{time}}",
+  "analytics_updated_now": "Atualizado agora",
+  "analytics_refresh": "Atualizar",
+  "analytics_refreshing": "Atualizando...",
+  "analytics_refresh_cost": "Atualizar lê suas publicações da rede novamente. Cada publicação é cobrada uma vez por dia, seja qual for o período ou a atualização que a ler primeiro: {{price}} créditos por leitura ({{action}}). Publicações já lidas hoje não são cobradas de novo.",
+  "analytics_read_spend": "Leituras de análises, últimos {{days}} dias: {{credits}} créditos",
+  "wallet_per_occurrence": "por repetição",
+  "wallet_repeat_charged_each": "Cada repetição é cobrada quando é publicada.",
+  "wallet_update_charges_more": "Atualizar cobra mais {{credits}} créditos",
+  "wallet_update_gives_back": "Atualizar devolve {{credits}} créditos",
+  "wallet_update_no_change": "Sem alteração no custo",
+  "wallet_update_short": "Créditos insuficientes para atualizar. Recarregue ou salve como rascunho.",
+  "wallet_update_blocked_tip": "Créditos insuficientes para atualizar esta publicação. Recarregue ou salve como rascunho.",
+  "wallet_update_charged_toast": "Atualizada. Mais {{credits}} créditos cobrados.",
+  "wallet_update_refunded_toast": "Atualizada. {{credits}} créditos devolvidos."
 }

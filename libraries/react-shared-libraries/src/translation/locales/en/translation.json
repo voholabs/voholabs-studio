@@ -1056,5 +1056,9 @@
   "onboarding_connect_agent": "Connect your agent",
   "onboarding_connect_agent_sub": "Connect Claude, ChatGPT or your coding agent so it can write and schedule posts for you. You can do this later in Settings.",
   "onboarding_back": "Back",
-  "onboarding_skip_for_now": "Skip for now"
+  "onboarding_skip_for_now": "Skip for now",
+  "reviewed_click_to_undo": "Reviewed. Click to undo.",
+  "agent_media_plan_creator": "Creator: $39/mo · 3,900 credits",
+  "agent_media_plan_pro": "Pro: $69/mo · 6,900 credits",
+  "onboarding_start": "Start"
 }

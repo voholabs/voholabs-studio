@@ -17,6 +17,8 @@ export enum Sections {
   // The agent brief: part of AI on a paid plan, and open to a pay-as-you-go
   // workspace (one that has topped up its wallet).
   BRIEF = 'brief',
+  // The skills library: open on a paid plan, or after the first wallet top-up.
+  SKILLS = 'skills',
 }
 
 export enum AuthorizationActions {

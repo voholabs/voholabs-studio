@@ -63,6 +63,7 @@ model Organization {
   briefRevisions      BriefRevision[]
   wallet              Wallet?
   walletEntries       WalletEntry[]
+  briefOnboardings    BriefOnboarding[]
 
   @@index([apiKey])
   @@index([streakSince])
@@ -1223,6 +1224,11 @@ model Wallet {
   frozenAt            DateTime?
   // The currency of the first top-up; later top-ups must match it.
   currency            String?
+  // When the org was last told its scheduled usage can't be covered (one
+  // in-app notification per UTC day at most).
+  forecastNotifiedAt  DateTime?
+  // Saved card expiry, "MM/YYYY".
+  cardExp             String?
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
   organization        Organization @relation(fields: [organizationId], references: [id])
@@ -1286,4 +1292,59 @@ enum WalletEntryType {
   REFUND
   GRANT
   ADJUST
+}
+
+// One run of the guided brief onboarding (first one free, later ones charged
+// from the wallet). It only fills the brief; it never creates an agent.
+model BriefOnboarding {
+  id             String                @id @default(uuid())
+  organizationId String
+  status         BriefOnboardingStatus @default(RUNNING)
+  // The answers, as JSON.
+  answers        String
+  // The wallet charge for this run (its idempotencyKey), null when free or
+  // on a paid plan.
+  chargeKey      String?
+  error          String?
+  createdAt      DateTime              @default(now())
+  finishedAt     DateTime?
+  organization   Organization          @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, createdAt])
+}
+
+enum BriefOnboardingStatus {
+  RUNNING
+  DONE
+  FAILED
+}
+
+// The skills library. Content lives here, not in the code; agents find skills
+// through MCP and the app lists them.
+model Skill {
+  id         String   @id @default(uuid())
+  slug       String   @unique
+  name       String
+  summary    String
+  whatItDoes String?
+  whenToUse  String?
+  body       String   @default("")
+  // SkillTag keys.
+  tags       String[]
+  // The Studio tools a skill tells the agent to use.
+  tools      String[]
+  version    String?
+  active     Boolean  @default(true)
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([active, sortOrder])
+}
+
+model SkillTag {
+  key       String   @id
+  label     String
+  sortOrder Int      @default(0)
+  updatedAt DateTime @updatedAt
 }

@@ -4,6 +4,7 @@ import { AuthService } from '@gitroom/backend/services/auth/auth.service';
 import { UsersController } from '@gitroom/backend/api/routes/users.controller';
 import { AuthMiddleware } from '@gitroom/backend/services/auth/auth.middleware';
 import { StripeController } from '@gitroom/backend/api/routes/stripe.controller';
+import { SkillsController } from '@gitroom/backend/api/routes/skills.controller';
 import {
   WalletController,
   WalletWebhookController,
@@ -85,6 +86,7 @@ const authenticatedController = [
   AdminController,
   MediaMeterController,
   WalletController,
+  SkillsController,
 ];
 @Module({
   imports: [UploadModule],

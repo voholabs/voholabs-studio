@@ -33,10 +33,10 @@ import {
 
 const modalSize = (px: number) => `min(${px}px, calc(100vw - 32px))`;
 
-export const TOP_UP_MODAL_ID = 'wallet-top-up';
+const TOP_UP_MODAL_ID = 'wallet-top-up';
 
 // Opens the top-up dialog. Used by openTopUp() through <WalletHost />.
-export const useTopUpModal = () => {
+const useTopUpModal = () => {
   const modals = useModals();
   const t = useT();
   return useCallback(
@@ -50,6 +50,13 @@ export const useTopUpModal = () => {
     },
     [modals, t]
   );
+};
+
+// English defaults for the line under a feature a first top-up opens; other
+// features fall back to their price row's description.
+const UNLOCK_COPY: Record<string, string> = {
+  brief: 'Tell your agent about your brand.',
+  skills: 'Ready-made skills your agent can use.',
 };
 
 // What a first top-up opened, read from the price rows that need one: one
@@ -86,7 +93,10 @@ const useUnlocks = () => {
                 'wallet_unlock_channel',
                 'Connect your account. Each post charges credits.'
               )
-            : t(`wallet_unlock_${id}`, actionDescription(t, a) || ''),
+            : t(
+                `wallet_unlock_${id}`,
+                UNLOCK_COPY[id] || actionDescription(t, a) || ''
+              ),
         });
       }
     }
@@ -94,7 +104,7 @@ const useUnlocks = () => {
   }, [sections, channels, t]);
 };
 
-export const TopUpSuccess: FC<{
+const TopUpSuccess: FC<{
   credits: number | null;
   close: () => void;
 }> = ({ credits, close }) => {

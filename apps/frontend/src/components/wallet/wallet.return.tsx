@@ -35,6 +35,7 @@ const readMemo = (): CheckoutMemo | null => {
 // ?topup=success&session_id=... credits the session (idempotent with the
 // webhook), refreshes the wallet and the user, then shows the first-top-up
 // welcome or a toast. ?topup=cancelled just says nothing was charged.
+// ?card=saved|cancelled is the return from changing the saved card.
 export const WalletCheckoutReturn: FC = () => {
   const params = useSearchParams();
   const router = useRouter();
@@ -48,14 +49,29 @@ export const WalletCheckoutReturn: FC = () => {
   const showSuccess = useTopUpSuccessModal();
   const handled = useRef(false);
   const topup = params.get('topup');
+  const card = params.get('card');
   const sessionId = params.get('session_id');
   const wasPayAsYouGo = !!user?.payAsYouGo;
   const f = useWalletFormat();
 
   useEffect(() => {
-    if (handled.current || !topup) return;
+    if (handled.current || (!topup && !card)) return;
     handled.current = true;
     const clean = () => router.replace('/wallet');
+
+    if (!topup && card) {
+      clean();
+      if (card === 'saved') {
+        refresh();
+        toaster.show(t('wallet_card_saved', 'Your card was updated.'));
+      } else {
+        toaster.show(
+          t('wallet_card_cancelled', 'Card change cancelled.'),
+          'warning'
+        );
+      }
+      return;
+    }
 
     // Sent here to top up from a screen where the dialog was not mounted.
     if (topup === 'open') {
@@ -128,7 +144,19 @@ export const WalletCheckoutReturn: FC = () => {
           : t('wallet_topup_done', 'Your top-up is complete')
       );
     })();
-  }, [topup, sessionId]);
+  }, [
+    topup,
+    card,
+    sessionId,
+    router,
+    fetch,
+    toaster,
+    t,
+    refresh,
+    showSuccess,
+    wasPayAsYouGo,
+    f,
+  ]);
 
   return null;
 };

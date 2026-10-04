@@ -22,6 +22,7 @@ import {
   CheckIcon,
   Spinner,
   TEAL_SOFT,
+  WalletIcon,
 } from '@gitroom/frontend/components/wallet/wallet.ui';
 
 // What the browser remembers across the Stripe redirect, to tell a first
@@ -57,6 +58,7 @@ export const TopUpModal: FC<{ context?: string }> = ({ context }) => {
   const [step, setStep] = useState<'form' | 'redirect'>('form');
   const [error, setError] = useState('');
   const input = useRef<HTMLInputElement>(null);
+  const ready = value !== null;
 
   // Start at the minimum, as a plain number in the currency's major unit.
   useEffect(() => {
@@ -65,12 +67,13 @@ export const TopUpModal: FC<{ context?: string }> = ({ context }) => {
     }
   }, [rules, value, f.factor]);
 
+  // Focus the amount once, when it first appears.
   useEffect(() => {
-    if (value !== null) {
+    if (ready) {
       input.current?.focus();
       input.current?.select();
     }
-  }, [value === null]);
+  }, [ready]);
 
   const amount = useMemo(() => {
     const n = parseFloat(value || '');
@@ -97,7 +100,7 @@ export const TopUpModal: FC<{ context?: string }> = ({ context }) => {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok || !body?.url) {
-        throw new Error(body?.message || '');
+        throw new Error();
       }
       try {
         sessionStorage.setItem(
@@ -112,17 +115,16 @@ export const TopUpModal: FC<{ context?: string }> = ({ context }) => {
         // Storage can be blocked; the return page copes without it.
       }
       window.location.href = body.url;
-    } catch (e) {
+    } catch {
       setStep('form');
       setError(
-        (e as Error).message ||
-          t(
-            'wallet_checkout_failed',
-            'Checkout could not start. Please try again.'
-          )
+        t(
+          'wallet_checkout_failed',
+          'Checkout could not start. Please try again.'
+        )
       );
     }
-  }, [valid, blocked, amount, keepsCard, save, wallet?.payAsYouGo]);
+  }, [fetch, t, valid, blocked, amount, keepsCard, save, wallet?.payAsYouGo]);
 
   if (step === 'redirect') {
     return (
@@ -139,6 +141,26 @@ export const TopUpModal: FC<{ context?: string }> = ({ context }) => {
     return (
       <div className="flex justify-center py-[40px]">
         <Spinner />
+      </div>
+    );
+  }
+
+  // Top-ups are not switched on for this instance yet.
+  if (!wallet.paymentsEnabled) {
+    return (
+      <div className="flex flex-col items-center text-center gap-[8px] py-[24px] whitespace-normal">
+        <div className="w-[44px] h-[44px] rounded-full bg-newBgLineColor text-textItemBlur flex items-center justify-center mb-[6px]">
+          <WalletIcon size={20} />
+        </div>
+        <div className="text-[15px] font-[600]">
+          {t('wallet_topup_not_available', 'Top-ups are not available yet.')}
+        </div>
+        <div className="text-[13px] text-textItemBlur max-w-[360px]">
+          {t(
+            'wallet_topup_not_available_body',
+            'Everything free stays free. You will be able to top up here soon.'
+          )}
+        </div>
       </div>
     );
   }
@@ -164,7 +186,7 @@ export const TopUpModal: FC<{ context?: string }> = ({ context }) => {
           className={clsx(
             'bg-newBgColorInner h-[56px] border rounded-[8px] flex items-center min-w-0',
             tooLow
-              ? 'border-[#f97066]'
+              ? 'border-danger'
               : 'border-newTableBorder focus-within:border-btnPrimary'
           )}
         >
@@ -195,7 +217,7 @@ export const TopUpModal: FC<{ context?: string }> = ({ context }) => {
         </div>
         <div
           id="wallet-topup-error"
-          className={clsx('text-[12px] text-red-400', !tooLow && 'hidden')}
+          className={clsx('text-[12px] text-danger', !tooLow && 'hidden')}
         >
           {t('wallet_min_topup', 'The minimum top-up is {{amount}}', {
             amount: f.money(minAmount),
@@ -280,7 +302,7 @@ export const TopUpModal: FC<{ context?: string }> = ({ context }) => {
       )}
 
       <div className="flex flex-col gap-[8px]">
-        {!!error && <div className="text-[13px] text-red-400">{error}</div>}
+        {!!error && <div className="text-[13px] text-danger">{error}</div>}
         <button
           type="submit"
           disabled={!valid || blocked}

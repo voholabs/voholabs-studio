@@ -4,23 +4,20 @@ import React, { FC, ReactNode } from 'react';
 import clsx from 'clsx';
 import { tooltipHtml } from '@gitroom/frontend/components/wallet/wallet.text';
 
-// Class strings shared by the wallet surfaces. Colours come from the --new-*
-// tokens; the few wallet-only tints (positive green, teal text) carry a light
-// value and a dark: override so they follow the theme.
+// Class strings shared by the wallet surfaces. Every colour is a --new-*
+// token (colors.scss), so dark and light follow the theme.
 export const BTN_PRIMARY =
   'text-white bg-btnPrimary hover:brightness-110 h-[44px] px-[20px] rounded-[8px] text-[15px] font-[600] flex items-center justify-center gap-[8px] transition disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:brightness-100';
 export const BTN_SIMPLE =
   'text-btnText bg-btnSimple hover:brightness-125 h-[44px] px-[20px] rounded-[8px] text-[15px] font-[600] flex items-center justify-center gap-[8px] transition disabled:opacity-50 disabled:cursor-not-allowed';
 export const CARD = 'rounded-[12px] border border-newTableBorder';
-export const POS_TEXT = 'text-[#12805c] dark:text-[#6CE9A6]';
-export const POS_BG = 'bg-[#12805c] dark:bg-[#6CE9A6]';
-export const POS_SOFT =
-  'bg-[rgba(18,128,92,0.1)] dark:bg-[rgba(108,233,166,0.12)]';
-export const TEAL_TEXT = 'text-[#176a75] dark:text-[#5fd3df]';
-export const TEAL_SOFT =
-  'bg-[rgba(32,128,141,0.12)] dark:bg-[rgba(32,128,141,0.22)]';
-export const DANGER_TEXT = 'text-[#f2555a]';
-export const DANGER_SOFT = 'bg-[#f2555a]/10';
+export const POS_TEXT = 'text-pos';
+export const POS_BG = 'bg-pos';
+export const POS_SOFT = 'bg-posSoft';
+export const TEAL_TEXT = 'text-tealText';
+export const TEAL_SOFT = 'bg-tealSoft';
+export const DANGER_TEXT = 'text-danger';
+export const DANGER_SOFT = 'bg-dangerSoft';
 export const PILL =
   'inline-flex items-center h-[22px] px-[8px] rounded-full text-[11px] font-[600] whitespace-nowrap';
 export const PILL_TEAL = clsx(PILL, TEAL_SOFT, TEAL_TEXT);

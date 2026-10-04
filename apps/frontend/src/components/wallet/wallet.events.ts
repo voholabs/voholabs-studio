@@ -1,7 +1,6 @@
 'use client';
 
 import { EventEmitter } from 'events';
-import { useCallback } from 'react';
 
 // Opens the top-up dialog from anywhere (components, hooks or plain code such
 // as a fetch handler). <WalletHost /> in the app layout listens for it.
@@ -18,6 +17,3 @@ export const OPEN_TOP_UP = 'open-top-up';
 export const openTopUp = (options: OpenTopUpOptions = {}) => {
   walletEvents.emit(OPEN_TOP_UP, options);
 };
-
-export const useOpenTopUp = () =>
-  useCallback((options?: OpenTopUpOptions) => openTopUp(options), []);

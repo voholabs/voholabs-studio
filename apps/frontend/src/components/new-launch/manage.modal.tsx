@@ -47,7 +47,13 @@ import { useShortlinkPreference } from '@gitroom/frontend/components/settings/sh
 import dayjs from 'dayjs';
 import { Button } from '@gitroom/react/form/button';
 import { ReviewedCheckbox } from '@gitroom/frontend/components/launches/reviewed.checkbox';
-import { WalletCostLine } from '@gitroom/frontend/components/new-launch/wallet.cost.line';
+import { useWalletFormat } from '@gitroom/frontend/components/wallet/wallet.hooks';
+import {
+  useComposerWalletCost,
+  useWalletAvatarTip,
+  WalletCostLine,
+  WalletLockHint,
+} from '@gitroom/frontend/components/new-launch/wallet.cost.line';
 
 export const ManageModal: FC<AddEditModalProps> = (props) => {
   const t = useT();
@@ -240,6 +246,12 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
     modal.closeAll();
     return;
   }, [existingData, mutate, modal]);
+
+  // Wallet workspaces: what the post costs, for the footer and the toast.
+  const walletCost = useComposerWalletCost();
+  const walletAvatarTip = useWalletAvatarTip();
+  const walletPrice = walletCost.estimate?.price || 0;
+  const walletFormat = useWalletFormat();
 
   const schedule = useCallback(
     (type: 'draft' | 'now' | 'schedule' | 'update') => async () => {
@@ -469,7 +481,13 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
         if (!addEditSets) {
           mutate();
           toaster.show(
-            !existingData.integration
+            type !== 'draft' && walletPrice > 0
+              ? t(
+                  'wallet_scheduled_toast',
+                  'Scheduled. {{credits}} credits charge when it publishes.',
+                  { credits: walletFormat.credits(walletPrice) }
+                )
+              : !existingData.integration
               ? t('added_successfully', 'Added successfully')
               : t('updated_successfully', 'Updated successfully')
           );
@@ -494,6 +512,8 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
       dummy,
       shortlinkPreferenceData,
       reviewed,
+      walletPrice,
+      walletFormat,
     ]
   );
 
@@ -518,8 +538,12 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
                   className="gap-[32px] flex flex-col pe-[8px] pt-[20px] ps-[20px] absolute top-0 left-0 w-full h-full overflow-x-hidden overflow-y-scroll scrollbar scrollbar-thumb-newColColor scrollbar-track-newBgColorInner"
                 >
                   <div className="flex w-full">
-                    <div className="flex flex-1">
-                      <PicksSocialsComponent toolTip={true} />
+                    <div className="flex flex-1 items-center gap-[8px]">
+                      <PicksSocialsComponent
+                        toolTip={true}
+                        toolTipFor={walletAvatarTip}
+                      />
+                      {!existingData.integration && <WalletLockHint />}
                     </div>
                     <div>
                       {!dummy && (
@@ -623,9 +647,8 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
             </div>
           </div>
         </div>
-        {!dummy && !addEditSets && <WalletCostLine />}
-        <div className="select-none h-[84px] py-[20px] border-t border-newBorder flex items-center">
-          <div className="flex-1 flex ps-[20px] gap-[8px]">
+        <div className="select-none min-h-[84px] py-[20px] border-t border-newBorder flex items-center">
+          <div className="flex-1 flex ps-[20px] gap-[8px] min-w-0">
             {!dummy && (
               <TagsComponent
                 name="tags"
@@ -643,6 +666,11 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
 
             {!dummy && (
               <ReviewedCheckbox checked={reviewed} onChange={setReviewed} />
+            )}
+            {!dummy && !addEditSets && (
+              <div className="self-center ms-[12px] min-w-0">
+                <WalletCostLine cost={walletCost} />
+              </div>
             )}
           </div>
           <div className="pe-[20px] flex items-center justify-end gap-[8px]">

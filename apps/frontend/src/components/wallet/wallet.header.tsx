@@ -33,10 +33,15 @@ import {
 
 // Below this balance (hundredths of a credit) the wallet reads as low when no
 // auto top-up threshold is set.
-export const DEFAULT_THRESHOLD = 25000;
+const DEFAULT_THRESHOLD = 25000;
+
+// The threshold a wallet reads as low under: its auto top-up threshold, else
+// the default from the billing settings.
+export const lowThreshold = (w: WalletSummary) =>
+  w.autoTopUp.threshold ?? w.topUp?.defaultThreshold ?? DEFAULT_THRESHOLD;
 
 export const isLow = (w: WalletSummary) =>
-  w.payAsYouGo && w.balance < (w.autoTopUp.threshold ?? DEFAULT_THRESHOLD);
+  w.payAsYouGo && w.balance < lowThreshold(w);
 
 export const rateLine = (
   t: ReturnType<typeof useT>,
@@ -101,13 +106,30 @@ const RecentTransactions: FC<{ f: WalletFormat }> = ({ f }) => {
   const { data: prices } = useWalletPrices();
   const find = (key: string) =>
     prices?.flatMap((s) => s.actions).find((a) => a.key === key);
-  if (!data?.items.length) return null;
   return (
     <div className="border-t border-newTableBorder pb-[6px]">
       <div className="px-[20px] pt-[14px] pb-[4px] text-[11px] font-[600] uppercase tracking-[0.08em] text-textItemBlur">
         {t('wallet_recent', 'Recent')}
       </div>
-      {data.items.slice(0, 3).map((tx) => {
+      {!data &&
+        [0, 1, 2].map((n) => (
+          <div
+            key={n}
+            className="flex items-center gap-[12px] px-[20px] py-[9px]"
+          >
+            <div className="flex-1 flex flex-col gap-[6px]">
+              <div className="h-[12px] w-[60%] rounded-[4px] bg-newBgLineColor animate-pulse" />
+              <div className="h-[10px] w-[40%] rounded-[4px] bg-newBgLineColor animate-pulse" />
+            </div>
+            <div className="h-[12px] w-[48px] rounded-[4px] bg-newBgLineColor animate-pulse" />
+          </div>
+        ))}
+      {!!data && !data.items.length && (
+        <div className="px-[20px] py-[9px] text-[13px] text-textItemBlur">
+          {t('wallet_no_transactions', 'No transactions yet')}
+        </div>
+      )}
+      {(data?.items || []).slice(0, 3).map((tx) => {
         const pos = tx.amount > 0;
         return (
           <div
@@ -154,6 +176,40 @@ const PopoverLink: FC<{ href: string; label: string; onClick: () => void }> = ({
   </Link>
 );
 
+// The popover's Top up. Until top-ups are switched on it stays visible but
+// disabled, with a short note instead of the rate.
+const TopUpButton: FC<{
+  wallet: WalletSummary;
+  onClick: () => void;
+  rate?: boolean;
+}> = ({ wallet, onClick, rate = true }) => {
+  const t = useT();
+  const f = useWalletFormat(wallet.currency);
+  const off = !wallet.paymentsEnabled;
+  const note = off
+    ? t('wallet_topup_not_available', 'Top-ups are not available yet.')
+    : rate
+    ? rateLine(t, f, wallet)
+    : '';
+  return (
+    <>
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={off}
+        className={clsx(BTN_PRIMARY, 'w-full')}
+      >
+        <PlusIcon /> {t('wallet_top_up', 'Top up')}
+      </button>
+      {!!note && (
+        <div className="text-[12px] text-textItemBlur text-center -mt-[6px]">
+          {note}
+        </div>
+      )}
+    </>
+  );
+};
+
 const WalletPopover: FC<{ wallet: WalletSummary; close: () => void }> = ({
   wallet,
   close,
@@ -185,7 +241,7 @@ const WalletPopover: FC<{ wallet: WalletSummary; close: () => void }> = ({
           </div>
           <div className="flex items-baseline gap-[8px]">
             <span className="text-[40px] font-[600] leading-none tabular-nums text-textItemBlur">
-              <Num>{f.credits(wallet.balance)}</Num>
+              <Num>{f.credits(wallet.frozen ? wallet.balance : 0)}</Num>
             </span>
             <span className="text-[14px] text-textItemBlur">
               {t('wallet_credits', 'credits')}
@@ -197,16 +253,7 @@ const WalletPopover: FC<{ wallet: WalletSummary; close: () => void }> = ({
               'Credits pay for pay-per-use features. Everything free stays free.'
             )}
           </div>
-          <button
-            type="button"
-            onClick={topUp}
-            className={clsx(BTN_PRIMARY, 'w-full')}
-          >
-            <PlusIcon /> {t('wallet_top_up', 'Top up')}
-          </button>
-          <div className="text-[12px] text-textItemBlur text-center -mt-[6px]">
-            {rateLine(t, f, wallet)}
-          </div>
+          <TopUpButton wallet={wallet} onClick={topUp} />
         </div>
         <div className="border-t border-newTableBorder">
           <PopoverLink
@@ -250,13 +297,7 @@ const WalletPopover: FC<{ wallet: WalletSummary; close: () => void }> = ({
           )}
         </div>
         <ForecastNotice wallet={wallet} onTopUp={close} />
-        <button
-          type="button"
-          onClick={topUp}
-          className={clsx(BTN_PRIMARY, 'w-full')}
-        >
-          <PlusIcon /> {t('wallet_top_up', 'Top up')}
-        </button>
+        <TopUpButton wallet={wallet} onClick={topUp} rate={false} />
         <div className="flex items-center gap-[8px] text-[13px]">
           <span
             className={clsx(
@@ -276,7 +317,7 @@ const WalletPopover: FC<{ wallet: WalletSummary; close: () => void }> = ({
                   'Auto top-up on. Adds {{amount}} below {{threshold}}',
                   {
                     amount: f.moneyShort(auto.amount || 0),
-                    threshold: f.credits(auto.threshold ?? DEFAULT_THRESHOLD),
+                    threshold: f.credits(lowThreshold(wallet)),
                   }
                 )
               : t('wallet_auto_off', 'Auto top-up off')}
@@ -319,12 +360,9 @@ export const WalletHeader: FC = () => {
   const [open, setOpen] = useState(false);
   const ref = useClickAway<HTMLDivElement>(() => setOpen(false));
 
-  // Nothing to show until top-ups exist, unless the wallet already has credit.
-  const visible =
-    !!wallet &&
-    (wallet.paymentsEnabled || wallet.payAsYouGo || wallet.balance !== 0);
-
-  if (!visible) {
+  // Rendered for the free tier only (the layout decides), so it shows as soon
+  // as the wallet loads, even before top-ups are switched on.
+  if (!wallet) {
     return <WalletHost />;
   }
 

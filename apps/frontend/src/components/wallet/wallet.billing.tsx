@@ -30,9 +30,9 @@ import {
   useIsWalletAdmin,
 } from '@gitroom/frontend/components/wallet/top.up.modal';
 import {
-  DEFAULT_THRESHOLD,
   ForecastNotice,
   isLow,
+  lowThreshold,
   rateLine,
 } from '@gitroom/frontend/components/wallet/wallet.header';
 import { WalletCheckoutReturn } from '@gitroom/frontend/components/wallet/wallet.return';
@@ -284,38 +284,74 @@ const AutoTopUpCard: FC<{ wallet: WalletSummary; f: WalletFormat }> = ({
   const isAdmin = useIsWalletAdmin();
   const paid = wallet.payAsYouGo;
   const minAmount = wallet.topUp?.minAmount || 0;
-  const initial = useCallback((w: WalletSummary) => {
-    const amount = w.autoTopUp.amount || w.topUp?.minAmount || 0;
+  const autoOptions = wallet.topUp?.autoOptions;
+  const settingCaps = wallet.topUp?.capOptions;
+  const [form, setForm] = useState(() => {
+    const amount =
+      wallet.autoTopUp.amount ||
+      autoOptions?.[0] ||
+      wallet.topUp?.minAmount ||
+      0;
     return {
-      threshold: ((w.autoTopUp.threshold ?? DEFAULT_THRESHOLD) / 100).toFixed(
-        2
-      ),
+      threshold: f.plainCredits(lowThreshold(wallet)),
       amount,
-      cap: w.autoTopUp.monthlyCap || amount * 5,
+      cap:
+        wallet.autoTopUp.monthlyCap ||
+        settingCaps?.find((c) => c >= amount) ||
+        amount * 5,
     };
-  }, []);
-  const [form, setForm] = useState(() => initial(wallet));
+  });
   const [saving, setSaving] = useState(false);
+  const [changingCard, setChangingCard] = useState(false);
   const on = paid && wallet.autoTopUp.enabled;
   const canEdit = paid && isAdmin && !!wallet.card && !wallet.frozen;
 
+  // Choices come from the billing settings; the saved values always stay
+  // selectable.
   const amountOptions = useMemo(
-    () => uniqueSorted([...(wallet.topUp?.options || []), form.amount]),
-    [wallet.topUp?.options, form.amount]
+    () =>
+      uniqueSorted([
+        ...(autoOptions?.length ? autoOptions : wallet.topUp?.options || []),
+        form.amount,
+      ]),
+    [autoOptions, wallet.topUp?.options, form.amount]
   );
-  // Limits are whole multiples of the top-up amount, so at least one fits.
   const capOptions = useMemo(
     () =>
       uniqueSorted([
-        ...[2, 5, 10, 25].map((k) => k * form.amount),
+        ...(settingCaps?.length
+          ? settingCaps
+          : [2, 5, 10, 25].map((k) => k * form.amount)),
         form.cap,
       ]).filter((v) => v >= form.amount),
-    [form.amount, form.cap]
+    [settingCaps, form.amount, form.cap]
   );
 
-  const thresholdHundredths = Math.round(
-    (parseFloat(form.threshold) || 0) * 100
-  );
+  const thresholdHundredths = f.parseCredits(form.threshold);
+
+  // Swaps the saved card through Stripe (setup mode); Stripe sends the user
+  // back to /wallet?card=saved or ?card=cancelled.
+  const changeCard = useCallback(async () => {
+    setChangingCard(true);
+    try {
+      const res = await fetch('/wallet/card', { method: 'POST' });
+      const body = await res.json().catch(() => ({}));
+      if (res.ok && body?.url) {
+        window.location.href = body.url;
+        return;
+      }
+    } catch {
+      // Falls through to the message below.
+    }
+    setChangingCard(false);
+    toaster.show(
+      t(
+        'wallet_card_change_failed',
+        'The card could not be changed. Please try again.'
+      ),
+      'warning'
+    );
+  }, [fetch, toaster, t]);
 
   const save = useCallback(
     async (enabled: boolean, message: string) => {
@@ -333,19 +369,23 @@ const AutoTopUpCard: FC<{ wallet: WalletSummary; f: WalletFormat }> = ({
         const body = await res.json().catch(() => ({}));
         if (!res.ok) {
           toaster.show(
-            body?.message ||
-              t('wallet_auto_save_failed', 'Auto top-up could not be saved.'),
+            t('wallet_auto_save_failed', 'Auto top-up could not be saved.'),
             'warning'
           );
           return;
         }
         toaster.show(message);
         await refresh(body?.balance !== undefined ? body : undefined);
+      } catch {
+        toaster.show(
+          t('wallet_auto_save_failed', 'Auto top-up could not be saved.'),
+          'warning'
+        );
       } finally {
         setSaving(false);
       }
     },
-    [thresholdHundredths, form, refresh, initial]
+    [fetch, toaster, t, thresholdHundredths, form, refresh]
   );
 
   const used = wallet.autoTopUp.usedThisMonth || 0;
@@ -405,7 +445,7 @@ const AutoTopUpCard: FC<{ wallet: WalletSummary; f: WalletFormat }> = ({
               onChange={(e) =>
                 setForm((s) => ({
                   ...s,
-                  threshold: e.target.value.replace(/[^0-9.]/g, ''),
+                  threshold: f.creditsInput(e.target.value),
                 }))
               }
               className="w-[84px] h-full bg-transparent ps-[12px] text-[14px] font-[600] tabular-nums outline-none"
@@ -449,11 +489,28 @@ const AutoTopUpCard: FC<{ wallet: WalletSummary; f: WalletFormat }> = ({
       {paid && (
         <>
           {!!wallet.card && (
-            <div className="flex items-center gap-[12px] p-[12px] rounded-[8px] bg-newTableHeader">
+            <div className="flex items-center flex-wrap gap-[12px] p-[12px] rounded-[8px] bg-newTableHeader">
               <CardIcon />
-              <div className="flex-1 text-[14px] font-[600]">
-                {cardLabel(wallet.card)}
+              <div className="flex-1 min-w-0 text-[14px]">
+                <span className="font-[600]">{cardLabel(wallet.card)}</span>
+                {!!wallet.card.exp && (
+                  <span className="text-textItemBlur ms-[6px] tabular-nums">
+                    {t('wallet_card_expires', 'Expires {{exp}}', {
+                      exp: wallet.card.exp,
+                    })}
+                  </span>
+                )}
               </div>
+              {isAdmin && !wallet.frozen && (
+                <button
+                  type="button"
+                  disabled={changingCard}
+                  onClick={changeCard}
+                  className="text-[13px] text-textItemBlur hover:text-newTextColor underline underline-offset-2 disabled:opacity-50"
+                >
+                  {t('wallet_card_change', 'Change')}
+                </button>
+              )}
             </div>
           )}
           <div className={clsx('flex flex-col gap-[8px]', !on && 'opacity-50')}>
@@ -796,6 +853,14 @@ const TYPE_STYLE: Record<string, string> = {
 
 const PAGE_SIZE = 10;
 
+// The type filter: tab key -> the API's ?type= value.
+const TX_FILTERS: Record<string, string> = {
+  all: '',
+  topups: 'TOPUP,AUTO_TOPUP',
+  spend: 'SPEND',
+  refunds: 'REFUND',
+};
+
 // Page numbers to show: the first, the last and two either side of the
 // current one, with gaps as null.
 const pageWindow = (page: number, pages: number) => {
@@ -813,8 +878,31 @@ const TransactionsTab: FC<{ wallet: WalletSummary; f: WalletFormat }> = ({
 }) => {
   const t = useT();
   const [page, setPage] = useState(0);
-  const { data, isLoading } = useWalletTransactions(page, PAGE_SIZE);
+  const [filter, setFilter] = useState('all');
+  const { data, isLoading } = useWalletTransactions(
+    page,
+    PAGE_SIZE,
+    true,
+    TX_FILTERS[filter]
+  );
   const find = usePriceLookup();
+  const filters = (
+    <div className="flex items-center justify-between gap-[12px] flex-wrap">
+      <Segmented
+        items={[
+          ['all', t('wallet_tx_filter_all', 'All')],
+          ['topups', t('wallet_tx_filter_topups', 'Top-ups')],
+          ['spend', t('wallet_tx_filter_spend', 'Spend')],
+          ['refunds', t('wallet_tx_filter_refunds', 'Refunds')],
+        ]}
+        value={filter}
+        onChange={(v) => {
+          setFilter(v);
+          setPage(0);
+        }}
+      />
+    </div>
+  );
 
   if (isLoading && !data) {
     return (
@@ -824,14 +912,18 @@ const TransactionsTab: FC<{ wallet: WalletSummary; f: WalletFormat }> = ({
     );
   }
   if (!data?.total) {
+    // With no filter there is nothing at all; a filter keeps its tabs.
     return (
-      <EmptyState
-        title={t('wallet_no_transactions', 'No transactions yet')}
-        body={t(
-          'wallet_no_transactions_body',
-          'Top-ups, spend and refunds will show here.'
-        )}
-      />
+      <>
+        {filter !== 'all' && filters}
+        <EmptyState
+          title={t('wallet_no_transactions', 'No transactions yet')}
+          body={t(
+            'wallet_no_transactions_body',
+            'Top-ups, spend and refunds will show here.'
+          )}
+        />
+      </>
     );
   }
 
@@ -840,123 +932,143 @@ const TransactionsTab: FC<{ wallet: WalletSummary; f: WalletFormat }> = ({
   const to = Math.min((page + 1) * PAGE_SIZE, data.total);
 
   return (
-    <div className={clsx(CARD, 'overflow-hidden min-w-0')}>
-      <div className={clsx('overflow-x-auto', SCROLL)}>
-        <table className="w-full min-w-[640px] text-[14px]">
-          <thead>
-            <tr className="bg-newTableHeader text-[12px] text-textItemBlur h-[40px]">
-              <th className="text-start font-[500] px-[20px]">
-                {t('wallet_col_name', 'Name')}
-              </th>
-              <th className="text-start font-[500] px-[20px]">
-                {t('wallet_col_type', 'Type')}
-              </th>
-              <th className="text-end font-[500] px-[20px]">
-                {t('wallet_col_credits', 'Credits')}
-              </th>
-              <th className="text-start font-[500] px-[20px]">
-                {t('wallet_col_date', 'Date')}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.items.map((tx) => {
-              const pos = tx.amount > 0;
-              return (
-                <tr
-                  key={tx.id}
-                  className="border-t border-newTableBorder h-[56px] hover:bg-boxHover"
-                >
-                  <td className="px-[20px] py-[8px]">
-                    <div className="font-[600]">{txName(t, tx, find)}</div>
-                    {!!tx.description && (
-                      <div className="text-[12px] text-textItemBlur">
-                        {tx.description}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-[20px]">
-                    <span
+    <>
+      {filters}
+      <div className={clsx(CARD, 'overflow-hidden min-w-0')}>
+        <div className={clsx('overflow-x-auto', SCROLL)}>
+          <table className="w-full min-w-[700px] text-[14px]">
+            <thead>
+              <tr className="bg-newTableHeader text-[12px] text-textItemBlur h-[40px]">
+                <th className="text-start font-[500] px-[20px]">
+                  {t('wallet_col_name', 'Name')}
+                </th>
+                <th className="text-start font-[500] px-[20px]">
+                  {t('wallet_col_type', 'Type')}
+                </th>
+                <th className="text-end font-[500] px-[20px]">
+                  {t('wallet_col_credits', 'Credits')}
+                </th>
+                <th className="text-start font-[500] px-[20px]">
+                  {t('wallet_col_date', 'Date')}
+                </th>
+                <th className="px-[20px] w-[100px]">
+                  <span className="sr-only">
+                    {t('wallet_col_receipt', 'Receipt')}
+                  </span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.items.map((tx) => {
+                const pos = tx.amount > 0;
+                return (
+                  <tr
+                    key={tx.id}
+                    className="border-t border-newTableBorder h-[56px] hover:bg-boxHover"
+                  >
+                    <td className="px-[20px] py-[8px]">
+                      <div className="font-[600]">{txName(t, tx, find)}</div>
+                      {!!tx.description && (
+                        <div className="text-[12px] text-textItemBlur">
+                          {tx.description}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-[20px]">
+                      <span
+                        className={clsx(
+                          PILL,
+                          TYPE_STYLE[tx.type] ||
+                            'bg-newBgLineColor text-textItemBlur'
+                        )}
+                      >
+                        {txTypeLabel(t, tx.type)}
+                      </span>
+                    </td>
+                    <td
                       className={clsx(
-                        PILL,
-                        TYPE_STYLE[tx.type] ||
-                          'bg-newBgLineColor text-textItemBlur'
+                        'px-[20px] text-end font-[600]',
+                        pos && POS_TEXT
                       )}
                     >
-                      {txTypeLabel(t, tx.type)}
-                    </span>
-                  </td>
-                  <td
-                    className={clsx(
-                      'px-[20px] text-end font-[600]',
-                      pos && POS_TEXT
-                    )}
-                  >
-                    <Num>
-                      {pos ? '+' : '−'}
-                      {f.credits(Math.abs(tx.amount))}
-                    </Num>
-                  </td>
-                  <td className="px-[20px] text-textItemBlur tabular-nums whitespace-nowrap">
-                    {f.dateTime(tx.createdAt)}
-                  </td>
-                </tr>
-              );
+                      <Num>
+                        {pos ? '+' : '−'}
+                        {f.credits(Math.abs(tx.amount))}
+                      </Num>
+                    </td>
+                    <td className="px-[20px] text-textItemBlur tabular-nums whitespace-nowrap">
+                      {f.dateTime(tx.createdAt)}
+                    </td>
+                    <td className="px-[20px] text-end">
+                      {!!tx.receiptUrl && (
+                        <a
+                          href={tx.receiptUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[13px] text-textItemBlur hover:text-newTextColor underline underline-offset-2"
+                        >
+                          {t('wallet_receipt', 'Receipt')}
+                        </a>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex items-center justify-between gap-[12px] flex-wrap px-[20px] py-[12px] min-h-[56px] border-t border-newTableBorder text-[13px]">
+          <span className="text-textItemBlur">
+            {t('wallet_showing', 'Showing {{from}} to {{to}} of {{total}}', {
+              from: f.number(from),
+              to: f.number(to),
+              total: f.number(data.total),
             })}
-          </tbody>
-        </table>
-      </div>
-      <div className="flex items-center justify-between gap-[12px] flex-wrap px-[20px] py-[12px] min-h-[56px] border-t border-newTableBorder text-[13px]">
-        <span className="text-textItemBlur">
-          {t('wallet_showing', 'Showing {{from}} to {{to}} of {{total}}', {
-            from: f.number(from),
-            to: f.number(to),
-            total: f.number(data.total),
-          })}
-        </span>
-        <div className="flex items-center flex-wrap gap-[4px]">
-          <button
-            type="button"
-            disabled={page === 0}
-            onClick={() => setPage((p) => p - 1)}
-            className="h-[32px] px-[10px] rounded-[6px] border border-newTableBorder hover:bg-boxHover disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {t('wallet_previous', 'Previous')}
-          </button>
-          {pageWindow(page, pages).map((n, i) =>
-            n === null ? (
-              <span key={`gap-${i}`} className="px-[4px] text-textItemBlur">
-                …
-              </span>
-            ) : (
-              <button
-                key={n}
-                type="button"
-                aria-label={t('wallet_page_n', 'Page {{n}}', { n: n + 1 })}
-                aria-current={n === page ? 'page' : undefined}
-                onClick={() => setPage(n)}
-                className={clsx(
-                  'h-[32px] min-w-[32px] px-[6px] rounded-[6px] tabular-nums',
-                  n === page
-                    ? 'bg-boxFocused text-textItemFocused font-[600]'
-                    : 'hover:bg-boxHover text-textItemBlur'
-                )}
-              >
-                {f.number(n + 1)}
-              </button>
-            )
-          )}
-          <button
-            type="button"
-            disabled={page >= pages - 1}
-            onClick={() => setPage((p) => p + 1)}
-            className="h-[32px] px-[10px] rounded-[6px] border border-newTableBorder hover:bg-boxHover disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {t('wallet_next', 'Next')}
-          </button>
+          </span>
+          <div className="flex items-center flex-wrap gap-[4px]">
+            <button
+              type="button"
+              disabled={page === 0}
+              onClick={() => setPage((p) => p - 1)}
+              className="h-[32px] px-[10px] rounded-[6px] border border-newTableBorder hover:bg-boxHover disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {t('wallet_previous', 'Previous')}
+            </button>
+            {pageWindow(page, pages).map((n, i) =>
+              n === null ? (
+                <span key={`gap-${i}`} className="px-[4px] text-textItemBlur">
+                  …
+                </span>
+              ) : (
+                <button
+                  key={n}
+                  type="button"
+                  aria-label={t('wallet_page_n', 'Page {{n}}', { n: n + 1 })}
+                  aria-current={n === page ? 'page' : undefined}
+                  onClick={() => setPage(n)}
+                  className={clsx(
+                    'h-[32px] min-w-[32px] px-[6px] rounded-[6px] tabular-nums',
+                    n === page
+                      ? 'bg-boxFocused text-textItemFocused font-[600]'
+                      : 'hover:bg-boxHover text-textItemBlur'
+                  )}
+                >
+                  {f.number(n + 1)}
+                </button>
+              )
+            )}
+            <button
+              type="button"
+              disabled={page >= pages - 1}
+              onClick={() => setPage((p) => p + 1)}
+              className="h-[32px] px-[10px] rounded-[6px] border border-newTableBorder hover:bg-boxHover disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {t('wallet_next', 'Next')}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
@@ -1021,6 +1133,7 @@ export const WalletBillingPage: FC = () => {
                 wallet.autoTopUp.amount,
                 wallet.autoTopUp.monthlyCap,
                 wallet.card?.last4,
+                wallet.card?.exp,
               ].join('|')}
               wallet={wallet}
               f={f}

@@ -15,6 +15,10 @@ import {
   useDecisionModal,
   useModals,
 } from '@gitroom/frontend/components/layout/new-modal';
+import {
+  PER_USE_RING,
+  usePerUseProviders,
+} from '@gitroom/frontend/components/wallet-locks/wallet.access';
 
 export function useHasScroll(ref: RefObject<HTMLElement | null>): boolean {
   const [hasHorizontalScroll, setHasHorizontalScroll] = useState(false);
@@ -52,6 +56,7 @@ export function useHasScroll(ref: RefObject<HTMLElement | null>): boolean {
 
 export const SelectCurrent: FC = () => {
   const modals = useDecisionModal();
+  const perUse = usePerUseProviders();
   const {
     selectedIntegrations,
     current,
@@ -150,7 +155,10 @@ export const SelectCurrent: FC = () => {
               >
                 <SafeImage
                   src={integration.picture || '/no-picture.jpg'}
-                  className="rounded-full min-w-[26px]"
+                  className={clsx(
+                    'rounded-full min-w-[26px]',
+                    perUse.has(integration.identifier) && PER_USE_RING
+                  )}
                   alt={integration.identifier}
                   width={26}
                   height={26}

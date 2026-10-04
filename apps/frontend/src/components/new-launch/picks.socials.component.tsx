@@ -8,6 +8,10 @@ import { useShallow } from 'zustand/react/shallow';
 import { useExistingData } from '@gitroom/frontend/components/launches/helpers/use.existing.data';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 import ImageWithFallback from '@gitroom/react/helpers/image.with.fallback';
+import {
+  PER_USE_RING,
+  usePerUseProviders,
+} from '@gitroom/frontend/components/wallet-locks/wallet.access';
 
 export const PicksSocialsComponent: FC<{
   toolTip?: boolean;
@@ -15,6 +19,7 @@ export const PicksSocialsComponent: FC<{
   toolTipFor?: (integration: { identifier: string; name: string }) => string;
 }> = ({ toolTip, toolTipFor }) => {
   const exising = useExistingData();
+  const perUse = usePerUseProviders();
 
   const {
     locked,
@@ -45,7 +50,11 @@ export const PicksSocialsComponent: FC<{
               .map((integration) => (
                 <div
                   key={integration.id}
-                  className="flex gap-[8px] items-center"
+                  className={clsx(
+                    'flex gap-[8px] items-center',
+                    perUse.has(integration.identifier) &&
+                      clsx('rounded-full', PER_USE_RING)
+                  )}
                   {...(toolTip && {
                     'data-tooltip-id': 'tooltip',
                     'data-tooltip-content': toolTipFor

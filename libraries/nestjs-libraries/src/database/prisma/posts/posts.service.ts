@@ -142,12 +142,46 @@ export class PostsService {
     private _walletPosts: WalletPostsService
   ) {}
 
+  // What the wallet has to do with this organization's posts:
+  // - 'wallet': it is not on a paid plan, so posts may be charged (and a
+  //   charge that can't be paid stops the save);
+  // - 'refund': it is on a paid plan but has a wallet, so charges left from
+  //   before the plan can only be given back, never taken, and a wallet
+  //   error never touches the post;
+  // - 'none': a paid plan and no wallet: the wallet is not involved at all.
+  private async walletMode(orgId: string): Promise<'wallet' | 'refund' | 'none'> {
+    let org: Awaited<
+      ReturnType<PostsRepository['organizationBillingState']>
+    > | null;
+    try {
+      org = await this._postRepository.organizationBillingState(orgId);
+    } catch (err) {
+      return hasAccess(
+        await this._postRepository.organizationSubscription(orgId)
+      )
+        ? 'none'
+        : 'wallet';
+    }
+    if (!hasAccess(org)) {
+      return 'wallet';
+    }
+    return org?.wallet ? 'refund' : 'none';
+  }
+
   // Refunds what was charged for the unsent posts of these groups (deleted,
   // drafted, failed). Giving credits back must never break the action that
   // triggered it, so a failure only alerts.
-  private async refundGroups(orgId: string, groups: string[], reason: string) {
+  private async refundGroups(
+    orgId: string,
+    groups: string[],
+    reason: string,
+    refundOnly = false
+  ) {
     try {
-      await this._walletPosts.settleGroups(orgId, groups, { reason });
+      await this._walletPosts.settleGroups(orgId, groups, {
+        reason,
+        refundOnly,
+      });
     } catch (err) {
       await walletAlert(
         `Refund failed for post groups ${groups.join(
@@ -557,7 +591,18 @@ export class PostsService {
       includeError?: boolean;
     }
   ) {
-    const posts = await this._postRepository.getPosts(orgId, query, options);
+    // Why a post failed is only read for an organization without a paid
+    // plan (the calendar marks posts the wallet stopped) or when asked for.
+    const walletErrors =
+      !options?.includeError &&
+      !(await this.organizationHasPaidPlan(orgId).catch(() => true));
+    if (!options?.includeError && !walletErrors) {
+      return this._postRepository.getPosts(orgId, query, options);
+    }
+    const posts = await this._postRepository.getPosts(orgId, query, {
+      ...options,
+      includeError: true,
+    });
     return posts.map((post: { error?: string | null }) =>
       options?.includeError ? withErrorKind(post) : errorKindOnly(post)
     );
@@ -589,7 +634,12 @@ export class PostsService {
   }
 
   async getPostsList(orgId: string, query: GetPostsListDto) {
-    const list = await this._postRepository.getPostsList(orgId, query);
+    if (await this.organizationHasPaidPlan(orgId).catch(() => true)) {
+      return minifyPostsList(
+        await this._postRepository.getPostsList(orgId, query)
+      );
+    }
+    const list = await this._postRepository.getPostsList(orgId, query, true);
     return minifyPostsList({
       ...list,
       posts: list.posts.map(errorKindOnly),
@@ -1143,7 +1193,15 @@ export class PostsService {
     } catch (err) {}
 
     const post = await this._postRepository.deletePost(orgId, group);
-    await this.refundGroups(orgId, [group], REFUND_REASONS.deleted);
+    const walletMode = await this.walletMode(orgId).catch(() => 'none');
+    if (walletMode !== 'none') {
+      await this.refundGroups(
+        orgId,
+        [group],
+        REFUND_REASONS.deleted,
+        walletMode === 'refund'
+      );
+    }
 
     if (!chainId && post?.id) {
       try {
@@ -1434,24 +1492,27 @@ export class PostsService {
 
     // Scheduling takes the credits now (drafts are free): refuse before
     // anything is saved when the wallet can't cover it, even after an
-    // automatic top-up.
-    await this._walletPosts.assertCanSchedule(
-      orgId,
-      body.posts.map((post) => ({
-        identifier: (post.settings as any)?.__type,
-        values: (post.value || []).map((v) => ({
-          id: v.id,
-          content: v.content,
-        })),
-        group: post.group,
-        scheduled:
-          body.type === 'draft'
-            ? false
-            : body.type === 'update'
-            ? 'keep'
-            : true,
-      }))
-    );
+    // automatic top-up. A paid plan is never charged, so it skips this.
+    const walletMode = await this.walletMode(orgId);
+    if (walletMode === 'wallet') {
+      await this._walletPosts.assertCanSchedule(
+        orgId,
+        body.posts.map((post) => ({
+          identifier: (post.settings as any)?.__type,
+          values: (post.value || []).map((v) => ({
+            id: v.id,
+            content: v.content,
+          })),
+          group: post.group,
+          scheduled:
+            body.type === 'draft'
+              ? false
+              : body.type === 'update'
+              ? 'keep'
+              : true,
+        }))
+      );
+    }
 
     const postList = [];
     for (const post of body.posts) {
@@ -1507,7 +1568,7 @@ export class PostsService {
 
       // Charge what is now on the schedule, re-price what changed and give
       // back what left it, before the post can publish.
-      await this.settleSavedPost(orgId, post.group, posts);
+      await this.settleSavedPost(orgId, post.group, posts, walletMode);
 
       if (body.type !== 'update') {
         this.startWorkflow(
@@ -1535,10 +1596,24 @@ export class PostsService {
   private async settleSavedPost(
     orgId: string,
     previousGroup: string | undefined,
-    posts: { id: string; group: string; parentPostId?: string | null }[]
+    posts: { id: string; group: string; parentPostId?: string | null }[],
+    walletMode: 'wallet' | 'refund' | 'none'
   ) {
     const group = posts[0].group;
     const groups = [group, ...(previousGroup ? [previousGroup] : [])];
+    if (walletMode === 'none') {
+      return;
+    }
+    if (walletMode === 'refund') {
+      // Nothing is charged on a paid plan: only give back what is left.
+      await this.refundGroups(
+        orgId,
+        groups,
+        REFUND_REASONS.includedInPlan,
+        true
+      );
+      return;
+    }
     try {
       await this._walletPosts.settleGroups(orgId, groups, {
         reason: REFUND_REASONS.edited,
@@ -1564,11 +1639,17 @@ export class PostsService {
     // that failed is refunded where it was published (PostActivity); the
     // parts after it were never tried.
     if (state === 'ERROR' && update?.organizationId) {
-      await this.refundGroups(
-        update.organizationId,
-        [update.group],
-        REFUND_REASONS.notSent
+      const walletMode = await this.walletMode(update.organizationId).catch(
+        () => 'none'
       );
+      if (walletMode !== 'none') {
+        await this.refundGroups(
+          update.organizationId,
+          [update.group],
+          REFUND_REASONS.notSent,
+          walletMode === 'refund'
+        );
+      }
     }
     return update;
   }
@@ -1584,7 +1665,8 @@ export class PostsService {
     }
 
     const state: State = status === 'draft' ? 'DRAFT' : 'QUEUE';
-    if (state === 'QUEUE') {
+    const walletMode = await this.walletMode(orgId);
+    if (state === 'QUEUE' && walletMode === 'wallet') {
       // Paid before it goes on the schedule; a 402 leaves it as it was.
       await this._walletPosts.settleGroups(orgId, [getPostById.group], {
         reason: REFUND_REASONS.edited,
@@ -1592,8 +1674,13 @@ export class PostsService {
       });
     }
     await this._postRepository.changeState(id, state);
-    if (state === 'DRAFT') {
-      await this.refundGroups(orgId, [getPostById.group], REFUND_REASONS.draft);
+    if (state === 'DRAFT' && walletMode !== 'none') {
+      await this.refundGroups(
+        orgId,
+        [getPostById.group],
+        REFUND_REASONS.draft,
+        walletMode === 'refund'
+      );
     }
 
     try {
@@ -1626,7 +1713,11 @@ export class PostsService {
       action
     );
 
-    if (action === 'schedule' && getPostById.state !== 'DRAFT') {
+    if (
+      action === 'schedule' &&
+      getPostById.state !== 'DRAFT' &&
+      (await this.walletMode(orgId)) === 'wallet'
+    ) {
       // Back on the schedule: pay for it (again, if it already went out
       // once). Short of credits, it goes back to how it was.
       try {

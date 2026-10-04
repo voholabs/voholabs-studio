@@ -91,9 +91,15 @@ export class WalletPostsService {
   private async plan(
     organizationId: string,
     rows: ChargePostRow[],
-    options: { mainState?: Record<string, string>; fresh?: string[] }
+    options: {
+      mainState?: Record<string, string>;
+      fresh?: string[];
+      refundOnly?: boolean;
+    }
   ) {
-    const charged = await this.chargedProviders(organizationId);
+    const charged = options.refundOnly
+      ? new Set<string>()
+      : await this.chargedProviders(organizationId);
     const mainState = new Map<string, string>();
     for (const row of rows) {
       if (!row.deletedAt && !row.parentPostId) {
@@ -131,8 +137,12 @@ export class WalletPostsService {
   private async apply(
     organizationId: string,
     items: SettleItem[],
-    reason: string
+    reason: string,
+    topUp = true
   ) {
+    if (!topUp) {
+      return this._repository.settleCharges(organizationId, items, reason);
+    }
     try {
       return await this._repository.settleCharges(
         organizationId,
@@ -170,6 +180,9 @@ export class WalletPostsService {
       reason: string;
       mainState?: Record<string, string>;
       fresh?: string[];
+      // Only give back: nothing is charged and no automatic top-up runs
+      // (an organization on a paid plan).
+      refundOnly?: boolean;
     }
   ) {
     if (!groups.length || !(await this._wallet.getWallet(organizationId))) {
@@ -177,7 +190,12 @@ export class WalletPostsService {
     }
     const rows = await this._repository.postsInGroups(organizationId, groups);
     const items = await this.plan(organizationId, rows, options);
-    return this.apply(organizationId, items, options.reason);
+    return this.apply(
+      organizationId,
+      items,
+      options.reason,
+      !options.refundOnly
+    );
   }
 
   // Gives back the charges standing for these posts (as long as they were

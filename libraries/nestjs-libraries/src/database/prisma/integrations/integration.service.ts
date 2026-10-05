@@ -1016,8 +1016,9 @@ export class IntegrationService {
 
   // Runs a global plug for a workspace that pays for the provider from its
   // wallet. Same answer as processPlugs: true when the plug is done for this
-  // post (it ran, or it can never run), false to try again on its next run.
-  // A plug that could not pay runs again on its next scheduled run.
+  // post, false to try again on its next run. A plug the wallet could not
+  // pay for is done for this post: it fails once, with one notification, and
+  // its later scheduled checks are skipped.
   private async processWalletPlug(
     plug: NonNullable<Awaited<ReturnType<IntegrationRepository['getPlug']>>>,
     data: {
@@ -1057,10 +1058,7 @@ export class IntegrationService {
             meter
           ),
     });
-    if (result === 'short') {
-      return false;
-    }
-    if (result === 'unavailable' || result) {
+    if (result === 'short' || result === 'unavailable' || result) {
       return true;
     }
     return data.totalRuns === data.currentRun;

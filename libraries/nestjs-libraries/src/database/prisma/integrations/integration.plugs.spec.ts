@@ -148,6 +148,7 @@ const fakeDb = () => {
         action('x.post', 15000),
         action('x.post_link', 200000),
         action('x.post_read', 5000, 'read'),
+        ...(mockRows.repost ? [action('x.repost', 15000)] : []),
       ],
     },
     billingSetting: {
@@ -190,6 +191,9 @@ const AUTO_PLUG = plugRow('autoPlugPost', [
 const AUTO_REPOST = plugRow('autoRepostPost', [
   { name: 'likesAmount', value: '10' },
 ]);
+
+// An x.repost row priced like a post (added on the database, not here).
+const mockRows = { repost: false };
 
 const SIX_HOURS = 21600000;
 const run = (n = 1) => ({
@@ -315,6 +319,7 @@ const likes = (n: number) =>
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockRows.repost = false;
   mockNotices.clear();
   mockX.tweet.mockResolvedValue({ data: { id: 'reply-1' } });
   mockX.retweet.mockResolvedValue({ data: { retweeted: true } });
@@ -381,11 +386,12 @@ describe('X auto plug paid from the wallet', () => {
     expect(spends().map((e) => e.actionKey)).toEqual(['x.post_read']);
   });
 
-  it('does not call X or charge anything without credits, and notifies once', async () => {
+  it('fails the plug for the post without credits: no X call, no charge, one notice', async () => {
     const { service, spends, notifications } = await setup();
+    // true: the plug is done for this post, its later checks are skipped.
     await expect(
       service.processPlugs({ plugId: AUTO_PLUG.id, ...run() })
-    ).resolves.toBe(false);
+    ).resolves.toBe(true);
 
     expect(mockX.singleTweet).not.toHaveBeenCalled();
     expect(mockX.tweet).not.toHaveBeenCalled();
@@ -405,19 +411,18 @@ describe('X auto plug paid from the wallet', () => {
       'fail'
     );
 
-    // A retry, and the next scheduled run the same day: still no X call and
-    // no second notification.
+    // A retry of the same run: still no X call and no second notification.
     await service.processPlugs({ plugId: AUTO_PLUG.id, ...run() });
     await service.processPlugs({ plugId: AUTO_PLUG.id, ...run(2) });
     expect(mockX.singleTweet).not.toHaveBeenCalled();
     expect(notifications.inAppNotification).toHaveBeenCalledTimes(1);
   });
 
-  it('reads but does not reply when only the read is covered', async () => {
+  it('reads but does not reply when only the read is covered, and stops', async () => {
     const { service, spends, notifications } = await setup({ balance: READ });
     await expect(
       service.processPlugs({ plugId: AUTO_PLUG.id, ...run() })
-    ).resolves.toBe(false);
+    ).resolves.toBe(true);
     expect(mockX.singleTweet).toHaveBeenCalledTimes(1);
     expect(mockX.tweet).not.toHaveBeenCalled();
     expect(spends().map((e) => e.actionKey)).toEqual(['x.post_read']);
@@ -516,6 +521,61 @@ describe('X plugs with no price row', () => {
     await expect(
       service.assertCanSetPlug(ORG, 'x', 'autoPlugPost')
     ).resolves.toBeUndefined();
+  });
+});
+
+describe('X reposts once an x.repost row exists', () => {
+  it('auto repost charges the read and the repost, then reposts', async () => {
+    mockRows.repost = true;
+    const { service, spends } = await setup({ balance: 1000 });
+    await expect(
+      service.processPlugs({ plugId: AUTO_REPOST.id, ...run() })
+    ).resolves.toBe(true);
+    expect(mockX.retweet).toHaveBeenCalledWith('x-user-1', 'tweet-1');
+    expect(spends().map((e) => [e.actionKey, e.chargeKey, e.amount])).toEqual([
+      ['x.post_read', plugReadChargeKey('x', ORG, 'tweet-1'), -READ],
+      [
+        'x.repost',
+        plugChargeKey('x', AUTO_REPOST.id, 'tweet-1', 1, 'repost'),
+        -POST,
+      ],
+    ]);
+    await expect(
+      service.assertCanSetPlug(ORG, 'x', 'autoRepostPost')
+    ).resolves.toBeUndefined();
+  });
+
+  it('re-posters repost with the stored user id, charged once', async () => {
+    mockRows.repost = true;
+    const { service, spends } = await setup({ balance: 1000 });
+    const data = {
+      post: 'tweet-1',
+      originalIntegration: 'ch-1',
+      integration: 'ch-2',
+      plugName: 'x-repost-post-users',
+      orgId: ORG,
+      delay: 0,
+      information: {},
+    };
+    await service.processInternalPlug(data);
+    await service.processInternalPlug(data);
+    expect(mockX.me).not.toHaveBeenCalled();
+    expect(mockX.retweet).toHaveBeenCalledWith('x-user-1', 'tweet-1');
+    expect(spends().map((e) => [e.actionKey, e.amount])).toEqual([
+      ['x.repost', -POST],
+    ]);
+  });
+
+  it('a refused repost is refunded', async () => {
+    mockRows.repost = true;
+    mockX.retweet.mockRejectedValueOnce(new Error('X said no'));
+    const { service, refunds } = await setup({ balance: 1000 });
+    await expect(
+      service.processPlugs({ plugId: AUTO_REPOST.id, ...run() })
+    ).rejects.toThrow('X said no');
+    expect(refunds().map((e) => [e.actionKey, e.amount])).toEqual([
+      ['x.repost', POST],
+    ]);
   });
 });
 

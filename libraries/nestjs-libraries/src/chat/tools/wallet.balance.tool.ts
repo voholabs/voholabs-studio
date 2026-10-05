@@ -24,7 +24,7 @@ export class WalletBalanceTool implements AgentToolInterface {
     return createTool({
       id: 'walletBalance',
       description: `Get the workspace's available wallet credits: the balance, whether it is on pay-as-you-go, whether the wallet is frozen, the auto top-up settings, and whether the paid usage scheduled in the coming hours is covered (the window is "forecast.windowHours").
-Pay-per-use features (such as some channels) are paid from these credits when each post is published, never when it is scheduled. A post whose credits are short when it is due does not go out.
+Pay-per-use channels are paid from these credits when a post is scheduled (never for a draft): editing re-prices only what changed, and deleting a post, moving it back to draft or a post that fails to send gives its credits back. When the credits (with auto top-up) do not cover a post, it is not scheduled and the refusal carries the top-up link. The forecast is what is still to be paid in the coming hours: the next occurrence of a repeating post (each occurrence is paid as it goes out) and posts queued before charging moved to scheduling time; one of those whose credits are short when it is due does not go out.
 For the transaction history call walletTransactions; for what things cost call walletPrices.`,
       inputSchema: z.object({}),
       mcp: {

@@ -74,6 +74,13 @@ so you CAN schedule "here is my new X post: <link>" before the X post exists.
   waits for it, and fails instead of publishing a broken link. So an echo never goes
   out without its link.
 - The reference expands to a full URL, so leave room for it in character limits.
+
+WALLET CREDITS (pay-as-you-go workspaces):
+Some channels are paid per post from the workspace's wallet credits (walletPrices lists them; every other channel is free).
+- A post on such a channel is paid when it is scheduled ("schedule" or "now"), each part of a thread separately. "cost" in the output is what was taken.
+- A draft costs nothing until it is put on the schedule; "costWhenScheduled" says what that will take.
+- When the credits (with auto top-up) do not cover a post, nothing is scheduled for it and the error carries the top-up link. Pass that link to the user rather than retrying.
+- A channel a wallet top-up has not opened yet is refused the same way.
 `,
       inputSchema: z.object({
         socialPost: z

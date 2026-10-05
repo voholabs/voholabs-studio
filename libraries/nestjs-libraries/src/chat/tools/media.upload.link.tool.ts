@@ -20,6 +20,7 @@ export class MediaUploadLinkTool implements AgentToolInterface {
       description: `Create a temporary upload link for putting a local file into the media library, for files too big to send inline.
 Call this, then POST the file to the returned "uploadUrl" as multipart form data under the field name "file" — the returned "curl" string is ready to run once you replace the path with the real one.
 The response of that POST is the hosted media { id, path }; pass the "path" as the attachment when scheduling a post.
+If the library has no room the POST is refused: on the free plan with 413 when it is full, and on a workspace that pays for storage from its wallet with 402 and a top-up link when the credits do not cover the extra storage (storage above the free amount is paid for when the file is uploaded). Pass that on to the user.
 The link works once and expires after ${Math.round(
         UPLOAD_TICKET_TTL_SECONDS / 60
       )} minutes.

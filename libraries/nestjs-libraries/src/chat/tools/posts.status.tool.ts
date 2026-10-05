@@ -75,7 +75,8 @@ export class PostsStatusTool implements AgentToolInterface {
       id: 'postStatusTool',
       description: `Move a post between draft and the schedule.
 Setting it to DRAFT takes a queued post off the schedule so it will not publish, without deleting it. Setting it to QUEUE puts a draft back on the schedule at its existing time, so check that time is still in the future before doing it, or it may go out immediately.
-Use postsList to find the post. This does nothing to a post that has already been published.`,
+Use postsList to find the post. This does nothing to a post that has already been published.
+On a workspace that pays for the channel from its wallet, QUEUE pays for the post from the credits now ("cost"), and DRAFT gives those credits back. When the credits (with auto top-up) do not cover it, the post stays a draft and the error carries the top-up link.`,
       mcp: {
         annotations: {
           title: 'Change Post Status',

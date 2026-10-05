@@ -47,28 +47,43 @@ export const captureOrgEvent = (
   });
 };
 
-// An MCP request from an organization: `mcp_connected` the first time ever,
-// `mcp_active` once a day after that. One Redis write per request, and none
-// at all when analytics are off.
-export const trackMcpUse = (orgId?: string) => {
+// After an agent connection is written (see AgentConnectionRecorder):
+// `mcp_connected` when it is the organization's first agent connection ever
+// (Organization.agentFirstConnectedAt was empty), `mcp_active` once a day
+// otherwise. An organization the old Redis marker already knew connected
+// before connections were stored, so it counts as active, not as new.
+export const trackAgentConnection = async (
+  orgId: string,
+  first: boolean,
+  properties: { client: string; auth_method: string }
+) => {
   if (!productAnalyticsEnabled() || !orgId) {
     return;
   }
-  const day = new Date().toISOString().slice(0, 10);
-  ioRedis
-    .set(`analytics:mcp:${orgId}:${day}`, '1', 'EX', 60 * 60 * 26, 'NX')
-    .then(async (fresh) => {
-      if (fresh !== 'OK') {
-        return;
-      }
-      const first = await ioRedis.set(
+  try {
+    const day = new Date().toISOString().slice(0, 10);
+    const freshToday = await ioRedis.set(
+      `analytics:mcp:${orgId}:${day}`,
+      '1',
+      'EX',
+      60 * 60 * 26,
+      'NX'
+    );
+    if (first) {
+      const neverSeen = await ioRedis.set(
         `analytics:mcp:${orgId}:seen`,
         '1',
         'NX'
       );
-      captureOrgEvent(orgId, first === 'OK' ? 'mcp_connected' : 'mcp_active');
-    })
-    .catch(() => {
-      // Redis being down must not touch the MCP.
-    });
+      if (neverSeen === 'OK') {
+        captureOrgEvent(orgId, 'mcp_connected', properties);
+        return;
+      }
+    }
+    if (freshToday === 'OK') {
+      captureOrgEvent(orgId, 'mcp_active', properties);
+    }
+  } catch {
+    // Redis being down must not touch the MCP.
+  }
 };

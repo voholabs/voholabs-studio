@@ -34,6 +34,12 @@ model Organization {
   // time, so it is stored here or it is gone. Same rule as above: additive,
   // nullable, never renamed, never required.
   mediaMeterKey       String?
+  // When an AI agent first reached the MCP for this organization, and when one
+  // was last seen (kept to within a few minutes). Additive and nullable: never
+  // renamed, never required.
+  agentFirstConnectedAt DateTime?
+  agentLastSeenAt     DateTime?
+  agentConnections    AgentConnection[]
   autoPost            AutoPost[]
   Comments            Comments[]
   credits             Credits[]
@@ -68,6 +74,8 @@ model Organization {
   @@index([apiKey])
   @@index([streakSince])
   @@index([paymentId])
+  @@index([agentFirstConnectedAt])
+  @@index([agentLastSeenAt])
 }
 
 model Tags {
@@ -1350,4 +1358,32 @@ model SkillTag {
   label     String
   sortOrder Int      @default(0)
   updatedAt DateTime @updatedAt
+}
+
+enum AgentAuthMethod {
+  API_KEY
+  OAUTH
+  // Rows backfilled from posts, where how the agent signed in is not known.
+  UNKNOWN
+}
+
+// One row per organization, agent client and sign-in method that reached the
+// MCP. Written at most once every few minutes per row; holds no tokens, IPs,
+// prompts or tool arguments.
+model AgentConnection {
+  id             String          @id @default(uuid())
+  organizationId String
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  // From the MCP `initialize` request's clientInfo.name, else the User-Agent
+  // family (claude, chatgpt, cursor, ...), normalised.
+  client         String
+  authMethod     AgentAuthMethod
+  firstSeenAt    DateTime        @default(now())
+  lastSeenAt     DateTime        @default(now())
+  requestCount   Int             @default(0)
+  lastToolName   String?
+
+  @@unique([organizationId, client, authMethod])
+  @@index([lastSeenAt])
+  @@index([client])
 }

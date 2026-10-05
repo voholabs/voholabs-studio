@@ -42,6 +42,7 @@ import {
   trialEndsAt,
 } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
+import { AgentConnectionService } from '@gitroom/nestjs-libraries/database/prisma/agent-connections/agent-connection.service';
 
 @ApiTags('User')
 @Controller('/user')
@@ -53,8 +54,16 @@ export class UsersController {
     private _orgService: OrganizationService,
     private _userService: UsersService,
     private _trackService: TrackService,
-    private _walletService: WalletService
+    private _walletService: WalletService,
+    private _agentConnectionService: AgentConnectionService
   ) {}
+
+  // Whether an AI agent has reached the MCP for this workspace yet, for the
+  // connect-agent panel's live status.
+  @Get('/agent-connection')
+  getAgentConnection(@GetOrgFromRequest() organization: Organization) {
+    return this._agentConnectionService.status(organization.id);
+  }
 
   @Get('/chatbase-token')
   async getChatbaseToken(

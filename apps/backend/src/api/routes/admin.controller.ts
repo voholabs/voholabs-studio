@@ -31,6 +31,7 @@ import {
   WalletBillingService,
   walletPaymentsEnabled,
 } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.billing.service';
+import { AgentConnectionService } from '@gitroom/nestjs-libraries/database/prisma/agent-connections/agent-connection.service';
 import { walletAlert } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.alert';
 
 // The signed-in superadmin behind a request. While impersonating, the request
@@ -58,7 +59,8 @@ export class AdminController {
     private _userService: UsersService,
     private _postsService: PostsService,
     private _walletService: WalletService,
-    private _walletBilling: WalletBillingService
+    private _walletBilling: WalletBillingService,
+    private _agentConnectionService: AgentConnectionService
   ) {}
 
   private assertSuperAdmin(user: User) {
@@ -181,6 +183,28 @@ export class AdminController {
       to: toDate.endOf('day').toDate(),
       unknownOnly: unknownOnly === 'true' || unknownOnly === '1',
     });
+  }
+
+  // How many organizations have an AI agent connected over the MCP: ever, seen
+  // in the last 1/7/30 days, first connected in the last 7/30 days, and by
+  // client and sign-in method.
+  @Get('/agent-connections')
+  async agentConnections(@GetUserFromRequest() user: User) {
+    this.assertSuperAdmin(user);
+    return this._agentConnectionService.stats();
+  }
+
+  // One off: dates the first agent connection of organizations that posted
+  // over the MCP before connections were recorded (client `unknown`). Writes
+  // only the agent-connection columns and table. Reports what it would change
+  // unless `apply` is set.
+  @Post('/agent-connections/backfill')
+  async agentConnectionsBackfill(
+    @GetUserFromRequest() user: User,
+    @Body() body: { apply?: boolean }
+  ) {
+    this.assertSuperAdmin(user);
+    return this._agentConnectionService.backfill(!!body?.apply);
   }
 
   private async assertOrganization(organizationId: string) {

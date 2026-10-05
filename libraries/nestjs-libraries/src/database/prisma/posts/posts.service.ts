@@ -1418,6 +1418,41 @@ export class PostsService {
           }
         }
 
+        // A post for a channel that is removed, turned off or waiting to be
+        // reconnected can only fail when it publishes.
+        if (
+          integration.deletedAt ||
+          integration.disabled ||
+          integration.refreshNeeded
+        ) {
+          valid = false;
+          settingsError = integration.deletedAt
+            ? 'This channel was removed. Connect it again before scheduling to it.'
+            : integration.disabled
+            ? 'This channel is disabled. Enable it before scheduling to it.'
+            : 'This channel needs to be reconnected before you can schedule to it.';
+        }
+
+        const maxHashtags = provider.maxHashtags?.();
+        if (
+          valid &&
+          maxHashtags &&
+          (post.value || []).some(
+            (a) =>
+              (
+                stripHtmlValidation('normal', a.content || '', true).match(
+                  /#[\p{L}\p{M}\p{N}_]+/gu
+                ) || []
+              ).length > maxHashtags
+          )
+        ) {
+          valid = false;
+          settingsError = `${provider.name.replace(
+            /\s+/g,
+            ' '
+          )} accepts at most ${maxHashtags} hashtags in a post.`;
+        }
+
         const maximumCharacters = provider.maxLength(additionalSettings);
         const isX = integration.providerIdentifier === 'x';
 

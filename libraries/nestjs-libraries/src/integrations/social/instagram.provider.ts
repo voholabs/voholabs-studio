@@ -46,6 +46,11 @@ export class InstagramProvider
     return 2200;
   }
 
+  // Instagram rejects a caption with more than 30 hashtags.
+  maxHashtags() {
+    return 30;
+  }
+
   override async checkValidity(
     [firstPost]: Array<ValidityMedia[]>,
     settings: any

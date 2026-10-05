@@ -9,14 +9,13 @@ import { ENABLED_PROVIDERS } from '@gitroom/frontend/components/launches/enabled
 import { PriceList } from '@gitroom/frontend/components/wallet/wallet.price.list';
 import {
   BTN_PRIMARY,
-  BTN_SIMPLE,
   CoinsIcon,
-  InfoIcon,
 } from '@gitroom/frontend/components/wallet/wallet.ui';
 import {
   SupportedChannel,
   WalletPriceSection,
 } from '@gitroom/frontend/components/wallet/wallet.types';
+import { LogoTextComponent } from '@gitroom/frontend/components/ui/logo-text.component';
 import ModeComponent from '@gitroom/frontend/components/layout/mode.component';
 import { ToolTip } from '@gitroom/frontend/components/layout/top.tip';
 
@@ -57,19 +56,6 @@ export const PublicPricing: FC<{
         })
       : '';
 
-  const topUp =
-    prices?.currency && prices.topUp
-      ? t('pricing_min_top_up', 'Top up from {{min}}', {
-          min: f.moneyShort(prices.topUp.minAmount),
-          ...raw,
-        })
-      : '';
-
-  const options =
-    prices?.currency && prices.topUp?.options.length
-      ? prices.topUp.options.map((o) => f.moneyShort(o)).join(' · ')
-      : '';
-
   const cta = signedIn ? (
     <Link href="/" className={clsx(BTN_PRIMARY, 'shrink-0')}>
       {t('pricing_open_studio', 'Open Studio')}
@@ -85,8 +71,12 @@ export const PublicPricing: FC<{
       <ToolTip />
       <header className="border-b border-newBorder">
         <div className="max-w-[1200px] mx-auto px-[16px] sm:px-[20px] h-[64px] flex items-center gap-[16px]">
-          <Link href="/" className="text-[16px] font-[600] whitespace-nowrap">
-            Voholabs Studio
+          <Link
+            href="/"
+            aria-label="Voholabs Studio"
+            className="flex items-center shrink-0 [&_svg]:h-auto [&_svg]:w-[170px] sm:[&_svg]:w-[220px]"
+          >
+            <LogoTextComponent />
           </Link>
           <span className="flex-1" />
           <ModeComponent />
@@ -106,55 +96,14 @@ export const PublicPricing: FC<{
           <h1 className="text-[32px] sm:text-[44px] leading-[1.1] font-[600]">
             {t('pricing_title', 'Pay only for what you use')}
           </h1>
-          <p className="text-[16px] sm:text-[18px] leading-[1.6] text-textItemBlur max-w-[720px]">
-            {t(
-              'pricing_intro',
-              'Start free. Most of Studio costs nothing. Paid actions are charged in credits from your wallet, and you top up only when you need them.'
+          <div className="flex flex-wrap items-center gap-[12px] pt-[8px]">
+            {!!rate && (
+              <span className="inline-flex items-center gap-[8px] h-[44px] px-[14px] rounded-[8px] bg-warmSoft text-warm text-[15px] font-[600] tabular-nums">
+                <CoinsIcon size={14} /> {rate}
+              </span>
             )}
-          </p>
-          {(!!rate || !!topUp) && (
-            <div className="flex flex-wrap items-center gap-[10px]">
-              {!!rate && (
-                <span className="inline-flex items-center gap-[8px] h-[36px] px-[14px] rounded-[8px] bg-warmSoft text-warm text-[15px] font-[600] tabular-nums">
-                  <CoinsIcon size={14} /> {rate}
-                </span>
-              )}
-              {!!topUp && (
-                <span className="inline-flex items-center h-[36px] px-[14px] rounded-[8px] bg-newTableHeader text-[14px]">
-                  <span className="font-[600]">{topUp}</span>
-                  {!!options && (
-                    <span className="text-textItemBlur ms-[8px] tabular-nums">
-                      {t('pricing_top_up_options', 'Options: {{options}}', {
-                        options,
-                        ...raw,
-                      })}
-                    </span>
-                  )}
-                </span>
-              )}
-            </div>
-          )}
-          <div className="flex flex-wrap gap-[12px] pt-[8px]">
             {cta}
-            <a href="#prices" className={clsx(BTN_SIMPLE, 'shrink-0')}>
-              {t('pricing_see_prices', 'See all prices')}
-            </a>
           </div>
-        </div>
-
-        <div
-          id="prices"
-          className="flex gap-[10px] items-start p-[14px] rounded-[8px] bg-newTableHeader text-[13px] leading-[1.5] scroll-mt-[20px]"
-        >
-          <span className="text-textItemBlur mt-[1px]">
-            <InfoIcon />
-          </span>
-          <span className="font-[600]">
-            {t(
-              'wallet_prices_follow',
-              "Prices follow the provider's price and update automatically."
-            )}
-          </span>
         </div>
 
         {prices?.sections.length ? (

@@ -19,6 +19,7 @@ Pass either the post "id" or its "group" — both delete the whole group, meanin
 A queued post is removed from the schedule and will not be published. A post that was already published is removed from the calendar only and stays live on the social network, unless you also pass deleteFromPlatform.
 Set deleteFromPlatform to true to additionally delete the published message on the social network itself. Only some platforms support this (Discord does); the rest report back that they cannot.
 This cannot be undone, so always confirm with the user before calling it — especially with deleteFromPlatform, which destroys the live post and any reactions or replies on it.
+On a workspace that pays for a channel from its wallet, the credits paid for the parts that were not sent yet are given back.
 
 ECHOES: if another post embeds this one's URL with "(post:<id>)", deleting this post breaks it. The reference can never resolve, so that post fails at publish time instead of going out — a silent no-show rather than a visible broken link, and it cascades to anything echoing THAT post. So this tool refuses when it finds posts that reference the one you are deleting, and lists them in "breaksEchoes". Show that list to the user. If they still want it gone, call again with breakEchoes: true and then repair or delete the posts it named.`,
       mcp: {

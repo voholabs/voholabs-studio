@@ -367,7 +367,7 @@ const ConnectSection = ({
       ? 'https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp'
       : target === 'chatgpt'
       ? 'https://developers.openai.com/api/docs/guides/developer-mode'
-      : 'https://docs.postiz.com/mcp/introduction';
+      : 'https://voholabs.com/docs/agents/mcp';
 
   // Uploading a local file is the one flow where the assistant itself has to
   // reach us over the network, and both Claude and ChatGPT block that until the
@@ -721,7 +721,7 @@ const CliSection = ({ apiKey }: { apiKey: string }) => {
       )}
       actions={
         <DocsLink
-          href="https://docs.postiz.com/cli/introduction"
+          href="https://voholabs.com/docs/cli"
           label={t('read_the_docs', 'Docs')}
         />
       }
@@ -811,7 +811,7 @@ const PublicApiContent = () => {
         actions={
           <>
             <DocsLink
-              href="https://docs.postiz.com/public-api"
+              href="https://voholabs.com/docs/api"
               label={t('read_the_docs', 'Docs')}
             />
             <DocsLink

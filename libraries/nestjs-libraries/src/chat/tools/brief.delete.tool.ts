@@ -19,7 +19,8 @@ export class BriefDeleteTool implements AgentToolInterface {
       id: 'briefDeleteTool',
       description: `Delete a document from the agent brief, with everything written in it. This cannot be undone, so say what you are removing.
 Only user-created documents and your own Experience can be deleted. The Foundation documents and the per-channel documents are part of the product and will be refused; to empty one of those, use briefSaveTool with an empty list of rules instead.
-Retire an Experience document when what is in it turned out to be wrong or no longer applies. A lesson you no longer stand behind is worse than no lesson.`,
+Retire an Experience document when what is in it turned out to be wrong or no longer applies. A lesson you no longer stand behind is worse than no lesson.
+By default the document's history goes with it. Pass keepHistory: true to keep its revisions and record the removal in them, so briefHistory still shows what was there.`,
       mcp: {
         annotations: {
           title: 'Delete Agent Brief Document',
@@ -32,6 +33,12 @@ Retire an Experience document when what is in it turned out to be wrong or no lo
       inputSchema: z.object({
         category: z.string().describe('The category of the document'),
         key: z.string().describe('The key of the document to delete'),
+        keepHistory: z
+          .boolean()
+          .optional()
+          .describe(
+            'Keep the document history and record the removal in it, instead of wiping it (default false)'
+          ),
       }),
       outputSchema: z.object({
         deleted: z.boolean().optional(),
@@ -55,7 +62,7 @@ Retire an Experience document when what is in it turned out to be wrong or no lo
             inputData.category,
             inputData.key,
             true,
-            false,
+            !!inputData.keepHistory,
             !hasAccess(organization)
           );
 

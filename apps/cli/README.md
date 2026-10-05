@@ -1,5 +1,8 @@
 # Voholabs Studio CLI
 
+Docs: https://voholabs.com/docs/cli (API reference: https://voholabs.com/docs/api,
+OpenAPI description: `https://studio.voholabs.com/api/public/v1/openapi.json`).
+
 Schedules posts, threads and carousels against a self-hosted Voholabs Studio
 (`https://studio.voholabs.com/api`). Used by the content agents to draft and
 schedule LinkedIn, X, Threads and Facebook posts without opening the UI.
@@ -63,7 +66,17 @@ voholabs upload <file>                     # returns a hosted { path } URL, reus
 voholabs posts:create ...                  # see below
 voholabs posts:list                        # state: DRAFT | QUEUE | PUBLISHED, plus releaseURL once live
 voholabs posts:delete <id>                 # only meaningful before publish
+voholabs wallet:balance                    # wallet credits, auto top-up, scheduled usage forecast
+voholabs wallet:prices [--provider x]      # what costs credits; channels not listed are free
+voholabs wallet:estimate --provider x -c "<post>" -c "<reply>"   # price a post, nothing is charged
+voholabs skills:list / skills:get <slug>   # the skills library
+voholabs brief:onboarding                  # guided brief onboarding status and its start link
 ```
+
+On a pay-as-you-go workspace a post on a channel charged per post (X) is paid
+from the wallet when it is scheduled, not when it publishes; drafts are free.
+When the credits do not cover it, `posts:create` fails with the reason and the
+top-up link. TikTok is available on every plan.
 
 ### Creating posts
 

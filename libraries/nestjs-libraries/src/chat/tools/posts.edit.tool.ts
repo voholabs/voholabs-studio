@@ -18,17 +18,44 @@ import {
 import {
   onPaidPlan,
   orgFromContext,
+  toCredits,
+  walletPostCost,
   walletRefusal,
 } from '@gitroom/nestjs-libraries/chat/tools/wallet.shared';
 import { MediaService } from '@gitroom/nestjs-libraries/database/prisma/media/media.service';
+import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 
 @Injectable()
 export class PostsEditTool implements AgentToolInterface {
   constructor(
     private _postsService: PostsService,
-    private _mediaService: MediaService
+    private _mediaService: MediaService,
+    private _walletService: WalletService
   ) {}
   name = 'editPostTool';
+
+  // Credits standing for a group's unsent posts, or undefined when the
+  // workspace does not pay for this channel from its wallet. Never throws:
+  // the cost only ever adds information.
+  private async standing(
+    organization: any,
+    identifier: string,
+    group?: string | null
+  ) {
+    try {
+      if (
+        !group ||
+        !organization?.id ||
+        onPaidPlan(organization) ||
+        !(await this._walletService.billsProvider(identifier))
+      ) {
+        return undefined;
+      }
+      return await this._walletService.paidForGroup(organization.id, group);
+    } catch (err) {
+      return undefined;
+    }
+  }
 
   run() {
     return createTool({
@@ -43,7 +70,9 @@ What it does to the schedule:
 - A draft stays a draft.
 - A post that has ALREADY PUBLISHED can only be corrected on the calendar. The message live on the social network is not touched, and the tool tells you so ("livePostUnchanged"). Say that to the user rather than letting them believe the live post changed.
 
-To remove media rather than replace it, pass "clearAttachments" — an empty "attachments" array is treated as "no change", so it cannot silently strip a video.`,
+To remove media rather than replace it, pass "clearAttachments" — an empty "attachments" array is treated as "no change", so it cannot silently strip a video.
+
+On a workspace that pays for the channel from its wallet, editing a queued post re-prices only what changed: "cost" is the difference taken now (negative when credits were given back). When the credits (with auto top-up) do not cover it, nothing is changed and the error carries the top-up link.`,
       mcp: {
         annotations: {
           title: 'Edit Scheduled Post',
@@ -149,6 +178,18 @@ To remove media rather than replace it, pass "clearAttachments" — an empty "at
             })
           )
           .optional(),
+        cost: z
+          .number()
+          .optional()
+          .describe(
+            'Credits the edit took from the wallet now (negative: given back). Only on a workspace that pays for this channel from its wallet'
+          ),
+        costWhenScheduled: z
+          .number()
+          .optional()
+          .describe(
+            'For a draft: what it will take from the wallet once it is put on the schedule. Nothing is charged for a draft.'
+          ),
         livePostUnchanged: z
           .boolean()
           .optional()
@@ -353,6 +394,14 @@ To remove media rather than replace it, pass "clearAttachments" — an empty "at
             }
           }
 
+          const organization = orgFromContext(context);
+          const identifier =
+            current.integration?.providerIdentifier || (settings as any).__type || '';
+          const paidBefore =
+            type === 'schedule'
+              ? await this.standing(organization, identifier, current.group)
+              : undefined;
+
           await this._postsService.createPost(
             organizationId,
             {
@@ -408,6 +457,31 @@ To remove media rather than replace it, pass "clearAttachments" — an empty "at
               content: comment.content || '',
               attachments: describeMedia(comment),
             })),
+            ...(paidBefore !== undefined
+              ? await (async () => {
+                  const paidAfter = await this.standing(
+                    organization,
+                    identifier,
+                    updated?.group ?? current.group
+                  );
+                  return paidAfter === undefined
+                    ? {}
+                    : { cost: toCredits(paidAfter - paidBefore) };
+                })()
+              : {}),
+            ...(type === 'draft'
+              ? await (async () => {
+                  const cost = await walletPostCost(
+                    this._walletService,
+                    organization,
+                    identifier,
+                    value.map((v) => v.content)
+                  );
+                  return cost === undefined
+                    ? {}
+                    : { costWhenScheduled: toCredits(cost) };
+                })()
+              : {}),
             ...(type === 'update' ? { livePostUnchanged: true } : {}),
           };
         } catch (err) {

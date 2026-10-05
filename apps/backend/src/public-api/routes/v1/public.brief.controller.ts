@@ -19,6 +19,7 @@ import {
 import { BriefService } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.service';
 import { SaveBriefDocumentDto } from '@gitroom/nestjs-libraries/dtos/brief/brief.dto';
 import { BRIEF_REGISTRY } from '@gitroom/nestjs-libraries/agent-brief/brief.registry';
+import { BriefOnboardingService } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.onboarding.service';
 
 // The agent brief over the public API, so the CLI and any external agent can
 // read and edit it with an API key. Open on a paid plan, or after the first
@@ -27,7 +28,10 @@ import { BRIEF_REGISTRY } from '@gitroom/nestjs-libraries/agent-brief/brief.regi
 @Controller('/public/v1')
 @CheckPolicies([AuthorizationActions.Create, Sections.BRIEF])
 export class PublicBriefController {
-  constructor(private _briefService: BriefService) {}
+  constructor(
+    private _briefService: BriefService,
+    private _briefOnboardingService: BriefOnboardingService
+  ) {}
 
   // The shape of the brief: which categories and documents exist, so a caller
   // knows what keys it may write to without guessing.
@@ -58,6 +62,18 @@ export class PublicBriefController {
             }
           : {}),
       })),
+    };
+  }
+
+  // The guided onboarding's status. It is started in Studio, by the user
+  // (it is an interview and may be charged), so this only reports it and
+  // says where to start it.
+  @Get('/brief/onboarding')
+  async onboardingStatus(@GetOrgFromRequest() org: Organization) {
+    const status = await this._briefOnboardingService.status(org.id);
+    return {
+      ...status,
+      startUrl: status.available ? `${process.env.FRONTEND_URL}/brief` : null,
     };
   }
 

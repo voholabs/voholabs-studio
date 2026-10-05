@@ -21,4 +21,4 @@ The available methods are:
 - `integrations()` - Get a list of connected channels
 - `deletePost(id: string)` - Delete a post by ID
 
-Alternatively you can use the SDK with curl, check the [Postiz API documentation](https://docs.postiz.com/public-api) for more information.
+Alternatively you can use the SDK with curl, check the [Voholabs Studio API documentation](https://voholabs.com/docs/api) for more information.

@@ -58,9 +58,10 @@ const notOnPlanToolNames = namesIn('notOnPlanToolNames');
 const paidToolNames = namesIn('paidToolNames');
 
 describe('the tools a paid plan is served', () => {
-  it('leaves out the wallet and skills tools, and only those', () => {
+  it('leaves out the wallet, skills and onboarding tools, and only those', () => {
     expect(notOnPlanToolNames.sort()).toEqual(
       [
+        'briefOnboardingStatus',
         'skillGet',
         'skillsList',
         'walletBalance',
@@ -68,12 +69,13 @@ describe('the tools a paid plan is served', () => {
         'walletTransactions',
       ].sort()
     );
-    // Nothing a paid plan had before is left out.
+    // Nothing a paid plan had before is left out: the only paid tools left
+    // out are the ones added with the wallet.
     expect(
       paidToolNames.filter(
         (name) =>
           notOnPlanToolNames.includes(name) &&
-          !['skillsList', 'skillGet'].includes(name)
+          !['skillsList', 'skillGet', 'briefOnboardingStatus'].includes(name)
       )
     ).toEqual([]);
   });

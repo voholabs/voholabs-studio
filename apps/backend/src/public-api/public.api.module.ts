@@ -14,10 +14,15 @@ import { PublicUploadTicketController } from '@gitroom/backend/public-api/routes
 import { PublicBriefController } from '@gitroom/backend/public-api/routes/v1/public.brief.controller';
 import { PublicUploadMintController } from '@gitroom/backend/public-api/routes/v1/public.upload.mint.controller';
 import { PublicBriefUploadController } from '@gitroom/backend/public-api/routes/v1/public.brief.upload.controller';
+import { PublicWalletController } from '@gitroom/backend/public-api/routes/v1/public.wallet.controller';
+import { PublicSkillsController } from '@gitroom/backend/public-api/routes/v1/public.skills.controller';
+import { PublicOpenApiController } from '@gitroom/backend/public-api/routes/v1/public.openapi.controller';
 
 const authenticatedController = [
   PublicIntegrationsController,
   PublicBriefController,
+  PublicWalletController,
+  PublicSkillsController,
   // Minting a ticket needs the API key. The route that receives the file is in
   // ticketController below and must stay unauthenticated.
   PublicUploadMintController,
@@ -28,9 +33,15 @@ const ticketController = [
   PublicUploadTicketController,
   PublicBriefUploadController,
 ];
+// Describes the API and holds nothing about a workspace, so no key is needed.
+const openController = [PublicOpenApiController];
 @Module({
   imports: [UploadModule],
-  controllers: [...authenticatedController, ...ticketController],
+  controllers: [
+    ...authenticatedController,
+    ...ticketController,
+    ...openController,
+  ],
   providers: [
     AuthService,
     StripeService,

@@ -42,6 +42,7 @@ import { WalletTransactionsTool } from '@gitroom/nestjs-libraries/chat/tools/wal
 import { WalletPricesTool } from '@gitroom/nestjs-libraries/chat/tools/wallet.prices.tool';
 import { SkillsListTool } from '@gitroom/nestjs-libraries/chat/tools/skills.list.tool';
 import { SkillGetTool } from '@gitroom/nestjs-libraries/chat/tools/skills.get.tool';
+import { BriefOnboardingStatusTool } from '@gitroom/nestjs-libraries/chat/tools/brief.onboarding.status.tool';
 
 export const toolList = [
   AccountInfoTool,
@@ -52,6 +53,7 @@ export const toolList = [
   BriefAssetTool,
   BriefHistoryTool,
   MarkLearnedTool,
+  BriefOnboardingStatusTool,
   SkillsListTool,
   SkillGetTool,
   IntegrationListTool,
@@ -115,6 +117,7 @@ export const paidToolNames = [
   'briefAssetTool',
   'briefHistory',
   'markLearned',
+  'briefOnboardingStatus',
   'skillsList',
   'skillGet',
   'mediaMcpList',
@@ -133,6 +136,7 @@ export const walletToolNames = [
   'briefAssetTool',
   'briefHistory',
   'markLearned',
+  'briefOnboardingStatus',
   'skillsList',
   'skillGet',
 ];
@@ -141,12 +145,13 @@ export const walletToolNames = [
 export const walletToolKeys = ['brief', 'skills'];
 
 // Not served to a paid plan, whose MCP lists exactly the tools it had before
-// the wallet: the wallet tools (a paid plan never uses credits) and the
-// skills library.
+// the wallet: the wallet tools (a paid plan never uses credits), the skills
+// library and the brief onboarding status.
 export const notOnPlanToolNames = [
   'walletBalance',
   'walletTransactions',
   'walletPrices',
   'skillsList',
   'skillGet',
+  'briefOnboardingStatus',
 ];

@@ -8,6 +8,7 @@ import {
   Post,
   Put,
   Query,
+  Res,
   UploadedFile,
   UseInterceptors,
   UsePipes,
@@ -19,6 +20,7 @@ import {
 import { ApiTags } from '@nestjs/swagger';
 import { GetOrgFromRequest } from '@gitroom/nestjs-libraries/user/org.from.request';
 import { Organization } from '@prisma/client';
+import { Response } from 'express';
 import { IntegrationService } from '@gitroom/nestjs-libraries/database/prisma/integrations/integration.service';
 import { CheckPolicies } from '@gitroom/backend/services/auth/permissions/permissions.ability';
 import { PostsService } from '@gitroom/nestjs-libraries/database/prisma/posts/posts.service';
@@ -576,14 +578,32 @@ export class PublicIntegrationsController {
     return this._postsService.updateReleaseId(org.id, id, releaseId);
   }
 
+  // ?fresh=true skips the one-hour cache and reads the network again (a
+  // wallet workspace pays for those reads; ignored on a paid plan). The
+  // X-Cached-At header says when the numbers were read from the network.
   @Get('/analytics/:integration')
   async getAnalytics(
     @GetOrgFromRequest() org: Organization,
     @Param('integration') integration: string,
-    @Query('date') date: string
+    @Query('date') date: string,
+    @Res({ passthrough: true }) res: Response,
+    @Query('fresh') fresh?: string
   ) {
     Sentry.metrics.count('public_api-request', 1);
-    return this._integrationService.checkAnalytics(org, integration, date);
+    const analytics = await this._integrationService.checkAnalytics(
+      org,
+      integration,
+      date,
+      false,
+      fresh === 'true'
+    );
+    const cachedAt = await this._integrationService
+      .analyticsUpdatedAt(org.id, integration, date)
+      .catch((): null => null);
+    if (cachedAt) {
+      res.setHeader('X-Cached-At', cachedAt);
+    }
+    return analytics;
   }
 
   @Get('/analytics/post/:postId')

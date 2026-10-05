@@ -15,7 +15,16 @@ import {
 } from '@gitroom/nestjs-libraries/chat/tools/tool.list';
 import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 import { hasAccess } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
-import { trackMcpUse } from '@gitroom/nestjs-libraries/track/product.analytics';
+import { bufferJsonBody } from '@gitroom/nestjs-libraries/chat/mcp.body';
+import { trackAgentConnection } from '@gitroom/nestjs-libraries/track/product.analytics';
+import { AgentConnectionService } from '@gitroom/nestjs-libraries/database/prisma/agent-connections/agent-connection.service';
+import {
+  AgentConnectionRecorder,
+  McpRequestSeen,
+} from '@gitroom/nestjs-libraries/database/prisma/agent-connections/agent-connection.recorder';
+const authMethodOf = (token?: string): McpRequestSeen['authMethod'] =>
+  token?.startsWith('pos_') ? 'OAUTH' : 'API_KEY';
+
 const fixAcceptHeader = (req: Request) => {
   const value = 'application/json, text/event-stream';
   req.headers.accept = value;
@@ -33,6 +42,31 @@ export const startMcp = async (app: INestApplication) => {
   const oauthService = app.get(OAuthService, { strict: false });
 
   const walletService = app.get(WalletService, { strict: false });
+  const agentConnectionService = app.get(AgentConnectionService, {
+    strict: false,
+  });
+
+  // Logs which agents reach the MCP (AgentConnection). Never awaited.
+  const recorder = new AgentConnectionRecorder(
+    (input) => agentConnectionService.record(input),
+    (input, { first }) =>
+      trackAgentConnection(input.organizationId, first, {
+        client: input.client,
+        auth_method: input.authMethod,
+      })
+  );
+  const noteConnection = (
+    req: Request,
+    organizationId: string,
+    authMethod: McpRequestSeen['authMethod']
+  ) =>
+    recorder.seen({
+      organizationId,
+      authMethod,
+      userAgent: req.headers['user-agent'],
+      // @ts-ignore
+      body: req.body,
+    });
 
   // Lists what this workspace's wallet top-up has opened (see paidOnly and
   // walletToolNames). Any of it also earns the paid rate limit.
@@ -224,7 +258,10 @@ export const startMcp = async (app: INestApplication) => {
     if (await rateLimited(auth, res)) {
       return;
     }
-    trackMcpUse(auth.id);
+    if (!(await bufferJsonBody(req, res))) {
+      return;
+    }
+    noteConnection(req, auth.id, authMethodOf(token));
 
     fixAcceptHeader(req);
     await runWithContext({ requestId: token!, auth }, async () => {
@@ -283,8 +320,11 @@ export const startMcp = async (app: INestApplication) => {
     if (await rateLimited(req.auth, res)) {
       return;
     }
+    if (!(await bufferJsonBody(req, res))) {
+      return;
+    }
     // @ts-ignore
-    trackMcpUse(req.auth.id);
+    noteConnection(req, req.auth.id, authMethodOf(token));
 
     const url = new URL('/mcp', process.env.NEXT_PUBLIC_BACKEND_URL);
 
@@ -337,8 +377,11 @@ export const startMcp = async (app: INestApplication) => {
     if (await rateLimited(req.auth, res)) {
       return;
     }
+    if (!(await bufferJsonBody(req, res))) {
+      return;
+    }
     // @ts-ignore
-    trackMcpUse(req.auth.id);
+    noteConnection(req, req.auth.id, 'API_KEY');
 
     const url = new URL(
       `/mcp/${req.params.id}`,
@@ -394,8 +437,10 @@ export const startMcp = async (app: INestApplication) => {
     if (await rateLimited(req.auth, res)) {
       return;
     }
+    // The legacy SSE transport reads its own body, so only the User-Agent is
+    // seen here.
     // @ts-ignore
-    trackMcpUse(req.auth.id);
+    noteConnection(req, req.auth.id, 'API_KEY');
 
     const url = new URL(req.originalUrl, process.env.NEXT_PUBLIC_BACKEND_URL);
 

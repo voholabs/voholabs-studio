@@ -1183,5 +1183,9 @@
   "onboarding_step_agent": "Connect your agent",
   "onboarding_start_without_channels": "Start without channels",
   "onboarding_connect_agent_sub_short": "Let Claude, ChatGPT or your coding agent write and schedule posts for you. You can also do this later in Settings.",
-  "onboarding_finish": "Finish"
+  "onboarding_finish": "Finish",
+  "agent_status_waiting": "Waiting for your agent…",
+  "agent_status_connected": "Connected: {{client}}",
+  "agent_status_last_seen": "last seen {{time}}",
+  "agent_status_an_agent": "an agent"
 }

@@ -13,6 +13,7 @@ import { DeveloperComponent } from '@gitroom/frontend/components/developer/devel
 import clsx from 'clsx';
 import { useWalletAccess } from '@gitroom/frontend/components/wallet-locks/wallet.access';
 import { LegacyPublicComponent } from '@gitroom/frontend/components/public-api/public.component.legacy';
+import { AgentConnectionStatus } from '@gitroom/frontend/components/public-api/agent.connection.status';
 
 const mcpClients = [
   'Claude Code',
@@ -664,6 +665,7 @@ const ConnectSection = ({
 
   const content = (
     <div className="flex flex-col gap-[20px]">
+      <AgentConnectionStatus />
       <ConnectTabs
         value={target}
         onChange={setTarget}

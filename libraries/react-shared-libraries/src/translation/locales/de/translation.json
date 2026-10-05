@@ -842,7 +842,6 @@
   "wallet_auto_is_on": "Automatische Aufladung ist an.",
   "wallet_done": "Fertig",
   "wallet_connect_provider": "{{name}} verbinden",
-  "wallet_all_other_channels": "Alle anderen Kanäle",
   "wallet_model_free": "Kostenlos",
   "wallet_allowance_unlimited": "Unbegrenzte Nutzung",
   "wallet_price_free": "Kostenlos",

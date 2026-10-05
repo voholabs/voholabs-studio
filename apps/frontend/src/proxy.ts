@@ -67,7 +67,9 @@ export async function proxy(request: NextRequest) {
     // Public legal pages — platform app reviewers (TikTok, Meta) must be able to
     // open these while logged out, so they have to bypass the auth redirect below.
     nextUrl.pathname === '/privacy' ||
-    nextUrl.pathname === '/terms'
+    nextUrl.pathname === '/terms' ||
+    // Public price list, for visitors and search engines.
+    nextUrl.pathname === '/pricing'
   ) {
     return topResponse;
   }

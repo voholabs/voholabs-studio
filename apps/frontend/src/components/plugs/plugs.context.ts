@@ -21,6 +21,9 @@ export interface PlugsInterface {
   description: string;
   runEveryMilliseconds: number;
   methodName: string;
+  // The paid API actions it makes (`<provider>.<action>` price rows), for a
+  // workspace that pays for the provider from its wallet.
+  walletActions?: string[];
   fields: FieldsInterface[];
 }
 export const PlugsContext = createContext<PlugInterface>({

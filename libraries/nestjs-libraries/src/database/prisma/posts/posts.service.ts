@@ -1250,8 +1250,8 @@ export class PostsService {
     return this._postRepository.countPostsFromDay(orgId, date);
   }
 
-  getPostByForWebhookId(id: string) {
-    return this._postRepository.getPostByForWebhookId(id);
+  getPostByForWebhookId(id: string, orgId?: string) {
+    return this._postRepository.getPostByForWebhookId(id, orgId);
   }
 
   async startWorkflow(

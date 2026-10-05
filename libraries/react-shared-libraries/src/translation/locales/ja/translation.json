@@ -842,7 +842,6 @@
   "wallet_auto_is_on": "自動チャージはオンです。",
   "wallet_done": "完了",
   "wallet_connect_provider": "{{name}} を連携",
-  "wallet_all_other_channels": "その他すべてのチャンネル",
   "wallet_model_free": "無料",
   "wallet_allowance_unlimited": "無制限",
   "wallet_price_free": "無料",

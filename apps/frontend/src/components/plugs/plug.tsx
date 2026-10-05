@@ -26,6 +26,30 @@ import { Slider } from '@gitroom/react/form/slider';
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { ModalWrapperComponent } from '@gitroom/frontend/components/new-launch/modal.wrapper.component';
+import {
+  TONE_TEXT,
+  usePerUseProviders,
+  useWalletAccess,
+} from '@gitroom/frontend/components/wallet-locks/wallet.access';
+import {
+  findAction,
+  useWalletFormat,
+  useWalletPrices,
+} from '@gitroom/frontend/components/wallet/wallet.hooks';
+import { actionName } from '@gitroom/frontend/components/wallet/wallet.text';
+import {
+  CoinsIcon,
+  LockIcon,
+} from '@gitroom/frontend/components/wallet-locks/wallet.icons';
+import { openTopUp } from '@gitroom/frontend/components/wallet/wallet.bridge';
+
+// How a plug shows to a workspace that pays for its provider from the
+// wallet: locked until the first top-up, unavailable when one of its paid
+// calls has no price, metered otherwise. Undefined for everyone else.
+interface PlugWallet {
+  mode: 'locked' | 'unavailable' | 'metered';
+  tip: string;
+}
 export function convertBackRegex(s: string) {
   const matches = s.match(/\/(.*)\/([a-z]*)/);
   const pattern = matches?.[1] || '';
@@ -164,6 +188,7 @@ export const PlugPop: FC<{
 export const PlugItem: FC<{
   plug: PlugsInterface;
   addPlug: (data: any) => void;
+  wallet?: PlugWallet;
   data?: {
     activated: boolean;
     data: string;
@@ -173,7 +198,7 @@ export const PlugItem: FC<{
     plugFunction: string;
   };
 }> = (props) => {
-  const { plug, addPlug, data } = props;
+  const { plug, addPlug, data, wallet } = props;
   const [activated, setActivated] = useState(!!data?.activated);
   useEffect(() => {
     setActivated(!!data?.activated);
@@ -194,16 +219,47 @@ export const PlugItem: FC<{
     },
     [activated]
   );
+  const blocked = wallet?.mode === 'locked' || wallet?.mode === 'unavailable';
   return (
     <div
-      onClick={() => addPlug(data)}
+      onClick={() => {
+        if (wallet?.mode === 'locked') {
+          openTopUp(wallet.tip);
+          return;
+        }
+        if (wallet?.mode === 'unavailable') {
+          return;
+        }
+        addPlug(data);
+      }}
       key={plug.title}
-      className="w-full h-[300px] rounded-[8px] bg-newTableHeader hover:bg-newTableBorder"
+      {...(wallet
+        ? {
+            'data-tooltip-id': 'tooltip',
+            'data-tooltip-content': wallet.tip,
+          }
+        : {})}
+      className={clsx(
+        'w-full h-[300px] rounded-[8px] bg-newTableHeader hover:bg-newTableBorder',
+        !!wallet && 'ring-1 ring-inset ring-warmRing',
+        wallet?.mode === 'unavailable' && 'cursor-not-allowed'
+      )}
     >
-      <div key={plug.title} className="p-[16px] h-full flex flex-col flex-1">
-        <div className="flex">
+      <div
+        key={plug.title}
+        className={clsx(
+          'p-[16px] h-full flex flex-col flex-1',
+          blocked && 'opacity-60'
+        )}
+      >
+        <div className="flex gap-[8px]">
           <div className="text-[20px] mb-[8px] flex-1">{plug.title}</div>
-          {!!data && (
+          {!!wallet && (
+            <span className={clsx('mt-[6px]', TONE_TEXT.warm)}>
+              {blocked ? <LockIcon size={14} /> : <CoinsIcon size={15} />}
+            </span>
+          )}
+          {!!data && !blocked && (
             <div onClick={(e) => e.stopPropagation()}>
               <Slider
                 value={activated ? 'on' : 'off'}
@@ -214,7 +270,14 @@ export const PlugItem: FC<{
           )}
         </div>
         <div className="flex-1">{plug.description}</div>
-        <Button>{!data ? 'Set Plug' : 'Edit Plug'}</Button>
+        {!!wallet && (
+          <div className={clsx('text-[13px] mb-[12px]', TONE_TEXT.warm)}>
+            {wallet.tip}
+          </div>
+        )}
+        <Button disabled={wallet?.mode === 'unavailable'}>
+          {!data ? 'Set Plug' : 'Edit Plug'}
+        </Button>
       </div>
     </div>
   );
@@ -227,6 +290,58 @@ export const Plug = () => {
     return (await fetch(`/integrations/${plug.providerId}/plugs`)).json();
   }, [plug.providerId]);
   const { data, isLoading, mutate } = useSWR(`plugs-${plug.providerId}`, load);
+  const t = useT();
+  const walletAccess = useWalletAccess();
+  const perUse = usePerUseProviders();
+  const metered =
+    (walletAccess === 'free' || walletAccess === 'payg') &&
+    perUse.has(plug.identifier);
+  const { data: prices } = useWalletPrices(metered);
+  const walletFormat = useWalletFormat();
+  const walletOf = useCallback(
+    (p: PlugsInterface): PlugWallet | undefined => {
+      if (!metered) {
+        return undefined;
+      }
+      if (walletAccess === 'free') {
+        return {
+          mode: 'locked',
+          tip: t(
+            'wallet_plug_top_up',
+            '{{channel}} plugs are pay per use. Top up to set them up.',
+            { channel: plug.name }
+          ),
+        };
+      }
+      const actions = (p.walletActions || []).map((a) =>
+        findAction(prices, `${plug.identifier}.${a}`)
+      );
+      if (!actions.length || actions.some((a) => !a)) {
+        return {
+          mode: 'unavailable',
+          tip: t(
+            'wallet_plug_unavailable',
+            "This plug isn't available with wallet credits yet."
+          ),
+        };
+      }
+      return {
+        mode: 'metered',
+        tip: t(
+          'wallet_plug_metered',
+          'Pay per use, charged from your wallet each time it runs: {{prices}}.',
+          {
+            prices: actions
+              .map(
+                (a) => `${actionName(t, a!)} ${walletFormat.credits(a!.price)}`
+              )
+              .join(', '),
+          }
+        ),
+      };
+    },
+    [metered, walletAccess, prices, plug, t, walletFormat]
+  );
   const addEditPlug = useCallback(
     (p: PlugsInterface) =>
       (data?: {
@@ -269,6 +384,7 @@ export const Plug = () => {
           key={p.title + '-' + plug.providerId}
           addPlug={addEditPlug(p)}
           plug={p}
+          wallet={walletOf(p)}
           data={data?.find((a: any) => a.plugFunction === p.methodName)}
         />
       ))}

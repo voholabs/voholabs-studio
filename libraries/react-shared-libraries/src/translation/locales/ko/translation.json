@@ -842,7 +842,6 @@
   "wallet_auto_is_on": "자동 충전이 켜져 있습니다.",
   "wallet_done": "완료",
   "wallet_connect_provider": "{{name}} 연결",
-  "wallet_all_other_channels": "기타 모든 채널",
   "wallet_model_free": "무료",
   "wallet_allowance_unlimited": "무제한 사용",
   "wallet_price_free": "무료",

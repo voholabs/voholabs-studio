@@ -842,7 +842,6 @@
   "wallet_auto_is_on": "La recharge auto est activée.",
   "wallet_done": "Terminé",
   "wallet_connect_provider": "Connecter {{name}}",
-  "wallet_all_other_channels": "Tous les autres canaux",
   "wallet_model_free": "Gratuit",
   "wallet_allowance_unlimited": "Utilisation illimitée",
   "wallet_price_free": "Gratuit",

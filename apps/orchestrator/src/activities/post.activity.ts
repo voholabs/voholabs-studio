@@ -532,7 +532,7 @@ export class PostActivity {
       }
     );
 
-    const post = await this._postService.getPostByForWebhookId(postId);
+    const post = await this._postService.getPostByForWebhookId(postId, orgId);
     await Promise.all(
       webhooks.map(async (webhook) => {
         try {

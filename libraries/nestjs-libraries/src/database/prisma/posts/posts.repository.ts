@@ -1154,10 +1154,14 @@ export class PostsRepository {
     });
   }
 
-  async getPostByForWebhookId(postId: string) {
+  async getPostByForWebhookId(postId: string, orgId?: string) {
     return this._post.model.post.findMany({
       where: {
-        id: postId,
+        // The publish workflow passes the network's post id (stored as
+        // releaseId); "Send test" passes Studio's own id. Match either, and
+        // only inside the workspace the webhook belongs to.
+        OR: [{ id: postId }, { releaseId: postId }],
+        ...(orgId ? { organizationId: orgId } : {}),
         deletedAt: null,
         parentPostId: null,
       },

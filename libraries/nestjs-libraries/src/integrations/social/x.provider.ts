@@ -16,6 +16,10 @@ import {
   SocialAbstract,
 } from '@gitroom/nestjs-libraries/integrations/social.abstract';
 import { isWalletPublish } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.x';
+import {
+  PlugMeter,
+  PlugNotRunError,
+} from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.plugs';
 import { Plug } from '@gitroom/helpers/decorators/plug.decorator';
 import { Integration } from '@prisma/client';
 import { timer } from '@gitroom/helpers/utils/timer';
@@ -162,6 +166,7 @@ export class XProvider extends SocialAbstract implements SocialProvider {
       'When a post reached a certain number of likes, repost it to increase engagement (1 week old posts)',
     runEveryMilliseconds: 21600000,
     totalRuns: 3,
+    walletActions: ['post_read', 'repost'],
     fields: [
       {
         name: 'likesAmount',
@@ -175,7 +180,8 @@ export class XProvider extends SocialAbstract implements SocialProvider {
   async autoRepostPost(
     integration: Integration,
     id: string,
-    fields: { likesAmount: string }
+    fields: { likesAmount: string },
+    meter?: PlugMeter
   ) {
     // @ts-ignore
     // eslint-disable-next-line prefer-rest-params
@@ -186,6 +192,15 @@ export class XProvider extends SocialAbstract implements SocialProvider {
       accessToken: accessTokenSplit,
       accessSecret: accessSecretSplit,
     });
+
+    if (meter) {
+      if ((await this.meteredLikes(client, id, meter)) >= +fields.likesAmount) {
+        await timer(2000);
+        await meter.repost(() => client.v2.retweet(integration.internalId, id));
+        return true;
+      }
+      return false;
+    }
 
     if (
       (await client.v2.tweetLikedBy(id)).meta.result_count >=
@@ -199,18 +214,29 @@ export class XProvider extends SocialAbstract implements SocialProvider {
     return false;
   }
 
+  // A plug paid from the wallet reads the like count from the post itself
+  // (one post read) rather than listing the users who liked it.
+  private async meteredLikes(client: TwitterApi, id: string, meter: PlugMeter) {
+    const tweet = await meter.read(id, () =>
+      client.v2.singleTweet(id, { 'tweet.fields': ['public_metrics'] })
+    );
+    return tweet?.data?.public_metrics?.like_count || 0;
+  }
+
   @PostPlug({
     identifier: 'x-repost-post-users',
     title: 'Add Re-posters',
     description: 'Add accounts to repost your post',
     pickIntegration: ['x'],
+    walletActions: ['repost'],
     fields: [],
   })
   async repostPostUsers(
     integration: Integration,
     originalIntegration: Integration,
     postId: string,
-    information: any
+    information: any,
+    meter?: PlugMeter
   ) {
     const [accessTokenSplit, accessSecretSplit] = integration.token.split(':');
     const client = new TwitterApi({
@@ -219,6 +245,21 @@ export class XProvider extends SocialAbstract implements SocialProvider {
       accessToken: accessTokenSplit,
       accessSecret: accessSecretSplit,
     });
+
+    if (meter) {
+      // The channel's own X user id is stored, so no paid lookup is made.
+      try {
+        await meter.repost(() =>
+          client.v2.retweet(integration.internalId, postId)
+        );
+      } catch (err) {
+        if (err instanceof PlugNotRunError) {
+          throw err;
+        }
+        /** nothing **/
+      }
+      return;
+    }
 
     const {
       data: { id },
@@ -239,6 +280,7 @@ export class XProvider extends SocialAbstract implements SocialProvider {
       'When a post reached a certain number of likes, add another post to it so you followers get a notification about your promotion',
     runEveryMilliseconds: 21600000,
     totalRuns: 3,
+    walletActions: ['post_read', 'post'],
     fields: [
       {
         name: 'likesAmount',
@@ -259,7 +301,8 @@ export class XProvider extends SocialAbstract implements SocialProvider {
   async autoPlugPost(
     integration: Integration,
     id: string,
-    fields: { likesAmount: string; post: string }
+    fields: { likesAmount: string; post: string },
+    meter?: PlugMeter
   ) {
     // @ts-ignore
     // eslint-disable-next-line prefer-rest-params
@@ -270,6 +313,22 @@ export class XProvider extends SocialAbstract implements SocialProvider {
       accessToken: accessTokenSplit,
       accessSecret: accessSecretSplit,
     });
+
+    if (meter) {
+      if ((await this.meteredLikes(client, id, meter)) >= +fields.likesAmount) {
+        await timer(2000);
+        const plugText = stripHtmlValidation('normal', fields.post, true);
+        const text = this.stripLinks() ? removeLinks(plugText) : plugText;
+        await meter.post(text, () =>
+          client.v2.tweet({
+            text,
+            reply: { in_reply_to_tweet_id: id },
+          })
+        );
+        return true;
+      }
+      return false;
+    }
 
     if (
       (await client.v2.tweetLikedBy(id)).meta.result_count >=

@@ -22,6 +22,7 @@ const UNIT_DEFAULTS: Record<string, [string, string]> = {
   '1k_tokens': ['1K tokens', '1K tokens'],
   minute: ['minute', 'minutes'],
   read: ['read', 'reads'],
+  repost: ['repost', 'reposts'],
   lookup: ['lookup', 'lookups'],
 };
 

@@ -41,6 +41,18 @@ import {
 } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 import { WalletBillingService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.billing.service';
 import { walletAlert } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.alert';
+import {
+  PlugMeter,
+  PlugNotRunError,
+  plugActionKeys,
+  plugChargeKey,
+  plugNoticeKey,
+  plugNotRunMessage,
+  plugNotRunSubject,
+  plugReadChargeKey,
+  plugUnavailableMessage,
+  postExcerpt,
+} from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.plugs';
 
 // Paid reads and lookups on a provider's API, priced by the `<provider>.<action>`
 // wallet rows.
@@ -902,11 +914,40 @@ export class IntegrationService {
       return;
     }
 
-    // X automations don't run for free organizations.
+    // X automations don't run for free organizations. A workspace whose
+    // wallet opened X pays for each call the plug makes.
     if (
       providerNeedsPaidPlan(getIntegration.providerIdentifier) &&
       !(await this.organizationHasPaidPlan(data.orgId))
     ) {
+      if (
+        !(await this._walletService.unlocksProvider(
+          data.orgId,
+          getIntegration.providerIdentifier
+        ))
+      ) {
+        return;
+      }
+      await this.runWalletPlug({
+        orgId: data.orgId,
+        identifier: getIntegration.providerIdentifier,
+        plugKey: `${data.plugName}:${getIntegration.id}`,
+        walletActions: getAllInternalPlugs.walletActions,
+        sourceIntegrationId: originalIntegration.id,
+        postId: data.post,
+        run: 1,
+        call: (meter) =>
+          // @ts-ignore
+          this._integrationManager
+            .getSocialIntegration(getIntegration.providerIdentifier)
+            ?.[getAllInternalPlugs.methodName]?.(
+              getIntegration,
+              originalIntegration,
+              data.post,
+              data.information,
+              meter
+            ),
+      });
       return;
     }
 
@@ -937,14 +978,15 @@ export class IntegrationService {
       return true;
     }
 
-    // X automations don't run for free organizations.
+    // X automations don't run for free organizations. A workspace whose
+    // wallet opened X pays for each call the plug makes.
     if (
       providerNeedsPaidPlan(getPlugById.integration.providerIdentifier) &&
       !(await this.organizationHasPaidPlan(
         getPlugById.integration.organizationId
       ))
     ) {
-      return true;
+      return this.processWalletPlug(getPlugById, data);
     }
 
     const integration = this._integrationManager.getSocialIntegration(
@@ -972,11 +1014,296 @@ export class IntegrationService {
     return false;
   }
 
+  // Runs a global plug for a workspace that pays for the provider from its
+  // wallet. Same answer as processPlugs: true when the plug is done for this
+  // post, false to try again on its next run. A plug the wallet could not
+  // pay for is done for this post: it fails once, with one notification, and
+  // its later scheduled checks are skipped.
+  private async processWalletPlug(
+    plug: NonNullable<Awaited<ReturnType<IntegrationRepository['getPlug']>>>,
+    data: {
+      postId: string;
+      delay: number;
+      totalRuns: number;
+      currentRun: number;
+    }
+  ) {
+    const identifier = plug.integration.providerIdentifier;
+    const orgId = plug.integration.organizationId;
+    if (!(await this._walletService.unlocksProvider(orgId, identifier))) {
+      return true;
+    }
+    const definition = this.globalPlugDefinition(identifier, plug.plugFunction);
+    const result = await this.runWalletPlug({
+      orgId,
+      identifier,
+      plugKey: plug.id,
+      walletActions: definition?.walletActions,
+      sourceIntegrationId: plug.integration.id,
+      postId: data.postId,
+      run: definition?.runEveryMilliseconds
+        ? Math.max(1, Math.round(data.delay / definition.runEveryMilliseconds))
+        : 1,
+      call: (meter) =>
+        // @ts-ignore
+        this._integrationManager
+          .getSocialIntegration(identifier)
+          [plug.plugFunction](
+            plug.integration,
+            data.postId,
+            JSON.parse(plug.data).reduce((all: any, current: any) => {
+              all[current.name] = current.value;
+              return all;
+            }, {}),
+            meter
+          ),
+    });
+    if (result === 'short' || result === 'unavailable' || result) {
+      return true;
+    }
+    return data.totalRuns === data.currentRun;
+  }
+
+  // Runs a plug for a workspace that pays for the provider from its wallet.
+  // Every paid call the plug makes is charged first through the meter; a
+  // plug whose actions are not all priced is not run at all (a paid call is
+  // never made unbilled). Returns what the plug returned, 'short' when the
+  // wallet could not pay, or 'unavailable' when an action has no price. Both
+  // send one in-app notification per plug per UTC day.
+  private async runWalletPlug(params: {
+    orgId: string;
+    identifier: string;
+    plugKey: string;
+    walletActions?: string[];
+    sourceIntegrationId: string;
+    postId: string;
+    run: number;
+    call: (meter: PlugMeter) => Promise<any>;
+  }): Promise<any> {
+    const post = await this._integrationRepository
+      .postByReleaseId(params.orgId, params.sourceIntegrationId, params.postId)
+      .catch((): null => null);
+    const notRun = async (
+      reason: PlugNotRunError['reason'],
+      detail: string
+    ) => {
+      console.warn(
+        `[wallet] Plug ${params.plugKey} did not run on ${params.postId} (organization ${params.orgId}): ${detail}`
+      );
+      await this.notifyPlugNotRun(
+        params.orgId,
+        params.identifier,
+        params.plugKey,
+        reason,
+        post?.content
+      );
+    };
+
+    const missing = await this.unpricedPlugActions(
+      params.identifier,
+      params.walletActions
+    );
+    if (missing.length) {
+      await notRun('unpriced', `no price for ${missing.join(', ')}`);
+      return 'unavailable';
+    }
+
+    try {
+      return await params.call(
+        this.plugMeter({ ...params, reference: post?.id || params.postId })
+      );
+    } catch (err) {
+      if (err instanceof PlugNotRunError) {
+        await notRun(err.reason, err.message);
+        return err.reason === 'credits' ? 'short' : 'unavailable';
+      }
+      throw err;
+    }
+  }
+
+  // The price rows a plug's actions need that are missing. A plug declaring
+  // no actions cannot be priced, so it counts as missing everything.
+  async unpricedPlugActions(identifier: string, walletActions?: string[]) {
+    if (!walletActions?.length) {
+      return ['(undeclared)'];
+    }
+    const missing: string[] = [];
+    for (const key of plugActionKeys(identifier, walletActions)) {
+      if (!(await this._walletService.price(key))) {
+        missing.push(key);
+      }
+    }
+    return missing;
+  }
+
+  // Charges each paid call a plug makes before it is made, once per run
+  // (Temporal retries reuse the charge), and refunds it when the network
+  // refuses the call. Throws PlugNotRunError, without calling the network,
+  // when the wallet cannot pay (auto top-up is tried first) or the action
+  // has no price.
+  private plugMeter(params: {
+    orgId: string;
+    identifier: string;
+    plugKey: string;
+    postId: string;
+    run: number;
+    reference: string;
+  }): PlugMeter {
+    const provider = providerKey(params.identifier);
+    const pay = async <T>(
+      actionKey: string,
+      chargeKey: string,
+      call: () => Promise<T>
+    ): Promise<T> => {
+      let charge: string | undefined;
+      if (
+        !(await this._walletService.standingCharge(params.orgId, chargeKey))
+      ) {
+        try {
+          const entry = await this._walletBilling.charge({
+            organizationId: params.orgId,
+            actionKey,
+            chargeKey,
+            reference: params.reference,
+          });
+          charge = entry.idempotencyKey!;
+        } catch (err) {
+          if (err instanceof InsufficientCreditsError) {
+            throw new PlugNotRunError('credits', actionKey);
+          }
+          if (!(await this._walletService.price(actionKey))) {
+            throw new PlugNotRunError('unpriced', actionKey);
+          }
+          throw err;
+        }
+      }
+      try {
+        return await call();
+      } catch (err) {
+        // Only what this attempt charged is given back: a standing charge
+        // from an earlier attempt paid for a call that went through.
+        if (charge) {
+          await this.refundApiUse(charge, 'Refund: the plug did not go out');
+        }
+        throw err;
+      }
+    };
+    const key = (action: string) =>
+      plugChargeKey(
+        params.identifier,
+        params.plugKey,
+        params.postId,
+        params.run,
+        action
+      );
+    return {
+      read: (postId, call) =>
+        pay(
+          `${provider}.post_read`,
+          plugReadChargeKey(params.identifier, params.orgId, postId),
+          call
+        ),
+      post: async (text, call) =>
+        pay(
+          await this._walletService.postActionKey(params.identifier, text, {
+            sent: true,
+          }),
+          key('post'),
+          call
+        ),
+      repost: (call) => pay(`${provider}.repost`, key('repost'), call),
+    };
+  }
+
+  // One in-app notification (never an email) per plug per UTC day.
+  private async notifyPlugNotRun(
+    orgId: string,
+    identifier: string,
+    plugKey: string,
+    reason: PlugNotRunError['reason'],
+    content?: string | null
+  ) {
+    const claimed = await ioRedis
+      .set(plugNoticeKey(plugKey), '1', 'EX', 60 * 60 * 48, 'NX')
+      .then((r) => r === 'OK')
+      .catch(() => true);
+    if (!claimed) {
+      return;
+    }
+    await this._walletService.notify(
+      orgId,
+      plugNotRunSubject(identifier),
+      plugNotRunMessage(
+        identifier,
+        reason,
+        postExcerpt(content),
+        `${process.env.FRONTEND_URL}/wallet`
+      ),
+      'fail'
+    );
+  }
+
+  private globalPlugDefinition(identifier: string, methodName: string) {
+    return this._integrationManager
+      .getAllPlugs()
+      .find((p) => p.identifier === identifier)
+      ?.plugs.find((p: any) => p.methodName === methodName) as
+      | { walletActions?: string[]; runEveryMilliseconds?: number }
+      | undefined;
+  }
+
+  // Setting up or switching on a plug follows the provider's lock: open on a
+  // paid plan or for a provider the free plan does not lock; for a provider
+  // the wallet charges for, only after a top-up opened it (else the wallet
+  // 402, which opens the top-up), and only when every paid call the plug
+  // makes has a price.
+  async assertCanSetPlug(
+    orgId: string,
+    identifier: string,
+    methodName: string
+  ) {
+    if (
+      !providerNeedsPaidPlan(identifier) ||
+      (await this.organizationHasPaidPlan(orgId))
+    ) {
+      return;
+    }
+    if (!(await this._walletService.unlocksProvider(orgId, identifier))) {
+      throw await this._walletService.providerLocked(
+        orgId,
+        identifier,
+        paidOnlyChannelMessage()
+      );
+    }
+    const missing = await this.unpricedPlugActions(
+      identifier,
+      this.globalPlugDefinition(identifier, methodName)?.walletActions
+    );
+    if (missing.length) {
+      throw new HttpException(
+        { message: plugUnavailableMessage() },
+        HttpStatus.BAD_REQUEST
+      );
+    }
+  }
+
   async createOrUpdatePlug(
     orgId: string,
     integrationId: string,
     body: PlugDto
   ) {
+    const integration = await this._integrationRepository.getIntegrationById(
+      orgId,
+      integrationId
+    );
+    if (integration) {
+      await this.assertCanSetPlug(
+        orgId,
+        integration.providerIdentifier,
+        body.func
+      );
+    }
+
     const { activated } = await this._integrationRepository.createOrUpdatePlug(
       orgId,
       integrationId,
@@ -989,6 +1316,16 @@ export class IntegrationService {
   }
 
   async changePlugActivation(orgId: string, plugId: string, status: boolean) {
+    if (status) {
+      const plug = await this._integrationRepository.getPlug(plugId);
+      if (plug && plug.organizationId === orgId) {
+        await this.assertCanSetPlug(
+          orgId,
+          plug.integration.providerIdentifier,
+          plug.plugFunction
+        );
+      }
+    }
     const { id, integrationId, plugFunction } =
       await this._integrationRepository.changePlugActivation(
         orgId,

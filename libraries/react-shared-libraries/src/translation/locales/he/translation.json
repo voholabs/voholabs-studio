@@ -842,7 +842,6 @@
   "wallet_auto_is_on": "טעינה אוטומטית פעילה.",
   "wallet_done": "סיום",
   "wallet_connect_provider": "חיבור {{name}}",
-  "wallet_all_other_channels": "כל שאר הערוצים",
   "wallet_model_free": "חינם",
   "wallet_allowance_unlimited": "שימוש ללא הגבלה",
   "wallet_price_free": "חינם",

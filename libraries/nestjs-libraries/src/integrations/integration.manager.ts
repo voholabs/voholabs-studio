@@ -173,6 +173,14 @@ export class IntegrationManager {
     };
   }
 
+  // Each channel provider's id and display name.
+  socialProviders() {
+    return socialIntegrationList.map((p) => ({
+      identifier: p.identifier,
+      name: p.name,
+    }));
+  }
+
   getAllowedSocialsIntegrations() {
     return socialIntegrationList.map((p) => p.identifier);
   }

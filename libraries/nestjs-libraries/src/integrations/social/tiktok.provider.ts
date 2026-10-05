@@ -24,7 +24,7 @@ import { Tool } from '@gitroom/nestjs-libraries/integrations/tool.decorator';
 )
 export class TiktokProvider extends SocialAbstract implements SocialProvider {
   identifier = 'tiktok';
-  name = 'Tiktok';
+  name = 'TikTok';
   isBetweenSteps = false;
   convertToJPEG = true;
   scopes = [

@@ -842,7 +842,6 @@
   "wallet_auto_is_on": "Otomatik yükleme açık.",
   "wallet_done": "Tamam",
   "wallet_connect_provider": "{{name}} bağla",
-  "wallet_all_other_channels": "Diğer tüm kanallar",
   "wallet_model_free": "Ücretsiz",
   "wallet_allowance_unlimited": "Sınırsız kullanım",
   "wallet_price_free": "Ücretsiz",

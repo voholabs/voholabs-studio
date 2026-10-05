@@ -652,7 +652,6 @@
     "wallet_auto_is_on": "ავტოშევსება ჩართულია.",
     "wallet_done": "მზადაა",
     "wallet_connect_provider": "{{name}}-ის დაკავშირება",
-    "wallet_all_other_channels": "ყველა სხვა არხი",
     "wallet_model_free": "უფასო",
     "wallet_allowance_unlimited": "შეუზღუდავი გამოყენება",
     "wallet_price_free": "უფასო",

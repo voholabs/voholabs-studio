@@ -42,23 +42,10 @@ import Link from 'next/link';
 import { Tooltip } from 'react-tooltip';
 import copy from 'copy-to-clipboard';
 import { capitalize } from 'lodash';
+import { ENABLED_PROVIDERS } from '@gitroom/frontend/components/launches/enabled.providers';
 const resolver = classValidatorResolver(ApiKeyDto);
 
-// Channels we currently support connecting. Everything else is shown as
-// "Coming soon" and is not clickable until its OAuth app is configured.
-export const ENABLED_PROVIDERS = [
-  'youtube',
-  'facebook',
-  'instagram',
-  'instagram-standalone',
-  'linkedin',
-  'linkedin-page',
-  'x',
-  'threads',
-  'tiktok',
-  'discord',
-  'sanity',
-];
+export { ENABLED_PROVIDERS };
 
 export const useAddProvider = (update?: () => void, invite?: boolean) => {
   const modal = useModals();

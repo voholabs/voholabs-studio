@@ -1474,7 +1474,7 @@ export class PostsService {
     // X is unavailable on the free plan: refuse before anything is
     // saved, whether the post comes from the app, the public API or an agent.
     // A pay-as-you-go workspace may use the ones its wallet charges for; the
-    // credits are taken when each post is published, not here.
+    // credits are taken below, as the posts are scheduled.
     for (const type of new Set(
       body.posts.map((post) => (post.settings as any)?.__type as string)
     )) {

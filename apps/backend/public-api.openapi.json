@@ -1,0 +1,3214 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Voholabs Studio Public API",
+    "version": "1.0.0",
+    "description": "Schedule posts, manage media, read analytics, the agent brief, the skills library and the credit wallet of a Voholabs Studio workspace.\n\nAuthenticate with the workspace's API key (Settings, Public API) or an OAuth token (`pos_...`) in the `Authorization` header, without a `Bearer` prefix.\n\nErrors: a refusal that needs wallet credits answers 402 with `{ message, wallet: true, url: \"/wallet\" }`; `url` is relative to the Studio app. Other refusals carry `msg` or `message`.",
+    "contact": {
+      "name": "Voholabs",
+      "url": "https://voholabs.com/docs/api"
+    },
+    "license": {
+      "name": "AGPL-3.0",
+      "identifier": "AGPL-3.0-only"
+    }
+  },
+  "externalDocs": {
+    "description": "Voholabs Studio API docs",
+    "url": "https://voholabs.com/docs/api"
+  },
+  "servers": [
+    {
+      "url": "https://studio.voholabs.com/api/public/v1"
+    }
+  ],
+  "security": [
+    {
+      "apiKey": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Channels",
+      "description": "Connected social channels and their settings"
+    },
+    {
+      "name": "Posts",
+      "description": "Create, schedule, list and delete posts"
+    },
+    {
+      "name": "Media",
+      "description": "The media library and uploads"
+    },
+    {
+      "name": "Analytics",
+      "description": "Channel and post analytics"
+    },
+    {
+      "name": "Wallet",
+      "description": "Credit wallet: balance, prices, transactions and estimates (read-only)"
+    },
+    {
+      "name": "Skills",
+      "description": "The skills library"
+    },
+    {
+      "name": "Brief",
+      "description": "The agent brief and its guided onboarding"
+    },
+    {
+      "name": "Notifications",
+      "description": "Workspace notifications"
+    },
+    {
+      "name": "AI",
+      "description": "AI media generation (paid plans)"
+    },
+    {
+      "name": "Meta",
+      "description": "This API description"
+    }
+  ],
+  "paths": {
+    "/is-connected": {
+      "get": {
+        "tags": [
+          "Channels"
+        ],
+        "summary": "Check the API key",
+        "description": "Answers when the key or OAuth token is valid.",
+        "operationId": "isConnected",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "connected": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "connected"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/integrations": {
+      "get": {
+        "tags": [
+          "Channels"
+        ],
+        "summary": "List channels",
+        "description": "The connected channels (called integrations in the API). TikTok and every other channel are available on all plans; X is charged per post from the wallet on pay-as-you-go workspaces.",
+        "operationId": "listChannels",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Channel"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "parameters": [
+          {
+            "name": "group",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only the channels of this group (customer) id, from GET /groups"
+          }
+        ]
+      }
+    },
+    "/groups": {
+      "get": {
+        "tags": [
+          "Channels"
+        ],
+        "summary": "List groups",
+        "description": "Groups (customers) used to label channels.",
+        "operationId": "listGroups",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/integration-settings/{id}": {
+      "get": {
+        "tags": [
+          "Channels"
+        ],
+        "summary": "Get a channel's posting rules and settings",
+        "description": "The rules, maximum length, settings schema and tools of a channel's provider. Pass the settings it describes as `settings` when creating a post.",
+        "operationId": "getChannelSettings",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "output": {
+                      "type": "object",
+                      "properties": {
+                        "rules": {
+                          "type": "string"
+                        },
+                        "maxLength": {
+                          "type": "integer"
+                        },
+                        "settings": {
+                          "description": "A JSON schema of the settings, or the string \"No additional settings required\"",
+                          "oneOf": [
+                            {
+                              "type": "object"
+                            },
+                            {
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "tools": {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Channel id"
+          }
+        ]
+      }
+    },
+    "/integration-trigger/{id}": {
+      "post": {
+        "tags": [
+          "Channels"
+        ],
+        "summary": "Run a channel tool",
+        "description": "Runs one of the tools a channel's provider exposes (listed by GET /integration-settings/{id}), e.g. looking up a Discord channel list.",
+        "operationId": "triggerChannelTool",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "output": {}
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Channel id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "methodName"
+                ],
+                "properties": {
+                  "methodName": {
+                    "type": "string"
+                  },
+                  "data": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/social/{integration}": {
+      "get": {
+        "tags": [
+          "Channels"
+        ],
+        "summary": "Get a connect URL for a channel",
+        "description": "Starts connecting a new channel: returns the provider's OAuth URL to open in a browser. `integration` is a provider identifier such as `linkedin`, `tiktok` or `x`. A provider the workspace cannot use yet answers 402: for X on a free workspace the body carries `wallet: true` and the top-up link.",
+        "operationId": "getConnectUrl",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "format": "uri"
+                    }
+                  },
+                  "required": [
+                    "url"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "402": {
+            "$ref": "#/components/responses/PaymentRequired"
+          }
+        },
+        "parameters": [
+          {
+            "name": "integration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Provider identifier"
+          },
+          {
+            "name": "refresh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Id of an existing channel to reconnect"
+          }
+        ]
+      }
+    },
+    "/integrations/{id}": {
+      "delete": {
+        "tags": [
+          "Channels"
+        ],
+        "summary": "Delete a channel",
+        "description": "Disconnects a channel and deletes the posts scheduled on it.",
+        "operationId": "deleteChannel",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Channel id"
+          }
+        ]
+      }
+    },
+    "/find-slot/{id}": {
+      "get": {
+        "tags": [
+          "Posts"
+        ],
+        "summary": "Find the next free slot",
+        "description": "The next free time slot on a channel's posting schedule.",
+        "operationId": "findSlot",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "date": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Channel id"
+          }
+        ]
+      }
+    },
+    "/posts": {
+      "get": {
+        "tags": [
+          "Posts"
+        ],
+        "summary": "List posts",
+        "description": "Posts in a date range.",
+        "operationId": "listPosts",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "posts": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PostSummary"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        },
+        "parameters": [
+          {
+            "name": "startDate",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "ISO date-time"
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "ISO date-time"
+          },
+          {
+            "name": "customer",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only the channels of this group (customer) id"
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Posts"
+        ],
+        "summary": "Create or schedule posts",
+        "description": "Creates one post per entry of `posts` (each on one channel; `value` is the post then its thread items or comments). `type` is `draft`, `schedule` or `now`.\n\nWallet: on a pay-as-you-go workspace, a post on a channel charged per post (see GET /wallet/prices) is paid from the wallet credits when it is scheduled, each thread item separately; drafts are free until scheduled. Editing re-prices only what changed; deleting, moving back to draft or a failed send gives the credits back. When the credits (with auto top-up) do not cover it, nothing is saved and the answer is 402 with `wallet: true`. Price a post first with POST /wallet/estimate.",
+        "operationId": "createPosts",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "postId": {
+                        "type": "string"
+                      },
+                      "integration": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "postId",
+                      "integration"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/PostValidationError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "$ref": "#/components/responses/PaymentRequired"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePosts"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/posts/{id}": {
+      "delete": {
+        "tags": [
+          "Posts"
+        ],
+        "summary": "Delete a post",
+        "description": "Deletes the post's whole group (the post, its thread items and comments). A published post is only removed from the calendar unless `deleteFromPlatform=true`, which also deletes it on networks that support that. Credits paid for parts not sent yet are given back.",
+        "operationId": "deletePost",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Post id"
+          },
+          {
+            "name": "deleteFromPlatform",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "description": "Also delete the published message on the network"
+          }
+        ]
+      }
+    },
+    "/posts/group/{group}": {
+      "delete": {
+        "tags": [
+          "Posts"
+        ],
+        "summary": "Delete a post group",
+        "description": "Same as DELETE /posts/{id}, by group id.",
+        "operationId": "deletePostGroup",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "parameters": [
+          {
+            "name": "group",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Post group id"
+          },
+          {
+            "name": "deleteFromPlatform",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "description": "Also delete the published message on the network"
+          }
+        ]
+      }
+    },
+    "/posts/{id}/status": {
+      "put": {
+        "tags": [
+          "Posts"
+        ],
+        "summary": "Move a post between draft and the schedule",
+        "description": "`schedule` puts a draft back on the schedule at its time (and pays for it from the wallet on a pay-as-you-go workspace, 402 when the credits do not cover it); `draft` takes it off and gives its credits back.",
+        "operationId": "changePostStatus",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "402": {
+            "$ref": "#/components/responses/PaymentRequired"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Post id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "status"
+                ],
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "draft",
+                      "schedule"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/posts/{id}/release-id": {
+      "put": {
+        "tags": [
+          "Posts"
+        ],
+        "summary": "Link a post to its message on the network",
+        "description": "Sets the network's id for a published post whose link was lost, so its analytics can be read.",
+        "operationId": "setReleaseId",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Post id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "releaseId"
+                ],
+                "properties": {
+                  "releaseId": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/posts/{id}/missing": {
+      "get": {
+        "tags": [
+          "Posts"
+        ],
+        "summary": "List candidate messages for a post that lost its link",
+        "description": "Recent messages on the network that may be this post, to pick a release id from.",
+        "operationId": "getMissingContent",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Post id"
+          }
+        ]
+      }
+    },
+    "/upload": {
+      "post": {
+        "tags": [
+          "Media"
+        ],
+        "summary": "Upload a file",
+        "description": "Multipart upload (field `file`) into the media library: jpeg, png, gif, webp, avif, bmp, tiff or mp4. On the free plan a full library answers 413. On a pay-as-you-go workspace storage above the free amount is paid when the file is uploaded; 402 when the credits do not cover it.",
+        "operationId": "upload",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Media"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "402": {
+            "$ref": "#/components/responses/PaymentRequired"
+          },
+          "413": {
+            "$ref": "#/components/responses/StorageFull"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/upload-from-url": {
+      "post": {
+        "tags": [
+          "Media"
+        ],
+        "summary": "Upload a file from a URL",
+        "description": "Fetches a public https URL into the media library. Same limits and storage rules as POST /upload.",
+        "operationId": "uploadFromUrl",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Media"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "402": {
+            "$ref": "#/components/responses/PaymentRequired"
+          },
+          "413": {
+            "$ref": "#/components/responses/StorageFull"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "url"
+                ],
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/upload-ticket": {
+      "post": {
+        "tags": [
+          "Media"
+        ],
+        "summary": "Mint a single-use upload link",
+        "description": "Returns a URL that accepts one multipart upload without the API key, valid for a few minutes. `purpose: \"brief\"` mints a link for the brief upload route, which also accepts documents (PDF and the like) for the brief's Branding & assets.",
+        "operationId": "mintUploadTicket",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "uploadUrl": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "expiresInSeconds": {
+                      "type": "integer"
+                    },
+                    "field": {
+                      "type": "string",
+                      "const": "file"
+                    }
+                  },
+                  "required": [
+                    "uploadUrl",
+                    "expiresInSeconds",
+                    "field"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "purpose": {
+                    "type": "string",
+                    "enum": [
+                      "media",
+                      "brief"
+                    ],
+                    "description": "Anything other than \"brief\" is a media ticket"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/upload-ticket/{token}": {
+      "post": {
+        "tags": [
+          "Media"
+        ],
+        "summary": "Upload with a ticket",
+        "description": "The `uploadUrl` from POST /upload-ticket. The ticket in the path is the credential; send no API key. Same storage rules as POST /upload.",
+        "operationId": "uploadWithTicket",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Media"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "402": {
+            "$ref": "#/components/responses/PaymentRequired"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/StorageFull"
+          }
+        },
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Upload ticket"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/brief-upload/{token}": {
+      "post": {
+        "tags": [
+          "Brief"
+        ],
+        "summary": "Upload a brief file with a ticket",
+        "description": "The `uploadUrl` from POST /upload-ticket with `purpose: \"brief\"`. Takes images and documents; stored in the media library and counted as storage. Register it on a brief document's `assets` with PATCH /brief/{category}/{key}.",
+        "operationId": "uploadBriefFile",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Media"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "image",
+                            "document"
+                          ]
+                        },
+                        "mime": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "402": {
+            "$ref": "#/components/responses/PaymentRequired"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/StorageFull"
+          }
+        },
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Upload ticket"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/media": {
+      "get": {
+        "tags": [
+          "Media"
+        ],
+        "summary": "List the media library",
+        "description": "18 items a page, newest first.",
+        "operationId": "listMedia",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "pages": {
+                      "type": "integer"
+                    },
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Media"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Page, from 1"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Words in the file name"
+          }
+        ]
+      }
+    },
+    "/media/{id}": {
+      "delete": {
+        "tags": [
+          "Media"
+        ],
+        "summary": "Delete a media file",
+        "description": "Removes a file from the library. Storage already paid for is not given back.",
+        "operationId": "deleteMedia",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Media id"
+          }
+        ]
+      }
+    },
+    "/analytics/{integration}": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Channel analytics",
+        "description": "What the network reports about a channel over the last `date` days; each network has its own metrics. Answers come from a one-hour cache; the `X-Cached-At` header says when they were read from the network. `fresh=true` reads the network again (ignored on a paid plan; on a pay-as-you-go workspace X reads are charged, 402 when the credits do not cover them).",
+        "operationId": "channelAnalytics",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "X-Cached-At": {
+                "description": "When the numbers were read from the network (ISO time)",
+                "schema": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AnalyticsSeries"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "$ref": "#/components/responses/PaymentRequired"
+          }
+        },
+        "parameters": [
+          {
+            "name": "integration",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Channel id"
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Days back, e.g. 7, 30 or 90"
+          },
+          {
+            "name": "fresh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "description": "Skip the cache"
+          }
+        ]
+      }
+    },
+    "/analytics/post/{postId}": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Post analytics",
+        "description": "What the network reports for one published post, read live. `{ missing: true }` means the post is not linked to its message on the network (see PUT /posts/{id}/release-id).",
+        "operationId": "postAnalytics",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AnalyticsSeries"
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "missing": {
+                          "type": "boolean",
+                          "const": true
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "$ref": "#/components/responses/PaymentRequired"
+          }
+        },
+        "parameters": [
+          {
+            "name": "postId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Post id"
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Days back"
+          }
+        ]
+      }
+    },
+    "/notifications": {
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "List notifications",
+        "description": "The workspace's notifications, newest first.",
+        "operationId": "listNotifications",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "description": "Page, from 0"
+          }
+        ]
+      }
+    },
+    "/wallet": {
+      "get": {
+        "tags": [
+          "Wallet"
+        ],
+        "summary": "Wallet balance",
+        "description": "The workspace's wallet credits: balance, pay-as-you-go state, auto top-up and the forecast of paid usage still to come in the next hours (next occurrences of repeating posts, and posts queued before charging moved to scheduling time). Read-only: top-ups happen in the app at `topUpUrl`. A paid plan answers `{ usesWallet: false }`.",
+        "operationId": "getWallet",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/WalletSummary"
+                    },
+                    {
+                      "$ref": "#/components/schemas/NotOnWallet"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/wallet/prices": {
+      "get": {
+        "tags": [
+          "Wallet"
+        ],
+        "summary": "Price list",
+        "description": "Everything that costs credits or opens with the first top-up, grouped into sections. Prices change; read them here rather than hard-coding them. Channels not listed are free.",
+        "operationId": "getWalletPrices",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalletPrices"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only this provider's rows, e.g. x"
+          }
+        ]
+      }
+    },
+    "/wallet/transactions": {
+      "get": {
+        "tags": [
+          "Wallet"
+        ],
+        "summary": "Wallet transactions",
+        "description": "Top-ups, charges, refunds, grants and adjustments, newest first. `credits` is signed: positive adds to the balance, negative spends.",
+        "operationId": "listWalletTransactions",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/WalletTransactions"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/NotOnWallet"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "total": {
+                              "type": "integer"
+                            },
+                            "items": {
+                              "type": "array",
+                              "maxItems": 0
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "description": "Page, from 0"
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "description": "Items per page, 1-100 (default 20)"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Entry types, comma separated, of TOPUP, AUTO_TOPUP, SPEND, REFUND, GRANT, ADJUST"
+          }
+        ]
+      }
+    },
+    "/wallet/estimate": {
+      "post": {
+        "tags": [
+          "Wallet"
+        ],
+        "summary": "Price a post",
+        "description": "What a post and its thread items on one provider would take from the wallet if scheduled now, priced with the rule that charges them. Nothing is charged. With `group` (a post being edited) what it already paid counts towards the new price; with `inter` (repeat every n days) the price is per occurrence.",
+        "operationId": "estimatePost",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/WalletEstimate"
+                    },
+                    {
+                      "$ref": "#/components/schemas/NotOnWallet"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "provider",
+                  "contents"
+                ],
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "description": "Provider identifier, e.g. x"
+                  },
+                  "contents": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "The post, then each thread item, as it will be saved"
+                  },
+                  "group": {
+                    "type": "string"
+                  },
+                  "inter": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 3650
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/skills": {
+      "get": {
+        "tags": [
+          "Skills"
+        ],
+        "summary": "List skills",
+        "description": "The skills library: step-by-step methods for content jobs, as a short catalog. Opens with the first wallet top-up (402 with `wallet: true` before that); paid plans always pass.",
+        "operationId": "listSkills",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillsList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "$ref": "#/components/responses/PaymentRequired"
+          }
+        },
+        "parameters": [
+          {
+            "name": "tag",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only skills with this tag key"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Words in the name, summary or tags"
+          }
+        ]
+      }
+    },
+    "/skills/{slug}": {
+      "get": {
+        "tags": [
+          "Skills"
+        ],
+        "summary": "Get a skill",
+        "description": "One skill in full, with its instructions.",
+        "operationId": "getSkill",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Skill"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "$ref": "#/components/responses/PaymentRequired"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Skill slug"
+          }
+        ]
+      }
+    },
+    "/brief/schema": {
+      "get": {
+        "tags": [
+          "Brief"
+        ],
+        "summary": "Brief structure",
+        "description": "The categories and documents of the agent brief and what may be created or deleted in each. Open on a paid plan or after the first wallet top-up; 402 with `wallet: true` otherwise.",
+        "operationId": "getBriefSchema",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "categories": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "$ref": "#/components/responses/PaymentRequired"
+          }
+        }
+      }
+    },
+    "/brief": {
+      "get": {
+        "tags": [
+          "Brief"
+        ],
+        "summary": "Read the brief",
+        "description": "Every document in the agent brief. Open on a paid plan or after the first wallet top-up; 402 with `wallet: true` otherwise.",
+        "operationId": "getBrief",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "registryVersion": {
+                      "type": "integer"
+                    },
+                    "documents": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/BriefDocument"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "$ref": "#/components/responses/PaymentRequired"
+          }
+        }
+      }
+    },
+    "/brief/onboarding": {
+      "get": {
+        "tags": [
+          "Brief"
+        ],
+        "summary": "Brief onboarding status",
+        "description": "Whether the guided brief onboarding is available, running or has run, and whether starting a new run takes credits. The onboarding is an interview the user takes in the app, so it is started at `startUrl`, not through the API. Open on a paid plan or after the first wallet top-up; 402 with `wallet: true` otherwise.",
+        "operationId": "getBriefOnboarding",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BriefOnboardingStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "$ref": "#/components/responses/PaymentRequired"
+          }
+        }
+      }
+    },
+    "/brief/{category}/{key}": {
+      "get": {
+        "tags": [
+          "Brief"
+        ],
+        "summary": "Read one brief document",
+        "description": "One document. Open on a paid plan or after the first wallet top-up; 402 with `wallet: true` otherwise.",
+        "operationId": "getBriefDocument",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BriefDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "$ref": "#/components/responses/PaymentRequired"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "parameters": [
+          {
+            "name": "category",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Brief category id, from GET /brief/schema"
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Document key"
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Brief"
+        ],
+        "summary": "Save a brief document",
+        "description": "Saves a document. A field left out keeps what is stored; `blocks`, `links` and `assets` are each replaced whole, so send the existing items with your changes. Open on a paid plan or after the first wallet top-up; 402 with `wallet: true` otherwise.",
+        "operationId": "saveBriefDocument",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BriefDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "402": {
+            "$ref": "#/components/responses/PaymentRequired"
+          }
+        },
+        "parameters": [
+          {
+            "name": "category",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Brief category id, from GET /brief/schema"
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Document key"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveBriefDocument"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Brief"
+        ],
+        "summary": "Delete a brief document",
+        "description": "Deletes a document in a category that allows it. By default its history goes with it; `keepHistory=true` keeps the revisions and records the removal. Open on a paid plan or after the first wallet top-up; 402 with `wallet: true` otherwise.",
+        "operationId": "deleteBriefDocument",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "402": {
+            "$ref": "#/components/responses/PaymentRequired"
+          }
+        },
+        "parameters": [
+          {
+            "name": "category",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Brief category id, from GET /brief/schema"
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Document key"
+          },
+          {
+            "name": "keepHistory",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "description": "Keep the document history"
+          }
+        ]
+      }
+    },
+    "/generate-video": {
+      "post": {
+        "tags": [
+          "AI"
+        ],
+        "summary": "Generate a video",
+        "description": "Paid plans only (AI section); 402 otherwise.",
+        "operationId": "generateVideo",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "$ref": "#/components/responses/PaymentRequired"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/video/function": {
+      "post": {
+        "tags": [
+          "AI"
+        ],
+        "summary": "Run a video generator function",
+        "description": "Paid plans only (AI section); 402 otherwise.",
+        "operationId": "videoFunction",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "$ref": "#/components/responses/PaymentRequired"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "identifier",
+                  "functionName"
+                ],
+                "properties": {
+                  "identifier": {
+                    "type": "string"
+                  },
+                  "functionName": {
+                    "type": "string"
+                  },
+                  "params": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "tags": [
+          "Meta"
+        ],
+        "summary": "This document",
+        "description": "The OpenAPI description of the public API. No API key needed.",
+        "operationId": "getOpenApi",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "apiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Authorization",
+        "description": "The API key, or an OAuth access token starting with pos_"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "description": "Most refusals carry `msg` or `message`.",
+        "properties": {
+          "statusCode": {
+            "type": "integer"
+          },
+          "msg": {
+            "type": "string"
+          },
+          "message": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "WalletRefusal": {
+        "type": "object",
+        "description": "Something needs wallet credits or a wallet top-up. Open `url` on the Studio app (relative to it, e.g. https://studio.voholabs.com/wallet) to top up.",
+        "properties": {
+          "statusCode": {
+            "type": "integer",
+            "const": 402
+          },
+          "message": {
+            "type": "string"
+          },
+          "msg": {
+            "type": "string",
+            "description": "Also present on GET /social/{integration}"
+          },
+          "wallet": {
+            "type": "boolean",
+            "const": true
+          },
+          "url": {
+            "type": "string",
+            "example": "/wallet"
+          }
+        },
+        "required": [
+          "message",
+          "wallet",
+          "url"
+        ]
+      },
+      "PlanRefusal": {
+        "type": "object",
+        "description": "Something needs a paid plan.",
+        "properties": {
+          "statusCode": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "PostValidationError": {
+        "type": "object",
+        "properties": {
+          "statusCode": {
+            "type": "integer",
+            "const": 400
+          },
+          "provider": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "Channel": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "identifier": {
+            "type": "string",
+            "description": "Provider, e.g. linkedin, x, tiktok, instagram, discord"
+          },
+          "picture": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "disabled": {
+            "type": "boolean"
+          },
+          "profile": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "customer": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "identifier"
+        ]
+      },
+      "Media": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "originalName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "description": "Hosted URL; pass it as an image path on a post"
+          },
+          "thumbnail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "alt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "path"
+        ]
+      },
+      "PostSummary": {
+        "type": "object",
+        "description": "A post on the calendar.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "group": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "publishDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "QUEUE",
+              "PUBLISHED",
+              "ERROR",
+              "DRAFT"
+            ]
+          },
+          "releaseURL": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "integration": {
+            "type": "object"
+          }
+        }
+      },
+      "CreatePosts": {
+        "type": "object",
+        "required": [
+          "type",
+          "date",
+          "shortLink",
+          "tags",
+          "posts"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "schedule",
+              "now"
+            ]
+          },
+          "date": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When to publish (UTC)"
+          },
+          "shortLink": {
+            "type": "boolean",
+            "description": "Shorten links in the content"
+          },
+          "inter": {
+            "type": "integer",
+            "description": "Repeat the post every n days"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "value",
+                "label"
+              ],
+              "properties": {
+                "value": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "creationMethod": {
+            "type": "string",
+            "enum": [
+              "API",
+              "CLI"
+            ],
+            "default": "API"
+          },
+          "posts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "integration",
+                "value"
+              ],
+              "properties": {
+                "integration": {
+                  "type": "object",
+                  "required": [
+                    "id"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "group": {
+                  "type": "string"
+                },
+                "settings": {
+                  "type": "object",
+                  "description": "The channel's settings (GET /integration-settings/{id}). Required unless type is draft."
+                },
+                "value": {
+                  "type": "array",
+                  "minItems": 1,
+                  "description": "The post, then each thread item or comment",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "content",
+                      "image"
+                    ],
+                    "properties": {
+                      "content": {
+                        "type": "string",
+                        "description": "HTML for most channels. \"(post:<postId>)\" is replaced with that post's live URL when this one publishes."
+                      },
+                      "id": {
+                        "type": "string"
+                      },
+                      "delay": {
+                        "type": "number",
+                        "description": "Minutes after the previous item"
+                      },
+                      "image": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "path"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "path": {
+                              "type": "string"
+                            },
+                            "alt": {
+                              "type": "string"
+                            },
+                            "thumbnail": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "DeleteResult": {
+        "type": "object",
+        "properties": {
+          "group": {
+            "type": "string"
+          },
+          "error": {
+            "type": "boolean"
+          },
+          "deletedFromPlatform": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "platformErrors": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "AnalyticsSeries": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "percentageChange": {
+            "type": "number"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "total": {
+                  "type": [
+                    "number",
+                    "string"
+                  ]
+                },
+                "date": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "NotOnWallet": {
+        "type": "object",
+        "properties": {
+          "usesWallet": {
+            "type": "boolean",
+            "const": false
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "usesWallet"
+        ]
+      },
+      "WalletSummary": {
+        "type": "object",
+        "required": [
+          "usesWallet",
+          "balance"
+        ],
+        "properties": {
+          "usesWallet": {
+            "type": "boolean",
+            "const": true
+          },
+          "balance": {
+            "type": "number",
+            "description": "Credits, 2 decimals; can be negative after usage already incurred"
+          },
+          "payAsYouGo": {
+            "type": "boolean",
+            "description": "True after the first top-up, while the wallet is not frozen"
+          },
+          "frozen": {
+            "type": "boolean"
+          },
+          "currency": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "USD"
+          },
+          "creditsPerUnit": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Credits bought with one unit of the currency (e.g. per $1)"
+          },
+          "autoTopUp": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "belowCredits": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "amount": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "Smallest currency unit (cents)"
+              },
+              "monthlyLimit": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "Smallest currency unit"
+              },
+              "usedThisMonth": {
+                "type": "integer",
+                "description": "Smallest currency unit"
+              }
+            }
+          },
+          "forecast": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "windowHours": {
+                "type": "integer"
+              },
+              "neededCredits": {
+                "type": "number"
+              },
+              "short": {
+                "type": "boolean"
+              }
+            }
+          },
+          "topUpUrl": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "WalletPrices": {
+        "type": "object",
+        "properties": {
+          "topUpUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "key": {
+                        "type": "string",
+                        "example": "x.post"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "provider": {
+                        "type": "string"
+                      },
+                      "unit": {
+                        "type": "string"
+                      },
+                      "billing": {
+                        "type": "string",
+                        "enum": [
+                          "PER_USE",
+                          "MONTHLY",
+                          "UNLOCK"
+                        ]
+                      },
+                      "requiresTopUp": {
+                        "type": "boolean"
+                      },
+                      "pricingModel": {
+                        "type": "string"
+                      },
+                      "includedFree": {
+                        "type": "string"
+                      },
+                      "price": {
+                        "type": "string",
+                        "example": "2.25 credits"
+                      },
+                      "credits": {
+                        "type": "number",
+                        "description": "Price of one unit"
+                      },
+                      "howCharged": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "WalletTransactions": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "nextPage": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "TOPUP",
+                    "AUTO_TOPUP",
+                    "SPEND",
+                    "REFUND",
+                    "GRANT",
+                    "ADJUST"
+                  ]
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "credits": {
+                  "type": "number"
+                },
+                "quantity": {
+                  "type": "number"
+                },
+                "actionKey": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "reference": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "receiptUrl": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      },
+      "WalletEstimate": {
+        "type": "object",
+        "properties": {
+          "usesWallet": {
+            "type": "boolean",
+            "const": true
+          },
+          "charged": {
+            "type": "boolean",
+            "description": "False when this provider is not charged per post"
+          },
+          "priceCredits": {
+            "type": "number"
+          },
+          "alreadyPaidCredits": {
+            "type": "number"
+          },
+          "dueCredits": {
+            "type": "number",
+            "description": "What scheduling takes now; negative gives credits back"
+          },
+          "balanceAfterCredits": {
+            "type": "number"
+          },
+          "short": {
+            "type": "boolean",
+            "description": "Scheduling it now would be refused with 402"
+          },
+          "autoTopUpCovers": {
+            "type": "boolean"
+          },
+          "perOccurrence": {
+            "type": "boolean"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "actionKey": {
+                  "type": "string"
+                },
+                "credits": {
+                  "type": "number"
+                }
+              }
+            }
+          },
+          "topUpUrl": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "SkillsList": {
+        "type": "object",
+        "properties": {
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SkillSummary"
+            }
+          }
+        }
+      },
+      "SkillSummary": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "whenToUse": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "usesBrief": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Skill": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SkillSummary"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "whatItDoes": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "body": {
+                "type": "string",
+                "description": "The skill's instructions, in Markdown"
+              },
+              "version": {
+                "type": [
+                  "integer",
+                  "string"
+                ]
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        ]
+      },
+      "BriefDocument": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "content": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "blocks": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/BriefBlock"
+                }
+              },
+              "links": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/BriefLink"
+                }
+              },
+              "assets": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/BriefAsset"
+                }
+              }
+            }
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "BriefBlock": {
+        "type": "object",
+        "required": [
+          "id",
+          "heading",
+          "body"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "heading": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          }
+        }
+      },
+      "BriefLink": {
+        "type": "object",
+        "required": [
+          "id",
+          "url"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      },
+      "BriefAsset": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "url"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "mime": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      },
+      "SaveBriefDocument": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BriefBlock"
+            }
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BriefLink"
+            }
+          },
+          "assets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BriefAsset"
+            }
+          }
+        }
+      },
+      "BriefOnboardingStatus": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "nextRunCharged": {
+            "type": "boolean"
+          },
+          "running": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          },
+          "last": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "RUNNING",
+                  "DONE",
+                  "FAILED"
+                ]
+              },
+              "finishedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "error": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "startUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          }
+        }
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "No API key, or an invalid one",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "msg": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "BadRequest": {
+        "description": "The request is not valid",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Not found",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "PaymentRequired": {
+        "description": "Needs wallet credits or a top-up (`wallet: true`), or a paid plan",
+        "content": {
+          "application/json": {
+            "schema": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/WalletRefusal"
+                },
+                {
+                  "$ref": "#/components/schemas/PlanRefusal"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "StorageFull": {
+        "description": "The free plan's media library is full",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    }
+  }
+}

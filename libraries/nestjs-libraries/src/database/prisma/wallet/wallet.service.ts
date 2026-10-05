@@ -424,6 +424,13 @@ export class WalletService {
     return this._wallet.standingChargesOf(organizationId, actionKey);
   }
 
+  // The charge standing for one chargeKey (charged and not refunded), if any.
+  async standingCharge(organizationId: string, chargeKey: string) {
+    return (
+      await this._wallet.standingCharges(organizationId, [chargeKey])
+    ).get(chargeKey);
+  }
+
   // Pay-as-you-go starts with the first successful top-up, and stops while
   // the wallet is frozen (a top-up was refunded or disputed). Every gate reads
   // this one predicate.

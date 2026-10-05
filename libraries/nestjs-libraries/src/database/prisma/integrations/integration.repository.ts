@@ -123,6 +123,19 @@ export class IntegrationRepository {
     });
   }
 
+  // The post a channel published as this network post id (its content, for
+  // messages about it).
+  postByReleaseId(orgId: string, integrationId: string, releaseId: string) {
+    return this._posts.model.post.findFirst({
+      where: {
+        organizationId: orgId,
+        integrationId,
+        releaseId,
+      },
+      select: { id: true, content: true },
+    });
+  }
+
   getPlug(plugId: string) {
     return this._plugs.model.plugs.findFirst({
       where: {

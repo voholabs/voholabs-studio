@@ -4,6 +4,11 @@ export function PostPlug(params: {
   identifier: string;
   title: string;
   disabled?: boolean;
+  // The paid API actions the plug performs, for a workspace that pays for
+  // the provider from its wallet: each is `<provider>.<action>` in the price
+  // rows ('post' is priced by the link rule, post or post_link). A plug with
+  // an action that has no price row does not run for such a workspace.
+  walletActions?: string[];
   description: string;
   pickIntegration: string[];
   fields: {

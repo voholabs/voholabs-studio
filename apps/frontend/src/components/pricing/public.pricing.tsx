@@ -97,12 +97,12 @@ export const PublicPricing: FC<{
             {t('pricing_title', 'Pay only for what you use')}
           </h1>
           <div className="flex flex-wrap items-center gap-[12px] pt-[8px]">
+            {cta}
             {!!rate && (
               <span className="inline-flex items-center gap-[8px] h-[44px] px-[14px] rounded-[8px] bg-warmSoft text-warm text-[15px] font-[600] tabular-nums">
                 <CoinsIcon size={14} /> {rate}
               </span>
             )}
-            {cta}
           </div>
         </div>
 

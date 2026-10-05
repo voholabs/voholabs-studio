@@ -1,9 +1,10 @@
 'use client';
 
-import React, { FC, ReactNode, useMemo } from 'react';
+import React, { FC, ReactNode, useMemo, useState } from 'react';
 import clsx from 'clsx';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { useWalletFormat } from '@gitroom/frontend/components/wallet/wallet.hooks';
+import { ENABLED_PROVIDERS } from '@gitroom/frontend/components/launches/enabled.providers';
 import {
   actionDescription,
   actionName,
@@ -60,6 +61,47 @@ const Pill: FC<{ free: boolean; label: string }> = ({ free, label }) =>
       <CoinsIcon size={11} /> {label}
     </span>
   );
+
+// A round avatar with the section's icon, for a row that is not a channel
+// (storage, brief, skills), the same size as a channel logo.
+const SectionAvatar: FC<{ section: string; size?: number }> = ({
+  section,
+  size = 20,
+}) => (
+  <span
+    aria-hidden="true"
+    className="rounded-full shrink-0 bg-newBgLineColor text-textItemBlur flex items-center justify-center [&_svg]:w-[60%] [&_svg]:h-[60%]"
+    style={{ width: size, height: size }}
+  >
+    {sectionIcon(section)}
+  </span>
+);
+
+// A row's icon: the platform logo for a channel, otherwise (or when the logo
+// fails to load) the section icon. Never a broken image.
+const RowIcon: FC<{ provider: string; section: string; channel: boolean }> = ({
+  provider,
+  section,
+  channel,
+}) => {
+  const [failed, setFailed] = useState(false);
+  if (!channel || failed) return <SectionAvatar section={section} />;
+  return (
+    <img
+      src={
+        provider === 'youtube'
+          ? '/icons/platforms/youtube.svg'
+          : `/icons/platforms/${provider}.png`
+      }
+      alt=""
+      width={20}
+      height={20}
+      className="rounded-full shrink-0 object-cover"
+      style={{ width: 20, height: 20 }}
+      onError={() => setFailed(true)}
+    />
+  );
+};
 
 const IconStack: FC<{ providers: string[] }> = ({ providers }) => (
   <div className="flex items-center shrink-0">
@@ -239,7 +281,16 @@ export const PriceList: FC<{
       sections.map((section) => {
         const rows: Row[] = section.actions.map((a: WalletPricedAction) => ({
           key: a.key,
-          icon: a.provider ? <ProviderLogo provider={a.provider} /> : null,
+          icon: a.provider ? (
+            <RowIcon
+              provider={a.provider}
+              section={section.key}
+              channel={
+                ENABLED_PROVIDERS.includes(a.provider) ||
+                !!channels?.some((c) => c.identifier === a.provider)
+              }
+            />
+          ) : null,
           name: actionName(t, a),
           description: actionDescription(t, a),
           model: tModel(t, a),

@@ -5,7 +5,7 @@ import useSWR, { useSWRConfig } from 'swr';
 import { useTranslation } from 'react-i18next';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { useUser } from '@gitroom/frontend/components/layout/user.context';
-import { ENABLED_PROVIDERS } from '@gitroom/frontend/components/launches/add.provider.component';
+import { ENABLED_PROVIDERS } from '@gitroom/frontend/components/launches/enabled.providers';
 import {
   SupportedChannel,
   WalletEstimate,

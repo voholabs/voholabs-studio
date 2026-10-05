@@ -26,6 +26,7 @@ import { ExtractContentService } from '@gitroom/nestjs-libraries/openai/extract.
 import { CodesService } from '@gitroom/nestjs-libraries/services/codes.service';
 import { CopilotController } from '@gitroom/backend/api/routes/copilot.controller';
 import { PublicController } from '@gitroom/backend/api/routes/public.controller';
+import { PublicPricesController } from '@gitroom/backend/api/routes/public.prices.controller';
 import { RootController } from '@gitroom/backend/api/routes/root.controller';
 import { HealthController } from '@gitroom/backend/api/routes/health.controller';
 import { TrackService } from '@gitroom/nestjs-libraries/track/track.service';
@@ -98,6 +99,8 @@ const authenticatedController = [
     WalletWebhookController,
     AuthController,
     PublicController,
+    // The public price list: read-only, nothing about any workspace.
+    PublicPricesController,
     // Guards itself with PROVISION_SECRET, so it stays out of
     // authenticatedController: the caller is a server, not a signed-in user.
     ProvisionController,

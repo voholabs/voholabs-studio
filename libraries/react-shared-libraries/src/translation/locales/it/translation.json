@@ -842,7 +842,6 @@
   "wallet_auto_is_on": "La ricarica automatica è attiva.",
   "wallet_done": "Fatto",
   "wallet_connect_provider": "Collega {{name}}",
-  "wallet_all_other_channels": "Tutti gli altri canali",
   "wallet_model_free": "Gratis",
   "wallet_allowance_unlimited": "Uso illimitato",
   "wallet_price_free": "Gratis",

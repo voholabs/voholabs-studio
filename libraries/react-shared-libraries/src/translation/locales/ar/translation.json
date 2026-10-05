@@ -842,7 +842,6 @@
   "wallet_auto_is_on": "الشحن التلقائي مفعّل.",
   "wallet_done": "تم",
   "wallet_connect_provider": "ربط {{name}}",
-  "wallet_all_other_channels": "جميع القنوات الأخرى",
   "wallet_model_free": "مجاني",
   "wallet_allowance_unlimited": "استخدام غير محدود",
   "wallet_price_free": "مجاني",

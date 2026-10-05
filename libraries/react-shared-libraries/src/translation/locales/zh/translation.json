@@ -842,7 +842,6 @@
   "wallet_auto_is_on": "自动充值已开启。",
   "wallet_done": "完成",
   "wallet_connect_provider": "连接 {{name}}",
-  "wallet_all_other_channels": "所有其他频道",
   "wallet_model_free": "免费",
   "wallet_allowance_unlimited": "无限使用",
   "wallet_price_free": "免费",

@@ -842,7 +842,6 @@
   "wallet_auto_is_on": "Tự động nạp đang bật.",
   "wallet_done": "Xong",
   "wallet_connect_provider": "Kết nối {{name}}",
-  "wallet_all_other_channels": "Tất cả các kênh khác",
   "wallet_model_free": "Miễn phí",
   "wallet_allowance_unlimited": "Không giới hạn",
   "wallet_price_free": "Miễn phí",

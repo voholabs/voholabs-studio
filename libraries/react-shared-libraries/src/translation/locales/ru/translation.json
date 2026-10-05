@@ -842,7 +842,6 @@
   "wallet_auto_is_on": "Автопополнение включено.",
   "wallet_done": "Готово",
   "wallet_connect_provider": "Подключить {{name}}",
-  "wallet_all_other_channels": "Все остальные каналы",
   "wallet_model_free": "Бесплатно",
   "wallet_allowance_unlimited": "Без ограничений",
   "wallet_price_free": "Бесплатно",

@@ -97,7 +97,8 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
               name={user.name}
               email={user.email}
               onDone={() => {
-                window.location.href = '/';
+                // A new account goes on to connecting its channels.
+                window.location.href = '/launches?onboarding=true';
               }}
             />
           </div>
@@ -122,7 +123,11 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
           >
             <RequiredTerms
               onDone={() => {
-                window.location.href = '/';
+                // Keep a new account on its way to connecting channels; anyone
+                // re-agreeing to updated Terms goes back to the app as before.
+                window.location.href = searchParams.get('onboarding')
+                  ? '/launches?onboarding=true'
+                  : '/';
               }}
             />
           </div>

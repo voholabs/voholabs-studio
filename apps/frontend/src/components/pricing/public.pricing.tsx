@@ -124,7 +124,10 @@ export const PublicPricing: FC<{
                   <span className="font-[600]">{topUp}</span>
                   {!!options && (
                     <span className="text-textItemBlur ms-[8px] tabular-nums">
-                      {options}
+                      {t('pricing_top_up_options', 'Options: {{options}}', {
+                        options,
+                        ...raw,
+                      })}
                     </span>
                   )}
                 </span>

@@ -63,12 +63,31 @@ var PostizAPI = class {
       }));
       if (!response.ok) {
         const error = await response.text();
-        throw new Error(`API Error (${response.status}): ${error}`);
+        throw new Error(this.errorMessage(response.status, error));
       }
       return await response.json();
     } catch (error) {
       throw new Error(`Request failed: ${error.message}`);
     }
+  }
+  // The Studio app the API belongs to (the API lives under /api).
+  appUrl() {
+    return this.apiUrl.replace(/\/+$/, "").replace(/\/api$/, "");
+  }
+  // A refusal that needs wallet credits (402 with wallet: true) reads as its
+  // message and the top-up link; anything else as before.
+  errorMessage(status, text) {
+    if (status === 402) {
+      try {
+        const body = JSON.parse(text);
+        if (body == null ? void 0 : body.wallet) {
+          const url = typeof body.url === "string" && body.url.startsWith("/") ? `${this.appUrl()}${body.url}` : body.url || `${this.appUrl()}/wallet`;
+          return `${body.message || body.msg || "This needs wallet credits."} Top up: ${url}`;
+        }
+      } catch (err) {
+      }
+    }
+    return `API Error (${status}): ${text}`;
   }
   async createPost(data) {
     return this.request("/public/v1/posts", {
@@ -147,7 +166,7 @@ var PostizAPI = class {
     });
     if (!response.ok) {
       const error = await response.text();
-      throw new Error(`Upload failed (${response.status}): ${error}`);
+      throw new Error(`Upload failed: ${this.errorMessage(response.status, error)}`);
     }
     return await response.json();
   }
@@ -168,8 +187,9 @@ var PostizAPI = class {
       body: JSON.stringify({ status })
     });
   }
-  async getAnalytics(integrationId, date) {
-    return this.request(`/public/v1/analytics/${integrationId}?date=${encodeURIComponent(date)}`, {
+  async getAnalytics(integrationId, date, fresh = false) {
+    const freshQuery = fresh ? "&fresh=true" : "";
+    return this.request(`/public/v1/analytics/${integrationId}?date=${encodeURIComponent(date)}${freshQuery}`, {
       method: "GET"
     });
   }
@@ -200,6 +220,17 @@ var PostizAPI = class {
       body: JSON.stringify({ methodName, data })
     });
   }
+  async getTeam() {
+    return this.request("/public/v1/team", {
+      method: "GET"
+    });
+  }
+  async notifyTeam(body) {
+    return this.request("/public/v1/notify", {
+      method: "POST",
+      body: JSON.stringify(body)
+    });
+  }
   async getBriefSchema() {
     return this.request("/public/v1/brief/schema", {
       method: "GET"
@@ -227,13 +258,60 @@ var PostizAPI = class {
       }
     );
   }
-  async deleteBriefDocument(category, key) {
+  async deleteBriefDocument(category, key, keepHistory = false) {
+    const query = keepHistory ? "?keepHistory=true" : "";
     return this.request(
-      `/public/v1/brief/${encodeURIComponent(category)}/${encodeURIComponent(key)}`,
+      `/public/v1/brief/${encodeURIComponent(category)}/${encodeURIComponent(key)}${query}`,
       {
         method: "DELETE"
       }
     );
+  }
+  async getBriefOnboarding() {
+    return this.request("/public/v1/brief/onboarding", {
+      method: "GET"
+    });
+  }
+  async getWallet() {
+    return this.request("/public/v1/wallet", {
+      method: "GET"
+    });
+  }
+  async getWalletPrices(provider) {
+    const query = provider ? `?provider=${encodeURIComponent(provider)}` : "";
+    return this.request(`/public/v1/wallet/prices${query}`, {
+      method: "GET"
+    });
+  }
+  async getWalletTransactions(page, size, type) {
+    const params = new URLSearchParams();
+    if (page) params.set("page", String(page));
+    if (size) params.set("size", String(size));
+    if (type) params.set("type", type);
+    const query = params.toString() ? `?${params.toString()}` : "";
+    return this.request(`/public/v1/wallet/transactions${query}`, {
+      method: "GET"
+    });
+  }
+  async estimateWallet(body) {
+    return this.request("/public/v1/wallet/estimate", {
+      method: "POST",
+      body: JSON.stringify(body)
+    });
+  }
+  async listSkills(tag, search) {
+    const params = new URLSearchParams();
+    if (tag) params.set("tag", tag);
+    if (search) params.set("search", search);
+    const query = params.toString() ? `?${params.toString()}` : "";
+    return this.request(`/public/v1/skills${query}`, {
+      method: "GET"
+    });
+  }
+  async getSkill(slug) {
+    return this.request(`/public/v1/skills/${encodeURIComponent(slug)}`, {
+      method: "GET"
+    });
   }
   async listMedia(page, search) {
     const params = new URLSearchParams();
@@ -727,7 +805,7 @@ async function getAnalytics(args) {
   }
   const date = args.date || "7";
   try {
-    const result = await api.getAnalytics(args.id, date);
+    const result = await api.getAnalytics(args.id, date, !!args.fresh);
     console.log(`\u{1F4CA} Analytics for integration: ${args.id}`);
     console.log(JSON.stringify(result, null, 2));
     return result;
@@ -813,9 +891,64 @@ async function findSlot(args) {
   }
 }
 
+// src/commands/team.ts
+var import_fs4 = require("fs");
+async function listTeam() {
+  const api = new PostizAPI(getConfig());
+  try {
+    const result = await api.getTeam();
+    console.log("\u{1F465} Team:");
+    for (const member of (result == null ? void 0 : result.members) || []) {
+      console.log(`  ${member.email}`);
+    }
+    if (result && !result.emailProvider) {
+      console.log(
+        "\n\u26A0\uFE0F  No email provider is configured, so notify would send nothing."
+      );
+    }
+    return result;
+  } catch (error) {
+    console.error("\u274C Failed to read the team:", error.message);
+    process.exit(1);
+  }
+}
+async function notifyTeam(args) {
+  var _a;
+  const api = new PostizAPI(getConfig());
+  const message = args.file ? (0, import_fs4.readFileSync)(args.file, "utf8") : args.message;
+  if (!message) {
+    console.error("\u274C Pass --message or --file");
+    process.exit(1);
+  }
+  const to = args.to ? String(args.to).split(",").map((one) => one.trim()).filter(Boolean) : void 0;
+  try {
+    const result = await api.notifyTeam({
+      subject: args.subject,
+      message,
+      to
+    });
+    if (!(result == null ? void 0 : result.delivered)) {
+      console.error(
+        "\u274C Nothing was sent. Either no email provider is configured, or none of the addresses are on this team."
+      );
+      process.exit(1);
+    }
+    console.log(`\u2705 Sent to ${result.sent.length} team member(s):`);
+    result.sent.forEach((email) => console.log(`  ${email}`));
+    if ((_a = result.rejected) == null ? void 0 : _a.length) {
+      console.log("\n\u26A0\uFE0F  Not on this team, so not sent:");
+      result.rejected.forEach((email) => console.log(`  ${email}`));
+    }
+    return result;
+  } catch (error) {
+    console.error("\u274C Failed to email the team:", error.message);
+    process.exit(1);
+  }
+}
+
 // src/commands/brief.ts
 var import_readline = require("readline");
-var import_fs4 = require("fs");
+var import_fs5 = require("fs");
 var ruleId = () => Math.random().toString(36).slice(2, 12);
 async function confirmHuman(summary) {
   console.log("");
@@ -878,7 +1011,7 @@ async function briefSet(args) {
   const api = new PostizAPI(getConfig());
   let payload;
   try {
-    const raw = args.file ? (0, import_fs4.readFileSync)(args.file, "utf8") : args.rules;
+    const raw = args.file ? (0, import_fs5.readFileSync)(args.file, "utf8") : args.rules;
     if (!raw) {
       console.error("\u274C Pass --file <path> or --rules '<json>'");
       process.exit(1);
@@ -953,10 +1086,148 @@ async function briefDelete(args) {
     `About to DELETE ${args.category}/${args.key} and its ${count} rule(s). This cannot be undone.`
   );
   try {
-    await api.deleteBriefDocument(args.category, args.key);
+    await api.deleteBriefDocument(
+      args.category,
+      args.key,
+      !!args.keepHistory
+    );
     console.log("\u2705 Deleted");
   } catch (error) {
     console.error("\u274C Failed to delete:", error.message);
+    process.exit(1);
+  }
+}
+async function briefOnboarding() {
+  const api = new PostizAPI(getConfig());
+  try {
+    const result = await api.getBriefOnboarding();
+    console.log("\u{1F9ED} Brief onboarding:");
+    console.log(JSON.stringify(result, null, 2));
+    if (result == null ? void 0 : result.startUrl) {
+      console.log(`
+Start or reopen it in Studio: ${result.startUrl}`);
+    }
+    return result;
+  } catch (error) {
+    console.error("\u274C Failed to read the onboarding status:", error.message);
+    process.exit(1);
+  }
+}
+
+// src/commands/wallet.ts
+async function walletBalance() {
+  var _a;
+  const api = new PostizAPI(getConfig());
+  try {
+    const result = await api.getWallet();
+    if ((result == null ? void 0 : result.usesWallet) === false) {
+      console.log(`\u{1F4B3} ${result.message || "Your plan does not use wallet credits."}`);
+      return result;
+    }
+    console.log(`\u{1F4B3} Balance: ${Number(result.balance).toFixed(2)} credits`);
+    if ((_a = result.forecast) == null ? void 0 : _a.short) {
+      console.log(
+        `\u26A0\uFE0F  Scheduled usage in the next ${result.forecast.windowHours} hours needs ${Number(
+          result.forecast.neededCredits
+        ).toFixed(2)} credits. Top up: ${result.topUpUrl}`
+      );
+    }
+    console.log(JSON.stringify(result, null, 2));
+    return result;
+  } catch (error) {
+    console.error("\u274C Failed to read the wallet:", error.message);
+    process.exit(1);
+  }
+}
+async function walletPrices(args) {
+  const api = new PostizAPI(getConfig());
+  try {
+    const result = await api.getWalletPrices(args == null ? void 0 : args.provider);
+    console.log("\u{1F3F7}\uFE0F  Prices (channels not listed are free):");
+    for (const section of (result == null ? void 0 : result.sections) || []) {
+      console.log(`
+${section.label}`);
+      for (const item of section.items || []) {
+        console.log(
+          `  ${item.name} (${item.key}): ${item.price} ${item.pricingModel}, ${item.includedFree}`
+        );
+      }
+    }
+    return result;
+  } catch (error) {
+    console.error("\u274C Failed to read the prices:", error.message);
+    process.exit(1);
+  }
+}
+async function walletTransactions(args) {
+  const api = new PostizAPI(getConfig());
+  try {
+    const result = await api.getWalletTransactions(
+      args == null ? void 0 : args.page,
+      args == null ? void 0 : args.size,
+      args == null ? void 0 : args.type
+    );
+    console.log("\u{1F9FE} Transactions:");
+    console.log(JSON.stringify(result, null, 2));
+    return result;
+  } catch (error) {
+    console.error("\u274C Failed to read the transactions:", error.message);
+    process.exit(1);
+  }
+}
+async function walletEstimate(args) {
+  const api = new PostizAPI(getConfig());
+  const contents = [].concat(args.content || []);
+  if (!contents.length) {
+    console.error("\u274C Pass the post with -c, and each thread item with another -c");
+    process.exit(1);
+  }
+  try {
+    const result = await api.estimateWallet({
+      provider: args.provider,
+      contents
+    });
+    console.log("\u{1F9EE} Estimate (nothing is charged):");
+    console.log(JSON.stringify(result, null, 2));
+    return result;
+  } catch (error) {
+    console.error("\u274C Failed to price the post:", error.message);
+    process.exit(1);
+  }
+}
+
+// src/commands/skills.ts
+async function skillsList(args) {
+  var _a;
+  const api = new PostizAPI(getConfig());
+  try {
+    const result = await api.listSkills(args == null ? void 0 : args.tag, args == null ? void 0 : args.search);
+    console.log("\u{1F9E0} Skills:");
+    for (const skill of (result == null ? void 0 : result.skills) || []) {
+      console.log(`  ${skill.slug}: ${skill.name} - ${skill.summary}`);
+    }
+    if ((_a = result == null ? void 0 : result.tags) == null ? void 0 : _a.length) {
+      console.log(
+        `
+Tags: ${result.tags.map((tag) => tag.key).join(", ")}`
+      );
+    }
+    return result;
+  } catch (error) {
+    console.error("\u274C Failed to list skills:", error.message);
+    process.exit(1);
+  }
+}
+async function skillsGet(args) {
+  const api = new PostizAPI(getConfig());
+  try {
+    const result = await api.getSkill(args.slug);
+    console.log(`# ${result.name}
+`);
+    console.log(result.body || JSON.stringify(result, null, 2));
+    return result;
+  } catch (error) {
+    console.error("\u274C Failed to read the skill:", error.message);
     process.exit(1);
   }
 }
@@ -1210,7 +1481,10 @@ async function briefDelete(args) {
     ).example(
       "$0 analytics:platform integration-123 -d 30",
       "Get last 30 days of analytics"
-    );
+    ).option("fresh", {
+      describe: "Skip the one-hour cache and read the network again (X reads are charged on pay-as-you-go)",
+      type: "boolean"
+    });
   },
   getAnalytics
 ).command(
@@ -1244,6 +1518,32 @@ async function briefDelete(args) {
     }).example("$0 upload ./image.png", "Upload an image");
   },
   uploadFile
+).command("team:list", "Show who is on this team", {}, listTeam).command(
+  "team:notify",
+  "Email the team (team members only \u2014 no outside addresses)",
+  (yargs2) => {
+    return yargs2.option("subject", {
+      describe: "Subject line",
+      type: "string",
+      demandOption: true
+    }).option("message", {
+      describe: "Body as plain text. Use --file for anything long.",
+      type: "string"
+    }).option("file", {
+      describe: "Read the body from a file instead of --message",
+      type: "string"
+    }).option("to", {
+      describe: "Comma separated team addresses. Omit for everyone. Non-members are dropped.",
+      type: "string"
+    }).example(
+      '$0 team:notify --subject "Launch is live" --message "All four posts went out."',
+      "Email everyone on the team"
+    ).example(
+      '$0 team:notify --subject "Needs a look" --file ./note.txt --to sam@acme.com',
+      "Email one member with the body from a file"
+    );
+  },
+  notifyTeam
 ).command(
   "brief:schema",
   "Show which brief categories and documents exist",
@@ -1298,9 +1598,71 @@ async function briefDelete(args) {
     return yargs2.positional("category", {
       describe: "Category of the document",
       type: "string"
-    }).positional("key", { describe: "Document key", type: "string" }).example("$0 brief:delete sources abc123", "Delete a source document");
+    }).positional("key", { describe: "Document key", type: "string" }).option("keep-history", {
+      describe: "Keep the document history and record the removal in it",
+      type: "boolean"
+    }).example("$0 brief:delete sources abc123", "Delete a source document");
   },
   briefDelete
+).command(
+  "brief:onboarding",
+  "Show the guided brief onboarding status and where to start it",
+  {},
+  briefOnboarding
+).command(
+  "wallet:balance",
+  "Show the wallet credits, auto top-up and the scheduled usage forecast",
+  {},
+  walletBalance
+).command(
+  "wallet:prices",
+  "Show what costs credits (channels not listed are free)",
+  (yargs2) => {
+    return yargs2.option("provider", { describe: "Only one provider, e.g. x", type: "string" }).example("$0 wallet:prices --provider x", "What X posts and reads cost");
+  },
+  walletPrices
+).command(
+  "wallet:transactions",
+  "List wallet top-ups, charges and refunds, newest first",
+  (yargs2) => {
+    return yargs2.option("page", { describe: "Page, from 0", type: "number" }).option("size", { describe: "Items per page (1-100)", type: "number" }).option("type", {
+      describe: "Comma separated: TOPUP, AUTO_TOPUP, SPEND, REFUND, GRANT, ADJUST",
+      type: "string"
+    });
+  },
+  walletTransactions
+).command(
+  "wallet:estimate",
+  "Price a post before scheduling it (nothing is charged)",
+  (yargs2) => {
+    return yargs2.option("provider", {
+      describe: "Provider identifier, e.g. x",
+      type: "string",
+      demandOption: true
+    }).option("content", {
+      alias: "c",
+      describe: "The post, then each thread item (repeat -c)",
+      type: "string"
+    }).example(
+      '$0 wallet:estimate --provider x -c "First post" -c "Reply"',
+      "What a two-part X thread would take"
+    );
+  },
+  walletEstimate
+).command(
+  "skills:list",
+  "List the skills library",
+  (yargs2) => {
+    return yargs2.option("tag", { describe: "Only skills with this tag key", type: "string" }).option("search", { describe: "Words to look for", type: "string" }).example("$0 skills:list --tag writing", "Writing skills");
+  },
+  skillsList
+).command(
+  "skills:get <slug>",
+  "Read one skill in full",
+  (yargs2) => {
+    return yargs2.positional("slug", { describe: "Skill slug", type: "string" });
+  },
+  skillsGet
 ).command(
   "media:list",
   "List the media library",
@@ -1346,6 +1708,6 @@ async function briefDelete(args) {
   {},
   authStatus
 ).demandCommand(1, "You need at least one command").help().alias("h", "help").version().alias("v", "version").epilogue(
-  "For more information, visit: https://studio.voholabs.com\n\nAuthentication:\n  OAuth2: voholabs auth:login\n  API Key: export VOHOLABS_API_KEY=your_api_key\n\n\u{1F4FD}\uFE0F  Recommendation: Use agent-media to generate AI videos & images (Kling, Veo, Sora, Seedance, Flux, Grok) and post them directly with Postiz.\n   Install: npm install -g agent-media-cli\n   Learn more: https://agent-media.ai"
+  "Docs: https://voholabs.com/docs/cli\n\nAuthentication:\n  OAuth2: voholabs auth:login\n  API Key: export VOHOLABS_API_KEY=your_api_key\n\n\u{1F4FD}\uFE0F  Recommendation: Use agent-media to generate AI videos & images (Kling, Veo, Sora, Seedance, Flux, Grok) and post them directly with Postiz.\n   Install: npm install -g agent-media-cli\n   Learn more: https://agent-media.ai"
 ).parse();
 //# sourceMappingURL=index.js.map

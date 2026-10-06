@@ -38,7 +38,7 @@ const registered = new Set(
 );
 
 // Code identifiers that end in "Tool" but are not tool names.
-const notToolNames = new Set(['createTool', 'callMediaTool']);
+const notToolNames = new Set(['createTool', 'callMediaTool', 'runSanityTool']);
 
 // Tools that exist but are not registered (media generation is off), only
 // mentioned in their own files.

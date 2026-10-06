@@ -34,7 +34,8 @@ import { PostHistoryTool } from '@gitroom/nestjs-libraries/chat/tools/post.histo
 import { BriefHistoryTool } from '@gitroom/nestjs-libraries/chat/tools/brief.history.tool';
 import { MarkLearnedTool } from '@gitroom/nestjs-libraries/chat/tools/mark.learned.tool';
 import { SanityMcpListTool } from '@gitroom/nestjs-libraries/chat/tools/sanity.mcp.list.tool';
-import { SanityMcpCallTool } from '@gitroom/nestjs-libraries/chat/tools/sanity.mcp.call.tool';
+import { SanityReadTool } from '@gitroom/nestjs-libraries/chat/tools/sanity.read.tool';
+import { SanityWriteTool } from '@gitroom/nestjs-libraries/chat/tools/sanity.write.tool';
 import { MediaMcpListTool } from '@gitroom/nestjs-libraries/chat/tools/media.mcp.list.tool';
 import { MediaMcpCallTool } from '@gitroom/nestjs-libraries/chat/tools/media.mcp.call.tool';
 import { WalletBalanceTool } from '@gitroom/nestjs-libraries/chat/tools/wallet.balance.tool';
@@ -75,12 +76,14 @@ export const toolList = [
   MediaDeleteTool,
   MediaUploadTool,
   MediaUploadLinkTool,
-  // Sanity's own hosted MCP, proxied and allowlisted. Both register
+  // Sanity's own hosted MCP, proxied and allowlisted, with reads and writes
+  // as separate tools (the directories require it). All three register
   // unconditionally and explain themselves when no Sanity channel is
   // connected, because the tool map is built once at boot and cannot vary per
   // organization.
   SanityMcpListTool,
-  SanityMcpCallTool,
+  SanityReadTool,
+  SanityWriteTool,
   // AI media editing, proxied through the org's metered key on mcp-meter.
   // Register unconditionally for the same reason as Sanity's: the tool map is
   // built once at boot, so the tools explain themselves when the meter is not

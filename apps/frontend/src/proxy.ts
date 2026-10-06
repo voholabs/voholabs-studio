@@ -129,10 +129,14 @@ export async function proxy(request: NextRequest) {
             : 'github'
           : findIndex
         ).toUpperCase()}`;
+    const connecting = nextUrl.pathname === '/oauth/authorize';
     const toLogin = NextResponse.redirect(
-      new URL(`/auth${url}${additional}`, nextUrl.href)
+      new URL(
+        `${connecting ? '/auth/login' : '/auth'}${url}${additional}`,
+        nextUrl.href
+      )
     );
-    if (nextUrl.pathname === '/oauth/authorize') {
+    if (connecting) {
       toLogin.cookies.set(OAUTH_RETURN, `/oauth/authorize${url}`, {
         path: '/',
         httpOnly: true,

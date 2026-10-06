@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import useSWR from 'swr';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { Logo } from '@gitroom/frontend/components/new-layout/logo';
+import { clearOAuthConnect } from '@gitroom/frontend/app/(app)/auth/oauth.connect.notice';
 
 const useWorkspaces = () => {
   const fetch = useFetch();
@@ -50,6 +51,10 @@ export default function OAuthAuthorizePage() {
       ? { code_challenge_method: codeChallengeMethod }
       : {}),
   };
+
+  useEffect(() => {
+    clearOAuthConnect();
+  }, []);
 
   useEffect(() => {
     if (!workspace && self?.orgId) {

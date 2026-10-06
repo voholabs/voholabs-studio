@@ -5,7 +5,7 @@ import { MCPServer } from '@mastra/mcp';
 import { mcpOnlyToolList } from '@gitroom/nestjs-libraries/chat/tools/mcp.only.tool.list';
 import {
   UPLOAD_WIDGET_URI,
-  r2UploadOrigin,
+  r2UploadOrigins,
   uploadWidgetHtml,
 } from '@gitroom/nestjs-libraries/chat/ui/upload.widget';
 import { OrganizationService } from '@gitroom/nestjs-libraries/database/prisma/organizations/organization.service';
@@ -158,7 +158,7 @@ export const startMcp = async (app: INestApplication) => {
         csp: {
           connectDomains: [
             new URL(widgetBackend).origin,
-            ...(r2UploadOrigin() ? [r2UploadOrigin()] : []),
+            ...r2UploadOrigins(),
           ],
         },
         prefersBorder: true,

@@ -3,10 +3,20 @@ export const UPLOAD_WIDGET_URI = 'ui://voholabs/upload';
 // The R2 endpoint the browser sends file parts to on presigned URLs. The
 // widget's iframe may only reach the hosts its CSP lists, so this one is listed
 // next to the backend.
-export const r2UploadOrigin = () =>
-  process.env.CLOUDFLARE_ACCOUNT_ID
-    ? `https://${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`
-    : '';
+// Presigned URLs name the bucket as a subdomain
+// (<bucket>.<account>.r2.cloudflarestorage.com), so that host is the one
+// listed; the bare account host is kept for path-style URLs.
+export const r2UploadOrigins = () => {
+  const account = process.env.CLOUDFLARE_ACCOUNT_ID;
+  const bucket = process.env.CLOUDFLARE_BUCKETNAME;
+  if (!account) {
+    return [];
+  }
+  return [
+    ...(bucket ? [`https://${bucket}.${account}.r2.cloudflarestorage.com`] : []),
+    `https://${account}.r2.cloudflarestorage.com`,
+  ];
+};
 
 // MCP Apps (SEP-1865) widget: one self-contained HTML document the host renders
 // in a sandboxed iframe. It can't load our bundles or cookies, so it talks to

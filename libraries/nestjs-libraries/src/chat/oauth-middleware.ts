@@ -24,6 +24,9 @@ interface OAuthMiddlewareLogger {
 export interface OAuthMiddlewareOptions {
   oauth: MCPServerOAuthConfig;
   mcpPath?: string;
+  // Where the protected resource metadata is served, when that is not
+  // /.well-known/oauth-protected-resource at the resource's origin root.
+  resourceMetadataUrl?: string;
   logger?: OAuthMiddlewareLogger;
 }
 
@@ -38,7 +41,9 @@ export function createOAuthMiddleware(options: OAuthMiddlewareOptions) {
 
   const protectedResourceMetadata = generateProtectedResourceMetadata(oauth);
   const wellKnownPath = '/.well-known/oauth-protected-resource';
-  const resourceMetadataUrl = new URL(wellKnownPath, oauth.resource).toString();
+  const resourceMetadataUrl =
+    options.resourceMetadataUrl ??
+    new URL(wellKnownPath, oauth.resource).toString();
 
   return async function oauthMiddleware(
     req: http.IncomingMessage,

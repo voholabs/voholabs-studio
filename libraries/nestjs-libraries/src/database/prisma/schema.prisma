@@ -951,17 +951,24 @@ model mastra_workflow_snapshot {
 
 model OAuthApp {
   id             String               @id @default(uuid())
-  organizationId String
+  // Null for a client that registered itself (dynamic client registration,
+  // isPublic): an AI assistant such as Claude or ChatGPT, owned by no workspace.
+  organizationId String?
   name           String
   description    String?
   pictureId      String?
   redirectUrl    String
+  // Every redirect URI a self-registered client declared; redirectUrl holds the
+  // first. Empty for an app a workspace created.
+  redirectUris   String[]             @default([])
+  // A public client: no secret at the token endpoint, PKCE required instead.
+  isPublic       Boolean              @default(false)
   clientId       String               @unique
   clientSecret   String
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
   deletedAt      DateTime?
-  organization   Organization         @relation(fields: [organizationId], references: [id])
+  organization   Organization?        @relation(fields: [organizationId], references: [id])
   picture        Media?               @relation(fields: [pictureId], references: [id])
   authorizations OAuthAuthorization[]
 
@@ -979,6 +986,10 @@ model OAuthAuthorization {
   accessToken       String?
   authorizationCode String?
   codeExpiresAt     DateTime?
+  // PKCE (S256) challenge and the redirect URI the code was issued for, both
+  // checked again when the code is exchanged.
+  codeChallenge     String?
+  redirectUri       String?
   revokedAt         DateTime?
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt

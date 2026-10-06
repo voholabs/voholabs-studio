@@ -59,6 +59,25 @@ export class OAuthRepository {
     });
   }
 
+  // A client that registered itself (an AI assistant), owned by no workspace.
+  createPublicApp(data: {
+    name: string;
+    redirectUris: string[];
+    clientId: string;
+    clientSecret: string;
+  }) {
+    return this._oauthApp.model.oAuthApp.create({
+      data: {
+        name: data.name,
+        redirectUrl: data.redirectUris[0],
+        redirectUris: data.redirectUris,
+        isPublic: true,
+        clientId: data.clientId,
+        clientSecret: data.clientSecret,
+      },
+    });
+  }
+
   async updateApp(
     orgId: string,
     data: {
@@ -128,6 +147,8 @@ export class OAuthRepository {
     organizationId: string;
     authorizationCode: string;
     codeExpiresAt: Date;
+    codeChallenge?: string;
+    redirectUri?: string;
   }) {
     return this._oauthAuth.model.oAuthAuthorization.upsert({
       where: {
@@ -143,10 +164,14 @@ export class OAuthRepository {
         organizationId: data.organizationId,
         authorizationCode: data.authorizationCode,
         codeExpiresAt: data.codeExpiresAt,
+        codeChallenge: data.codeChallenge ?? null,
+        redirectUri: data.redirectUri ?? null,
       },
       update: {
         authorizationCode: data.authorizationCode,
         codeExpiresAt: data.codeExpiresAt,
+        codeChallenge: data.codeChallenge ?? null,
+        redirectUri: data.redirectUri ?? null,
         accessToken: null,
         revokedAt: null,
       },
@@ -177,6 +202,7 @@ export class OAuthRepository {
         accessToken: encryptedToken,
         authorizationCode: null,
         codeExpiresAt: null,
+        codeChallenge: null,
       },
     });
   }

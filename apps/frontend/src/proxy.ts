@@ -10,6 +10,13 @@ import {
 } from '@gitroom/react/translation/i18n.config';
 acceptLanguage.languages(languages);
 
+// An AI assistant (Claude, ChatGPT) sends the user to /oauth/authorize. If
+// they are signed out, this cookie keeps that address through sign-in, and the
+// first page they land on afterwards sends them back to it.
+const OAUTH_RETURN = 'oauth_return';
+const isOAuthReturn = (value?: string) =>
+  !!value && value.startsWith('/oauth/authorize?');
+
 // This function can be marked `async` if using `await` inside
 export async function proxy(request: NextRequest) {
   const nextUrl = request.nextUrl;
@@ -122,9 +129,19 @@ export async function proxy(request: NextRequest) {
             : 'github'
           : findIndex
         ).toUpperCase()}`;
-    return NextResponse.redirect(
+    const toLogin = NextResponse.redirect(
       new URL(`/auth${url}${additional}`, nextUrl.href)
     );
+    if (nextUrl.pathname === '/oauth/authorize') {
+      toLogin.cookies.set(OAUTH_RETURN, `/oauth/authorize${url}`, {
+        path: '/',
+        httpOnly: true,
+        sameSite: 'lax',
+        ...(!process.env.NOT_SECURED ? { secure: true } : {}),
+        maxAge: 30 * 60,
+      });
+    }
+    return toLogin;
   }
 
   // If the url is /auth and the cookie exists, redirect to /
@@ -179,6 +196,22 @@ export async function proxy(request: NextRequest) {
       }
       return redirect;
     }
+    const oauthReturn = request.cookies.get(OAUTH_RETURN)?.value;
+    if (oauthReturn) {
+      if (nextUrl.pathname === '/oauth/authorize') {
+        topResponse.cookies.delete(OAUTH_RETURN);
+        return topResponse;
+      }
+      if (
+        isOAuthReturn(oauthReturn) &&
+        ['/', '/launches', '/analytics'].includes(nextUrl.pathname)
+      ) {
+        const back = NextResponse.redirect(new URL(oauthReturn, nextUrl.href));
+        back.cookies.delete(OAUTH_RETURN);
+        return back;
+      }
+    }
+
     if (nextUrl.pathname === '/') {
       return NextResponse.redirect(
         new URL(

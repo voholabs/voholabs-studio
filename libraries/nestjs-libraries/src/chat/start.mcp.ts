@@ -187,10 +187,18 @@ export const startMcp = async (app: INestApplication) => {
       ? walletServer
       : freeServer;
 
+  // The backend is served under a path (/api behind nginx), and
+  // new URL('/x', base) would drop it, so advertised URLs are joined by hand.
+  // The issuer is the backend URL itself; nginx serves its RFC 8414 path-inserted
+  // metadata (/.well-known/oauth-authorization-server/api) from the backend.
+  const backendBase = process.env.NEXT_PUBLIC_BACKEND_URL!.replace(/\/+$/, '');
+  const advertised = (path: string) => `${backendBase}${path}`;
+
   const oauthMiddleware = createOAuthMiddleware({
+    resourceMetadataUrl: advertised('/.well-known/oauth-protected-resource'),
     oauth: {
-      resource: new URL('/mcp-oauth', process.env.NEXT_PUBLIC_BACKEND_URL!).toString(),
-      authorizationServers: [process.env.NEXT_PUBLIC_BACKEND_URL!],
+      resource: advertised('/mcp-oauth'),
+      authorizationServers: [backendBase],
       validateToken: async (token: string) => {
         const org = await resolveAuth(token);
         if (!org) {
@@ -225,10 +233,17 @@ export const startMcp = async (app: INestApplication) => {
     }
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Cache-Control', 'max-age=3600');
+    const tokenBase = (
+      process.env.NEXT_PUBLIC_OVERRIDE_BACKEND_URL || backendBase
+    ).replace(/\/+$/, '');
     res.json({
-      issuer: process.env.NEXT_PUBLIC_BACKEND_URL,
+      issuer: backendBase,
       authorization_endpoint: `${process.env.FRONTEND_URL}/oauth/authorize`,
-      token_endpoint: `${process.env.NEXT_PUBLIC_OVERRIDE_BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL}/oauth/token`,
+      token_endpoint: `${tokenBase}/oauth/token`,
+      // Dynamic client registration, so an AI assistant can connect without
+      // anyone creating an app for it first.
+      registration_endpoint: `${tokenBase}/oauth/register`,
+      token_endpoint_auth_methods_supported: ['none', 'client_secret_post'],
       response_types_supported: ['code'],
       grant_types_supported: ['authorization_code'],
       code_challenge_methods_supported: ['S256'],

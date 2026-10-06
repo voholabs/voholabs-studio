@@ -198,29 +198,38 @@ export const withSanityMcp = async <T>(
 };
 
 /**
- * Every Sanity data tool takes `resource: { projectId, dataset }`. Studio fills
- * it in from the connected channel rather than trusting the agent, so the proxy
+ * Every Sanity data tool is scoped to a project and dataset. Studio fills them
+ * in from the connected channel rather than trusting the agent, so the proxy
  * can only ever touch the project the customer actually connected - and the
  * agent never has to be told the ids.
+ *
+ * Sanity's server has carried the scope in two shapes: top-level `projectId`
+ * and `dataset` (current, verified against mcp.sanity.io on 2026-10-06) and a
+ * nested `resource: { projectId, dataset }` (earlier). The tool's own input
+ * schema says which it takes, so both are handled and whatever the agent sent
+ * for them is overwritten.
  */
 export const scopeArgumentsToChannel = (
   args: Record<string, any>,
   inputSchema: Record<string, any> | undefined,
   credentials: SanityMcpCredentials
 ) => {
-  const takesResource = !!inputSchema?.['properties']?.['resource'];
+  const properties = inputSchema?.['properties'] || {};
+  const scoped = { ...args };
 
-  if (!takesResource) {
-    return args;
+  if (properties['projectId'] || properties['dataset']) {
+    scoped.projectId = credentials.projectId;
+    scoped.dataset = credentials.dataset;
   }
 
-  return {
-    ...args,
-    resource: {
+  if (properties['resource']) {
+    scoped.resource = {
       projectId: credentials.projectId,
       dataset: credentials.dataset,
-    },
-  };
+    };
+  }
+
+  return scoped;
 };
 
 /**

@@ -13,14 +13,48 @@ const parse = (uri: string) => {
 const isLoopback = (url: URL) =>
   url.protocol === 'http:' && LOOPBACK.includes(url.hostname);
 
-// What a self-registering client may ask to be sent back to: an https URL, or
-// a loopback http URL for a native client such as Claude Code (RFC 8252).
+// Schemes that run or read something in the browser instead of handing the
+// code to an app.
+const BLOCKED_SCHEMES = [
+  'javascript:',
+  'data:',
+  'file:',
+  'vbscript:',
+  'about:',
+  'blob:',
+  'ftp:',
+  'ws:',
+  'wss:',
+];
+
+// What a self-registering client may ask to be sent back to (RFC 8252): an
+// https URL (Claude, ChatGPT), a loopback http URL (Claude Code, VS Code), or a
+// desktop app's own link scheme (cursor://...).
 export const isAllowedRedirectUri = (uri: string) => {
   const url = parse(uri);
   if (!url || url.hash || url.username || url.password) {
     return false;
   }
-  return url.protocol === 'https:' || isLoopback(url);
+  if (url.protocol === 'https:' || isLoopback(url)) {
+    return true;
+  }
+  return (
+    url.protocol !== 'http:' &&
+    !BLOCKED_SCHEMES.includes(url.protocol) &&
+    /^[a-z][a-z0-9+.-]*:$/.test(url.protocol)
+  );
+};
+
+// What the consent screen names as the place the user is sent back to.
+export const redirectLabel = (uri: string) => {
+  const url = parse(uri);
+  if (!url) {
+    return '';
+  }
+  if (url.protocol === 'https:' || url.protocol === 'http:') {
+    return url.host;
+  }
+  return `${url.protocol}//${url.host}`;
 };
 
 // The registered URI the request names, or null. A loopback URI matches on any

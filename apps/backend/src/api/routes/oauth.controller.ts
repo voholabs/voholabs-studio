@@ -18,6 +18,7 @@ import { User, Organization } from '@prisma/client';
 import { AuthorizeOAuthQueryDto, ApproveOAuthDto } from '@gitroom/nestjs-libraries/dtos/oauth/authorize-oauth.dto';
 import { TokenExchangeDto } from '@gitroom/nestjs-libraries/dtos/oauth/token-exchange.dto';
 import { RegisterClientDto } from '@gitroom/nestjs-libraries/dtos/oauth/register-client.dto';
+import { redirectLabel } from '@gitroom/nestjs-libraries/database/prisma/oauth/oauth.client';
 
 @ApiTags('OAuth')
 @Controller('/oauth')
@@ -42,7 +43,7 @@ export class OAuthController {
         redirectUrl: redirectUri,
         // The consent screen names the host the user is sent back to, since a
         // self-registered client chooses its own name.
-        redirectHost: new URL(redirectUri).host,
+        redirectHost: redirectLabel(redirectUri),
         isPublic: app.isPublic,
       },
       state: query.state,

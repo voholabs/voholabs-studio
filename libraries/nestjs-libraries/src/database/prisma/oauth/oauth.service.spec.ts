@@ -4,6 +4,7 @@ import {
   isAllowedRedirectUri,
   matchRedirectUri,
   verifyPkce,
+  redirectLabel,
 } from '@gitroom/nestjs-libraries/database/prisma/oauth/oauth.client';
 import { AuthService } from '@gitroom/helpers/auth/auth.service';
 
@@ -52,7 +53,10 @@ describe('redirect URIs a client may register', () => {
     expect(isAllowedRedirectUri('http://127.0.0.1/callback')).toBe(true);
     expect(isAllowedRedirectUri('http://evil.com/callback')).toBe(false);
     expect(isAllowedRedirectUri('javascript:alert(1)')).toBe(false);
-    expect(isAllowedRedirectUri('myapp://cb')).toBe(false);
+    expect(isAllowedRedirectUri('https://chatgpt.com/connector_platform_oauth_redirect')).toBe(true);
+    expect(isAllowedRedirectUri('cursor://anysphere.cursor-retrieval/oauth/user-x/callback')).toBe(true);
+    expect(isAllowedRedirectUri('data:text/html,hi')).toBe(false);
+    expect(isAllowedRedirectUri('file:///etc/passwd')).toBe(false);
     expect(isAllowedRedirectUri('not a url')).toBe(false);
   });
 
@@ -67,6 +71,14 @@ describe('redirect URIs a client may register', () => {
     expect(
       matchRedirectUri([CLAUDE], 'https://claude.ai.evil.com/api/mcp/auth_callback')
     ).toBeNull();
+  });
+
+  it('names where the user is sent back to', () => {
+    expect(redirectLabel(CLAUDE)).toBe('claude.ai');
+    expect(redirectLabel('http://localhost:3118/callback')).toBe('localhost:3118');
+    expect(redirectLabel('cursor://anysphere.cursor-retrieval/oauth/cb')).toBe(
+      'cursor://anysphere.cursor-retrieval'
+    );
   });
 
   it('verifies S256 PKCE', () => {

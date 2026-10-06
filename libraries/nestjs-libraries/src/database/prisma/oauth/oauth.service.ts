@@ -97,7 +97,7 @@ export class OAuthService {
       throw oauthError(
         'invalid_redirect_uri',
         HttpStatus.BAD_REQUEST,
-        'Redirect URIs must use https, or http on a loopback address'
+        'Redirect URIs must use https, http on a loopback address, or an app link scheme'
       );
     }
 

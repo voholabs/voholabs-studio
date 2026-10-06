@@ -57,6 +57,15 @@ export default function OAuthAuthorizePage() {
     clearOAuthConnect();
   }, []);
 
+  // Signed in and shown: allow one reload again next time (layout.context).
+  useEffect(() => {
+    if (self?.orgId) {
+      try {
+        sessionStorage.removeItem('oauth_consent_retry');
+      } catch {}
+    }
+  }, [self?.orgId]);
+
   useEffect(() => {
     if (!workspace && self?.orgId) {
       setWorkspace(self.orgId);

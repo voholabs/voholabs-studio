@@ -87,7 +87,21 @@ function LayoutContextInner(params: { children: ReactNode }) {
           setCookie('showorg', '', -10);
           setCookie('impersonate', '', -10);
         }
-        window.location.href = '/';
+        // On the consent screen an AI assistant sent the user to, reload the
+        // same address once: signed out, it leads to the login page and back
+        // here. A second 401 in a row falls back to the usual redirect.
+        let retryConsent = false;
+        try {
+          retryConsent =
+            window.location.pathname.startsWith('/oauth/authorize') &&
+            !sessionStorage.getItem('oauth_consent_retry');
+          if (retryConsent) {
+            sessionStorage.setItem('oauth_consent_retry', '1');
+          }
+        } catch {}
+        window.location.href = retryConsent
+          ? window.location.pathname + window.location.search
+          : '/';
       }
       if (response.status === 406) {
         if (

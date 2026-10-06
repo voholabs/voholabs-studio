@@ -4,6 +4,22 @@ import { CreateOAuthAppDto } from '@gitroom/nestjs-libraries/dtos/oauth/create-o
 import { UpdateOAuthAppDto } from '@gitroom/nestjs-libraries/dtos/oauth/update-oauth-app.dto';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 import { AuthService } from '@gitroom/helpers/auth/auth.service';
+import { RegisterClientDto } from '@gitroom/nestjs-libraries/dtos/oauth/register-client.dto';
+import {
+  isAllowedRedirectUri,
+  matchRedirectUri,
+  verifyPkce,
+} from '@gitroom/nestjs-libraries/database/prisma/oauth/oauth.client';
+
+const oauthError = (
+  error: string,
+  status: HttpStatus,
+  error_description?: string
+) =>
+  new HttpException(
+    { error, ...(error_description ? { error_description } : {}) },
+    status
+  );
 
 @Injectable()
 export class OAuthService {
@@ -72,6 +88,80 @@ export class OAuthService {
     return { clientSecret: newSecret };
   }
 
+  // Dynamic client registration (RFC 7591): an AI assistant such as Claude or
+  // ChatGPT registers itself as a public client before sending the user to the
+  // consent screen. It belongs to no workspace until a user approves it.
+  async registerClient(dto: RegisterClientDto) {
+    const invalid = dto.redirect_uris.find((uri) => !isAllowedRedirectUri(uri));
+    if (invalid) {
+      throw oauthError(
+        'invalid_redirect_uri',
+        HttpStatus.BAD_REQUEST,
+        'Redirect URIs must use https, http on a loopback address, or an app link scheme'
+      );
+    }
+
+    const clientId = 'pca_' + makeId(32);
+    const name = (dto.client_name || '').trim().slice(0, 100) || 'AI assistant';
+    const app = await this._oauthRepository.createPublicApp({
+      name,
+      redirectUris: dto.redirect_uris,
+      clientId,
+      // Never used: a public client authenticates with PKCE. The column is
+      // required, so it holds a random value no one knows.
+      clientSecret: AuthService.fixedEncryption('pcs_' + makeId(48)),
+    });
+
+    return {
+      client_id: app.clientId,
+      client_id_issued_at: Math.floor(app.createdAt.getTime() / 1000),
+      client_name: app.name,
+      redirect_uris: app.redirectUris,
+      grant_types: ['authorization_code'],
+      response_types: ['code'],
+      token_endpoint_auth_method: 'none',
+    };
+  }
+
+  // Checks a request to the consent screen and settles where the user is sent
+  // back to. An app a workspace created keeps its single redirect URL; a
+  // self-registered client must name one of its own URIs and use PKCE.
+  async checkAuthorizationRequest(
+    clientId: string,
+    request: {
+      redirectUri?: string;
+      codeChallenge?: string;
+      codeChallengeMethod?: string;
+    }
+  ) {
+    const app = await this.validateAuthorizationRequest(clientId);
+
+    if (!app.isPublic) {
+      if (request.redirectUri && request.redirectUri !== app.redirectUrl) {
+        throw new HttpException('Invalid redirect_uri', HttpStatus.BAD_REQUEST);
+      }
+      return { app, redirectUri: app.redirectUrl };
+    }
+
+    const redirectUri = request.redirectUri
+      ? matchRedirectUri(app.redirectUris, request.redirectUri)
+      : app.redirectUris.length === 1
+      ? app.redirectUris[0]
+      : null;
+    if (!redirectUri) {
+      throw new HttpException('Invalid redirect_uri', HttpStatus.BAD_REQUEST);
+    }
+
+    if (!request.codeChallenge || request.codeChallengeMethod !== 'S256') {
+      throw new HttpException(
+        'This app must use PKCE with code_challenge_method=S256',
+        HttpStatus.BAD_REQUEST
+      );
+    }
+
+    return { app, redirectUri };
+  }
+
   async validateAuthorizationRequest(clientId: string) {
     const app = await this._oauthRepository.getAppByClientId(clientId);
     if (!app) {
@@ -83,7 +173,8 @@ export class OAuthService {
   async createAuthorizationCode(
     oauthAppId: string,
     userId: string,
-    organizationId: string
+    organizationId: string,
+    pkce: { codeChallenge?: string; redirectUri?: string } = {}
   ) {
     const code = makeId(32);
     const encryptedCode = AuthService.fixedEncryption(code);
@@ -95,6 +186,8 @@ export class OAuthService {
       organizationId,
       authorizationCode: encryptedCode,
       codeExpiresAt,
+      codeChallenge: pkce.codeChallenge,
+      redirectUri: pkce.redirectUri,
     });
 
     return code;
@@ -103,7 +196,8 @@ export class OAuthService {
   async exchangeCodeForToken(
     code: string,
     clientId: string,
-    clientSecret: string
+    clientSecret?: string,
+    proof: { codeVerifier?: string; redirectUri?: string } = {}
   ) {
     const app = await this._oauthRepository.getAppByClientId(clientId);
     if (!app) {
@@ -113,7 +207,11 @@ export class OAuthService {
       );
     }
 
-    if (app.clientSecret !== AuthService.fixedEncryption(clientSecret)) {
+    if (
+      !app.isPublic &&
+      (!clientSecret ||
+        app.clientSecret !== AuthService.fixedEncryption(clientSecret))
+    ) {
       throw new HttpException(
         { error: 'invalid_client' },
         HttpStatus.UNAUTHORIZED
@@ -136,6 +234,34 @@ export class OAuthService {
       );
     }
 
+    // PKCE: a code issued with a challenge is only exchanged with its verifier,
+    // and a public client's code always carries one (checkAuthorizationRequest).
+    if (auth.codeChallenge || app.isPublic) {
+      if (
+        !auth.codeChallenge ||
+        !proof.codeVerifier ||
+        !verifyPkce(proof.codeVerifier, auth.codeChallenge)
+      ) {
+        throw oauthError(
+          'invalid_grant',
+          HttpStatus.BAD_REQUEST,
+          'PKCE verification failed'
+        );
+      }
+    }
+
+    if (
+      auth.redirectUri &&
+      proof.redirectUri &&
+      proof.redirectUri !== auth.redirectUri
+    ) {
+      throw oauthError(
+        'invalid_grant',
+        HttpStatus.BAD_REQUEST,
+        'redirect_uri does not match'
+      );
+    }
+
     const token = 'pos_' + makeId(40);
     const encryptedToken = AuthService.fixedEncryption(token);
     const {
@@ -145,6 +271,12 @@ export class OAuthService {
       auth.id,
       encryptedToken
     );
+
+    // A public client is an AI assistant: it gets the token alone, not the
+    // workspace's ids.
+    if (app.isPublic) {
+      return { access_token: token, token_type: 'bearer' };
+    }
 
     return {
       id: organizationId,

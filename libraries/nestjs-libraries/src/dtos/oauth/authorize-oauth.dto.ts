@@ -13,6 +13,18 @@ export class AuthorizeOAuthQueryDto {
   @IsString()
   @IsOptional()
   state?: string;
+
+  @IsString()
+  @IsOptional()
+  redirect_uri?: string;
+
+  @IsString()
+  @IsOptional()
+  code_challenge?: string;
+
+  @IsString()
+  @IsOptional()
+  code_challenge_method?: string;
 }
 
 export class ApproveOAuthDto {
@@ -28,4 +40,20 @@ export class ApproveOAuthDto {
   @IsDefined()
   @IsIn(['approve', 'deny'])
   action: 'approve' | 'deny';
+
+  @IsString()
+  @IsOptional()
+  redirect_uri?: string;
+
+  @IsString()
+  @IsOptional()
+  code_challenge?: string;
+
+  @IsString()
+  @IsOptional()
+  code_challenge_method?: string;
+
+  @IsString()
+  @IsOptional()
+  organization_id?: string;
 }

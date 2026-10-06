@@ -2,8 +2,29 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import useSWR from 'swr';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { Logo } from '@gitroom/frontend/components/new-layout/logo';
+import { ConnectionLogos } from '@gitroom/frontend/components/oauth/connection.logos';
+import { clearOAuthConnect } from '@gitroom/frontend/app/(app)/auth/oauth.connect.notice';
+
+const useWorkspaces = () => {
+  const fetch = useFetch();
+  return useSWR<{ id: string; name: string }[]>(
+    'oauth-workspaces',
+    async () => (await fetch('/user/organizations')).json(),
+    { revalidateOnFocus: false }
+  );
+};
+
+const useCurrentWorkspace = () => {
+  const fetch = useFetch();
+  return useSWR<{ orgId: string }>(
+    'oauth-current-workspace',
+    async () => (await fetch('/user/self')).json(),
+    { revalidateOnFocus: false }
+  );
+};
 
 export default function OAuthAuthorizePage() {
   const searchParams = useSearchParams();
@@ -12,10 +33,35 @@ export default function OAuthAuthorizePage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [workspace, setWorkspace] = useState('');
+  const { data: workspaces } = useWorkspaces();
+  const { data: self } = useCurrentWorkspace();
 
   const clientId = searchParams.get('client_id');
   const responseType = searchParams.get('response_type');
   const state = searchParams.get('state');
+  // Sent by AI assistants (Claude, ChatGPT): where to return the user, and the
+  // PKCE challenge the token request is later checked against.
+  const redirectUri = searchParams.get('redirect_uri');
+  const codeChallenge = searchParams.get('code_challenge');
+  const codeChallengeMethod = searchParams.get('code_challenge_method');
+  const pkce = {
+    ...(redirectUri ? { redirect_uri: redirectUri } : {}),
+    ...(codeChallenge ? { code_challenge: codeChallenge } : {}),
+    ...(codeChallengeMethod
+      ? { code_challenge_method: codeChallengeMethod }
+      : {}),
+  };
+
+  useEffect(() => {
+    clearOAuthConnect();
+  }, []);
+
+  useEffect(() => {
+    if (!workspace && self?.orgId) {
+      setWorkspace(self.orgId);
+    }
+  }, [self?.orgId, workspace]);
 
   useEffect(() => {
     if (!clientId || !responseType) {
@@ -33,6 +79,7 @@ export default function OAuthAuthorizePage() {
       client_id: clientId,
       response_type: responseType,
       ...(state ? { state } : {}),
+      ...pkce,
     });
 
     fetch(`/oauth/authorize?${params}`)
@@ -49,7 +96,7 @@ export default function OAuthAuthorizePage() {
         setError('Failed to validate OAuth request');
         setLoading(false);
       });
-  }, [clientId, responseType, state]);
+  }, [clientId, responseType, state, redirectUri, codeChallenge]);
 
   const handleAction = useCallback(
     async (action: 'approve' | 'deny') => {
@@ -62,19 +109,24 @@ export default function OAuthAuthorizePage() {
               client_id: clientId,
               state,
               action,
+              ...pkce,
+              ...(workspace ? { organization_id: workspace } : {}),
             }),
           })
         ).json();
 
         if (result.redirect) {
           window.location.href = result.redirect;
+        } else {
+          setError(result.message || 'Failed to process authorization');
+          setSubmitting(false);
         }
       } catch {
         setError('Failed to process authorization');
         setSubmitting(false);
       }
     },
-    [clientId, state]
+    [clientId, state, redirectUri, codeChallenge, codeChallengeMethod, workspace]
   );
 
   if (loading) {
@@ -146,25 +198,18 @@ export default function OAuthAuthorizePage() {
       </div>
 
       <div className="relative z-10 w-full max-w-[500px] mx-auto px-[20px]">
-        <div className="flex justify-center mb-[32px]">
-          <Logo />
+        <div className="mb-[32px]">
+          <ConnectionLogos
+            redirectHost={appInfo.app.redirectHost}
+            name={appInfo.app.name}
+            picture={appInfo.app.picture?.path}
+          />
         </div>
 
         <div className="bg-[#1A1919] rounded-[16px] p-[32px] flex flex-col gap-[24px]">
           <div className="flex flex-col items-center gap-[16px]">
-            {appInfo.app.picture?.path ? (
-              <img
-                src={appInfo.app.picture.path}
-                alt={appInfo.app.name}
-                className="w-[64px] h-[64px] rounded-full object-cover"
-              />
-            ) : (
-              <div className="w-[64px] h-[64px] rounded-full bg-[#2A2929] flex items-center justify-center text-[24px] text-gray-400">
-                {appInfo.app.name?.[0]?.toUpperCase() || '?'}
-              </div>
-            )}
             <h2 className="text-[24px] font-semibold text-center">
-              {appInfo.app.name}
+              Connect {appInfo.app.name} to Voholabs Studio
             </h2>
             {appInfo.app.description && (
               <div className="text-gray-400 text-center text-[14px]">
@@ -172,6 +217,33 @@ export default function OAuthAuthorizePage() {
               </div>
             )}
           </div>
+
+          {workspaces && workspaces.length > 1 && (
+            <div className="flex flex-col gap-[8px]">
+              <label
+                htmlFor="oauth-workspace"
+                className="text-[14px] text-gray-400"
+              >
+                Workspace to connect
+              </label>
+              <select
+                id="oauth-workspace"
+                value={workspace}
+                onChange={(e) => setWorkspace(e.target.value)}
+                className="bg-[#2A2929] text-white rounded-[8px] h-[40px] px-[12px] text-[14px] outline-none"
+              >
+                {workspaces.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
+              </select>
+              <div className="text-[12px] text-gray-400">
+                The app only sees this workspace. To use another one, connect
+                again and pick it.
+              </div>
+            </div>
+          )}
 
           <div className="border-t border-[#2A2929] pt-[16px]">
             <div className="text-[14px] text-gray-400 mb-[12px]">
@@ -183,6 +255,14 @@ export default function OAuthAuthorizePage() {
               <li>Create and schedule posts on your behalf</li>
               <li>Read your post analytics</li>
             </ul>
+            {appInfo.app.redirectHost && (
+              <div className="text-[13px] text-gray-400 mt-[12px]">
+                After you choose, you will be sent to{' '}
+                <span className="text-white font-semibold">
+                  {appInfo.app.redirectHost}
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="flex gap-[12px]">

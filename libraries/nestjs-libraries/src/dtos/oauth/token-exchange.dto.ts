@@ -1,4 +1,4 @@
-import { IsDefined, IsString } from 'class-validator';
+import { IsDefined, IsOptional, IsString } from 'class-validator';
 
 export class TokenExchangeDto {
   @IsString()
@@ -13,7 +13,17 @@ export class TokenExchangeDto {
   @IsDefined()
   client_id: string;
 
+  // Required for an app a workspace created; a self-registered (public) client
+  // proves itself with code_verifier instead.
   @IsString()
-  @IsDefined()
-  client_secret: string;
+  @IsOptional()
+  client_secret?: string;
+
+  @IsString()
+  @IsOptional()
+  code_verifier?: string;
+
+  @IsString()
+  @IsOptional()
+  redirect_uri?: string;
 }

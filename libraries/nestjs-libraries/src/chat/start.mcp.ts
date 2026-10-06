@@ -132,8 +132,8 @@ export const startMcp = async (app: INestApplication) => {
   const agent = mastra.getAgent('postiz');
   const tools = await agent.listTools();
 
-  // Tools that need an MCP host (the upload box) and its ui:// page. They are
-  // served to the free and pay-as-you-go plans; a paid plan's MCP is unchanged.
+  // Tools that need an MCP host (the upload box) and its ui:// page, served to
+  // every plan.
   const widgetTools = Object.fromEntries(
     await Promise.all(
       mcpOnlyToolList.map(async (tool) => {
@@ -171,11 +171,15 @@ export const startMcp = async (app: INestApplication) => {
   const serverConfig = {
     name: 'Voholabs MCP',
     version: '1.0.0',
-    tools: Object.fromEntries(
-      Object.entries(tools).filter(
-        ([name]) => !notOnPlanToolNames.includes(name)
-      )
-    ),
+    tools: {
+      ...Object.fromEntries(
+        Object.entries(tools).filter(
+          ([name]) => !notOnPlanToolNames.includes(name)
+        )
+      ),
+      ...widgetTools,
+    },
+    appResources,
     // Registering the agent here is what publishes `ask_postiz`: MCPServer
     // generates an `ask_<name>` tool for every agent in this map. That tool
     // hands the whole job to Studio's own agent, which needs its own OpenAI key

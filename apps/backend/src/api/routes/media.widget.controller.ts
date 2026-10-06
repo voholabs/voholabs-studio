@@ -65,6 +65,9 @@ export class MediaWidgetController {
             String(body?.uploadId || '')
           );
           req.body = { ...body, key: upload.key, uploadId: body.uploadId };
+          // A .mov from the box is stored as .mp4 (createWidgetUpload).
+          // @ts-ignore
+          req.allowQuickTime = true;
           const result = await handleR2Upload(endpoint, req, res);
           if (endpoint === 'abort-multipart-upload' || res.headersSent) {
             return result;

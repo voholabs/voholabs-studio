@@ -263,7 +263,13 @@ export async function completeMultipartUpload(req: Request, res: Response) {
     const prefix = Buffer.concat(chunks);
     const detected = await fromBuffer(prefix);
 
-    if (!detected || detected.mime !== expectedMime) {
+    // The upload box stores a .mov video under .mp4 (createWidgetUpload).
+    const quickTimeAsMp4 =
+      // @ts-ignore
+      req.allowQuickTime === true &&
+      expectedMime === 'video/mp4' &&
+      detected?.mime === 'video/quicktime';
+    if (!detected || (detected.mime !== expectedMime && !quickTimeAsMp4)) {
       await R2.send(
         new DeleteObjectCommand({ Bucket: CLOUDFLARE_BUCKETNAME, Key: key })
       );
@@ -319,8 +325,16 @@ export const widgetPartCount = (size: number) =>
 export const widgetPartLength = (size: number, partNumber: number) =>
   Math.min(WIDGET_PART_BYTES, size - (partNumber - 1) * WIDGET_PART_BYTES);
 
+// A QuickTime (.mov) video, as phones record them. It is stored as .mp4: the
+// two share one container format, the networks take either, and every
+// integration tells a video apart by its .mp4 name.
+export const isQuickTimeName = (fileName: string) =>
+  path.extname(fileName || '').toLowerCase() === '.mov';
+
 export async function createWidgetUpload(fileName: string) {
-  const safeExt = normalizeExtension(fileName || '');
+  const safeExt = isQuickTimeName(fileName)
+    ? '.mp4'
+    : normalizeExtension(fileName || '');
   if (!safeExt) {
     return null;
   }

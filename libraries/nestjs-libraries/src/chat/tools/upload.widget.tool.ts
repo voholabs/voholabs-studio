@@ -14,7 +14,7 @@ export class UploadWidgetTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'uploadWidgetTool',
-      description: `Show the user an upload box to add images or videos from their own device to the media library. The file goes straight from their device to storage, so large videos (up to 1 GB) work.
+      description: `Show the user an upload box to add images or videos from their own device to the media library. The file goes straight from their device to storage, so large videos (MP4 or MOV, up to 1 GB) work.
 Use this whenever the user wants to post a photo or video they have on their device, or attached in the chat. When the media is already on a public URL, use uploadFromUrlTool instead.
 The box only appears in apps that support MCP Apps (interactive UI), such as Claude and ChatGPT. Elsewhere use createUploadLinkTool or uploadFromUrlTool.
 Returns a sessionId. The files the user uploads are reported in the conversation, and can also be read with uploadWidgetStatusTool. Each one has an { id, path } to attach to a post.`,

@@ -52,8 +52,8 @@ export const uploadWidgetHtml = (backendUrl: string) => `<!DOCTYPE html>
 <body>
   <label id="drop" class="disabled">
     <strong>Choose photos or videos, or drop them here</strong>
-    <small>Images up to 10 MB, MP4 videos up to 1 GB</small>
-    <input id="file" type="file" accept="image/jpeg,image/png,image/gif,image/webp,image/avif,image/bmp,image/tiff,video/mp4" multiple />
+    <small>Images up to 10 MB, MP4 or MOV videos up to 1 GB</small>
+    <input id="file" type="file" accept="image/jpeg,image/png,image/gif,image/webp,image/avif,image/bmp,image/tiff,video/mp4,video/quicktime,.mov" multiple />
   </label>
   <ul id="files"></ul>
   <div id="error"></div>
@@ -211,10 +211,10 @@ export const uploadWidgetHtml = (backendUrl: string) => `<!DOCTYPE html>
 
   function check(file) {
     var ext = (file.name.split('.').pop() || '').toLowerCase();
-    if (ext === 'mp4') return file.size > VIDEO_MAX ? 'Videos can be up to 1 GB' : '';
+    if (ext === 'mp4' || ext === 'mov') return file.size > VIDEO_MAX ? 'Videos can be up to 1 GB' : '';
     if (IMAGE_EXT.indexOf(ext) > -1) return file.size > IMAGE_MAX ? 'Images can be up to 10 MB' : '';
-    if (ext === 'mov' || ext === 'm4v' || ext === 'webm') return 'Videos must be MP4. Export as MP4 and try again';
-    return 'Only images and MP4 videos can be uploaded';
+    if (ext === 'm4v' || ext === 'webm') return 'Videos must be MP4 or MOV. Export as MP4 and try again';
+    return 'Only images and MP4 or MOV videos can be uploaded';
   }
 
   function row(file) {

@@ -109,9 +109,9 @@ export class MediaService {
     if (size <= 0) {
       throw new HttpException('The file is empty', 400);
     }
-    const mime = (file?.name || '').toLowerCase().endsWith('.mp4')
-      ? 'video/mp4'
-      : 'image/png';
+    const name = (file?.name || '').toLowerCase();
+    const mime =
+      name.endsWith('.mp4') || name.endsWith('.mov') ? 'video/mp4' : 'image/png';
     if (size > getMaxSize(mime)) {
       throw new HttpException('File is too large.', 400);
     }

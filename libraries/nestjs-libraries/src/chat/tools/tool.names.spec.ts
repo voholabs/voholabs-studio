@@ -11,15 +11,18 @@ const sources = readdirSync(dir).filter(
   (file) => file.endsWith('.ts') && !file.endsWith('.spec.ts')
 );
 
-const toolListSource = read('tool.list.ts');
-const listed = (
-  toolListSource
-    .match(/export const toolList = \[([\s\S]*?)\n\];/)?.[1]
+const classesIn = (file: string, constant: string) =>
+  read(file)
+    .match(new RegExp(`export const ${constant} = \\[([\\s\\S]*?)\\n\\];`))?.[1]
     .split('\n')
     .map((line) => line.trim())
     .filter((line) => /^[A-Z]\w+,?$/.test(line))
-    .map((line) => line.replace(',', '')) || []
-);
+    .map((line) => line.replace(',', '')) || [];
+// The MCP also registers the tools only an MCP host can use (the upload box).
+const listed = [
+  ...classesIn('tool.list.ts', 'toolList'),
+  ...classesIn('mcp.only.tool.list.ts', 'mcpOnlyToolList'),
+];
 
 const registered = new Set(
   listed.map((className) => {

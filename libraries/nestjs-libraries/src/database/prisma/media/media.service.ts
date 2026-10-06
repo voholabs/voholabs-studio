@@ -1,4 +1,10 @@
 import { HttpException, Injectable } from '@nestjs/common';
+import { randomBytes } from 'crypto';
+import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
+import {
+  deleteStoredObject,
+  storedObjectSize,
+} from '@gitroom/nestjs-libraries/upload/r2.uploader';
 import { MediaRepository } from '@gitroom/nestjs-libraries/database/prisma/media/media.repository';
 import { OpenaiService } from '@gitroom/nestjs-libraries/openai/openai.service';
 import { generationError } from '@gitroom/nestjs-libraries/openai/generation.error';
@@ -39,6 +45,84 @@ export class MediaService {
 
   getMediaByIdsForOrg(org: string, ids: string[]) {
     return this._mediaRepository.getMediaByIdsForOrg(org, ids);
+  }
+
+  // Upload widget (MCP Apps). The session id is what the model sees and polls;
+  // the ticket is the credential the widget uploads with, handed to the widget
+  // only so it stays out of the conversation. A ticket never outlives its
+  // session.
+  async createUploadSession(org: string) {
+    const sessionId = randomBytes(16).toString('hex');
+    await ioRedis.set(`uploadSession:${sessionId}`, org, 'EX', 6 * 3600);
+    return sessionId;
+  }
+
+  private async checkUploadSession(org: string, sessionId: string) {
+    if ((await ioRedis.get(`uploadSession:${sessionId}`)) !== org) {
+      throw new HttpException('Upload session not found or expired', 404);
+    }
+  }
+
+  async createUploadTicket(org: string, sessionId: string) {
+    await this.checkUploadSession(org, sessionId);
+    const ticket = randomBytes(32).toString('hex');
+    // Long enough to sign every part of a 1 GB video on a slow connection.
+    await ioRedis.set(
+      `uploadTicket:${ticket}`,
+      JSON.stringify({ org, sessionId }),
+      'EX',
+      3 * 3600
+    );
+    return ticket;
+  }
+
+  async getUploadTicket(ticket: string) {
+    const found = JSON.parse(
+      (await ioRedis.get(`uploadTicket:${ticket}`)) || 'null'
+    ) as { org: string; sessionId: string } | null;
+    if (
+      !found ||
+      (await ioRedis.get(`uploadSession:${found.sessionId}`)) !== found.org
+    ) {
+      return null;
+    }
+    return found;
+  }
+
+  // A file the widget put straight into the bucket: sized from the bucket,
+  // checked against the storage allowance (and paid for from a wallet) like
+  // every other upload, then added to the library and to the session.
+  async saveUploadSessionFile(
+    org: string,
+    sessionId: string,
+    location: string,
+    originalName?: string
+  ) {
+    await this.checkUploadSession(org, sessionId);
+    const name = location.split('/').pop()!;
+    const size = await storedObjectSize(name);
+    try {
+      await this.assertStorage(org, size);
+    } catch (err) {
+      await deleteStoredObject(name);
+      throw err;
+    }
+    const media = await this.saveFile(
+      org,
+      name,
+      location,
+      originalName || undefined,
+      size
+    );
+    await ioRedis.rpush(`uploadSessionMedia:${sessionId}`, media.id);
+    await ioRedis.expire(`uploadSessionMedia:${sessionId}`, 6 * 3600);
+    return media;
+  }
+
+  async getUploadSession(org: string, sessionId: string) {
+    await this.checkUploadSession(org, sessionId);
+    const ids = await ioRedis.lrange(`uploadSessionMedia:${sessionId}`, 0, -1);
+    return this.getMediaByIdsForOrg(org, ids);
   }
 
   getMediaByPathsForOrg(org: string, paths: string[]) {

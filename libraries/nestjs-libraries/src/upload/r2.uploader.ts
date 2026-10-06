@@ -307,6 +307,52 @@ export async function abortMultipartUpload(req: Request, res: Response) {
   }
 }
 
+// The upload box's multipart upload (MCP Apps widget). Unlike the in-app
+// uploader, every part URL is signed for an exact byte length, so the parts
+// together can never exceed the size announced at the start, which is what
+// the storage allowance was checked against.
+export const WIDGET_PART_BYTES = 8 * 1024 * 1024;
+
+export const widgetPartCount = (size: number) =>
+  Math.max(1, Math.ceil(size / WIDGET_PART_BYTES));
+
+export const widgetPartLength = (size: number, partNumber: number) =>
+  Math.min(WIDGET_PART_BYTES, size - (partNumber - 1) * WIDGET_PART_BYTES);
+
+export async function createWidgetUpload(fileName: string) {
+  const safeExt = normalizeExtension(fileName || '');
+  if (!safeExt) {
+    return null;
+  }
+  const response = await R2.send(
+    new CreateMultipartUploadCommand({
+      Bucket: CLOUDFLARE_BUCKETNAME,
+      Key: generateRandomString() + safeExt,
+      ContentType: ALLOWED_EXT_TO_MIME[safeExt],
+    })
+  );
+  return { uploadId: response.UploadId!, key: response.Key! };
+}
+
+export function signWidgetPart(
+  key: string,
+  uploadId: string,
+  partNumber: number,
+  contentLength: number
+) {
+  return getSignedUrl(
+    R2,
+    new UploadPartCommand({
+      Bucket: CLOUDFLARE_BUCKETNAME,
+      Key: key,
+      UploadId: uploadId,
+      PartNumber: partNumber,
+      ContentLength: contentLength,
+    }),
+    { expiresIn: 3600, signableHeaders: new Set(['content-length']) }
+  );
+}
+
 export async function signPart(req: Request, res: Response) {
   const { key, uploadId } = req.body;
   const partNumber = parseInt(req.body.partNumber);

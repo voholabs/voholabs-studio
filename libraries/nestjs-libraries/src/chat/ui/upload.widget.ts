@@ -177,6 +177,8 @@ export const uploadWidgetHtml = (backendUrl: string) => `<!DOCTYPE html>
     return step('create-multipart-upload', { file: meta, contentType: file.type, fileHash: '' }).then(function (created) {
       var key = created.key;
       var uploadId = created.uploadId;
+      // The backend signs each part for its exact size, so use its part size.
+      if (created.partSize) PART = created.partSize;
       var count = Math.max(1, Math.ceil(file.size / PART));
       var sent = {};
       var parts = [];

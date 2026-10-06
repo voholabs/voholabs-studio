@@ -2,9 +2,15 @@ import { HttpException, Injectable } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
 import {
+  createWidgetUpload,
   deleteStoredObject,
+  signWidgetPart,
   storedObjectSize,
+  widgetPartCount,
+  widgetPartLength,
+  WIDGET_PART_BYTES,
 } from '@gitroom/nestjs-libraries/upload/r2.uploader';
+import { getMaxSize } from '@gitroom/nestjs-libraries/upload/custom.upload.validation';
 import { MediaRepository } from '@gitroom/nestjs-libraries/database/prisma/media/media.repository';
 import { OpenaiService } from '@gitroom/nestjs-libraries/openai/openai.service';
 import { generationError } from '@gitroom/nestjs-libraries/openai/generation.error';
@@ -87,6 +93,75 @@ export class MediaService {
       return null;
     }
     return found;
+  }
+
+  // Starts an upload box upload. The announced size is checked against the
+  // file type's limit and the storage allowance before anything is stored, and
+  // recorded with the upload so each part can only be signed for its share of
+  // it (signUploadSessionPart).
+  async startUploadSessionFile(
+    org: string,
+    sessionId: string,
+    file: { name?: string; size?: number; type?: string }
+  ) {
+    await this.checkUploadSession(org, sessionId);
+    const size = Math.floor(Number(file?.size) || 0);
+    if (size <= 0) {
+      throw new HttpException('The file is empty', 400);
+    }
+    const mime = (file?.name || '').toLowerCase().endsWith('.mp4')
+      ? 'video/mp4'
+      : 'image/png';
+    if (size > getMaxSize(mime)) {
+      throw new HttpException('File is too large.', 400);
+    }
+    await this.assertStorage(org, size, { charge: false });
+
+    const created = await createWidgetUpload(file?.name || '');
+    if (!created) {
+      throw new HttpException('Unsupported file type.', 400);
+    }
+    await ioRedis.set(
+      `uploadPart:${created.uploadId}`,
+      JSON.stringify({ org, sessionId, key: created.key, size }),
+      'EX',
+      6 * 3600
+    );
+    return { ...created, partSize: WIDGET_PART_BYTES };
+  }
+
+  // The upload as recorded at its start, refused for any other workspace.
+  async uploadSessionPart(org: string, uploadId: string) {
+    const found = JSON.parse(
+      (await ioRedis.get(`uploadPart:${uploadId}`)) || 'null'
+    ) as { org: string; sessionId: string; key: string; size: number } | null;
+    if (!found || found.org !== org) {
+      throw new HttpException('Upload not found or expired', 404);
+    }
+    return found;
+  }
+
+  async signUploadSessionPart(
+    org: string,
+    uploadId: string,
+    partNumber: number
+  ) {
+    const upload = await this.uploadSessionPart(org, uploadId);
+    if (
+      !Number.isInteger(partNumber) ||
+      partNumber < 1 ||
+      partNumber > widgetPartCount(upload.size)
+    ) {
+      throw new HttpException('Invalid part', 400);
+    }
+    return {
+      url: await signWidgetPart(
+        upload.key,
+        uploadId,
+        partNumber,
+        widgetPartLength(upload.size, partNumber)
+      ),
+    };
   }
 
   // A file the widget put straight into the bucket: sized from the bucket,

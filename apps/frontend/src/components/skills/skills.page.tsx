@@ -60,7 +60,8 @@ const toolLabel = (t: T, tool: string): string | null => {
     case 'postStatusTool':
       return t('skill_tool_post_status', 'Post status');
     case 'sanityMcpList':
-    case 'sanityMcpCall':
+    case 'sanityRead':
+    case 'sanityWrite':
       return t('skill_tool_sanity', 'Sanity CMS');
     case 'mediaList':
       return t('skill_tool_media_library', 'Media library');

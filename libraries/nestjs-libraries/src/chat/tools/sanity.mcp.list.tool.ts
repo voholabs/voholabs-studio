@@ -9,7 +9,9 @@ import {
   readJsonSchema,
   resolveSanityCredentials,
   SANITY_MCP_ALLOWLIST,
+  SANITY_MCP_DOCS_URL,
   SANITY_MCP_NOT_CONNECTED,
+  SANITY_MCP_READ_TOOLS,
   withSanityMcp,
 } from '@gitroom/nestjs-libraries/chat/tools/sanity.mcp.shared';
 
@@ -21,8 +23,9 @@ export class SanityMcpListTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'sanityMcpList',
-      description: `Lists the Sanity CMS tools available for this workspace's connected Sanity channel, with the arguments each one takes.
-      Call this before sanityMcpCall so you pass the right arguments; call sanityMcpCall to actually run one.
+      description: `Lists the Sanity CMS tools available for this workspace's connected Sanity channel, with the arguments each one takes and whether each is a read or a write.
+      Call this first so you pass the right arguments; then run a read with sanityRead or a write with sanityWrite.
+      Calls the Sanity MCP server, see ${SANITY_MCP_DOCS_URL}.
       The list is filtered: reading, creating, patching and publishing content is available, while scheduling, dataset and project administration and schema deploys are not.
       Scheduling in particular is Studio's job - use findSlotTool and integrationSchedulePostTool for anything with a time on it.
       You never need to supply the Sanity project id or dataset; Studio fills those in from the connected channel.`,
@@ -45,11 +48,16 @@ export class SanityMcpListTool implements AgentToolInterface {
             tools: z.array(
               z.object({
                 name: z.string(),
+                kind: z
+                  .enum(['read', 'write'])
+                  .describe(
+                    'read: run it with sanityRead. write: run it with sanityWrite.'
+                  ),
                 description: z.string(),
                 inputSchema: z
                   .any()
                   .describe(
-                    'JSON Schema for the `arguments` object to pass to sanityMcpCall'
+                    'JSON Schema for the `arguments` object to pass to sanityRead or sanityWrite'
                   ),
               })
             ),
@@ -78,6 +86,9 @@ export class SanityMcpListTool implements AgentToolInterface {
                 .filter(([name]) => SANITY_MCP_ALLOWLIST.has(name))
                 .map(([name, tool]) => ({
                   name,
+                  kind: SANITY_MCP_READ_TOOLS.has(name)
+                    ? ('read' as const)
+                    : ('write' as const),
                   description: (tool as any)?.description || '',
                   inputSchema: readJsonSchema((tool as any)?.inputSchema),
                 })),

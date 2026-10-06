@@ -233,15 +233,10 @@ export const startMcp = async (app: INestApplication) => {
       ? walletServerConfig
       : freeServerConfig;
   // The sign-in endpoint (/mcp-oauth) is the one listed in the Claude and
-  // ChatGPT directories, which accept neither AI media generation nor a
-  // single tool that both reads and writes another service's API. It leaves
-  // those out; the key-in-URL endpoints keep every tool.
-  const directoryHiddenTools = [
-    'mediaMcpList',
-    'mediaMcpCall',
-    'sanityMcpList',
-    'sanityMcpCall',
-  ];
+  // ChatGPT directories, and Claude's directory policy does not accept AI
+  // image or video generation. It leaves those two tools out; the key-in-URL
+  // endpoints keep every tool.
+  const directoryHiddenTools = ['mediaMcpList', 'mediaMcpCall'];
   const forDirectory = (config: typeof serverConfig) =>
     new MCPServer({
       ...config,

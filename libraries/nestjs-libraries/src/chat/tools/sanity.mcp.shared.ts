@@ -36,19 +36,39 @@ export const SANITY_PROVIDER_IDENTIFIER = 'sanity';
  * agent's GROQ):
  *   list_sanity_rules, get_sanity_rules, search_docs, read_docs
  */
-export const SANITY_MCP_ALLOWLIST: ReadonlySet<string> = new Set([
+/** Reads. Nothing in here changes a document. */
+export const SANITY_MCP_READ_TOOLS: ReadonlySet<string> = new Set([
   'query_documents',
   'get_document',
   'get_schema',
   'list_workspace_schemas',
-  'create_documents',
-  'patch_documents',
-  'publish_documents',
   'list_sanity_rules',
   'get_sanity_rules',
   'search_docs',
   'read_docs',
 ]);
+
+/** Writes. Each one creates, edits or publishes a document. */
+export const SANITY_MCP_WRITE_TOOLS: ReadonlySet<string> = new Set([
+  'create_documents',
+  'patch_documents',
+  'publish_documents',
+]);
+
+/**
+ * Reads and writes are separate Studio tools (sanityRead, sanityWrite) rather
+ * than one call tool with a name parameter: the Claude and ChatGPT directories
+ * reject a single tool that both reads and writes, and the split lets a host
+ * run reads without asking the user each time while every write still prompts.
+ */
+export const SANITY_MCP_ALLOWLIST: ReadonlySet<string> = new Set([
+  ...SANITY_MCP_READ_TOOLS,
+  ...SANITY_MCP_WRITE_TOOLS,
+]);
+
+/** The API the proxy tools call; their descriptions name it for reviewers. */
+export const SANITY_MCP_DOCS_URL =
+  'https://www.sanity.io/docs/compute-and-ai/mcp-server';
 
 /**
  * Scheduling belongs to Studio, and only to Studio. Sanity's scheduling
@@ -77,6 +97,10 @@ export const SANITY_MCP_NOT_ALLOWED = (name: string) =>
   `The Sanity tool "${name}" is not available through Studio. Call sanityMcpList to see the ` +
   `tools that are. Scheduling, dataset and project administration, schema/studio deploys and ` +
   `the Sanity CLI are deliberately not proxied.`;
+
+export const SANITY_MCP_WRONG_KIND = (name: string, wanted: 'sanityRead' | 'sanityWrite') =>
+  `"${name}" is a ${wanted === 'sanityRead' ? 'read' : 'write'} tool. Call ${wanted} for it; ` +
+  `sanityMcpList shows which tools are reads and which are writes.`;
 
 export const SANITY_MCP_NOT_CONNECTED =
   'No Sanity channel is connected to this workspace, so there are no Sanity tools to use. ' +
@@ -243,3 +267,75 @@ export const readJsonSchema = (
 export const organizationIdFromContext = (context: any) =>
   JSON.parse((context?.requestContext as any)?.get('organization') as string)
     .id;
+
+/**
+ * The one code path behind sanityRead and sanityWrite. `allowed` is the set
+ * the calling tool may run; a name from the other set gets a pointer to the
+ * right tool, anything else the general refusal. The allowlist is enforced
+ * here and not only in sanityMcpList: filtering the list is discoverability,
+ * this is the control. A model that has seen a tool name once will try it.
+ */
+export const runSanityTool = async (
+  integrationService: IntegrationService,
+  organizationId: string,
+  kind: 'sanityRead' | 'sanityWrite',
+  name: string,
+  args: Record<string, any>
+): Promise<{ output: any }> => {
+  const allowed =
+    kind === 'sanityRead' ? SANITY_MCP_READ_TOOLS : SANITY_MCP_WRITE_TOOLS;
+  const other =
+    kind === 'sanityRead' ? SANITY_MCP_WRITE_TOOLS : SANITY_MCP_READ_TOOLS;
+
+  if (!allowed.has(name)) {
+    return {
+      output: other.has(name)
+        ? SANITY_MCP_WRONG_KIND(
+            name,
+            kind === 'sanityRead' ? 'sanityWrite' : 'sanityRead'
+          )
+        : SANITY_MCP_NOT_ALLOWED(name),
+    };
+  }
+
+  // `releaseId` turns an allowed write into a scheduled one. See the note
+  // above SANITY_MCP_FORBIDDEN_ARGUMENT.
+  if (args[SANITY_MCP_FORBIDDEN_ARGUMENT] !== undefined) {
+    return { output: SANITY_MCP_SCHEDULING_REFUSAL };
+  }
+
+  const credentials = await resolveSanityCredentials(
+    integrationService,
+    organizationId
+  );
+
+  if (!credentials) {
+    return { output: SANITY_MCP_NOT_CONNECTED };
+  }
+
+  try {
+    return await withSanityMcp(credentials, async (tools) => {
+      const tool = tools[name];
+
+      if (!tool?.execute) {
+        return {
+          output: `Sanity does not expose a tool called "${name}". Call sanityMcpList for the current list.`,
+        };
+      }
+
+      const output = await tool.execute(
+        scopeArgumentsToChannel(args, readJsonSchema(tool.inputSchema), credentials),
+        {}
+      );
+
+      return { output };
+    });
+  } catch (err) {
+    // The token itself is never in the message, and never logged.
+    return {
+      output: `Sanity refused the call: ${
+        err instanceof Error ? err.message : 'unexpected error'
+      }`,
+    };
+  }
+};

@@ -2,6 +2,12 @@ import { INestApplication } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { MastraService } from '@gitroom/nestjs-libraries/chat/mastra.service';
 import { MCPServer } from '@mastra/mcp';
+import { mcpOnlyToolList } from '@gitroom/nestjs-libraries/chat/tools/mcp.only.tool.list';
+import {
+  UPLOAD_WIDGET_URI,
+  r2UploadOrigins,
+  uploadWidgetHtml,
+} from '@gitroom/nestjs-libraries/chat/ui/upload.widget';
 import { OrganizationService } from '@gitroom/nestjs-libraries/database/prisma/organizations/organization.service';
 import { OAuthService } from '@gitroom/nestjs-libraries/database/prisma/oauth/oauth.service';
 import { runWithContext } from './async.storage';
@@ -126,16 +132,54 @@ export const startMcp = async (app: INestApplication) => {
   const agent = mastra.getAgent('postiz');
   const tools = await agent.listTools();
 
+  // Tools that need an MCP host (the upload box) and its ui:// page, served to
+  // every plan.
+  const widgetTools = Object.fromEntries(
+    await Promise.all(
+      mcpOnlyToolList.map(async (tool) => {
+        const instance = app.get(tool, { strict: false });
+        return [instance.name, await instance.run()] as const;
+      })
+    )
+  );
+  const widgetBackend = (
+    process.env.NEXT_PUBLIC_OVERRIDE_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_BACKEND_URL!
+  ).replace(/\/+$/, '');
+  const appResources = {
+    [UPLOAD_WIDGET_URI]: {
+      name: 'Upload media',
+      description:
+        'Upload photos and videos from the device to the Voholabs Studio media library',
+      html: uploadWidgetHtml(widgetBackend),
+      meta: {
+        // The iframe may only reach these: the backend, which signs each part,
+        // and the bucket each part is sent to.
+        csp: {
+          connectDomains: [
+            new URL(widgetBackend).origin,
+            ...r2UploadOrigins(),
+          ],
+        },
+        prefersBorder: true,
+      },
+    },
+  };
+
   // What a paid plan is served: every tool except the wallet's and the
   // skills library.
   const serverConfig = {
     name: 'Voholabs MCP',
     version: '1.0.0',
-    tools: Object.fromEntries(
-      Object.entries(tools).filter(
-        ([name]) => !notOnPlanToolNames.includes(name)
-      )
-    ),
+    tools: {
+      ...Object.fromEntries(
+        Object.entries(tools).filter(
+          ([name]) => !notOnPlanToolNames.includes(name)
+        )
+      ),
+      ...widgetTools,
+    },
+    appResources,
     // Registering the agent here is what publishes `ask_postiz`: MCPServer
     // generates an `ask_<name>` tool for every agent in this map. That tool
     // hands the whole job to Studio's own agent, which needs its own OpenAI key
@@ -151,9 +195,13 @@ export const startMcp = async (app: INestApplication) => {
   // The tool map cannot vary per request, a whole server can.
   const freeServerConfig = {
     ...serverConfig,
-    tools: Object.fromEntries(
-      Object.entries(tools).filter(([name]) => !paidToolNames.includes(name))
-    ),
+    tools: {
+      ...Object.fromEntries(
+        Object.entries(tools).filter(([name]) => !paidToolNames.includes(name))
+      ),
+      ...widgetTools,
+    },
+    appResources,
   };
   const freeServer = new MCPServer(freeServerConfig);
 
@@ -161,12 +209,16 @@ export const startMcp = async (app: INestApplication) => {
   // opens.
   const walletServerConfig = {
     ...serverConfig,
-    tools: Object.fromEntries(
-      Object.entries(tools).filter(
-        ([name]) =>
-          !paidToolNames.includes(name) || walletToolNames.includes(name)
-      )
-    ),
+    tools: {
+      ...Object.fromEntries(
+        Object.entries(tools).filter(
+          ([name]) =>
+            !paidToolNames.includes(name) || walletToolNames.includes(name)
+        )
+      ),
+      ...widgetTools,
+    },
+    appResources,
   };
   const walletServer = new MCPServer(walletServerConfig);
 

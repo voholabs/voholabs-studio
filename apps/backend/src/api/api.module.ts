@@ -42,6 +42,8 @@ import { MonitorController } from '@gitroom/backend/api/routes/monitor.controlle
 import { NoAuthIntegrationsController } from '@gitroom/backend/api/routes/no.auth.integrations.controller';
 import { OAuthAppController } from '@gitroom/backend/api/routes/oauth-app.controller';
 import { ApprovedAppsController } from '@gitroom/backend/api/routes/approved-apps.controller';
+import { MediaWidgetController } from '@gitroom/backend/api/routes/media.widget.controller';
+import { UploadWidgetAuthMiddleware } from '@gitroom/backend/services/auth/upload.widget.auth.middleware';
 import {
   OAuthController,
   OAuthAuthorizedController,
@@ -110,6 +112,8 @@ const authenticatedController = [
     NoAuthIntegrationsController,
     OAuthController,
     DeviceController,
+    // The MCP upload widget: authenticated by its ticket, not a login.
+    MediaWidgetController,
     ...authenticatedController,
   ],
   providers: [
@@ -119,6 +123,7 @@ const authenticatedController = [
     ExtractContentService,
     DeviceAuthService,
     AuthMiddleware,
+    UploadWidgetAuthMiddleware,
     PoliciesGuard,
     PermissionsService,
     CodesService,
@@ -139,5 +144,6 @@ const authenticatedController = [
 export class ApiModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer.apply(AuthMiddleware).forRoutes(...authenticatedController);
+    consumer.apply(UploadWidgetAuthMiddleware).forRoutes(MediaWidgetController);
   }
 }

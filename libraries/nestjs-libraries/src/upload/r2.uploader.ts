@@ -263,7 +263,13 @@ export async function completeMultipartUpload(req: Request, res: Response) {
     const prefix = Buffer.concat(chunks);
     const detected = await fromBuffer(prefix);
 
-    if (!detected || detected.mime !== expectedMime) {
+    // The upload box stores a .mov video under .mp4 (createWidgetUpload).
+    const quickTimeAsMp4 =
+      // @ts-ignore
+      req.allowQuickTime === true &&
+      expectedMime === 'video/mp4' &&
+      detected?.mime === 'video/quicktime';
+    if (!detected || (detected.mime !== expectedMime && !quickTimeAsMp4)) {
       await R2.send(
         new DeleteObjectCommand({ Bucket: CLOUDFLARE_BUCKETNAME, Key: key })
       );
@@ -305,6 +311,60 @@ export async function abortMultipartUpload(req: Request, res: Response) {
     console.log('Error', err);
     return res.status(500).json(err);
   }
+}
+
+// The upload box's multipart upload (MCP Apps widget). Unlike the in-app
+// uploader, every part URL is signed for an exact byte length, so the parts
+// together can never exceed the size announced at the start, which is what
+// the storage allowance was checked against.
+export const WIDGET_PART_BYTES = 8 * 1024 * 1024;
+
+export const widgetPartCount = (size: number) =>
+  Math.max(1, Math.ceil(size / WIDGET_PART_BYTES));
+
+export const widgetPartLength = (size: number, partNumber: number) =>
+  Math.min(WIDGET_PART_BYTES, size - (partNumber - 1) * WIDGET_PART_BYTES);
+
+// A QuickTime (.mov) video, as phones record them. It is stored as .mp4: the
+// two share one container format, the networks take either, and every
+// integration tells a video apart by its .mp4 name.
+export const isQuickTimeName = (fileName: string) =>
+  path.extname(fileName || '').toLowerCase() === '.mov';
+
+export async function createWidgetUpload(fileName: string) {
+  const safeExt = isQuickTimeName(fileName)
+    ? '.mp4'
+    : normalizeExtension(fileName || '');
+  if (!safeExt) {
+    return null;
+  }
+  const response = await R2.send(
+    new CreateMultipartUploadCommand({
+      Bucket: CLOUDFLARE_BUCKETNAME,
+      Key: generateRandomString() + safeExt,
+      ContentType: ALLOWED_EXT_TO_MIME[safeExt],
+    })
+  );
+  return { uploadId: response.UploadId!, key: response.Key! };
+}
+
+export function signWidgetPart(
+  key: string,
+  uploadId: string,
+  partNumber: number,
+  contentLength: number
+) {
+  return getSignedUrl(
+    R2,
+    new UploadPartCommand({
+      Bucket: CLOUDFLARE_BUCKETNAME,
+      Key: key,
+      UploadId: uploadId,
+      PartNumber: partNumber,
+      ContentLength: contentLength,
+    }),
+    { expiresIn: 3600, signableHeaders: new Set(['content-length']) }
+  );
 }
 
 export async function signPart(req: Request, res: Response) {

@@ -730,47 +730,58 @@ const ConnectSection = ({
                 </PathChip>
               </div>
             </ShortStep>
-            <ShortStep index={4}>
-              <div className="font-[600]">
-                {t(
-                  'agent_claude_step_allowlist',
-                  "Allow Studio's file domains"
-                )}
-              </div>
-              <div>
-                {t('agent_claude_allowlist_in', 'In Claude:')}{' '}
-                <PathChip>
-                  {t(
-                    'agent_claude_allowlist_path',
-                    'Settings › Capabilities › Domain allowlist'
-                  )}
-                </PathChip>
-                {allowlistHosts.length > 1
-                  ? t('agent_claude_allowlist_add_both', ', add both:')
-                  : t('agent_claude_allowlist_add_one', ', add:')}
-              </div>
-              <div className="flex items-start gap-[8px]">
-                <div className="flex-1 min-w-0">
-                  <CodeBlock>{allowlistHosts.join('\n')}</CodeBlock>
-                </div>
-                <CopyIconButton
-                  text={allowlistHosts.join('\n')}
-                  label={
-                    allowlistHosts.length > 1
-                      ? t('copy_domains', 'Copy domains')
-                      : t('copy_domain', 'Copy domain')
-                  }
-                />
-              </div>
-              <SubLine>
-                {t(
-                  'agent_claude_allowlist_why',
-                  "Without this, Claude can't send or open your images and videos."
-                )}
-              </SubLine>
-            </ShortStep>
           </ol>
           <TryItBox />
+          <MoreHelp
+            title={t(
+              'agent_claude_files_optional',
+              'Sending files from your computer? One more setting'
+            )}
+          >
+            <div>
+              {t(
+                'agent_claude_files_optional_why',
+                'Only needed when Claude uploads or opens your own images and videos. Text posts and images from a link work without it, and Claude will tell you if it hits this.'
+              )}
+          </div>
+            <div className="font-[600]">
+              {t(
+                'agent_claude_step_allowlist',
+                "Allow Studio's file domains"
+              )}
+            </div>
+            <div>
+              {t('agent_claude_allowlist_in', 'In Claude:')}{' '}
+              <PathChip>
+                {t(
+                  'agent_claude_allowlist_path',
+                  'Settings › Capabilities › Domain allowlist'
+                )}
+              </PathChip>
+              {allowlistHosts.length > 1
+                ? t('agent_claude_allowlist_add_both', ', add both:')
+                : t('agent_claude_allowlist_add_one', ', add:')}
+            </div>
+            <div className="flex items-start gap-[8px]">
+              <div className="flex-1 min-w-0">
+                <CodeBlock>{allowlistHosts.join('\n')}</CodeBlock>
+              </div>
+              <CopyIconButton
+                text={allowlistHosts.join('\n')}
+                label={
+                  allowlistHosts.length > 1
+                    ? t('copy_domains', 'Copy domains')
+                    : t('copy_domain', 'Copy domain')
+                }
+              />
+            </div>
+            <SubLine>
+              {t(
+                'agent_claude_allowlist_why',
+                "Without this, Claude can't send or open your images and videos."
+              )}
+            </SubLine>
+          </MoreHelp>
           <MoreHelp title={t('agent_more_help', 'More help')}>
             <div>
               {t(

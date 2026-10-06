@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import useSWR from 'swr';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { Logo } from '@gitroom/frontend/components/new-layout/logo';
+import { ConnectionLogos } from '@gitroom/frontend/components/oauth/connection.logos';
 import { clearOAuthConnect } from '@gitroom/frontend/app/(app)/auth/oauth.connect.notice';
 
 const useWorkspaces = () => {
@@ -197,25 +198,18 @@ export default function OAuthAuthorizePage() {
       </div>
 
       <div className="relative z-10 w-full max-w-[500px] mx-auto px-[20px]">
-        <div className="flex justify-center mb-[32px]">
-          <Logo />
+        <div className="mb-[32px]">
+          <ConnectionLogos
+            redirectHost={appInfo.app.redirectHost}
+            name={appInfo.app.name}
+            picture={appInfo.app.picture?.path}
+          />
         </div>
 
         <div className="bg-[#1A1919] rounded-[16px] p-[32px] flex flex-col gap-[24px]">
           <div className="flex flex-col items-center gap-[16px]">
-            {appInfo.app.picture?.path ? (
-              <img
-                src={appInfo.app.picture.path}
-                alt={appInfo.app.name}
-                className="w-[64px] h-[64px] rounded-full object-cover"
-              />
-            ) : (
-              <div className="w-[64px] h-[64px] rounded-full bg-[#2A2929] flex items-center justify-center text-[24px] text-gray-400">
-                {appInfo.app.name?.[0]?.toUpperCase() || '?'}
-              </div>
-            )}
             <h2 className="text-[24px] font-semibold text-center">
-              {appInfo.app.name}
+              Connect {appInfo.app.name} to Voholabs Studio
             </h2>
             {appInfo.app.description && (
               <div className="text-gray-400 text-center text-[14px]">

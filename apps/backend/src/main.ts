@@ -48,6 +48,9 @@ async function start() {
     },
   });
 
+  // Don't advertise the framework on every response.
+  app.getHttpAdapter().getInstance().disable('x-powered-by');
+
   await startMcp(app);
 
   app.useGlobalPipes(

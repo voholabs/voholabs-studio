@@ -9,6 +9,11 @@ import {
   Query,
 } from '@nestjs/common';
 import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
+import {
+  connectStateKey,
+  CONNECT_STATE_TTL_SECONDS,
+  serializeConnectState,
+} from '@gitroom/nestjs-libraries/integrations/connect.state';
 import { IntegrationManager } from '@gitroom/nestjs-libraries/integrations/integration.manager';
 import { IntegrationService } from '@gitroom/nestjs-libraries/database/prisma/integrations/integration.service';
 import { GetOrgFromRequest } from '@gitroom/nestjs-libraries/user/org.from.request';
@@ -218,7 +223,8 @@ export class IntegrationsController {
     @Query('externalUrl') externalUrl: string,
     @Query('redirectUrl') redirectUrl: string,
     @Query('onboarding') onboarding: string,
-    @GetOrgFromRequest() org: Organization
+    @GetOrgFromRequest() org: Organization,
+    @GetUserFromRequest() user: User
   ) {
     if (
       !this._integrationManager
@@ -271,7 +277,13 @@ export class IntegrationsController {
         await ioRedis.set(`redirect:${state}`, redirectUrl, 'EX', 3600);
       }
 
-      await ioRedis.set(`organization:${state}`, org.id, 'EX', 3600);
+      // Started from a signed-in session: finishing it needs one too.
+      await ioRedis.set(
+        connectStateKey(state),
+        serializeConnectState({ orgId: org.id, via: 'session', userId: user.id }),
+        'EX',
+        CONNECT_STATE_TTL_SECONDS
+      );
       await ioRedis.set(`login:${state}`, codeVerifier, 'EX', 3600);
       await ioRedis.set(
         `external:${state}`,

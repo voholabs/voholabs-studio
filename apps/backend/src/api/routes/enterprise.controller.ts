@@ -2,6 +2,11 @@ import { Body, Controller, Param, Post, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { AuthService } from '@gitroom/helpers/auth/auth.service';
 import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
+import {
+  connectStateKey,
+  CONNECT_STATE_TTL_SECONDS,
+  serializeConnectState,
+} from '@gitroom/nestjs-libraries/integrations/connect.state';
 import { IntegrationManager } from '@gitroom/nestjs-libraries/integrations/integration.manager';
 import { OrganizationService } from '@gitroom/nestjs-libraries/database/prisma/organizations/organization.service';
 import { IntegrationService } from '@gitroom/nestjs-libraries/database/prisma/integrations/integration.service';
@@ -84,7 +89,13 @@ export class EnterpriseController {
 
       await ioRedis.set(`webhookUrl:${state}`, load.webhookUrl, 'EX', 3600);
       await ioRedis.set(`redirect:${state}`, load.redirectUrl, 'EX', 3600);
-      await ioRedis.set(`organization:${state}`, org.id, 'EX', 3600);
+      // No browser session here: the random, single-use state is the binding.
+      await ioRedis.set(
+        connectStateKey(state),
+        serializeConnectState({ orgId: org.id, via: 'api' }),
+        'EX',
+        CONNECT_STATE_TTL_SECONDS
+      );
       await ioRedis.set(`login:${state}`, codeVerifier, 'EX', 3600);
 
       return url;

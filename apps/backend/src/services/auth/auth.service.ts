@@ -15,6 +15,30 @@ import { NotificationService } from '@gitroom/nestjs-libraries/database/prisma/n
 import { ForgotReturnPasswordDto } from '@gitroom/nestjs-libraries/dtos/auth/forgot-return.password.dto';
 import { EmailService } from '@gitroom/nestjs-libraries/services/email.service';
 import { NewsletterService } from '@gitroom/nestjs-libraries/newsletter/newsletter.service';
+import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
+import {
+  isInLegacyWindow,
+  RESET_TTL_SECONDS,
+  signActivationToken,
+  signResetToken,
+  signSessionToken,
+  verifyTypedToken,
+} from '@gitroom/helpers/auth/session.token';
+import { createHash, randomBytes } from 'crypto';
+
+// A provider token is accepted for sign-in only if it came out of our own
+// code exchange (checkExists) a short while ago. Long enough to fill in the
+// sign-up form that follows it.
+const PROVIDER_TOKEN_TTL_SECONDS = 15 * 60;
+// How long a social login link stays usable.
+const OAUTH_STATE_TTL_SECONDS = 10 * 60;
+
+const sha256 = (value: string) =>
+  createHash('sha256').update(value).digest('hex');
+const providerTokenKey = (provider: string, token: string) =>
+  `provider-token:${provider}:${sha256(token)}`;
+const oauthStateKey = (state: string) => `oauth-state:${state}`;
+const usedResetKey = (jti: string) => `reset-used:${jti}`;
 
 @Injectable()
 export class AuthService {
@@ -89,7 +113,9 @@ export class AuthService {
         await this._emailService.sendEmail(
           body.email,
           'Activate your account',
-          `Click <a href="${process.env.FRONTEND_URL}/auth/activate/${obj.jwt}">here</a> to activate your account`,
+          `Click <a href="${process.env.FRONTEND_URL}/auth/activate/${signActivationToken(
+            create.users[0].user.id
+          )}">here</a> to activate your account`,
           'top'
         );
         return obj;
@@ -133,6 +159,17 @@ export class AuthService {
 
     try {
       const getOrg: any = AuthChecker.verifyJWT(cookie);
+      // An invite, typed or from before invites had a type. Never any other
+      // kind of token, and never one without the organization it is for.
+      if (
+        !getOrg ||
+        typeof getOrg !== 'object' ||
+        (getOrg.type !== undefined && getOrg.type !== 'invite') ||
+        !getOrg.orgId ||
+        !getOrg.timeLimit
+      ) {
+        return false;
+      }
       if (dayjs(getOrg.timeLimit).isBefore(dayjs())) {
         return false;
       }
@@ -156,9 +193,19 @@ export class AuthService {
     invited: boolean
   ) {
     const providerInstance = this._providerManager.getProvider(provider);
+
+    // Only a token our own code exchange produced (checkExists) is accepted,
+    // so a token obtained elsewhere cannot be used to sign in as its owner.
+    if (
+      !body.providerToken ||
+      !(await ioRedis.get(providerTokenKey(provider, body.providerToken)))
+    ) {
+      throw new Error('Invalid provider token');
+    }
+
     const providerUser = await providerInstance.getUser(body.providerToken);
 
-    if (!providerUser) {
+    if (!providerUser || !providerUser.id) {
       throw new Error('Invalid provider token');
     }
 
@@ -167,6 +214,7 @@ export class AuthService {
       provider
     );
     if (user) {
+      await ioRedis.del(providerTokenKey(provider, body.providerToken));
       return user;
     }
 
@@ -214,6 +262,8 @@ export class AuthService {
       // Don't fail registration if postRegistration fails
     }
 
+    await ioRedis.del(providerTokenKey(provider, body.providerToken));
+
     return create.users[0].user;
   }
 
@@ -248,10 +298,7 @@ export class AuthService {
       return false;
     }
 
-    const resetValues = AuthChecker.signJWT({
-      id: user.id,
-      expires: dayjs().add(20, 'minutes').format('YYYY-MM-DD HH:mm:ss'),
-    });
+    const resetValues = signResetToken(user.id);
 
     await this._notificationService.sendEmail(
       user.email,
@@ -260,65 +307,125 @@ export class AuthService {
     );
   }
 
-  forgotReturn(body: ForgotReturnPasswordDto) {
-    const user = AuthChecker.verifyJWT(body.token) as {
-      id: string;
-      expires: string;
-    };
-    if (dayjs(user.expires).isBefore(dayjs())) {
+  async forgotReturn(body: ForgotReturnPasswordDto) {
+    const reset = verifyTypedToken(body.token, 'reset');
+    if (!reset || !reset.id || typeof reset.jti !== 'string') {
       return false;
     }
 
-    return this._userService.updatePassword(user.id, body.password);
+    // A reset link works once. Claimed before the password changes, so two
+    // requests racing with the same link cannot both get through.
+    const ttl = Math.max(
+      1,
+      Math.min(
+        RESET_TTL_SECONDS,
+        Math.ceil((reset.exp as number) - Date.now() / 1000)
+      )
+    );
+    const claimed = await ioRedis.set(
+      usedResetKey(reset.jti),
+      '1',
+      'EX',
+      ttl,
+      'NX'
+    );
+    if (claimed !== 'OK') {
+      return false;
+    }
+
+    // Also signs out every session opened before now (sessionsRevokedAt).
+    return this._userService.updatePassword(reset.id, body.password);
   }
 
   async activate(code: string, tracking: string) {
-    const user = AuthChecker.verifyJWT(code) as {
-      id: string;
-      activated: boolean;
-      email: string;
-    };
-    if (user.id && !user.activated) {
-      const getUserAgain = await this._userService.getUserByEmail(user.email);
-      if (getUserAgain.activated) {
-        return false;
+    let userId: string | undefined;
+    const typed = verifyTypedToken(code, 'activate');
+    if (typed?.id) {
+      userId = typed.id;
+    } else {
+      // Links emailed before activation links had their own type were the
+      // user row itself. They keep working for people who signed up just
+      // before this release, until the old-style cutoff.
+      try {
+        const legacy = AuthChecker.verifyJWT(code) as any;
+        if (
+          legacy &&
+          typeof legacy === 'object' &&
+          legacy.id &&
+          legacy.activated === false &&
+          isInLegacyWindow(legacy)
+        ) {
+          userId = legacy.id;
+        }
+      } catch {
+        userId = undefined;
       }
-      await this._userService.activateUser(user.id);
-      user.activated = true;
-      this._track('register', user.email, tracking).catch((err) => {});
-      await NewsletterService.register(user.email);
-      return this.jwt(user as any);
     }
 
-    return false;
+    if (!userId) {
+      return false;
+    }
+
+    const user = await this._userService.getUserById(userId);
+    if (!user || user.activated) {
+      return false;
+    }
+
+    await this._userService.activateUser(user.id);
+    this._track('register', user.email, tracking).catch((err) => {});
+    await NewsletterService.register(user.email);
+    return this.jwt(user);
   }
 
+  // Says nothing about whether the address has an account or is already
+  // activated: the caller always gets the same answer.
   async resendActivationEmail(email: string) {
     const user = await this._userService.getUserByEmail(email);
 
-    if (!user) {
-      throw new Error('User not found');
+    if (!user || user.activated) {
+      return true;
     }
-
-    if (user.activated) {
-      throw new Error('Account is already activated');
-    }
-
-    const jwt = await this.jwt(user);
 
     await this._emailService.sendEmail(
       user.email,
       'Activate your account',
-      `Click <a href="${process.env.FRONTEND_URL}/auth/activate/${jwt}">here</a> to activate your account`,
+      `Click <a href="${process.env.FRONTEND_URL}/auth/activate/${signActivationToken(
+        user.id
+      )}">here</a> to activate your account`,
       'top'
     );
 
     return true;
   }
 
-  oauthLink(provider: string, query?: any) {
+  async oauthLink(provider: string, query?: any) {
     const providerInstance = this._providerManager.getProvider(provider);
-    return providerInstance.generateLink(query);
+    if (!providerInstance.requiresState) {
+      return providerInstance.generateLink(query);
+    }
+
+    // `login_` first: see GoogleProvider.generateLink.
+    const state = `login_${randomBytes(16).toString('hex')}`;
+    await ioRedis.set(
+      oauthStateKey(state),
+      provider,
+      'EX',
+      OAUTH_STATE_TTL_SECONDS
+    );
+    return providerInstance.generateLink(query, state);
+  }
+
+  // One use only, and only for the provider it was issued for.
+  private async consumeOauthState(provider: string, state?: string) {
+    if (!state || typeof state !== 'string' || state.length > 200) {
+      return false;
+    }
+    const key = oauthStateKey(state);
+    const stored = await ioRedis.get(key);
+    if (stored !== provider) {
+      return false;
+    }
+    return (await ioRedis.del(key)) > 0;
   }
 
 
@@ -326,10 +433,21 @@ export class AuthService {
     provider: string,
     code: string,
     redirectUri?: string,
-    invited = false
+    invited = false,
+    state?: string
   ) {
     const providerInstance = this._providerManager.getProvider(provider);
+    if (
+      providerInstance.requiresState &&
+      !(await this.consumeOauthState(provider, state))
+    ) {
+      throw new Error('This sign-in link has expired. Please try again.');
+    }
+
     const token = await providerInstance.getToken(code, redirectUri);
+    if (!token) {
+      throw new Error('Invalid user');
+    }
     const user = await providerInstance.getUser(token);
     if (!user) {
       throw new Error('Invalid user');
@@ -342,14 +460,19 @@ export class AuthService {
       return { jwt: await this.jwt(checkExists) };
     }
 
+    await ioRedis.set(
+      providerTokenKey(provider, token),
+      '1',
+      'EX',
+      PROVIDER_TOKEN_TTL_SECONDS
+    );
 
     return { token };
   }
 
-  private async jwt(user: User) {
-    if (user.password) {
-      delete user.password;
-    }
-    return AuthChecker.signJWT(user);
+  // The session carries the user id and nothing else: everything about the
+  // user is read from the database on every request (AuthMiddleware).
+  private async jwt(user: Pick<User, 'id'>) {
+    return signSessionToken(user.id);
   }
 }

@@ -9,14 +9,33 @@ import { useClickAway } from '@uidotdev/usehooks';
 import ReactLoading from '@gitroom/frontend/components/layout/loading';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { useWalletAccess } from '@gitroom/frontend/components/wallet-locks/wallet.access';
-function replaceLinks(text: string) {
-  const urlRegex =
-    /(\bhttps?:\/\/[-A-Z0-9+&@#/%?=~_|!:,.;]*[-A-Z0-9+&@#/%=~_|])/gi;
-  return text.replace(
-    urlRegex,
-    '<a class="cursor-pointer underline font-bold" target="_blank" href="$1">$1</a>'
+const urlRegex =
+  /(\bhttps?:\/\/[-A-Z0-9+&@#/%?=~_|!:,.;]*[-A-Z0-9+&@#/%=~_|])/gi;
+
+// Notification text is shown as text; only the URLs in it become links.
+const NotificationText: FC<{ text: string }> = ({ text }) => {
+  const parts = (text || '').split(urlRegex);
+  return (
+    <>
+      {parts.map((part, index) =>
+        // split() with a capture group puts every matched URL at an odd index.
+        index % 2 === 1 ? (
+          <a
+            key={index}
+            className="cursor-pointer underline font-bold"
+            target="_blank"
+            rel="noopener noreferrer"
+            href={part}
+          >
+            {part}
+          </a>
+        ) : (
+          part
+        )
+      )}
+    </>
   );
-}
+};
 export const ShowNotification: FC<{
   notification: {
     createdAt: string;
@@ -38,12 +57,9 @@ export const ShowNotification: FC<{
         newNotification && 'font-bold bg-seventh animate-newMessages'
       )}
     >
-      <div
-        className="break-words"
-        dangerouslySetInnerHTML={{
-          __html: replaceLinks(notification.content),
-        }}
-      />
+      <div className="break-words">
+        <NotificationText text={notification.content} />
+      </div>
       <div
         className="text-[11px] mt-[4px] opacity-60 font-normal"
         title={isWithin24h ? fullDate : undefined}

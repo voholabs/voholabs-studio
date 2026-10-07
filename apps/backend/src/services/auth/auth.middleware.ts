@@ -2,15 +2,23 @@ import {
   needsTerms,
   termsOpenPaths,
 } from '@gitroom/nestjs-libraries/database/prisma/users/terms';
-import { Injectable, NestMiddleware } from '@nestjs/common';
+import { ForbiddenException, Injectable, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { AuthService } from '@gitroom/helpers/auth/auth.service';
 import { User } from '@prisma/client';
 import { OrganizationService } from '@gitroom/nestjs-libraries/database/prisma/organizations/organization.service';
 import { UsersService } from '@gitroom/nestjs-libraries/database/prisma/users/users.service';
-import { getCookieUrlFromDomain } from '@gitroom/helpers/subdomain/subdomain.management';
 import { HttpForbiddenException } from '@gitroom/nestjs-libraries/services/exception.filter';
-import { MastraService } from '@gitroom/nestjs-libraries/chat/mastra.service';
+import { isAllowedBrowserRequest } from '@gitroom/helpers/auth/request.origin';
+import {
+  checkSessionPayload,
+  isRevokedSession,
+  signSessionToken,
+} from '@gitroom/helpers/auth/session.token';
+import {
+  clearAuthCookie,
+  setAuthCookie,
+} from '@gitroom/backend/services/auth/auth.cookie';
 import {
   needsOnboarding,
   onboardingOpenPaths,
@@ -22,18 +30,7 @@ import {
 } from '@gitroom/backend/services/auth/permissions/permission.exception.class';
 
 export const removeAuth = (res: Response) => {
-  res.cookie('auth', '', {
-    domain: getCookieUrlFromDomain(process.env.FRONTEND_URL!),
-    ...(!process.env.NOT_SECURED
-      ? {
-          secure: true,
-          httpOnly: true,
-          sameSite: 'none',
-        }
-      : {}),
-    expires: new Date(0),
-    maxAge: -1,
-  });
+  clearAuthCookie(res);
   res.header('logout', 'true');
 };
 
@@ -48,18 +45,41 @@ export class AuthMiddleware implements NestMiddleware {
     if (!auth) {
       throw new HttpForbiddenException();
     }
+    // A state-changing request that rides on the session cookie must come
+    // from our own pages. This is a plain 403, not the session-clearing one:
+    // the person's own session is fine, only this request is refused.
+    if (
+      !isAllowedBrowserRequest({
+        method: req.method,
+        usesCookie: !req.headers.auth && !!req.cookies.auth,
+        origin: req.headers.origin,
+        referer: req.headers.referer,
+      })
+    ) {
+      throw new ForbiddenException('Cross-site request refused');
+    }
     try {
       // Verify the JWT signature only. Never trust authorization-relevant
       // claims (id, isSuperAdmin, activated) from the token body — always
       // re-resolve the user from the database using the id.
-      const payload = AuthService.verifyJWT(auth) as User | null;
+      //
+      // Only a sign-in session is accepted here: not an emailed link, not an
+      // invite. See checkSessionPayload for the rules, including how sessions
+      // from before tokens had an expiry are carried over.
+      const payload = AuthService.verifyJWT(String(auth)) as {
+        id?: string;
+        iat?: number;
+      } | null;
       const orgHeader = req.cookies.showorg || req.headers.showorg;
 
-      if (!payload?.id) {
+      const session = checkSessionPayload(payload);
+      if (!session.ok) {
         throw new HttpForbiddenException();
       }
 
-      let user = (await this._userService.getUserById(payload.id)) as User | null;
+      let user = (await this._userService.getUserById(
+        session.userId
+      )) as User | null;
 
       if (!user) {
         throw new HttpForbiddenException();
@@ -67,6 +87,18 @@ export class AuthMiddleware implements NestMiddleware {
 
       if (!user.activated) {
         throw new HttpForbiddenException();
+      }
+
+      // Signed before the password last changed.
+      if (isRevokedSession(payload?.iat, user.sessionsRevokedAt)) {
+        throw new HttpForbiddenException();
+      }
+
+      // An old-style session, or one past its halfway mark: hand back a fresh
+      // one with the same cookie the sign-in routes write, so nobody who keeps
+      // using the app is ever signed out by the expiry.
+      if (session.refresh) {
+        setAuthCookie(res, signSessionToken(user.id));
       }
 
       const impersonate = req.cookies.impersonate || req.headers.impersonate;

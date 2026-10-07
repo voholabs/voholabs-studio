@@ -4,7 +4,7 @@ import {
   PostResponse,
   SocialProvider,
 } from '@gitroom/nestjs-libraries/integrations/social/social.integrations.interface';
-import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
+import { makeId, makeCodeVerifier } from '@gitroom/nestjs-libraries/services/make.is';
 import dayjs from 'dayjs';
 import { SocialAbstract } from '@gitroom/nestjs-libraries/integrations/social.abstract';
 //@ts-ignore
@@ -46,7 +46,7 @@ export class TelegramProvider extends SocialAbstract implements SocialProvider {
     const state = makeId(17);
     return {
       url: state,
-      codeVerifier: makeId(10),
+      codeVerifier: makeCodeVerifier(),
       state,
     };
   }
@@ -58,7 +58,6 @@ export class TelegramProvider extends SocialAbstract implements SocialProvider {
   }) {
     const chat = await telegramBot.getChat(params.code);
 
-    console.log(JSON.stringify(chat));
     if (!chat?.id) {
       return 'No chat found';
     }
@@ -180,7 +179,6 @@ export class TelegramProvider extends SocialAbstract implements SocialProvider {
       .replace(/<\/strong>/g, '</b>')
       .replace(/<p>(.*?)<\/p>/g, '$1\n');
 
-    console.log(text);
     const processedMedia = this.processMedia(mediaFiles);
 
     // if there's no media, bot sends a text message only

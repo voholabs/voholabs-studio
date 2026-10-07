@@ -17,6 +17,7 @@ import {
   OnlyURL, UpdateDto, WebhooksDto
 } from '@gitroom/nestjs-libraries/dtos/webhooks/webhooks.dto';
 import { AuthorizationActions, Sections } from '@gitroom/backend/services/auth/permissions/permission.exception.class';
+import { safeFetch } from '@gitroom/nestjs-libraries/dtos/webhooks/safe.fetch';
 
 @ApiTags('Webhooks')
 @Controller('/webhooks')
@@ -56,11 +57,14 @@ export class WebhookController {
   @Post('/send')
   async sendWebhook(@Body() body: any, @Query() query: OnlyURL) {
     try {
-      await fetch(query.url, {
+      // Re-checks the URL at send time and connects through the SSRF-safe
+      // dispatcher; 15 s timeout, at most 3 redirects.
+      const res = await safeFetch(query.url, {
         method: 'POST',
         body: JSON.stringify(body),
         headers: { 'Content-Type': 'application/json' },
       });
+      await res.body?.cancel().catch(() => undefined);
     } catch (err) {
       /** sent **/
     }

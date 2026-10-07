@@ -1,16 +1,22 @@
 import { readFileSync } from 'fs';
-import axios from 'axios';
+import { resolve as resolvePath, sep } from 'path';
+import { safeFetchBuffer } from '@gitroom/nestjs-libraries/dtos/webhooks/safe.fetch';
 
-export const readOrFetch = async (path: string) => {
+// Non-URL media paths are files the posts service placed under
+// UPLOAD_DIRECTORY. Refuse anything that resolves outside it.
+export const resolveUploadPath = (path: string): string => {
+  const root = process.env.UPLOAD_DIRECTORY;
+  const resolved = resolvePath(path);
+  if (!root || !resolved.startsWith(resolvePath(root) + sep)) {
+    throw new Error('Invalid media path');
+  }
+  return resolved;
+};
+
+export const readOrFetch = async (path: string): Promise<Buffer> => {
   if (path.indexOf('http') === 0) {
-    return (
-      await axios({
-        url: path,
-        method: 'GET',
-        responseType: 'arraybuffer',
-      })
-    ).data;
+    return safeFetchBuffer(path);
   }
 
-  return readFileSync(path);
+  return readFileSync(resolveUploadPath(path));
 };

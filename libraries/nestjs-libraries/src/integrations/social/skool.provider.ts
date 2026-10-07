@@ -1,5 +1,6 @@
-import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
+import { makeState, makeCodeVerifier } from '@gitroom/nestjs-libraries/services/make.is';
 import { SocialAbstract } from '../social.abstract';
+import { safeFetchMedia } from '@gitroom/nestjs-libraries/dtos/webhooks/safe.fetch';
 import {
   AuthTokenDetails,
   MediaContent,
@@ -80,10 +81,10 @@ export class SkoolProvider extends SocialAbstract implements SocialProvider {
   }
 
   async generateAuthUrl() {
-    const state = makeId(6);
+    const state = makeState();
     return {
       url: state,
-      codeVerifier: makeId(10),
+      codeVerifier: makeCodeVerifier(),
       state,
     };
   }
@@ -206,7 +207,7 @@ export class SkoolProvider extends SocialAbstract implements SocialProvider {
     const fileIds: string[] = [];
 
     for (const item of media) {
-      const fileResponse = await fetch(item.path);
+      const fileResponse = await safeFetchMedia(item.path);
       const fileBuffer = await fileResponse.arrayBuffer();
       const contentType =
         fileResponse.headers.get('content-type') || 'application/octet-stream';

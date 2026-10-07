@@ -27,6 +27,7 @@ import handleR2Upload, {
   storedObjectSize,
 } from '@gitroom/nestjs-libraries/upload/r2.uploader';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { MEDIA_UPLOAD_OPTIONS } from '@gitroom/nestjs-libraries/upload/upload.limits';
 import { CustomFileValidationPipe } from '@gitroom/nestjs-libraries/upload/custom.upload.validation';
 import { SubscriptionService } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/subscription.service';
 import { UploadFactory } from '@gitroom/nestjs-libraries/upload/upload.factory';
@@ -96,7 +97,7 @@ export class MediaController {
   }
 
   @Post('/upload-server')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', MEDIA_UPLOAD_OPTIONS))
   @UsePipes(new CustomFileValidationPipe())
   async uploadServer(
     @GetOrgFromRequest() org: Organization,
@@ -146,7 +147,7 @@ export class MediaController {
   }
 
   @Post('/upload-simple')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', MEDIA_UPLOAD_OPTIONS))
   @UsePipes(new CustomFileValidationPipe())
   async uploadSimple(
     @GetOrgFromRequest() org: Organization,

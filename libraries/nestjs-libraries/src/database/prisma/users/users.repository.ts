@@ -112,6 +112,8 @@ export class UsersRepository {
       },
       data: {
         password: AuthService.hashPassword(password),
+        // A new password signs out every session that was open before it.
+        sessionsRevokedAt: new Date(),
       },
     });
   }

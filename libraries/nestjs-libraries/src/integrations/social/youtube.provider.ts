@@ -5,10 +5,10 @@ import {
   PostResponse,
   SocialProvider,
 } from '@gitroom/nestjs-libraries/integrations/social/social.integrations.interface';
-import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
+import { makeState, makeCodeVerifier } from '@gitroom/nestjs-libraries/services/make.is';
 import { google, youtube_v3 } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library/build/src/auth/oauth2client';
-import axios from 'axios';
+import { safeFetchStream } from '@gitroom/nestjs-libraries/dtos/webhooks/safe.fetch';
 import { YoutubeSettingsDto } from '@gitroom/nestjs-libraries/dtos/posts/providers-settings/youtube.settings.dto';
 import {
   BadBody,
@@ -281,7 +281,7 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
   }
 
   async generateAuthUrl() {
-    const state = makeId(7);
+    const state = makeState();
     const { client } = clientAndYoutube();
     return {
       url: client.generateAuthUrl({
@@ -291,7 +291,7 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
         redirect_uri: `${process.env.FRONTEND_URL}/integrations/social/youtube`,
         scope: this.scopes.slice(0),
       }),
-      codeVerifier: makeId(11),
+      codeVerifier: makeCodeVerifier(),
       state,
     };
   }
@@ -439,11 +439,9 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
 
     const { settings }: { settings: YoutubeSettingsDto } = firstPost;
 
-    const response = await axios({
-      url: firstPost?.media?.[0]?.path,
-      method: 'GET',
-      responseType: 'stream',
-    });
+    const { stream: videoStream } = await safeFetchStream(
+      firstPost?.media?.[0]?.path
+    );
 
     const all: GaxiosResponse<Schema$Video> = await this.runInConcurrent(
       async () =>
@@ -465,7 +463,7 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
             },
           },
           media: {
-            body: response.data,
+            body: videoStream,
           },
         }),
       true
@@ -476,13 +474,7 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
         youtubeClient.thumbnails.set({
           videoId: all?.data?.id!,
           media: {
-            body: (
-              await axios({
-                url: settings?.thumbnail?.path,
-                method: 'GET',
-                responseType: 'stream',
-              })
-            ).data,
+            body: (await safeFetchStream(settings?.thumbnail?.path)).stream,
           },
         })
       );

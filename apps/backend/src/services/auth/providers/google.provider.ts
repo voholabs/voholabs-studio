@@ -16,12 +16,17 @@ const makeClient = (redirectUri: string) =>
 
 @AuthProvider({ provider: 'GOOGLE' })
 export class GoogleProvider extends AuthProviderAbstract {
-  generateLink(query?: { redirect_uri?: string }) {
+  override readonly requiresState = true;
+
+  // The state starts with `login` on purpose: the frontend tells a sign-in
+  // callback apart from a YouTube channel connection (same redirect URI) by
+  // `state=login` in the URL (apps/frontend/src/proxy.ts).
+  generateLink(query?: { redirect_uri?: string }, state?: string) {
     const redirectUri = query?.redirect_uri || defaultRedirect();
     return makeClient(redirectUri).generateAuthUrl({
       access_type: 'online',
       prompt: 'consent',
-      state: 'login',
+      state: state || 'login',
       redirect_uri: redirectUri,
       scope: [
         'https://www.googleapis.com/auth/userinfo.profile',
@@ -38,6 +43,18 @@ export class GoogleProvider extends AuthProviderAbstract {
 
   async getUser(providerToken: string) {
     const client = makeClient(defaultRedirect());
+
+    // The access token has to have been issued to this app. A token Google
+    // issued to any other app would otherwise read the same userinfo.
+    const info = await client.getTokenInfo(providerToken).catch(() => null);
+    if (
+      !info ||
+      !process.env.YOUTUBE_CLIENT_ID ||
+      info.aud !== process.env.YOUTUBE_CLIENT_ID
+    ) {
+      throw new Error('Invalid provider token');
+    }
+
     client.setCredentials({ access_token: providerToken });
     const { data } = await google
       .oauth2({ version: 'v2', auth: client })

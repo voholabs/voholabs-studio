@@ -19,14 +19,14 @@ import { Request, Response } from 'express';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 import { getCookieUrlFromDomain } from '@gitroom/helpers/subdomain/subdomain.management';
 import { AgentGraphInsertService } from '@gitroom/nestjs-libraries/agent/agent.graph.insert.service';
-import { SubscriptionService } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/subscription.service';
-import { AuthService } from '@gitroom/helpers/auth/auth.service';
-import { pricing } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/pricing';
+import { timingSafeEqual } from 'crypto';
 import { Readable, pipeline } from 'stream';
 import { promisify } from 'util';
 import { OnlyURL } from '@gitroom/nestjs-libraries/dtos/webhooks/webhooks.dto';
-import { isSafePublicHttpsUrl } from '@gitroom/nestjs-libraries/dtos/webhooks/webhook.url.validator';
-import { ssrfSafeDispatcher } from '@gitroom/nestjs-libraries/dtos/webhooks/ssrf.safe.dispatcher';
+import {
+  safeFetch,
+  SafeFetchError,
+} from '@gitroom/nestjs-libraries/dtos/webhooks/safe.fetch';
 
 const pump = promisify(pipeline);
 
@@ -36,16 +36,16 @@ export class PublicController {
   constructor(
     private _trackService: TrackService,
     private _agentGraphInsertService: AgentGraphInsertService,
-    private _postsService: PostsService,
-    private _subscriptionService: SubscriptionService
+    private _postsService: PostsService
   ) {}
   @Post('/agent')
   async createAgent(@Body() body: { text: string; apiKey: string }) {
-    if (
-      !body.apiKey ||
-      !process.env.AGENT_API_KEY ||
-      body.apiKey !== process.env.AGENT_API_KEY
-    ) {
+    if (!process.env.AGENT_API_KEY || typeof body?.apiKey !== 'string') {
+      return;
+    }
+    const given = Buffer.from(body.apiKey);
+    const expected = Buffer.from(process.env.AGENT_API_KEY);
+    if (given.length !== expected.length || !timingSafeEqual(given, expected)) {
       return;
     }
     return this._agentGraphInsertService.newPost(body.text);
@@ -133,33 +133,6 @@ export class PublicController {
     });
   }
 
-  @Post('/modify-subscription')
-  async modifySubscription(@Body('params') params: string) {
-    try {
-      const load = AuthService.verifyJWT(params) as {
-        orgId: string;
-        billing: 'FREE' | 'STANDARD' | 'TEAM' | 'PRO' | 'ULTIMATE';
-      };
-
-      if (!load || !load.orgId || !load.billing || !pricing[load.billing]) {
-        return { success: false };
-      }
-
-      const totalChannels = pricing[load.billing].channel || 0;
-
-      await this._subscriptionService.modifySubscriptionByOrg(
-        load.orgId,
-        totalChannels,
-        load.billing
-      );
-
-      return { success: true };
-    } catch (err) {
-      return { success: false };
-    }
-  }
-
-
   @Get('/stream')
   async streamFile(
     @Query() query: OnlyURL,
@@ -167,7 +140,18 @@ export class PublicController {
     @Req() req: Request
   ) {
     const { url } = query;
-    if (!url.endsWith('mp4')) {
+
+    // Only https URLs whose path (not query string) names an .mp4 file.
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return res.status(400).send('Invalid video URL');
+    }
+    if (
+      parsed.protocol !== 'https:' ||
+      !parsed.pathname.toLowerCase().endsWith('.mp4')
+    ) {
       return res.status(400).send('Invalid video URL');
     }
 
@@ -176,55 +160,46 @@ export class PublicController {
     req.on('aborted', onClose);
     res.on('close', onClose);
 
-    // Manually follow redirects so every hop is re-validated against
-    // the SSRF blocklist (see GHSA-34w8-5j2v-h6ww). `fetch` defaults to
-    // `redirect: 'follow'`, which bypasses the DTO-level URL check.
-    const MAX_REDIRECTS = 5;
-    let currentUrl = url;
-    let r: globalThis.Response | undefined;
-    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-      if (!(await isSafePublicHttpsUrl(currentUrl))) {
-        return res.status(400).send('Blocked URL');
-      }
-
-      r = await fetch(currentUrl, {
-        signal: ac.signal,
-        redirect: 'manual',
-        // @ts-ignore — undici option, not in lib.dom fetch types
-        dispatcher: ssrfSafeDispatcher,
-      });
-
-      if (r.status >= 300 && r.status < 400) {
-        const location = r.headers.get('location');
-        if (!location) {
-          return res.status(502).send('Redirect without Location');
+    // safeFetch re-validates every redirect hop and connects through the
+    // SSRF-safe dispatcher. This route needs no sign-in, so the guard stays
+    // on even where DISABLE_SSRF_PROTECTION is set.
+    let r: globalThis.Response;
+    try {
+      r = await safeFetch(
+        parsed.toString(),
+        { signal: ac.signal },
+        {
+          timeoutMs: 60_000,
+          // A long video keeps streaming past the timeout; the client
+          // closing the connection aborts it instead.
+          timeoutCoversBody: false,
+          maxRedirects: 5,
+          allowedContentTypes: [
+            'video/',
+            'application/octet-stream',
+            'binary/octet-stream',
+          ],
+          ignoreOptOut: true,
         }
-        try {
-          currentUrl = new URL(location, currentUrl).toString();
-        } catch {
-          return res.status(400).send('Invalid redirect target');
-        }
-        continue;
+      );
+    } catch (err) {
+      if (err instanceof SafeFetchError) {
+        return res.status(err.status).send(err.message);
       }
-
-      break;
-    }
-
-    if (!r) {
-      return res.status(502).send('No upstream response');
-    }
-
-    if (r.status >= 300 && r.status < 400) {
-      return res.status(508).send('Too many redirects');
+      if (ac.signal.aborted) return;
+      return res.status(502).send('Upstream error');
     }
 
     if (!r.ok && r.status !== 206) {
-      res.status(r.status);
-      throw new Error(`Upstream error: ${r.statusText}`);
+      await r.body?.cancel().catch(() => undefined);
+      return res.status(r.status >= 400 ? r.status : 502).send('Upstream error');
     }
 
-    const type = r.headers.get('content-type') ?? 'application/octet-stream';
-    res.setHeader('Content-Type', type);
+    // Never pass the upstream type through: this response is served from
+    // the app's own origin.
+    res.setHeader('Content-Type', 'video/mp4');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Disposition', 'inline');
 
     const contentRange = r.headers.get('content-range');
     if (contentRange) res.setHeader('Content-Range', contentRange);
@@ -236,6 +211,10 @@ export class PublicController {
     res.setHeader('Accept-Ranges', acceptRanges);
 
     if (r.status === 206) res.status(206); // Partial Content for range responses
+
+    if (!r.body) {
+      return res.end();
+    }
 
     try {
       await pump(Readable.fromWeb(r.body as any), res);

@@ -12,6 +12,7 @@ import {
   hostExternalAttachments,
   mediaOutput,
   readPostMedia,
+  withSanitisedContent,
 } from '@gitroom/nestjs-libraries/chat/tools/post.write.shared';
 import { MediaService } from '@gitroom/nestjs-libraries/database/prisma/media/media.service';
 
@@ -221,7 +222,7 @@ The output reports the post as it now stands, same shape as editPostTool, so you
           });
           const newPath = hosted.get(inputData.newPath) ?? inputData.newPath;
 
-          const value = items.map((item: any, index: number) => {
+          const value = withSanitisedContent(items).map((item: any, index: number) => {
             const isTarget =
               targetPosition === undefined
                 ? index === 0

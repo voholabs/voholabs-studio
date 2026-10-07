@@ -4,7 +4,7 @@ import {
   PostResponse,
   SocialProvider,
 } from '@gitroom/nestjs-libraries/integrations/social/social.integrations.interface';
-import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
+import { makeState, makeCodeVerifier } from '@gitroom/nestjs-libraries/services/make.is';
 import { RedditSettingsDto } from '@gitroom/nestjs-libraries/dtos/posts/providers-settings/reddit.dto';
 import { timer } from '@gitroom/helpers/utils/timer';
 import { groupBy } from 'lodash';
@@ -13,7 +13,7 @@ import {
   ValidityMedia,
 } from '@gitroom/nestjs-libraries/integrations/social.abstract';
 import { lookup } from 'mime-types';
-import axios from 'axios';
+import { safeFetchBuffer } from '@gitroom/nestjs-libraries/dtos/webhooks/safe.fetch';
 import WebSocket from 'ws';
 import { Tool } from '@gitroom/nestjs-libraries/integrations/tool.decorator';
 import { Integration } from '@prisma/client';
@@ -95,8 +95,8 @@ export class RedditProvider extends SocialAbstract implements SocialProvider {
   }
 
   async generateAuthUrl() {
-    const state = makeId(6);
-    const codeVerifier = makeId(30);
+    const state = makeState();
+    const codeVerifier = makeCodeVerifier();
     const url = `https://www.reddit.com/api/v1/authorize?client_id=${
       process.env.REDDIT_CLIENT_ID
     }&response_type=code&state=${state}&redirect_uri=${encodeURIComponent(
@@ -177,9 +177,7 @@ export class RedditProvider extends SocialAbstract implements SocialProvider {
       )
     ).json();
 
-    const { data } = await axios.get(path, {
-      responseType: 'arraybuffer',
-    });
+    const data = await safeFetchBuffer(path);
 
     const upload = (fields as { name: string; value: string }[]).reduce(
       (acc, value) => {

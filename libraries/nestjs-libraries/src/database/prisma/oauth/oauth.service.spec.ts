@@ -206,6 +206,12 @@ describe('OAuthService for an app a workspace created', () => {
     await expect(
       service.exchangeCodeForToken(code, 'pca_legacy', undefined)
     ).rejects.toMatchObject({ status: 401 });
+    await expect(
+      service.exchangeCodeForToken(code, 'pca_legacy', 'pcs_secreT')
+    ).rejects.toMatchObject({ status: 401 });
+    await expect(
+      service.exchangeCodeForToken(code, 'pca_legacy', 'pcs_secret_longer')
+    ).rejects.toMatchObject({ status: 401 });
     const res = await service.exchangeCodeForToken(code, 'pca_legacy', 'pcs_secret');
     expect(res).toMatchObject({ id: 'org-1', cus: 'cus_1', token_type: 'bearer' });
   });

@@ -5,6 +5,7 @@ import {
 import { MediaService } from '@gitroom/nestjs-libraries/database/prisma/media/media.service';
 import { UploadFactory } from '@gitroom/nestjs-libraries/upload/upload.factory';
 import { storeUrlAsMedia } from '@gitroom/nestjs-libraries/chat/tools/media.upload.helper';
+import { sanitizePostContent } from '@gitroom/helpers/utils/sanitize.post.content';
 
 const validUrlExtension = new ValidUrlExtension();
 
@@ -13,21 +14,35 @@ const validUrlExtension = new ValidUrlExtension();
  * agent reading the input schema finds a field, where prose in a description
  * is easy to skim past. Any id listed there that the content does not already
  * reference is appended to it, so both forms end up as the same stored text.
+ * The result is sanitised the way CreatePostDto sanitises dashboard content.
  */
 export const withPostLinks = (p: {
   content: string;
   linkToPostIds?: string[];
 }) => {
+  const content = p.content || '';
   const missing = (p.linkToPostIds || []).filter(
-    (id) => p.content.indexOf(`(post:${id})`) === -1
+    (id) => content.indexOf(`(post:${id})`) === -1
   );
 
-  if (!missing.length) {
-    return p.content;
-  }
-
-  return `${p.content}${missing.map((id) => `<p>(post:${id})</p>`).join('')}`;
+  return sanitizePostContent(
+    `${content}${missing.map((id) => `<p>(post:${id})</p>`).join('')}`
+  );
 };
+
+/**
+ * Post content written by a tool goes through the same allowlist the
+ * dashboard's CreatePostDto applies. The tools call the posts service
+ * directly, so the DTO transform never runs for them - this is its stand-in,
+ * applied to every item of a post before it is validated and saved.
+ */
+export const withSanitisedContent = <T extends { content?: string }>(
+  items: T[]
+): T[] =>
+  items.map((item) => ({
+    ...item,
+    content: sanitizePostContent(item?.content),
+  }));
 
 // Only the file type is checked here. The upload-domain rule that used to sit
 // alongside it is obsolete on this path: an attachment from anywhere else is

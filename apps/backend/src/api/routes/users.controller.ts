@@ -19,6 +19,7 @@ import { AuthService } from '@gitroom/backend/services/auth/auth.service';
 import { OrganizationService } from '@gitroom/nestjs-libraries/database/prisma/organizations/organization.service';
 import { CheckPolicies } from '@gitroom/backend/services/auth/permissions/permissions.ability';
 import { getCookieUrlFromDomain } from '@gitroom/helpers/subdomain/subdomain.management';
+import { clearAuthCookie } from '@gitroom/backend/services/auth/auth.cookie';
 import { pricing } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/pricing';
 import { ApiTags } from '@nestjs/swagger';
 import { UsersService } from '@gitroom/nestjs-libraries/database/prisma/users/users.service';
@@ -135,9 +136,20 @@ export class UsersController {
         identifier?: string | null;
       } | null;
     };
+    // Where they signed up and agreed from is ours to keep, not to echo back
+    // to the browser; the rest of the user row is what the app reads.
+    const {
+      ip: _ip,
+      agent: _agent,
+      termsAcceptedIp: _termsAcceptedIp,
+      contactConsentIp: _contactConsentIp,
+      inviteId: _inviteId,
+      sessionsRevokedAt: _sessionsRevokedAt,
+      ...publicUser
+    } = user;
     // @ts-ignore
     return {
-      ...user,
+      ...publicUser,
       orgId: organization.id,
       totalChannels: !process.env.STRIPE_PUBLISHABLE_KEY
         ? 10000
@@ -366,18 +378,7 @@ export class UsersController {
   @Post('/logout')
   logout(@Res({ passthrough: true }) response: Response) {
     response.header('logout', 'true');
-    response.cookie('auth', '', {
-      domain: getCookieUrlFromDomain(process.env.FRONTEND_URL!),
-      ...(!process.env.NOT_SECURED
-        ? {
-            secure: true,
-            httpOnly: true,
-            sameSite: 'none',
-          }
-        : {}),
-      maxAge: -1,
-      expires: new Date(0),
-    });
+    clearAuthCookie(response);
 
     response.cookie('showorg', '', {
       domain: getCookieUrlFromDomain(process.env.FRONTEND_URL!),

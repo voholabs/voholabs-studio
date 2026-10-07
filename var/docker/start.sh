@@ -9,9 +9,14 @@ mkdir -p "$TEMPORAL_DB_DIR"
 echo "[start] launching Temporal dev server..."
 # WAL with synchronous=normal makes SQLite sync to disk at checkpoints rather
 # than on every commit, so a slow volume does not time Temporal out.
+# gRPC and the web UI listen on loopback only: the backend and orchestrator in
+# this container reach it at localhost:7233, and the UI stays reachable from a
+# shell inside the container (railway ssh) without being exposed to anything
+# else on the private network.
 temporal server start-dev \
-  --ip 0.0.0.0 \
+  --ip 127.0.0.1 \
   --port 7233 \
+  --ui-ip 127.0.0.1 \
   --ui-port 8233 \
   --db-filename "$TEMPORAL_DB_DIR/temporal.db" \
   --namespace default \

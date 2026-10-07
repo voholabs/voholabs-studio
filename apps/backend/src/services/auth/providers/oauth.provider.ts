@@ -36,13 +36,16 @@ export class OauthProvider extends AuthProviderAbstract {
     };
   }
 
-  generateLink(): string {
+  override readonly requiresState = true;
+
+  generateLink(_query?: unknown, state?: string): string {
     const { authUrl, clientId, frontendUrl } = this.getConfig();
     const params = new URLSearchParams({
       client_id: clientId,
       scope: 'openid profile email',
       response_type: 'code',
       redirect_uri: `${frontendUrl}/settings`,
+      ...(state ? { state } : {}),
     });
 
     return `${authUrl}?${params.toString()}`;
@@ -74,6 +77,11 @@ export class OauthProvider extends AuthProviderAbstract {
     return access_token;
   }
 
+  // There is no portable way to ask an arbitrary OAuth server which client an
+  // access token was issued to (token introspection is optional and often
+  // closed), so no audience check is made here. What stops a token issued to
+  // another app being used to sign in is AuthService: a provider token is only
+  // accepted if it came out of our own code exchange in checkExists.
   async getUser(access_token: string): Promise<{ email: string; id: string }> {
     const { userInfoUrl } = this.getConfig();
     const response = await fetch(`${userInfoUrl}`, {

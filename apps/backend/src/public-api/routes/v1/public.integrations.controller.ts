@@ -25,6 +25,7 @@ import { IntegrationService } from '@gitroom/nestjs-libraries/database/prisma/in
 import { CheckPolicies } from '@gitroom/backend/services/auth/permissions/permissions.ability';
 import { PostsService } from '@gitroom/nestjs-libraries/database/prisma/posts/posts.service';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { MEDIA_UPLOAD_OPTIONS } from '@gitroom/nestjs-libraries/upload/upload.limits';
 import { UploadFactory } from '@gitroom/nestjs-libraries/upload/upload.factory';
 import { MediaService } from '@gitroom/nestjs-libraries/database/prisma/media/media.service';
 import { GetPostsDto } from '@gitroom/nestjs-libraries/dtos/posts/get.posts.dto';
@@ -64,6 +65,11 @@ import { RefreshToken } from '@gitroom/nestjs-libraries/integrations/social.abst
 import { PostValidationException } from '@gitroom/backend/api/routes/posts.validation.exception';
 import { timer } from '@gitroom/helpers/utils/timer';
 import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
+import {
+  connectStateKey,
+  CONNECT_STATE_TTL_SECONDS,
+  serializeConnectState,
+} from '@gitroom/nestjs-libraries/integrations/connect.state';
 import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 import { paidOnlyChannelMessage } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 
@@ -83,7 +89,7 @@ export class PublicIntegrationsController {
   ) {}
 
   @Post('/upload')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', MEDIA_UPLOAD_OPTIONS))
   @UsePipes(new CustomFileValidationPipe())
   async uploadSimple(
     @GetOrgFromRequest() org: Organization,
@@ -441,7 +447,13 @@ export class PublicIntegrationsController {
         await ioRedis.set(`refresh:${state}`, refresh, 'EX', 3600);
       }
 
-      await ioRedis.set(`organization:${state}`, org.id, 'EX', 3600);
+      // No browser session here: the random, single-use state is the binding.
+      await ioRedis.set(
+        connectStateKey(state),
+        serializeConnectState({ orgId: org.id, via: 'api' }),
+        'EX',
+        CONNECT_STATE_TTL_SECONDS
+      );
       await ioRedis.set(`login:${state}`, codeVerifier, 'EX', 3600);
 
       return { url };

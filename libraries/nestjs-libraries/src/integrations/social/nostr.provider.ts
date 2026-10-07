@@ -4,7 +4,7 @@ import {
   PostResponse,
   SocialProvider,
 } from '@gitroom/nestjs-libraries/integrations/social/social.integrations.interface';
-import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
+import { makeId, makeCodeVerifier } from '@gitroom/nestjs-libraries/services/make.is';
 import dayjs from 'dayjs';
 import { SocialAbstract } from '@gitroom/nestjs-libraries/integrations/social.abstract';
 import { getPublicKey, Relay, finalizeEvent, SimplePool } from 'nostr-tools';
@@ -66,7 +66,7 @@ export class NostrProvider extends SocialAbstract implements SocialProvider {
     const state = makeId(17);
     return {
       url: state,
-      codeVerifier: makeId(10),
+      codeVerifier: makeCodeVerifier(),
       state,
     };
   }

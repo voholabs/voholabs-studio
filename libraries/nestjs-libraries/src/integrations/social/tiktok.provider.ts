@@ -15,6 +15,8 @@ import { TikTokDto } from '@gitroom/nestjs-libraries/dtos/posts/providers-settin
 import { timer } from '@gitroom/helpers/utils/timer';
 import { hasExtension } from '@gitroom/helpers/utils/has.extension';
 import { createReadStream, statSync } from 'fs';
+import { resolve as resolvePath, sep } from 'path';
+import { getSsrfSafeDispatcher } from '@gitroom/nestjs-libraries/dtos/webhooks/ssrf.safe.dispatcher';
 import { Integration } from '@prisma/client';
 import { Rules } from '@gitroom/nestjs-libraries/chat/rules.description.decorator';
 import { Tool } from '@gitroom/nestjs-libraries/integrations/tool.decorator';
@@ -714,7 +716,11 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
   // a HEAD request for remote URLs, statSync for local files.
   private async tiktokMediaSize(path: string): Promise<number> {
     if (path.indexOf('http') === 0) {
-      const head = await fetch(path, { method: 'HEAD' });
+      const head = await fetch(path, {
+        method: 'HEAD',
+        // @ts-ignore - undici-only option; blocks SSRF to internal IPs
+        dispatcher: getSsrfSafeDispatcher(),
+      });
       const length = head.headers.get('content-length');
       if (!length) {
         throw new BadBody(
@@ -727,7 +733,23 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
       return Number(length);
     }
 
-    return statSync(path).size;
+    return statSync(this.tiktokLocalPath(path)).size;
+  }
+
+  // Non-URL media paths are files the posts service placed under
+  // UPLOAD_DIRECTORY. Refuse anything that resolves outside it.
+  private tiktokLocalPath(path: string): string {
+    const root = process.env.UPLOAD_DIRECTORY;
+    const resolved = resolvePath(path);
+    if (!root || !resolved.startsWith(resolvePath(root) + sep)) {
+      throw new BadBody(
+        'tiktok-error-upload',
+        '{}',
+        Buffer.from('{}'),
+        'Invalid media path for TikTok upload'
+      );
+    }
+    return resolved;
   }
 
   // Returns a streaming body for the [start, end] byte range of the media so we
@@ -737,11 +759,13 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
     if (path.indexOf('http') === 0) {
       const response = await fetch(path, {
         headers: { Range: `bytes=${start}-${end}` },
+        // @ts-ignore - undici-only option; blocks SSRF to internal IPs
+        dispatcher: getSsrfSafeDispatcher(),
       });
       return response.body;
     }
 
-    return createReadStream(path, { start, end });
+    return createReadStream(this.tiktokLocalPath(path), { start, end });
   }
 
   // Streams the video bytes to the upload_url returned by the init call.

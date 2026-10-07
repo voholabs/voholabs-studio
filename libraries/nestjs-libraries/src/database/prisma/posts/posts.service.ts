@@ -2,6 +2,7 @@ import { captureOrgEvent } from '@gitroom/nestjs-libraries/track/product.analyti
 import {
   BadRequestException,
   Injectable,
+  NotFoundException,
   ValidationPipe,
 } from '@nestjs/common';
 import {
@@ -45,7 +46,7 @@ import {
   minifyPostsList,
   minifyPosts,
 } from '@gitroom/helpers/utils/posts.list.minify';
-import axios from 'axios';
+import { safeFetchBuffer } from '@gitroom/nestjs-libraries/dtos/webhooks/safe.fetch';
 import sharp from 'sharp';
 import { UploadFactory } from '@gitroom/nestjs-libraries/upload/upload.factory';
 import { Readable } from 'stream';
@@ -686,11 +687,7 @@ export class PostsService {
 
             if (hasExtension(m.path, 'png')) {
               imageUpdateNeeded = true;
-              const response = await axios.get(m.url, {
-                responseType: 'arraybuffer',
-              });
-
-              const imageBuffer = Buffer.from(response.data);
+              const imageBuffer = await safeFetchBuffer(m.url);
 
               // Use sharp to get the metadata of the image
               const buffer = await sharp(imageBuffer)
@@ -1928,12 +1925,21 @@ export class PostsService {
     return this._postRepository.deleteTag(id, orgId);
   }
 
-  createComment(
+  // Comments come from the public preview page, where whoever was sent the
+  // link can sign in and leave one - including people from another workspace,
+  // such as a client reviewing a draft. So the post is not required to be the
+  // commenter's own, only to exist: the comment is recorded against the
+  // commenter's own organization and user.
+  async createComment(
     orgId: string,
     userId: string,
     postId: string,
     comment: string
   ) {
-    return this._postRepository.createComment(orgId, userId, postId, comment);
+    const post = await this._postRepository.getPost(postId);
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+    return this._postRepository.createComment(orgId, userId, post.id, comment);
   }
 }

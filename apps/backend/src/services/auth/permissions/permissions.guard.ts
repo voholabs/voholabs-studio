@@ -12,6 +12,15 @@ import { Organization } from '@prisma/client';
 import { Request } from 'express';
 import { SubscriptionException } from './permission.exception.class';
 
+// Routes that run before there is an organization on the request: signing in,
+// and the channel connect callbacks (checked by their own state record).
+// Matched as whole path segments, so a route that merely contains one of
+// these words (a skill slug, say) is still checked.
+export const skipsPolicies = (path: string) =>
+  ['/auth', '/integrations/social-connect', '/integrations/provider'].some(
+    (prefix) => path === prefix || path.startsWith(prefix + '/')
+  );
+
 @Injectable()
 export class PoliciesGuard implements CanActivate {
   constructor(
@@ -21,12 +30,7 @@ export class PoliciesGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request: Request = context.switchToHttp().getRequest();
-    if (
-      request.path.indexOf('/auth') > -1 ||
-      request.path.indexOf('/auth') > -1 ||
-      request.path.indexOf('/integrations/social-connect') > -1 ||
-      request.path.indexOf('/integrations/provider') > -1
-    ) {
+    if (skipsPolicies(request.path)) {
       return true;
     }
 

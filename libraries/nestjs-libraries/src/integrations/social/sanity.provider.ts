@@ -7,7 +7,7 @@ import {
 import { SocialAbstract } from '@gitroom/nestjs-libraries/integrations/social.abstract';
 import dayjs from 'dayjs';
 import { Integration } from '@prisma/client';
-import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
+import { makeState, makeCodeVerifier } from '@gitroom/nestjs-libraries/services/make.is';
 import { SanityDto } from '@gitroom/nestjs-libraries/dtos/posts/providers-settings/sanity.dto';
 import { Tool } from '@gitroom/nestjs-libraries/integrations/tool.decorator';
 import { Rules } from '@gitroom/nestjs-libraries/chat/rules.description.decorator';
@@ -129,10 +129,10 @@ export class SanityProvider extends SocialAbstract implements SocialProvider {
   }
 
   async generateAuthUrl() {
-    const state = makeId(6);
+    const state = makeState();
     return {
       url: state,
-      codeVerifier: makeId(10),
+      codeVerifier: makeCodeVerifier(),
       state,
     };
   }

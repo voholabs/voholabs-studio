@@ -5,7 +5,7 @@ import {
   PostResponse,
   SocialProvider,
 } from '@gitroom/nestjs-libraries/integrations/social/social.integrations.interface';
-import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
+import { makeState, makeCodeVerifier } from '@gitroom/nestjs-libraries/services/make.is';
 import { timer } from '@gitroom/helpers/utils/timer';
 import dayjs from 'dayjs';
 import {
@@ -413,7 +413,7 @@ export class InstagramProvider
   }
 
   async generateAuthUrl() {
-    const state = makeId(6);
+    const state = makeState();
     return {
       url:
         'https://www.facebook.com/v20.0/dialog/oauth' +
@@ -423,7 +423,7 @@ export class InstagramProvider
         )}` +
         `&state=${state}` +
         `&scope=${encodeURIComponent(this.scopes.join(','))}`,
-      codeVerifier: makeId(10),
+      codeVerifier: makeCodeVerifier(),
       state,
     };
   }

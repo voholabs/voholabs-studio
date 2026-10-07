@@ -38,6 +38,7 @@ import { RefreshIntegrationService } from '@gitroom/nestjs-libraries/integration
 import { timer } from '@gitroom/helpers/utils/timer';
 import { IntegrationService } from '@gitroom/nestjs-libraries/database/prisma/integrations/integration.service';
 import { WebhooksService } from '@gitroom/nestjs-libraries/database/prisma/webhooks/webhooks.service';
+import { safeFetch } from '@gitroom/nestjs-libraries/dtos/webhooks/safe.fetch';
 import { TypedSearchAttributes } from '@temporalio/common';
 import {
   organizationId,
@@ -536,13 +537,21 @@ export class PostActivity {
     await Promise.all(
       webhooks.map(async (webhook) => {
         try {
-          await fetch(webhook.url, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
+          // Re-checks the stored URL at send time and connects through the
+          // SSRF-safe dispatcher; 15 s timeout, at most 3 redirects. http is
+          // still accepted for webhooks saved before https was required.
+          const res = await safeFetch(
+            webhook.url,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(post),
             },
-            body: JSON.stringify(post),
-          });
+            { allowHttp: true }
+          );
+          await res.body?.cancel().catch(() => undefined);
         } catch (e) {
           /**empty**/
         }

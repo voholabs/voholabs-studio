@@ -8,10 +8,10 @@ import {
   SocialAbstract,
   ValidityMedia,
 } from '@gitroom/nestjs-libraries/integrations/social.abstract';
-import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
+import { makeState, makeCodeVerifier } from '@gitroom/nestjs-libraries/services/make.is';
 import { TumblrDto } from '@gitroom/nestjs-libraries/dtos/posts/providers-settings/tumblr.dto';
 import { Integration } from '@prisma/client';
-import axios from 'axios';
+import { safeFetchBuffer } from '@gitroom/nestjs-libraries/dtos/webhooks/safe.fetch';
 import { lookup } from 'mime-types';
 import { hasExtension } from '@gitroom/helpers/utils/has.extension';
 
@@ -263,7 +263,7 @@ export class TumblrProvider extends SocialAbstract implements SocialProvider {
   }
 
   async generateAuthUrl() {
-    const state = makeId(6);
+    const state = makeState();
     const redirectUri = this.redirectUri();
     const params = new URLSearchParams({
       client_id: process.env.TUMBLR_CLIENT_ID!,
@@ -275,7 +275,7 @@ export class TumblrProvider extends SocialAbstract implements SocialProvider {
 
     return {
       url: `https://www.tumblr.com/oauth2/authorize?${params.toString()}`,
-      codeVerifier: makeId(10),
+      codeVerifier: makeCodeVerifier(),
       state,
     };
   }
@@ -517,9 +517,7 @@ export class TumblrProvider extends SocialAbstract implements SocialProvider {
 
     for (const [index, item] of media.entries()) {
       const mimeType = this.getMimeType(item.path);
-      const { data } = await axios.get(this.getMediaUrl(item.path), {
-        responseType: 'arraybuffer',
-      });
+      const data = await safeFetchBuffer(this.getMediaUrl(item.path));
       formData.append(
         `media-${index}`,
         new Blob([Buffer.from(data)], { type: mimeType }),

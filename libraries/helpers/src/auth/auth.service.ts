@@ -41,15 +41,10 @@ export class AuthService {
     return compareSync(password, hash);
   }
   /**
-   * `options` is optional and there is deliberately no default expiry, because
-   * the login session is signed through here and changing what it mints would
-   * log people out mid-session and break "remember me". Every existing caller
-   * passes nothing and keeps getting exactly the token it got before.
-   *
-   * A caller that knows its token is short-lived should say so - see
-   * ProvisionController.sign. That is the direction this is meant to grow: opt
-   * in per caller, rather than one expiry imposed on a set of callers whose
-   * lifetimes have nothing in common.
+   * `options` is optional so the stored credentials signed through here (they
+   * must not expire) keep their shape. Sign-in sessions and the links we email
+   * are minted through helpers/auth/session.token.ts, which always sets a
+   * `type` and an expiry - use that for anything that signs somebody in.
    */
   static signJWT(value: object, options?: SignOptions) {
     return sign(value, process.env.JWT_SECRET!, options);

@@ -1,4 +1,9 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  AuthLimits,
+  AuthRateLimit,
+  AuthRateLimitGuard,
+} from '@gitroom/nestjs-libraries/throttler/auth.rate.limit.guard';
 import { ApiTags } from '@nestjs/swagger';
 import { GetOrgFromRequest } from '@gitroom/nestjs-libraries/user/org.from.request';
 import { Organization } from '@prisma/client';
@@ -12,11 +17,15 @@ export class DeviceController {
   constructor(private _deviceAuthService: DeviceAuthService) {}
 
   @Post('/code')
+  @UseGuards(AuthRateLimitGuard)
+  @AuthRateLimit(...AuthLimits.deviceCode)
   async code() {
     return this._deviceAuthService.createDeviceCode();
   }
 
   @Post('/token')
+  @UseGuards(AuthRateLimitGuard)
+  @AuthRateLimit(...AuthLimits.deviceToken)
   async token(@Body() body: { device_code: string }) {
     return this._deviceAuthService.poll(body?.device_code);
   }
@@ -37,6 +46,8 @@ export class DeviceAuthorizedController {
   }
 
   @Post('/approve')
+  @UseGuards(AuthRateLimitGuard)
+  @AuthRateLimit(...AuthLimits.deviceApprove)
   async approve(
     @Body() body: { user_code: string },
     @GetOrgFromRequest() org: Organization

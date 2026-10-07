@@ -39,7 +39,7 @@ export const ApexBanner: FC<{ onClose: () => void }> = ({ onClose }) => {
   return (
     <div className="relative flex justify-center items-center gap-[6px] h-[36px] mb-[8px] px-[44px] bg-newBgColorInner rounded-[12px] text-[13px] whitespace-nowrap">
       <span className="font-[600] text-newTextColor">
-        {t('apex_banner_question', 'Struggling to grow?')}
+        {t('apex_banner_question', 'Need more than a tool?')}
       </span>
       <a
         href="https://voholabs.com/?utm_source=voholabs-studio&utm_medium=app-banner&utm_campaign=apex"
@@ -47,7 +47,7 @@ export const ApexBanner: FC<{ onClose: () => void }> = ({ onClose }) => {
         rel="noopener"
         className="font-[700] text-warm hover:opacity-80 transition-opacity"
       >
-        {t('apex_banner_link', 'Apex can help')} &rarr;
+        {t('apex_banner_link', 'Let us run it for you')} &rarr;
       </a>
       <button
         type="button"

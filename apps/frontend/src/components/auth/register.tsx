@@ -45,6 +45,9 @@ export function Register() {
   const fetch = useFetch();
   const [provider] = useState(getQuery?.get('provider')?.toUpperCase());
   const [code, setCode] = useState(getQuery?.get('code') || '');
+  // The one-time value the backend put in the provider's login link; the
+  // provider hands it back with the code.
+  const [state] = useState(getQuery?.get('state') || '');
   const [show, setShow] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => {
@@ -59,6 +62,7 @@ export function Register() {
         method: 'POST',
         body: JSON.stringify({
           code,
+          ...(state ? { state } : {}),
         }),
       }
     );
@@ -71,7 +75,7 @@ export function Register() {
       setCode(data.token);
       setShow(true);
     }
-  }, [provider, code]);
+  }, [provider, code, state]);
   if (error) {
     return <RegisterBlocked message={error} />;
   }

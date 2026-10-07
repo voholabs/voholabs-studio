@@ -1,4 +1,11 @@
-import { createHash } from 'crypto';
+import { createHash, timingSafeEqual } from 'crypto';
+
+// Compares two secrets in time that does not depend on where they differ.
+export const safeEqual = (a: string, b: string) => {
+  const left = Buffer.from(String(a));
+  const right = Buffer.from(String(b));
+  return left.length === right.length && timingSafeEqual(left, right);
+};
 
 const LOOPBACK = ['localhost', '127.0.0.1', '[::1]'];
 
@@ -85,4 +92,4 @@ export const matchRedirectUri = (registered: string[], requested: string) => {
 
 // PKCE S256: base64url(sha256(verifier)) must equal the challenge.
 export const verifyPkce = (verifier: string, challenge: string) =>
-  createHash('sha256').update(verifier).digest('base64url') === challenge;
+  safeEqual(createHash('sha256').update(verifier).digest('base64url'), challenge);

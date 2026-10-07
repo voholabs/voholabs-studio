@@ -1,4 +1,4 @@
-import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
+import { makeState, makeCodeVerifier } from '@gitroom/nestjs-libraries/services/make.is';
 import { SocialAbstract } from '../social.abstract';
 import {
   AuthTokenDetails,
@@ -63,10 +63,10 @@ export class ListmonkProvider extends SocialAbstract implements SocialProvider {
   }
 
   async generateAuthUrl() {
-    const state = makeId(6);
+    const state = makeState();
     return {
       url: state,
-      codeVerifier: makeId(10),
+      codeVerifier: makeCodeVerifier(),
       state,
     };
   }
@@ -79,7 +79,6 @@ export class ListmonkProvider extends SocialAbstract implements SocialProvider {
     const body: { url: string; username: string; password: string } =
       JSON.parse(Buffer.from(params.code, 'base64').toString());
 
-    console.log(body);
     try {
       const basic = Buffer.from(body.username + ':' + body.password).toString(
         'base64'

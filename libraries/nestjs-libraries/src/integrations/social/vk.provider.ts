@@ -9,6 +9,7 @@ import dayjs from 'dayjs';
 import { SocialAbstract } from '@gitroom/nestjs-libraries/integrations/social.abstract';
 import { createHash, randomBytes } from 'crypto';
 import axios from 'axios';
+import { safeFetchStream } from '@gitroom/nestjs-libraries/dtos/webhooks/safe.fetch';
 import FormDataNew from 'form-data';
 import mime from 'mime-types';
 import { Integration } from '@prisma/client';
@@ -175,16 +176,15 @@ export class VkProvider extends SocialAbstract implements SocialProvider {
           )
         ).json();
 
-        const { data } = await axios.get(media.path!, {
-          responseType: 'stream',
-        });
+        const { stream, contentLength } = await safeFetchStream(media.path!);
 
         const slash = media.path.split('/').at(-1);
 
         const formData = new FormDataNew();
-        formData.append('photo', data, {
+        formData.append('photo', stream, {
           filename: slash,
           contentType: mime.lookup(slash!) || '',
+          ...(contentLength !== undefined ? { knownLength: contentLength } : {}),
         });
         const value = (
           await axios.post(all.response.upload_url, formData, {

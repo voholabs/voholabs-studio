@@ -14,6 +14,7 @@ import {
   mediaOutput,
   readPostMedia,
   withPostLinks,
+  withSanitisedContent,
 } from '@gitroom/nestjs-libraries/chat/tools/post.write.shared';
 import {
   onPaidPlan,
@@ -292,7 +293,7 @@ On a workspace that pays for the channel from its wallet, editing a queued post 
 
           const [post, ...comments] = items;
 
-          const value = [
+          const value = withSanitisedContent([
             {
               ...post,
               content: withPostLinks({
@@ -318,7 +319,7 @@ On a workspace that pays for the channel from its wallet, editing a queued post 
                     image: replacementFor(comment) ?? previous?.image ?? [],
                   };
                 })),
-          ];
+          ]);
 
           const currentSettings = (() => {
             try {

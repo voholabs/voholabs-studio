@@ -15,6 +15,8 @@ import {
 
 export type AppAbility = Ability<[AuthorizationActions, Sections]>;
 
+const isAdminRole = (role: string) => ['ADMIN', 'SUPERADMIN'].includes(role);
+
 @Injectable()
 export class PermissionsService {
   constructor(
@@ -65,14 +67,18 @@ export class PermissionsService {
       orgId
     );
 
-    // Without Stripe there is nothing to bill, so everything is allowed - but
-    // only while the organization still has access (whitelisted, or inside its
-    // free trial). Expired ones fall through to the FREE quotas below.
+    // Without Stripe there is nothing to bill, so every plan limit is lifted -
+    // but only while the organization still has access (whitelisted, or inside
+    // its free trial). Expired ones fall through to the FREE quotas below.
+    // ADMIN is a role, not a plan feature, so it is never lifted here.
     if (
       requestedPermission.length === 0 ||
       (!process.env.STRIPE_PUBLISHABLE_KEY && access)
     ) {
       for (const [action, section] of requestedPermission) {
+        if (section === Sections.ADMIN && !isAdminRole(permission)) {
+          continue;
+        }
         can(action, section);
       }
       return build({
@@ -146,10 +152,7 @@ export class PermissionsService {
         continue;
       }
 
-      if (
-        section === Sections.ADMIN &&
-        ['ADMIN', 'SUPERADMIN'].includes(permission)
-      ) {
+      if (section === Sections.ADMIN && isAdminRole(permission)) {
         can(action, section);
         continue;
       }

@@ -5,8 +5,9 @@ import {
   PostResponse,
   SocialProvider,
 } from '@gitroom/nestjs-libraries/integrations/social/social.integrations.interface';
-import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
+import { makeState, makeCodeVerifier } from '@gitroom/nestjs-libraries/services/make.is';
 import axios from 'axios';
+import { safeFetchStream } from '@gitroom/nestjs-libraries/dtos/webhooks/safe.fetch';
 import FormData from 'form-data';
 import {
   SocialAbstract,
@@ -110,14 +111,14 @@ export class DribbbleProvider extends SocialAbstract implements SocialProvider {
   }
 
   async generateAuthUrl() {
-    const state = makeId(6);
+    const state = makeState();
     return {
       url: `https://dribbble.com/oauth/authorize?client_id=${
         process.env.DRIBBBLE_CLIENT_ID
       }&redirect_uri=${encodeURIComponent(
         `${process.env.FRONTEND_URL}/integrations/social/dribbble`
       )}&response_type=code&scope=${this.scopes.join('+')}&state=${state}`,
-      codeVerifier: makeId(10),
+      codeVerifier: makeCodeVerifier(),
       state,
     };
   }
@@ -163,19 +164,17 @@ export class DribbbleProvider extends SocialAbstract implements SocialProvider {
     accessToken: string,
     postDetails: PostDetails<DribbbleDto>[]
   ): Promise<PostResponse[]> {
-    const { data, status } = await axios.get(
-      postDetails?.[0]?.media?.[0]?.path!,
-      {
-        responseType: 'stream',
-      }
+    const { stream, contentLength } = await safeFetchStream(
+      postDetails?.[0]?.media?.[0]?.path!
     );
 
     const slash = postDetails?.[0]?.media?.[0]?.path.split('/').at(-1);
 
     const formData = new FormData();
-    formData.append('image', data, {
+    formData.append('image', stream, {
       filename: slash,
       contentType: mime.lookup(slash!) || '',
+      ...(contentLength !== undefined ? { knownLength: contentLength } : {}),
     });
 
     formData.append('title', postDetails[0].settings.title);

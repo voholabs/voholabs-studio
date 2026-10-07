@@ -10,6 +10,20 @@ import { NotificationService } from '@gitroom/nestjs-libraries/database/prisma/n
 import { Request } from 'express';
 import { AuthService } from '@gitroom/helpers/auth/auth.service';
 
+type OrgWithRole = Organization & { users?: { role?: string }[] };
+
+// Only an organization's admins change what it pays for, the same rule the
+// wallet follows. Reading the plan stays open to every member.
+const assertAdmin = (org: OrgWithRole, user?: User) => {
+  if (user?.isSuperAdmin) {
+    return;
+  }
+  const role = org.users?.[0]?.role;
+  if (role !== 'ADMIN' && role !== 'SUPERADMIN') {
+    throw new HttpException('Only an admin of this workspace can do this', 403);
+  }
+};
+
 @ApiTags('Billing')
 @Controller('/billing')
 export class BillingController {
@@ -39,12 +53,20 @@ export class BillingController {
   }
 
   @Post('/apply-discount')
-  async applyDiscount(@GetOrgFromRequest() org: Organization) {
+  async applyDiscount(
+    @GetOrgFromRequest() org: Organization,
+    @GetUserFromRequest() user: User
+  ) {
+    assertAdmin(org, user);
     await this._stripeService.applyDiscount(org.paymentId);
   }
 
   @Post('/finish-trial')
-  async finishTrial(@GetOrgFromRequest() org: Organization) {
+  async finishTrial(
+    @GetOrgFromRequest() org: Organization,
+    @GetUserFromRequest() user: User
+  ) {
+    assertAdmin(org, user);
     try {
       await this._stripeService.finishTrial(org.paymentId);
     } catch (err) {}
@@ -67,6 +89,7 @@ export class BillingController {
     @Body() body: BillingSubscribeDto,
     @Req() req: Request
   ) {
+    assertAdmin(org, user);
     const uniqueId = req?.cookies?.track;
     return this._stripeService.embedded(
       uniqueId,
@@ -84,6 +107,7 @@ export class BillingController {
     @Body() body: BillingSubscribeDto,
     @Req() req: Request
   ) {
+    assertAdmin(org, user);
     const uniqueId = req?.cookies?.track;
     return this._stripeService.subscribe(
       uniqueId,
@@ -95,7 +119,11 @@ export class BillingController {
   }
 
   @Get('/portal')
-  async modifyPayment(@GetOrgFromRequest() org: Organization) {
+  async modifyPayment(
+    @GetOrgFromRequest() org: Organization,
+    @GetUserFromRequest() user: User
+  ) {
+    assertAdmin(org, user);
     const customer = await this._stripeService.getCustomerByOrganizationId(
       org.id
     );
@@ -116,6 +144,7 @@ export class BillingController {
     @GetUserFromRequest() user: User,
     @Body() body: { feedback: string }
   ) {
+    assertAdmin(org, user);
     await this._notificationService.sendEmail(
       process.env.EMAIL_FROM_ADDRESS,
       'Subscription Cancelled',
@@ -129,8 +158,10 @@ export class BillingController {
   @Post('/prorate')
   prorate(
     @GetOrgFromRequest() org: Organization,
+    @GetUserFromRequest() user: User,
     @Body() body: BillingSubscribeDto
   ) {
+    assertAdmin(org, user);
     return this._stripeService.prorate(org.id, body);
   }
 
@@ -181,6 +212,7 @@ export class BillingController {
     @GetUserFromRequest() user: User,
     @GetOrgFromRequest() org: Organization
   ) {
+    assertAdmin(org, user);
     const refund = await this._stripeService.chatbaseRefund(org.id);
 
     if (refund.refunded) {

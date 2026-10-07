@@ -20,10 +20,14 @@ const isOAuthReturn = (value?: string) =>
 // This function can be marked `async` if using `await` inside
 export async function proxy(request: NextRequest) {
   const nextUrl = request.nextUrl;
+  // `?loggedAuth=` is the mobile WebView bridge's way in, and only on its
+  // /provider/ pages (see app/(provider)/provider/[p]/page.tsx).
   const authCookie =
     request.cookies.get('auth') ||
     request.headers.get('auth') ||
-    nextUrl.searchParams.get('loggedAuth');
+    (nextUrl.pathname.startsWith('/provider/')
+      ? nextUrl.searchParams.get('loggedAuth')
+      : null);
   const lng = request.cookies.has(cookieName)
     ? acceptLanguage.get(request.cookies.get(cookieName).value)
     : acceptLanguage.get(

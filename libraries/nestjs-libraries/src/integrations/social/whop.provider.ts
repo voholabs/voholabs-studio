@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'crypto';
+import { safeFetchMedia } from '@gitroom/nestjs-libraries/dtos/webhooks/safe.fetch';
 import {
   AuthTokenDetails,
   MediaContent,
@@ -6,7 +7,7 @@ import {
   PostResponse,
   SocialProvider,
 } from '@gitroom/nestjs-libraries/integrations/social/social.integrations.interface';
-import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
+import { makeId, makeState } from '@gitroom/nestjs-libraries/services/make.is';
 import { timer } from '@gitroom/helpers/utils/timer';
 import { SocialAbstract } from '@gitroom/nestjs-libraries/integrations/social.abstract';
 import { WhopDto } from '@gitroom/nestjs-libraries/dtos/posts/providers-settings/whop.dto';
@@ -99,7 +100,7 @@ export class WhopProvider extends SocialAbstract implements SocialProvider {
   }
 
   async generateAuthUrl() {
-    const state = makeId(6);
+    const state = makeState();
     const codeVerifier = randomBytes(32).toString('base64url');
     const codeChallenge = this.generateCodeChallenge(codeVerifier);
     const nonce = makeId(16);
@@ -225,7 +226,7 @@ export class WhopProvider extends SocialAbstract implements SocialProvider {
     const attachments: { id: string }[] = [];
 
     for (const item of media) {
-      const fileResponse = await fetch(item.path);
+      const fileResponse = await safeFetchMedia(item.path);
       const fileBuffer = await fileResponse.arrayBuffer();
       const fileName = item.path.split('/').pop() || 'file';
 

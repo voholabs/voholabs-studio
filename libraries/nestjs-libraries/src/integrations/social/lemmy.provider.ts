@@ -4,7 +4,7 @@ import {
   PostResponse,
   SocialProvider,
 } from '@gitroom/nestjs-libraries/integrations/social/social.integrations.interface';
-import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
+import { makeState, makeCodeVerifier } from '@gitroom/nestjs-libraries/services/make.is';
 import {
   SocialAbstract,
   ValidityMedia,
@@ -81,10 +81,10 @@ export class LemmyProvider extends SocialAbstract implements SocialProvider {
   }
 
   async generateAuthUrl() {
-    const state = makeId(6);
+    const state = makeState();
     return {
       url: state,
-      codeVerifier: makeId(10),
+      codeVerifier: makeCodeVerifier(),
       state,
     };
   }
@@ -179,16 +179,6 @@ export class LemmyProvider extends SocialAbstract implements SocialProvider {
     const valueArray: PostResponse[] = [];
 
     for (const lemmy of firstPost.settings.subreddit) {
-      console.log({
-        community_id: +lemmy.value.id,
-        name: lemmy.value.title,
-        body: firstPost.message,
-        ...(lemmy.value.url ? { url: lemmy.value.url } : {}),
-        ...(firstPost.media?.length
-          ? { custom_thumbnail: firstPost.media[0].path }
-          : {}),
-        nsfw: false,
-      });
       const { post_view } = await (
         await fetch(service + '/api/v3/post', {
           // @ts-ignore - undici-only option; blocks SSRF to internal IPs

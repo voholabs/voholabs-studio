@@ -11,8 +11,10 @@ import {
 import { Provider } from '@prisma/client';
 
 export class CreateOrgUserDto {
+  // New passwords only. Signing in (LoginUserDto) still accepts the shorter
+  // passwords some existing accounts have.
   @IsString()
-  @MinLength(3)
+  @MinLength(8)
   @MaxLength(64)
   @IsDefined()
   @ValidateIf((o) => !o.providerToken)

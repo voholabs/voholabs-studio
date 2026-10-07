@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { randomInt } from 'crypto';
 import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 import { OrganizationService } from '@gitroom/nestjs-libraries/database/prisma/organizations/organization.service';
@@ -41,9 +42,7 @@ export class DeviceAuthService {
   private generateUserCode() {
     let raw = '';
     for (let i = 0; i < 8; i += 1) {
-      raw += USER_CODE_ALPHABET.charAt(
-        Math.floor(Math.random() * USER_CODE_ALPHABET.length)
-      );
+      raw += USER_CODE_ALPHABET.charAt(randomInt(USER_CODE_ALPHABET.length));
     }
     return `${raw.slice(0, 4)}-${raw.slice(4)}`;
   }

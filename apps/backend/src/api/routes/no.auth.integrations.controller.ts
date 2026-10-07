@@ -5,10 +5,11 @@ import {
   HttpException,
   Param,
   Post,
+  Req,
   Res,
   UseFilters,
 } from '@nestjs/common';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
 import { ConnectIntegrationDto } from '@gitroom/nestjs-libraries/dtos/integrations/connect.integration.dto';
 import { IntegrationManager } from '@gitroom/nestjs-libraries/integrations/integration.manager';
@@ -28,6 +29,15 @@ import { OrganizationService } from '@gitroom/nestjs-libraries/database/prisma/o
 import { IntegrationPictureService } from '@gitroom/nestjs-libraries/integrations/integration.picture.service';
 import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 import { paidOnlyChannelMessage } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
+import { UsersService } from '@gitroom/nestjs-libraries/database/prisma/users/users.service';
+import {
+  canFinishConnect,
+  ConnectStateRecord,
+  connectStateKey,
+  CONNECT_STATE_TTL_SECONDS,
+  parseConnectState,
+  serializeConnectState,
+} from '@gitroom/nestjs-libraries/integrations/connect.state';
 
 @ApiTags('Integrations')
 @Controller('/integrations')
@@ -38,8 +48,34 @@ export class NoAuthIntegrationsController {
     private _refreshIntegrationService: RefreshIntegrationService,
     private _organizationService: OrganizationService,
     private _integrationPictureService: IntegrationPictureService,
-    private _walletService: WalletService
+    private _walletService: WalletService,
+    private _usersService: UsersService
   ) {}
+
+  /**
+   * A connect started from a signed-in session can only be finished by a
+   * signed-in member of the organization it was started for, so a channel only
+   * ever lands in a workspace its owner belongs to. Reads the same `auth`
+   * cookie or header the rest of the app does. See connect.state.ts.
+   */
+  private async assertConnectAllowed(req: Request, record: ConnectStateRecord) {
+    const allowed = await canFinishConnect(
+      record,
+      (req.headers?.auth as string) || req.cookies?.auth,
+      {
+        verifyJWT: (token) => AuthService.verifyJWT(token),
+        getUserById: (id) => this._usersService.getUserById(id),
+        getOrgsByUserId: (userId) =>
+          this._organizationService.getOrgsByUserId(userId),
+      }
+    );
+
+    if (!allowed) {
+      const msg =
+        'Sign in to the workspace that started this connection, then try again';
+      throw new HttpException({ msg, message: msg }, 403);
+    }
+  }
 
   /**
    * A channel's avatar, proxied from the network.
@@ -80,6 +116,7 @@ export class NoAuthIntegrationsController {
   @CheckPolicies([AuthorizationActions.Create, Sections.CHANNEL])
   @UseFilters(new NotEnoughScopesFilter())
   async connectSocialMedia(
+    @Req() req: Request,
     @Param('integration') integration: string,
     @Body() body: ConnectIntegrationDto
   ) {
@@ -101,11 +138,18 @@ export class NoAuthIntegrationsController {
       throw new Error('Invalid state');
     }
 
-    const organization = await ioRedis.get(`organization:${body.state}`);
-    if (!organization) {
+    const stateRecord = parseConnectState(
+      await ioRedis.get(connectStateKey(body.state))
+    );
+    // A record that already carries a channel has been used: it is only good
+    // for choosing that channel's page now.
+    if (!stateRecord || stateRecord.integrationId) {
       throw new Error('Organization not found');
     }
 
+    await this.assertConnectAllowed(req, stateRecord);
+
+    const organization = stateRecord.orgId;
     const org = await this._organizationService.getOrgById(organization);
 
     // X is unavailable on the free plan, however the connection
@@ -306,6 +350,22 @@ export class NoAuthIntegrationsController {
           : undefined
       );
 
+    // The state has done its job. A two-step provider still needs it for
+    // choosing the page, but only for this one channel; anything else is done.
+    if (integrationProvider.isBetweenSteps && !refresh) {
+      await ioRedis.set(
+        connectStateKey(body.state),
+        serializeConnectState({ ...stateRecord, integrationId: createUpdate.id }),
+        'EX',
+        CONNECT_STATE_TTL_SECONDS
+      );
+    } else {
+      await ioRedis.del(connectStateKey(body.state));
+    }
+    if (integrationProvider.customFields) {
+      await ioRedis.del(`login:${body.state}`);
+    }
+
     this._refreshIntegrationService
       .startRefreshWorkflow(org.id, createUpdate.id, integrationProvider)
       .catch((err) => {
@@ -384,19 +444,46 @@ export class NoAuthIntegrationsController {
   }
 
   @Post('/public/provider/:id/connect')
-  async saveProviderPage(@Param('id') id: string, @Body() body: any) {
+  async saveProviderPage(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() body: any
+  ) {
     if (!body.state) {
       throw new Error('Invalid state');
     }
 
-    const organization = await ioRedis.get(`organization:${body.state}`);
-    if (!organization) {
+    const stateRecord = parseConnectState(
+      await ioRedis.get(connectStateKey(body.state))
+    );
+    if (!stateRecord) {
       throw new Error('Organization not found');
     }
 
-    const org = await this._organizationService.getOrgById(organization);
+    // Only the channel this state just connected. A record without one is
+    // either still unused or was written before records said which channel,
+    // and only the latter is let through.
+    if (
+      stateRecord.integrationId
+        ? stateRecord.integrationId !== id
+        : stateRecord.via !== 'legacy'
+    ) {
+      throw new HttpException('Integration not found', 404);
+    }
 
-    return this._integrationService.saveProviderPage(org.id, id, body);
+    await this.assertConnectAllowed(req, stateRecord);
+
+    const org = await this._organizationService.getOrgById(stateRecord.orgId);
+
+    const saved = await this._integrationService.saveProviderPage(
+      org.id,
+      id,
+      body
+    );
+
+    await ioRedis.del(connectStateKey(body.state));
+
+    return saved;
   }
 
   @Post('/extension-refresh')

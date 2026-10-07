@@ -4,6 +4,7 @@ import { OrganizationRepository } from '@gitroom/nestjs-libraries/database/prism
 import { NotificationService } from '@gitroom/nestjs-libraries/database/prisma/notifications/notification.service';
 import { AddTeamMemberDto } from '@gitroom/nestjs-libraries/dtos/settings/add.team.member.dto';
 import { AuthService } from '@gitroom/helpers/auth/auth.service';
+import { INVITE_TTL_SECONDS } from '@gitroom/helpers/auth/session.token';
 import dayjs from 'dayjs';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 import { Organization, ShortLinkPreference } from '@prisma/client';
@@ -82,7 +83,11 @@ export class OrganizationService {
     const id = makeId(5);
     const url =
       process.env.FRONTEND_URL +
-      `/?org=${AuthService.signJWT({ ...body, orgId, timeLimit, id })}`;
+      `/?org=${AuthService.signJWT(
+        { ...body, orgId, timeLimit, id, type: 'invite' },
+        // Matches timeLimit above, which is what the invite is checked by.
+        { expiresIn: INVITE_TTL_SECONDS }
+      )}`;
     if (body.sendEmail) {
       await this._notificationsService.sendEmail(
         body.email,

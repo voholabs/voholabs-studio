@@ -7,6 +7,7 @@ import {
   Query,
   Req,
   Res,
+  UseGuards,
 } from '@nestjs/common';
 import { Response, Request } from 'express';
 
@@ -23,6 +24,12 @@ import { RealIP } from 'nestjs-real-ip';
 import { UserAgent } from '@gitroom/nestjs-libraries/user/user.agent';
 import { Provider } from '@prisma/client';
 import * as Sentry from '@sentry/nestjs';
+import { setAuthCookie } from '@gitroom/backend/services/auth/auth.cookie';
+import {
+  AuthLimits,
+  AuthRateLimit,
+  AuthRateLimitGuard,
+} from '@gitroom/nestjs-libraries/throttler/auth.rate.limit.guard';
 
 @ApiTags('Auth')
 @Controller('/auth')
@@ -40,6 +47,8 @@ export class AuthController {
   }
 
   @Post('/register')
+  @UseGuards(AuthRateLimitGuard)
+  @AuthRateLimit(...AuthLimits.register)
   async register(
     @Req() req: Request,
     @Body() body: CreateOrgUserDto,
@@ -69,21 +78,7 @@ export class AuthController {
         return;
       }
 
-      response.cookie('auth', jwt, {
-        domain: getCookieUrlFromDomain(process.env.FRONTEND_URL!),
-        ...(!process.env.NOT_SECURED
-          ? {
-              secure: true,
-              httpOnly: true,
-              sameSite: 'none',
-            }
-          : {}),
-        expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365),
-      });
-
-      if (process.env.NOT_SECURED) {
-        response.header('auth', jwt);
-      }
+      setAuthCookie(response, jwt);
 
       if (typeof addedOrg !== 'boolean' && addedOrg?.organizationId) {
         response.cookie('showorg', addedOrg.organizationId, {
@@ -114,6 +109,8 @@ export class AuthController {
   }
 
   @Post('/login')
+  @UseGuards(AuthRateLimitGuard)
+  @AuthRateLimit(...AuthLimits.login)
   async login(
     @Req() req: Request,
     @Body() body: LoginUserDto,
@@ -134,21 +131,7 @@ export class AuthController {
         getOrgFromCookie
       );
 
-      response.cookie('auth', jwt, {
-        domain: getCookieUrlFromDomain(process.env.FRONTEND_URL!),
-        ...(!process.env.NOT_SECURED
-          ? {
-              secure: true,
-              httpOnly: true,
-              sameSite: 'none',
-            }
-          : {}),
-        expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365),
-      });
-
-      if (process.env.NOT_SECURED) {
-        response.header('auth', jwt);
-      }
+      setAuthCookie(response, jwt);
 
       if (typeof addedOrg !== 'boolean' && addedOrg?.organizationId) {
         response.cookie('showorg', addedOrg.organizationId, {
@@ -178,6 +161,8 @@ export class AuthController {
   }
 
   @Post('/forgot')
+  @UseGuards(AuthRateLimitGuard)
+  @AuthRateLimit(...AuthLimits.forgot)
   async forgot(@Body() body: ForgotPasswordDto) {
     try {
       await this._authService.forgot(body.email);
@@ -192,6 +177,8 @@ export class AuthController {
   }
 
   @Post('/forgot-return')
+  @UseGuards(AuthRateLimitGuard)
+  @AuthRateLimit(...AuthLimits.forgotReturn)
   async forgotReturn(@Body() body: ForgotReturnPasswordDto) {
     const reset = await this._authService.forgotReturn(body);
     return {
@@ -218,6 +205,8 @@ export class AuthController {
   }
 
   @Post('/activate')
+  @UseGuards(AuthRateLimitGuard)
+  @AuthRateLimit(...AuthLimits.activate)
   async activate(
     @Body('code') code: string,
     @Body('datafast_visitor_id') datafast_visitor_id: string,
@@ -231,46 +220,35 @@ export class AuthController {
       return response.status(200).json({ can: false });
     }
 
-    response.cookie('auth', activate, {
-      domain: getCookieUrlFromDomain(process.env.FRONTEND_URL!),
-      ...(!process.env.NOT_SECURED
-        ? {
-            secure: true,
-            httpOnly: true,
-            sameSite: 'none',
-          }
-        : {}),
-      expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365),
-    });
-
-    if (process.env.NOT_SECURED) {
-      response.header('auth', activate);
-    }
+    setAuthCookie(response, activate);
 
     response.header('onboarding', 'true');
 
     return response.status(200).json({ can: true });
   }
 
+  // The same answer whether or not the address has an account to activate.
   @Post('/resend-activation')
+  @UseGuards(AuthRateLimitGuard)
+  @AuthRateLimit(...AuthLimits.resendActivation)
   async resendActivation(@Body() body: ResendActivationDto) {
     try {
       await this._authService.resendActivationEmail(body.email);
-      return {
-        success: true,
-      };
-    } catch (e: any) {
-      return {
-        success: false,
-        message: e.message,
-      };
+    } catch (e) {
+      // Sending failed; still the same answer.
     }
+    return {
+      success: true,
+    };
   }
 
   @Post('/oauth/:provider/exists')
+  @UseGuards(AuthRateLimitGuard)
+  @AuthRateLimit(...AuthLimits.oauthExists)
   async oauthExists(
     @Req() req: Request,
     @Body('code') code: string,
+    @Body('state') state: string,
     @Body('redirect_uri') redirect_uri: string,
     @Param('provider') provider: string,
     @Res({ passthrough: false }) response: Response
@@ -281,7 +259,8 @@ export class AuthController {
         provider,
         code,
         redirect_uri,
-        !!this._authService.getOrgFromCookie(req?.cookies?.org)
+        !!this._authService.getOrgFromCookie(req?.cookies?.org),
+        state
       );
     } catch (e: any) {
       response.status(400).json({ error: e.message });
@@ -294,21 +273,7 @@ export class AuthController {
       return response.json({ token });
     }
 
-    response.cookie('auth', jwt, {
-      domain: getCookieUrlFromDomain(process.env.FRONTEND_URL!),
-      ...(!process.env.NOT_SECURED
-        ? {
-            secure: true,
-            httpOnly: true,
-            sameSite: 'none',
-          }
-        : {}),
-      expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365),
-    });
-
-    if (process.env.NOT_SECURED) {
-      response.header('auth', jwt);
-    }
+    setAuthCookie(response, jwt);
 
     response.header('reload', 'true');
 

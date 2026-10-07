@@ -8,7 +8,11 @@ const root = join(__dirname, '..', '..');
 export default {
   displayName: 'nestjs-libraries',
   rootDir: root,
-  roots: ['<rootDir>/libraries/nestjs-libraries/src'],
+  // apps/backend/src too: its auth specs need the same mappings.
+  roots: [
+    '<rootDir>/libraries/nestjs-libraries/src',
+    '<rootDir>/apps/backend/src',
+  ],
   testMatch: ['**/*.spec.ts'],
   testEnvironment: 'node',
   transform: {
@@ -30,6 +34,8 @@ export default {
   },
   moduleFileExtensions: ['ts', 'js', 'json'],
   moduleNameMapper: {
+    '^isomorphic-dompurify$':
+      '<rootDir>/libraries/nestjs-libraries/jest.dompurify.shim.js',
     '^@gitroom/helpers/(.*)$': '<rootDir>/libraries/helpers/src/$1',
     '^@gitroom/nestjs-libraries/(.*)$':
       '<rootDir>/libraries/nestjs-libraries/src/$1',

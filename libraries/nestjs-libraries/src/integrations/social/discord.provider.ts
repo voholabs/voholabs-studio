@@ -4,11 +4,12 @@ import {
   PostResponse,
   SocialProvider,
 } from '@gitroom/nestjs-libraries/integrations/social/social.integrations.interface';
-import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
+import { makeState, makeCodeVerifier } from '@gitroom/nestjs-libraries/services/make.is';
 import { SocialAbstract } from '@gitroom/nestjs-libraries/integrations/social.abstract';
 import { Integration } from '@prisma/client';
 import { DiscordDto } from '@gitroom/nestjs-libraries/dtos/posts/providers-settings/discord.dto';
 import { Tool } from '@gitroom/nestjs-libraries/integrations/tool.decorator';
+import { safeFetchMedia } from '@gitroom/nestjs-libraries/dtos/webhooks/safe.fetch';
 
 // https://discord.com/developers/docs/topics/permissions
 // BigInt() rather than 1n literals: the TS target is below ES2020.
@@ -82,14 +83,14 @@ export class DiscordProvider extends SocialAbstract implements SocialProvider {
     };
   }
   async generateAuthUrl() {
-    const state = makeId(6);
+    const state = makeState();
     return {
       url: `https://discord.com/oauth2/authorize?client_id=${
         process.env.DISCORD_CLIENT_ID
       }&permissions=377957124096&response_type=code&redirect_uri=${encodeURIComponent(
         `${process.env.FRONTEND_URL}/integrations/social/discord`
       )}&integration_type=0&scope=bot+identify+guilds&state=${state}`,
-      codeVerifier: makeId(10),
+      codeVerifier: makeCodeVerifier(),
       state,
     };
   }
@@ -480,7 +481,7 @@ export class DiscordProvider extends SocialAbstract implements SocialProvider {
 
     let index = 0;
     for (const item of media) {
-      const loaded = await fetch(this.mediaUrl(item.path));
+      const loaded = await safeFetchMedia(this.mediaUrl(item.path));
 
       form.append(
         `files[${index}]`,

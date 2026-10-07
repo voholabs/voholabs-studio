@@ -8,6 +8,7 @@ import { RegisterClientDto } from '@gitroom/nestjs-libraries/dtos/oauth/register
 import {
   isAllowedRedirectUri,
   matchRedirectUri,
+  safeEqual,
   verifyPkce,
 } from '@gitroom/nestjs-libraries/database/prisma/oauth/oauth.client';
 
@@ -210,7 +211,7 @@ export class OAuthService {
     if (
       !app.isPublic &&
       (!clientSecret ||
-        app.clientSecret !== AuthService.fixedEncryption(clientSecret))
+        !safeEqual(app.clientSecret, AuthService.fixedEncryption(clientSecret)))
     ) {
       throw new HttpException(
         { error: 'invalid_client' },

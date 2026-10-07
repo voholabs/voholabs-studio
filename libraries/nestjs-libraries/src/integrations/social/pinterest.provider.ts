@@ -5,9 +5,10 @@ import {
   PostResponse,
   SocialProvider,
 } from '@gitroom/nestjs-libraries/integrations/social/social.integrations.interface';
-import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
+import { makeState, makeCodeVerifier } from '@gitroom/nestjs-libraries/services/make.is';
 import { PinterestSettingsDto } from '@gitroom/nestjs-libraries/dtos/posts/providers-settings/pinterest.dto';
 import axios from 'axios';
+import { safeFetchStream } from '@gitroom/nestjs-libraries/dtos/webhooks/safe.fetch';
 import FormData from 'form-data';
 import { timer } from '@gitroom/helpers/utils/timer';
 import {
@@ -166,7 +167,7 @@ export class PinterestProvider
   }
 
   async generateAuthUrl() {
-    const state = makeId(6);
+    const state = makeState();
     return {
       url: `https://www.pinterest.com/oauth/?client_id=${
         process.env.PINTEREST_CLIENT_ID
@@ -175,7 +176,7 @@ export class PinterestProvider
       )}&response_type=code&scope=${encodeURIComponent(
         'boards:read,boards:write,pins:read,pins:write,user_accounts:read'
       )}&state=${state}`,
-      codeVerifier: makeId(10),
+      codeVerifier: makeCodeVerifier(),
       state,
     };
   }
@@ -270,12 +271,9 @@ export class PinterestProvider
         })
       ).json();
 
-      const { data, status } = await axios.get(
-        postDetails?.[0]?.media?.[0]?.path!,
-        {
-          responseType: 'stream',
-        }
-      );
+      const videoPath = postDetails?.[0]?.media?.[0]?.path!;
+      const { stream, contentLength, contentType } =
+        await safeFetchStream(videoPath);
 
       const formData = Object.keys(upload_parameters)
         .filter((f) => f)
@@ -284,7 +282,11 @@ export class PinterestProvider
           return acc;
         }, new FormData());
 
-      formData.append('file', data);
+      formData.append('file', stream, {
+        filename: new URL(videoPath).pathname.split('/').pop() || 'video.mp4',
+        ...(contentType ? { contentType } : {}),
+        ...(contentLength !== undefined ? { knownLength: contentLength } : {}),
+      });
       await axios.post(upload_url, formData);
 
       let statusCode = '';

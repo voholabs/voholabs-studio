@@ -81,7 +81,9 @@ On a workspace that pays for the channel from its wallet, QUEUE pays for the pos
         annotations: {
           title: 'Change Post Status',
           readOnlyHint: false,
-          destructiveHint: false,
+          // Takes a post off the schedule, or puts one on it at a time that
+          // may already have passed.
+          destructiveHint: true,
           idempotentHint: true,
           openWorldHint: false,
         },

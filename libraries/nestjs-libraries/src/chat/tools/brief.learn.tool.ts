@@ -25,8 +25,9 @@ Group related lessons by using the same "topic": one document per channel, per f
         annotations: {
           title: 'Record Agent Experience',
           readOnlyHint: false,
-          // Revising a lesson replaces that one lesson, never the document.
-          destructiveHint: false,
+          // Revising a lesson replaces that one lesson's text; the previous
+          // wording is not kept.
+          destructiveHint: true,
           idempotentHint: true,
           openWorldHint: false,
         },

@@ -78,7 +78,9 @@ On a workspace that pays for the channel from its wallet, editing a queued post 
         annotations: {
           title: 'Edit Scheduled Post',
           readOnlyHint: false,
-          destructiveHint: false,
+          // Replaces the text, media or time of a post that is already
+          // scheduled; the previous version is not kept.
+          destructiveHint: true,
           idempotentHint: false,
           openWorldHint: false,
         },

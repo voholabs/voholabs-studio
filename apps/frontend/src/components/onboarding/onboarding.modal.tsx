@@ -13,6 +13,9 @@ import { useUser } from '@gitroom/frontend/components/layout/user.context';
 import { ConnectAgentPanel } from '@gitroom/frontend/components/public-api/public.component';
 import clsx from 'clsx';
 import { useWalletAccess } from '@gitroom/frontend/components/wallet-locks/wallet.access';
+import { TutorialVideo } from '@gitroom/frontend/components/onboarding/tutorial.video';
+
+type OnboardingStepKey = 'channels' | 'agent' | 'tutorial';
 
 interface OnboardingModalProps {
   onClose: () => void;
@@ -24,10 +27,11 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
   const user = useUser();
   // A paid plan keeps the onboarding it always had: channels only.
   const paidPlan = useWalletAccess() === 'plan';
-  // After the channels: connect an agent over MCP. It needs the workspace's
-  // API key, so without one onboarding ends after the channels as before.
+  // After the channels: connect an agent over MCP, then watch the tutorial.
+  // The agent step needs the workspace's API key, so without one onboarding
+  // ends after the channels as before.
   const hasAgentStep = !paidPlan && !!user?.publicApi;
-  const [step, setStep] = useState<'channels' | 'agent'>('channels');
+  const [step, setStep] = useState<OnboardingStepKey>('channels');
 
   return (
     <div
@@ -73,10 +77,7 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
             )}
           >
             {hasAgentStep && (
-              <OnboardingStepper
-                step={step}
-                onGoToChannels={() => setStep('channels')}
-              />
+              <OnboardingStepper step={step} onGoTo={setStep} />
             )}
             {step === 'channels' ? (
               <OnboardingStep1
@@ -85,9 +86,14 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
                 hasNext={hasAgentStep}
                 paidPlan={paidPlan}
               />
-            ) : (
+            ) : step === 'agent' ? (
               <OnboardingAgentStep
                 onBack={() => setStep('channels')}
+                onDone={() => setStep('tutorial')}
+              />
+            ) : (
+              <OnboardingTutorialStep
+                onBack={() => setStep('agent')}
                 onDone={onClose}
               />
             )}
@@ -114,14 +120,22 @@ const StepCheckIcon = () => (
   </svg>
 );
 
-// "1 Connect channels" then "2 Connect your agent". The channels step is
-// done once the user has moved past it, and stays clickable to go back.
+// "1 Connect channels", "2 Connect your agent", "3 Tutorial". Steps already
+// passed are done and stay clickable to go back.
 const OnboardingStepper: FC<{
-  step: 'channels' | 'agent';
-  onGoToChannels: () => void;
-}> = ({ step, onGoToChannels }) => {
+  step: OnboardingStepKey;
+  onGoTo: (step: OnboardingStepKey) => void;
+}> = ({ step, onGoTo }) => {
   const t = useT();
-  const onAgent = step === 'agent';
+  const steps: { key: OnboardingStepKey; label: string }[] = [
+    {
+      key: 'channels',
+      label: t('onboarding_step_channels', 'Connect channels'),
+    },
+    { key: 'agent', label: t('onboarding_step_agent', 'Connect your agent') },
+    { key: 'tutorial', label: t('onboarding_step_tutorial', 'Tutorial') },
+  ];
+  const current = steps.findIndex((s) => s.key === step);
 
   const circle = (state: 'done' | 'current' | 'upcoming', index: number) => (
     <span
@@ -153,38 +167,41 @@ const OnboardingStepper: FC<{
       aria-label={t('onboarding_steps', 'Onboarding steps')}
       className="flex items-center justify-center gap-[10px] sm:gap-[14px]"
     >
-      {onAgent ? (
-        <button
-          type="button"
-          onClick={onGoToChannels}
-          className="flex items-center gap-[8px] rounded-[8px] px-[4px] py-[2px] hover:opacity-80 transition-opacity"
-        >
-          {circle('done', 1)}
-          {label(t('onboarding_step_channels', 'Connect channels'), false)}
-        </button>
-      ) : (
-        <div
-          aria-current="step"
-          className="flex items-center gap-[8px] px-[4px] py-[2px]"
-        >
-          {circle('current', 1)}
-          {label(t('onboarding_step_channels', 'Connect channels'), true)}
-        </div>
-      )}
-      <span
-        aria-hidden="true"
-        className={clsx(
-          'h-[2px] w-[24px] sm:w-[64px] rounded-full',
-          onAgent ? 'bg-btnPrimary' : 'bg-newBorder'
-        )}
-      />
-      <div
-        aria-current={onAgent ? 'step' : undefined}
-        className="flex items-center gap-[8px] px-[4px] py-[2px]"
-      >
-        {circle(onAgent ? 'current' : 'upcoming', 2)}
-        {label(t('onboarding_step_agent', 'Connect your agent'), onAgent)}
-      </div>
+      {steps.map((item, index) => {
+        const state =
+          index < current ? 'done' : index === current ? 'current' : 'upcoming';
+        return (
+          <React.Fragment key={item.key}>
+            {index > 0 && (
+              <span
+                aria-hidden="true"
+                className={clsx(
+                  'h-[2px] w-[24px] sm:w-[64px] rounded-full',
+                  index <= current ? 'bg-btnPrimary' : 'bg-newBorder'
+                )}
+              />
+            )}
+            {state === 'done' ? (
+              <button
+                type="button"
+                onClick={() => onGoTo(item.key)}
+                className="flex items-center gap-[8px] rounded-[8px] px-[4px] py-[2px] hover:opacity-80 transition-opacity"
+              >
+                {circle('done', index + 1)}
+                {label(item.label, false)}
+              </button>
+            ) : (
+              <div
+                aria-current={state === 'current' ? 'step' : undefined}
+                className="flex items-center gap-[8px] px-[4px] py-[2px]"
+              >
+                {circle(state, index + 1)}
+                {label(item.label, state === 'current')}
+              </div>
+            )}
+          </React.Fragment>
+        );
+      })}
     </nav>
   );
 };
@@ -392,10 +409,78 @@ const OnboardingAgentStep: FC<{ onBack: () => void; onDone: () => void }> = ({
             onClick={onDone}
             className="flex items-center bg-btnPrimary hover:brightness-110 text-white font-semibold px-[28px] sm:px-[32px] h-[48px] rounded-[12px] text-[16px] transition-all"
           >
-            {t('onboarding_finish', 'Finish')}
+            {t('onboarding_next_tutorial', 'Next: tutorial')}
           </button>
         </div>
       </div>
     </div>
   );
 };
+
+const BackArrowIcon = () => (
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="rtl:-scale-x-100"
+    aria-hidden="true"
+  >
+    <path d="M19 12H5" />
+    <path d="m12 19-7-7 7-7" />
+  </svg>
+);
+
+// Third step: a short video of the product. How much of it people watch is
+// tracked by the player. Skippable.
+const OnboardingTutorialStep: FC<{ onBack: () => void; onDone: () => void }> =
+  ({ onBack, onDone }) => {
+    const t = useT();
+    useTrackView('onboarding_step', { step: 'tutorial' });
+    return (
+      <div className="flex flex-col gap-[24px] w-full max-w-[860px] mx-auto">
+        <div className="flex gap-[4px] flex-col text-center">
+          <div className="text-[24px] font-semibold">
+            {t('onboarding_tutorial_title', 'Watch the tutorial')}
+          </div>
+          <div className="text-[14px] text-textItemBlur">
+            {t(
+              'onboarding_tutorial_sub',
+              'A quick tour of how to plan, write and schedule your posts.'
+            )}
+          </div>
+        </div>
+        <TutorialVideo placement="onboarding" />
+        <div className="flex flex-wrap items-center justify-between gap-[12px] pt-[16px] border-t border-newBorder">
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex items-center gap-[6px] text-[15px] font-[600] text-textItemBlur hover:text-newTextColor px-[8px] h-[44px]"
+          >
+            <BackArrowIcon />
+            {t('onboarding_back', 'Back')}
+          </button>
+          <div className="flex items-center gap-[8px] sm:gap-[12px] ms-auto">
+            <button
+              type="button"
+              onClick={onDone}
+              className="text-[15px] font-[600] text-textItemBlur hover:text-newTextColor px-[12px] sm:px-[16px] h-[44px]"
+            >
+              {t('onboarding_skip_for_now', 'Skip for now')}
+            </button>
+            <button
+              type="button"
+              onClick={onDone}
+              className="flex items-center bg-btnPrimary hover:brightness-110 text-white font-semibold px-[28px] sm:px-[32px] h-[48px] rounded-[12px] text-[16px] transition-all"
+            >
+              {t('onboarding_finish', 'Finish')}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };

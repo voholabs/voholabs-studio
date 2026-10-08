@@ -27,6 +27,7 @@ import { needsTerms } from '@gitroom/nestjs-libraries/database/prisma/users/term
 import { UserDetailDto } from '@gitroom/nestjs-libraries/dtos/users/user.details.dto';
 import { OnboardingDto } from '@gitroom/nestjs-libraries/dtos/users/onboarding.dto';
 import { TutorialProgressDto } from '@gitroom/nestjs-libraries/dtos/users/tutorial-progress.dto';
+import { isGrowthViewer } from '@gitroom/nestjs-libraries/database/prisma/admin-stats/growth.viewer';
 import { EmailNotificationsDto } from '@gitroom/nestjs-libraries/dtos/users/email-notifications.dto';
 import { HttpForbiddenException } from '@gitroom/nestjs-libraries/services/exception.filter';
 import { RealIP } from 'nestjs-real-ip';
@@ -185,6 +186,8 @@ export class UsersController {
       // @ts-ignore
       isLifetime: !!organization?.subscription?.isLifetime,
       admin: !!user.isSuperAdmin,
+      // Shows the growth dashboard link. The dashboard checks again itself.
+      growthViewer: !impersonate && isGrowthViewer(user.email),
       impersonate: !!impersonate,
       isTrailing: !process.env.STRIPE_PUBLISHABLE_KEY
         ? false

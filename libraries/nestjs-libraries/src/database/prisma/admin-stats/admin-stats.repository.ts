@@ -51,9 +51,21 @@ export interface GrowthCount {
   count: number;
 }
 
+// People who used the app while signed in, per UTC day. Recorded from the
+// day it shipped, so `since` is the first day with data.
+export interface GrowthActiveUsers {
+  since: string | null;
+  today: number;
+  // Distinct people over the last 7 and 30 days, today included.
+  weekly: number;
+  monthly: number;
+  days: { day: string; users: number }[];
+}
+
 export interface GrowthResponse {
   generatedAt: string;
   funnel: GrowthFunnelRow[];
+  activeUsers: GrowthActiveUsers;
   organizations: {
     total: number;
     withChannel: number;
@@ -371,11 +383,55 @@ export class AdminStatsRepository {
     };
   }
 
+  private async growthActiveUsers(
+    now: Date,
+    days = 30
+  ): Promise<GrowthActiveUsers> {
+    const db = this._post.model;
+    const day = (offset: number) =>
+      new Date(now.getTime() - offset * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 10);
+    const today = day(0);
+    const first = day(days - 1);
+    const weekStart = day(6);
+
+    const [series, [totals]] = await Promise.all([
+      db.$queryRaw<Array<{ day: string; users: bigint }>>`
+        SELECT to_char(d, 'YYYY-MM-DD') AS day, COUNT(a."userId") AS users
+        FROM generate_series(${first}::date, ${today}::date, interval '1 day') d
+        LEFT JOIN "UserActivityDay" a ON a.day = d::date
+        GROUP BY d
+        ORDER BY d`,
+      db.$queryRaw<
+        Array<{ since: string | null; weekly: bigint; monthly: bigint }>
+      >`
+        SELECT (SELECT to_char(MIN(day), 'YYYY-MM-DD') FROM "UserActivityDay") AS since,
+          COUNT(DISTINCT "userId") FILTER (WHERE day >= ${weekStart}::date) AS weekly,
+          COUNT(DISTINCT "userId") AS monthly
+        FROM "UserActivityDay"
+        WHERE day >= ${first}::date`,
+    ]);
+
+    const list = series.map((row) => ({
+      day: row.day,
+      users: Number(row.users),
+    }));
+    return {
+      since: totals?.since || null,
+      today: list.find((row) => row.day === today)?.users || 0,
+      weekly: Number(totals?.weekly || 0),
+      monthly: Number(totals?.monthly || 0),
+      days: list,
+    };
+  }
+
   async getGrowth(): Promise<GrowthResponse> {
     const now = new Date();
     const starts = windowStarts(now);
-    const [funnel, organizations, channels] = await Promise.all([
+    const [funnel, activeUsers, organizations, channels] = await Promise.all([
       this.growthFunnel(starts),
+      this.growthActiveUsers(now),
       this.growthOrganizations(starts),
       this.growthChannels(starts),
     ]);
@@ -383,6 +439,7 @@ export class AdminStatsRepository {
     return {
       generatedAt: now.toISOString(),
       funnel,
+      activeUsers,
       organizations,
       channels,
     };

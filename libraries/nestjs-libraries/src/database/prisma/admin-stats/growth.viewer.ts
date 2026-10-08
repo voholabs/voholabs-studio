@@ -1,7 +1,13 @@
-// The growth dashboard (/admin/growth) is for this one account only, not for
-// every superadmin. Shared by the API, which enforces it, and the frontend,
-// which only uses it to decide whether to show the link.
-export const GROWTH_VIEWER_EMAIL = 'hello@voholabs.com';
-
-export const isGrowthViewer = (email?: string | null) =>
-  !!email && email.trim().toLowerCase() === GROWTH_VIEWER_EMAIL;
+// Who may open the growth dashboard (/admin/growth): the comma separated
+// emails in GROWTH_VIEWER_EMAILS. Unset means nobody. Server side only; the
+// frontend is told the answer through /user/self.
+export const isGrowthViewer = (email?: string | null) => {
+  if (!email) {
+    return false;
+  }
+  const allowed = (process.env.GROWTH_VIEWER_EMAILS || '')
+    .split(',')
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
+  return allowed.includes(email.trim().toLowerCase());
+};

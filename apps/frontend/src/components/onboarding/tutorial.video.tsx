@@ -2,6 +2,7 @@
 
 import React, { FC, useEffect, useRef } from 'react';
 import { useFireEvents } from '@gitroom/helpers/utils/use.fire.events';
+import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 
 // The onboarding tutorial on YouTube.
 export const TUTORIAL_VIDEO_ID = 'sjUGcmvIT5I';
@@ -37,9 +38,11 @@ const loadYouTubeApi = (): Promise<any> => {
 // The tutorial player. Reports how much of it was watched:
 // `tutorial_started` on the first play, `tutorial_progress` at each milestone
 // of the furthest point reached, and `tutorial_left` with that furthest
-// percent and the seconds actually played when the viewer moves on.
+// percent and the seconds actually played when the viewer moves on. The first
+// play and each milestone are also saved on the account for /admin/growth.
 export const TutorialVideo: FC<{ placement: string }> = ({ placement }) => {
   const fireEvents = useFireEvents();
+  const fetch = useFetch();
   const holder = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -52,6 +55,13 @@ export const TutorialVideo: FC<{ placement: string }> = ({ placement }) => {
     let lastTick = 0;
     const sent = new Set<number>();
     const props = { video_id: TUTORIAL_VIDEO_ID, placement };
+
+    const save = (percent: number) => {
+      fetch('/user/tutorial', {
+        method: 'POST',
+        body: JSON.stringify({ percent }),
+      }).catch(() => undefined);
+    };
 
     const percentOf = (seconds: number) => {
       const duration = player?.getDuration?.() || 0;
@@ -70,6 +80,7 @@ export const TutorialVideo: FC<{ placement: string }> = ({ placement }) => {
         if (furthest >= milestone && !sent.has(milestone)) {
           sent.add(milestone);
           fireEvents('tutorial_progress', { ...props, percent: milestone });
+          save(milestone);
         }
       }
     };
@@ -101,6 +112,7 @@ export const TutorialVideo: FC<{ placement: string }> = ({ placement }) => {
               if (!started) {
                 started = true;
                 fireEvents('tutorial_started', props);
+                save(0);
               }
               if (!timer) {
                 lastTick = Date.now();

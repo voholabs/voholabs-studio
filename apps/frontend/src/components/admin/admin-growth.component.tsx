@@ -16,6 +16,8 @@ interface FunnelRow {
   onboarded: number;
   channelConnected: number;
   mcpConnected: number;
+  watchedTutorial: number;
+  finishedTutorial: number;
   scheduledPost: number;
   toppedUp: number;
 }
@@ -57,6 +59,8 @@ const STEPS: { key: keyof Omit<FunnelRow, 'window'>; label: string }[] = [
   { key: 'onboarded', label: 'Onboarding done' },
   { key: 'channelConnected', label: 'Channel connected' },
   { key: 'mcpConnected', label: 'MCP connected' },
+  { key: 'watchedTutorial', label: 'Watched tutorial' },
+  { key: 'finishedTutorial', label: 'Watched 90%+ of tutorial' },
   { key: 'scheduledPost', label: 'Scheduled a post' },
   { key: 'toppedUp', label: 'Topped up' },
 ];

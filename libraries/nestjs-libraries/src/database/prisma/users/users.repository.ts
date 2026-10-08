@@ -9,6 +9,7 @@ import { AuthService } from '@gitroom/helpers/auth/auth.service';
 import { UserDetailDto } from '@gitroom/nestjs-libraries/dtos/users/user.details.dto';
 import { OnboardingDto } from '@gitroom/nestjs-libraries/dtos/users/onboarding.dto';
 import { EmailNotificationsDto } from '@gitroom/nestjs-libraries/dtos/users/email-notifications.dto';
+import { TutorialProgressDto } from '@gitroom/nestjs-libraries/dtos/users/tutorial-progress.dto';
 
 @Injectable()
 export class UsersRepository {
@@ -188,6 +189,25 @@ export class UsersRepository {
       select: {
         id: true,
       },
+    });
+  }
+
+  // Stamps the first play, and only ever raises the furthest percent, so a
+  // replay from the start or an out-of-order request never lowers it.
+  async recordTutorialProgress(userId: string, body: TutorialProgressDto) {
+    await this._user.model.user.updateMany({
+      where: { id: userId, tutorialStartedAt: null },
+      data: { tutorialStartedAt: new Date() },
+    });
+    await this._user.model.user.updateMany({
+      where: {
+        id: userId,
+        OR: [
+          { tutorialWatchedPercent: null },
+          { tutorialWatchedPercent: { lt: body.percent } },
+        ],
+      },
+      data: { tutorialWatchedPercent: body.percent },
     });
   }
 

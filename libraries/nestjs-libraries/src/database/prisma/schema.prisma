@@ -1251,3 +1251,16 @@ model AgentConnection {
   @@index([lastSeenAt])
   @@index([client])
 }
+
+// One row per person per UTC day they used the app while signed in, for the
+// daily active users chart on /admin/growth. Written at most once a day per
+// person per process. No relation to User on purpose: nothing cascades, so
+// deleting a person means deleting their rows here first (see the account
+// deletion runbook).
+model UserActivityDay {
+  userId String
+  day    DateTime @db.Date
+
+  @@id([userId, day])
+  @@index([day])
+}

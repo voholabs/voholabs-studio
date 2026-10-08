@@ -1,6 +1,6 @@
 'use client';
 
-import React, { FC } from 'react';
+import React, { FC, useState } from 'react';
 import useSWR from 'swr';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { useUser } from '@gitroom/frontend/components/layout/user.context';
@@ -27,9 +27,18 @@ interface WindowCount {
   count: number;
 }
 
+interface ActiveUsers {
+  since: string | null;
+  today: number;
+  weekly: number;
+  monthly: number;
+  days: { day: string; users: number }[];
+}
+
 interface GrowthResponse {
   generatedAt: string;
   funnel: FunnelRow[];
+  activeUsers: ActiveUsers;
   organizations: {
     total: number;
     withChannel: number;
@@ -138,6 +147,113 @@ const FunnelTable: FC<{ funnel: FunnelRow[] }> = ({ funnel }) => {
   );
 };
 
+const dayLabel = (day: string) =>
+  new Date(`${day}T00:00:00Z`).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  });
+
+// A step for the y-axis that gives three or four gridlines.
+const niceStep = (max: number) => {
+  const raw = Math.max(1, max) / 3;
+  const power = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 5, 10].map((m) => m * power).find((m) => m >= raw);
+  return Math.max(1, Math.ceil(step || raw));
+};
+
+// Daily active users as bars, oldest on the left. One series, so no legend:
+// the heading names it. Hovering a bar shows its day and count.
+const DailyActiveChart: FC<{ days: ActiveUsers['days'] }> = ({ days }) => {
+  const [hover, setHover] = useState<number | null>(null);
+  const peak = Math.max(0, ...days.map((d) => d.users));
+  const step = niceStep(peak);
+  const top = Math.max(step, Math.ceil(peak / step) * step);
+  const ticks: number[] = [];
+  for (let v = 0; v <= top; v += step) {
+    ticks.push(v);
+  }
+  const labelEvery = Math.ceil(days.length / 6);
+  const hovered = hover === null ? null : days[hover];
+
+  return (
+    <div className="border border-newTableBorder rounded-[8px] p-[16px] bg-newBgColorInner">
+      <div className="flex gap-[8px]">
+        <div className="relative w-[32px] h-[200px] text-[11px] opacity-60">
+          {ticks.map((v) => (
+            <div
+              key={v}
+              className="absolute end-0"
+              style={{
+                bottom: `${(v / top) * 100}%`,
+                transform: 'translateY(50%)',
+              }}
+            >
+              {v}
+            </div>
+          ))}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="relative h-[200px]">
+            {ticks.map((v) => (
+              <div
+                key={v}
+                className="absolute inset-x-0 border-t border-newTableBorder"
+                style={{ bottom: `${(v / top) * 100}%` }}
+              />
+            ))}
+            <div
+              className="absolute inset-0 flex items-end gap-[2px]"
+              onMouseLeave={() => setHover(null)}
+            >
+              {days.map((d, i) => (
+                <div
+                  key={d.day}
+                  className="relative flex-1 h-full flex items-end cursor-default"
+                  onMouseEnter={() => setHover(i)}
+                >
+                  <div
+                    className={`w-full rounded-t-[4px] bg-btnPrimary transition-opacity ${
+                      hover === null || hover === i ? '' : 'opacity-50'
+                    }`}
+                    style={{
+                      height: `${(d.users / top) * 100}%`,
+                      minHeight: d.users ? '2px' : 0,
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+            {hovered && (
+              <div
+                className="absolute -top-[8px] z-[1] pointer-events-none bg-newBgColor border border-newTableBorder rounded-[8px] px-[10px] py-[6px] text-[12px] whitespace-nowrap shadow"
+                style={{
+                  left: `${((hover! + 0.5) / days.length) * 100}%`,
+                  transform: 'translate(-50%, -100%)',
+                }}
+              >
+                <div className="opacity-70">{dayLabel(hovered.day)}</div>
+                <div className="font-[600]">
+                  {hovered.users.toLocaleString()} active
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="flex gap-[2px] mt-[6px] text-[11px] opacity-60">
+            {days.map((d, i) => (
+              <div key={d.day} className="flex-1 text-center whitespace-nowrap overflow-visible">
+                {i % labelEvery === 0 || i === days.length - 1
+                  ? dayLabel(d.day)
+                  : ''}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const NewPerWindow: FC<{ title: string; rows: WindowCount[] }> = ({
   title,
   rows,
@@ -227,6 +343,30 @@ export const AdminGrowthComponent: FC = () => {
             </div>
           </div>
           <FunnelTable funnel={data.funnel} />
+
+          <div className="flex flex-col gap-[6px] mt-[8px]">
+            <div className="text-[16px] font-[600]">Daily active users</div>
+            <div className="text-[13px] opacity-70">
+              People who used the app while signed in, per day (UTC).
+              {data.activeUsers.since
+                ? ` Recorded since ${dayLabel(data.activeUsers.since)}.`
+                : ' Recording starts now, so the chart fills in from today.'}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-[12px]">
+            <SummaryCard label="Today" value={data.activeUsers.today} />
+            <SummaryCard
+              label="Last 7 days"
+              value={data.activeUsers.weekly}
+              hint="Distinct people"
+            />
+            <SummaryCard
+              label="Last 30 days"
+              value={data.activeUsers.monthly}
+              hint="Distinct people"
+            />
+          </div>
+          <DailyActiveChart days={data.activeUsers.days} />
 
           <div className="text-[16px] font-[600] mt-[8px]">Organizations</div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-[12px]">

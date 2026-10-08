@@ -156,6 +156,10 @@ export class AuthMiddleware implements NestMiddleware {
       // carried on the user so /user/self reports the very same answer.
       // @ts-ignore
       user.needsOnboarding = needsOnboarding(user, organization);
+
+      // For the daily active users on /admin/growth. An admin impersonating
+      // somebody returned further up, so it never counts as them.
+      this._userService.markActive(user.id);
     } catch (err) {
       throw new HttpForbiddenException();
     }

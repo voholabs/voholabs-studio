@@ -7,6 +7,10 @@ import { OnboardingDto } from '@gitroom/nestjs-libraries/dtos/users/onboarding.d
 import { EmailNotificationsDto } from '@gitroom/nestjs-libraries/dtos/users/email-notifications.dto';
 import { OrganizationRepository } from '@gitroom/nestjs-libraries/database/prisma/organizations/organization.repository';
 
+// The UTC day each person was last recorded active by this process, so the
+// table is written once a day per person rather than on every request.
+const activeToday = new Map<string, string>();
+
 @Injectable()
 export class UsersService {
   constructor(
@@ -53,6 +57,21 @@ export class UsersService {
 
   completeOnboarding(userId: string, body: OnboardingDto) {
     return this._usersRepository.completeOnboarding(userId, body);
+  }
+
+  // Counts the person as active today. Never throws and never waits: it runs
+  // on every signed-in request.
+  markActive(userId: string) {
+    const day = new Date().toISOString().slice(0, 10);
+    if (activeToday.get(userId) === day) {
+      return;
+    }
+    activeToday.set(userId, day);
+    this._usersRepository
+      .markActive(userId, new Date(`${day}T00:00:00.000Z`))
+      .catch(() => {
+        activeToday.delete(userId);
+      });
   }
 
   recordTutorialProgress(userId: string, body: TutorialProgressDto) {

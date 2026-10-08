@@ -13,7 +13,19 @@ import { TutorialProgressDto } from '@gitroom/nestjs-libraries/dtos/users/tutori
 
 @Injectable()
 export class UsersRepository {
-  constructor(private _user: PrismaRepository<'user'>) {}
+  constructor(
+    private _user: PrismaRepository<'user'>,
+    private _activity: PrismaRepository<'userActivityDay'>
+  ) {}
+
+  // `day` is a UTC date. A second write for the same person and day is a
+  // no-op.
+  async markActive(userId: string, day: Date) {
+    await this._activity.model.userActivityDay.createMany({
+      data: [{ userId, day }],
+      skipDuplicates: true,
+    });
+  }
 
   getImpersonateUser(name: string) {
     return this._user.model.user.findMany({

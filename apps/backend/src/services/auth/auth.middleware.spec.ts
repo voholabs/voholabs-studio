@@ -35,7 +35,7 @@ const baseUser = () => ({
 });
 
 const setup = (user = baseUser()) => {
-  const users = { getUserById: jest.fn(async () => user) };
+  const users = { getUserById: jest.fn(async () => user), markActive: jest.fn() };
   const orgs = {
     getOrgsByUserId: jest.fn(async () => [
       { id: 'org-1', apiKey: 'k', users: [{ disabled: false, role: 'ADMIN' }] },

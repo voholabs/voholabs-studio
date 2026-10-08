@@ -39,6 +39,9 @@ export interface GrowthFunnelRow {
   onboarded: number;
   channelConnected: number;
   mcpConnected: number;
+  // Pressed play on the onboarding tutorial, and reached 90% of it.
+  watchedTutorial: number;
+  finishedTutorial: number;
   scheduledPost: number;
   toppedUp: number;
 }
@@ -224,6 +227,8 @@ export class AdminStatsRepository {
         onboarded: bigint;
         channelConnected: bigint;
         mcpConnected: bigint;
+        watchedTutorial: bigint;
+        finishedTutorial: bigint;
         scheduledPost: bigint;
         toppedUp: bigint;
       }>
@@ -236,6 +241,8 @@ export class AdminStatsRepository {
         SELECT u."createdAt",
           u.activated,
           u."onboardedAt" IS NOT NULL AS onboarded,
+          u."tutorialStartedAt" IS NOT NULL AS tutorial,
+          COALESCE(u."tutorialWatchedPercent", 0) >= 90 AS "tutorialFinished",
           EXISTS (SELECT 1 FROM owned o JOIN "Integration" i ON i."organizationId" = o."organizationId"
             WHERE o."userId" = u.id) AS channel,
           EXISTS (SELECT 1 FROM owned o JOIN "Organization" org ON org.id = o."organizationId"
@@ -257,6 +264,8 @@ export class AdminStatsRepository {
         COUNT(*) FILTER (WHERE s.onboarded) AS onboarded,
         COUNT(*) FILTER (WHERE s.channel) AS "channelConnected",
         COUNT(*) FILTER (WHERE s.mcp) AS "mcpConnected",
+        COUNT(*) FILTER (WHERE s.tutorial) AS "watchedTutorial",
+        COUNT(*) FILTER (WHERE s."tutorialFinished") AS "finishedTutorial",
         COUNT(*) FILTER (WHERE s.scheduled) AS "scheduledPost",
         COUNT(*) FILTER (WHERE s.topup) AS "toppedUp"
       FROM windows w
@@ -272,6 +281,8 @@ export class AdminStatsRepository {
         onboarded: Number(r?.onboarded || 0),
         channelConnected: Number(r?.channelConnected || 0),
         mcpConnected: Number(r?.mcpConnected || 0),
+        watchedTutorial: Number(r?.watchedTutorial || 0),
+        finishedTutorial: Number(r?.finishedTutorial || 0),
         scheduledPost: Number(r?.scheduledPost || 0),
         toppedUp: Number(r?.toppedUp || 0),
       };

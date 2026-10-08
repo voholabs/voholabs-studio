@@ -1,3 +1,4 @@
+import { TutorialProgressDto } from '@gitroom/nestjs-libraries/dtos/users/tutorial-progress.dto';
 import { Injectable } from '@nestjs/common';
 import { UsersRepository } from '@gitroom/nestjs-libraries/database/prisma/users/users.repository';
 import { Provider } from '@prisma/client';
@@ -52,6 +53,10 @@ export class UsersService {
 
   completeOnboarding(userId: string, body: OnboardingDto) {
     return this._usersRepository.completeOnboarding(userId, body);
+  }
+
+  recordTutorialProgress(userId: string, body: TutorialProgressDto) {
+    return this._usersRepository.recordTutorialProgress(userId, body);
   }
 
   acceptTerms(userId: string, ip?: string, userAgent?: string) {

@@ -163,6 +163,11 @@ model User {
   // Sign-in sessions issued before this moment are refused. Set when the
   // password changes, so every other device has to sign in again.
   sessionsRevokedAt     DateTime?
+  // The onboarding tutorial video: when this person first pressed play, and
+  // the furthest point they reached in percent (0-100). Additive and
+  // nullable: never renamed, never required.
+  tutorialStartedAt     DateTime?
+  tutorialWatchedPercent Int?
   comments              Comments[]
   items                 ItemUser[]
   groupBuyer            MessagesGroup[]      @relation("groupBuyer")

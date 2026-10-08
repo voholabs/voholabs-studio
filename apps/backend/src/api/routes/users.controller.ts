@@ -26,6 +26,7 @@ import { UsersService } from '@gitroom/nestjs-libraries/database/prisma/users/us
 import { needsTerms } from '@gitroom/nestjs-libraries/database/prisma/users/terms';
 import { UserDetailDto } from '@gitroom/nestjs-libraries/dtos/users/user.details.dto';
 import { OnboardingDto } from '@gitroom/nestjs-libraries/dtos/users/onboarding.dto';
+import { TutorialProgressDto } from '@gitroom/nestjs-libraries/dtos/users/tutorial-progress.dto';
 import { EmailNotificationsDto } from '@gitroom/nestjs-libraries/dtos/users/email-notifications.dto';
 import { HttpForbiddenException } from '@gitroom/nestjs-libraries/services/exception.filter';
 import { RealIP } from 'nestjs-real-ip';
@@ -262,6 +263,21 @@ export class UsersController {
     @Body() body: OnboardingDto
   ) {
     await this._userService.completeOnboarding(user.id, body);
+    return { success: true };
+  }
+
+  // How far the person got in the onboarding tutorial video. Ignored while
+  // impersonating, so support watching it does not count as the user.
+  @Post('/tutorial')
+  async tutorialProgress(
+    @GetUserFromRequest() user: User,
+    @Req() req: Request,
+    @Body() body: TutorialProgressDto
+  ) {
+    if (req.cookies.impersonate || req.headers.impersonate) {
+      return { success: true };
+    }
+    await this._userService.recordTutorialProgress(user.id, body);
     return { success: true };
   }
 

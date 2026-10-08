@@ -5,7 +5,6 @@ import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { useUser } from '@gitroom/frontend/components/layout/user.context';
 import { Select } from '@gitroom/react/form/select';
 import { pricing } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/pricing';
-import { isGrowthViewer } from '@gitroom/nestjs-libraries/database/prisma/admin-stats/growth.viewer';
 import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
 import { useVariables } from '@gitroom/react/helpers/variable.context';
 import { setCookie } from '@gitroom/frontend/components/layout/layout.context';
@@ -575,7 +574,7 @@ export const Impersonate = () => {
                 <AddAnnouncement />
                 <ViewErrors />
                 <ViewStats />
-                {isGrowthViewer(user?.email) && <ViewGrowth />}
+                {user?.growthViewer && <ViewGrowth />}
               </div>
             )}
           </div>

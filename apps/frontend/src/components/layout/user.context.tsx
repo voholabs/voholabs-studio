@@ -17,6 +17,8 @@ export const UserContext = createContext<
       totalChannels: number;
       isLifetime?: boolean;
       impersonate: boolean;
+      // May open /admin/growth; decided on the server.
+      growthViewer?: boolean;
       allowTrial: boolean;
       isTrailing: boolean;
       // End of the free trial, `null` when whitelisted forever

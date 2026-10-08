@@ -5,7 +5,6 @@ import useSWR from 'swr';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { useUser } from '@gitroom/frontend/components/layout/user.context';
 import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
-import { isGrowthViewer } from '@gitroom/nestjs-libraries/database/prisma/admin-stats/growth.viewer';
 
 type GrowthWindow = '24h' | '7d' | '30d' | 'all';
 
@@ -305,7 +304,7 @@ const PerSocialTable: FC<{
 
 export const AdminGrowthComponent: FC = () => {
   const user = useUser();
-  const allowed = isGrowthViewer(user?.email) && !user?.impersonate;
+  const allowed = !!user?.growthViewer;
   const { data, isLoading, error } = useGrowth(allowed);
 
   if (!allowed) {

@@ -33,6 +33,7 @@ import {
 } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.billing.service';
 import { AgentConnectionService } from '@gitroom/nestjs-libraries/database/prisma/agent-connections/agent-connection.service';
 import { walletAlert } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.alert';
+import { isGrowthViewer } from '@gitroom/nestjs-libraries/database/prisma/admin-stats/growth.viewer';
 
 // The signed-in superadmin behind a request. While impersonating, the request
 // carries the impersonated user, so this reads the id from the auth token.
@@ -164,6 +165,18 @@ export class AdminController {
   ) {
     this.assertSuperAdmin(user);
     return this._postsService.repairSanityReleaseUrls(!body?.apply);
+  }
+
+  // Sign-up funnel and totals for the growth dashboard. Only the growth viewer
+  // account may read it, checked against the signed-in account rather than the
+  // request user, so impersonating that account does not open it.
+  @Get('/growth')
+  async getGrowth(@GetUserFromRequest() user: User, @Req() req: Request) {
+    const actor = await this._userService.getUserById(actorIdOf(req, user));
+    if (!actor?.activated || !isGrowthViewer(actor.email)) {
+      throw new HttpException('Unauthorized', 403);
+    }
+    return this._adminStatsService.getGrowth();
   }
 
   @Get('/stats')

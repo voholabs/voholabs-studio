@@ -5,6 +5,7 @@ import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { useUser } from '@gitroom/frontend/components/layout/user.context';
 import { Select } from '@gitroom/react/form/select';
 import { pricing } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/pricing';
+import { isGrowthViewer } from '@gitroom/nestjs-libraries/database/prisma/admin-stats/growth.viewer';
 import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
 import { useVariables } from '@gitroom/react/helpers/variable.context';
 import { setCookie } from '@gitroom/frontend/components/layout/layout.context';
@@ -441,6 +442,20 @@ const ViewStats = () => {
   );
 };
 
+const ViewGrowth = () => {
+  const handleClick = useCallback(() => {
+    window.location.href = '/admin/growth';
+  }, []);
+  return (
+    <div
+      className="px-[10px] rounded-[4px] bg-teal-700 text-white cursor-pointer whitespace-nowrap"
+      onClick={handleClick}
+    >
+      Growth
+    </div>
+  );
+};
+
 const ImportDebugPost = () => {
   const { openModal } = useModals();
   const t = useT();
@@ -560,6 +575,7 @@ export const Impersonate = () => {
                 <AddAnnouncement />
                 <ViewErrors />
                 <ViewStats />
+                {isGrowthViewer(user?.email) && <ViewGrowth />}
               </div>
             )}
           </div>

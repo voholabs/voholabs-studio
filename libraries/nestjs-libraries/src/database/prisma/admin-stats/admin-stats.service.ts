@@ -11,4 +11,8 @@ export class AdminStatsService {
   getStats(params: StatsParams) {
     return this._adminStatsRepository.getStats(params);
   }
+
+  getGrowth() {
+    return this._adminStatsRepository.getGrowth();
+  }
 }

@@ -173,7 +173,14 @@ export const CalendarWeekProvider: FC<{
   const [internalData, setInternalData] = useState([] as any[]);
   const [trendings] = useState<string[]>([]);
   const searchParams = useSearchParams();
-  const [displaySaved, setDisplaySaved] = useCookie('calendar-display', 'week');
+  // A phone opens on the list: seven day columns do not fit its width.
+  const [displaySaved, setDisplaySaved] = useCookie(
+    'calendar-display',
+    typeof window !== 'undefined' &&
+      window.matchMedia('(max-width: 767px)').matches
+      ? 'list'
+      : 'week'
+  );
   const display = searchParams.get('display') || displaySaved;
 
   // List view state

@@ -157,7 +157,9 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
             <ContinueProvider />
             <div
               className={clsx(
-                'flex flex-col min-h-screen min-w-screen text-newTextColor p-[12px]',
+                // On a phone the menu is a bar along the bottom; the padding
+                // keeps the page clear of it.
+                'flex flex-col min-h-screen min-w-screen text-newTextColor p-[12px] max-md:pb-[80px]',
                 interTight.className
               )}
             >
@@ -170,9 +172,9 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
                   {apexBanner.show && (
                     <ApexBanner onClose={apexBanner.dismiss} />
                   )}
-                  <div className="flex-1 flex gap-[8px]">
+                  <div className="flex-1 flex gap-[8px] max-md:gap-0">
                     <Support />
-                    <div className="flex flex-col bg-newBgColorInner w-[80px] rounded-[12px]">
+                    <div className="flex flex-col bg-newBgColorInner w-[80px] rounded-[12px] max-md:w-0">
                       <div
                         id="left-menu"
                         className={clsx(
@@ -182,38 +184,47 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
                           apexBanner.show
                             ? 'top-[44px] h-[calc(100%-44px)]'
                             : 'top-0 h-full',
-                          user?.admin && 'pt-[60px] max-h-[1000px]:w-[500px]'
+                          user?.admin && 'pt-[60px] max-h-[1000px]:w-[500px]',
+                          'max-md:!top-auto max-md:bottom-0 max-md:start-0 max-md:!h-[68px] max-md:w-full max-md:!pt-0 max-md:z-[100] max-md:bg-newBgColorInner max-md:border-t max-md:border-newBorder'
                         )}
                       >
-                        <div className="flex flex-col h-full gap-[32px] flex-1 py-[12px]">
+                        <div className="flex flex-col h-full gap-[32px] flex-1 py-[12px] max-md:flex-row max-md:gap-0 max-md:py-[4px] max-md:px-[4px] max-md:overflow-x-auto">
                           <Logo />
                           <TopMenu />
                         </div>
                       </div>
                     </div>
                     <div className="flex-1 bg-newBgLineColor rounded-[12px] overflow-hidden flex flex-col gap-[1px] blurMe">
-                      <div className="relative flex bg-newBgColorInner h-[80px] px-[20px] items-center">
-                        <div className="text-[24px] font-[600] flex flex-1">
+                      <div className="relative flex bg-newBgColorInner h-[80px] px-[20px] items-center max-md:h-[60px] max-md:px-[12px] max-md:gap-[8px]">
+                        <div className="text-[24px] font-[600] flex flex-1 min-w-0 max-md:text-[18px]">
                           <Title />
                         </div>
-                        <div className="flex gap-[20px] text-textItemBlur items-center">
+                        <div className="flex gap-[20px] text-textItemBlur items-center max-md:gap-[12px]">
                           <TrialBanner />
-                          <StreakComponent />
-                          <div className="w-[1px] h-[20px] bg-blockSeparator" />
+                          {/* Desktop extras; a phone keeps the workspace,
+                              wallet and notifications. */}
+                          <div className="contents max-md:hidden">
+                            <StreakComponent />
+                            <div className="w-[1px] h-[20px] bg-blockSeparator" />
+                          </div>
                           <OrganizationSelector />
-                          <div className="hover:text-newTextColor">
+                          <div className="hover:text-newTextColor max-md:hidden">
                             <ModeComponent />
                           </div>
-                          <div className="w-[1px] h-[20px] bg-blockSeparator" />
-                          <LanguageComponent />
-                          <ChromeExtensionComponent />
-                          <div className="w-[1px] h-[20px] bg-blockSeparator" />
-                          <AttachToFeedbackIcon />
+                          <div className="contents max-md:hidden">
+                            <div className="w-[1px] h-[20px] bg-blockSeparator" />
+                            <LanguageComponent />
+                            <ChromeExtensionComponent />
+                            <div className="w-[1px] h-[20px] bg-blockSeparator" />
+                            <AttachToFeedbackIcon />
+                          </div>
                           {user.tier === 'FREE' && <WalletHeader />}
                           <NotificationComponent />
                         </div>
                       </div>
-                      <div className="flex flex-1 gap-[1px]">{children}</div>
+                      <div className="flex flex-1 gap-[1px] max-md:flex-col">
+                        {children}
+                      </div>
                     </div>
                   </div>
                 </>

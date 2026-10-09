@@ -702,11 +702,13 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
   );
 
   return (
-    <div className="w-full h-full flex-1 p-[40px] flex relative">
-      <div className="flex flex-1 bg-newBgColorInner rounded-[20px] flex-col">
-        <div className="flex-1 flex">
-          <div className="flex flex-col flex-1 border-e border-newBorder">
-            <div className="bg-newBgColor h-[65px] rounded-s-[20px] !rounded-b-[0] flex items-center gap-[12px] px-[20px] text-[20px] font-[600]">
+    <div className="w-full h-full flex-1 p-[40px] flex relative max-md:p-0 max-md:h-auto">
+      <div className="flex flex-1 bg-newBgColorInner rounded-[20px] flex-col max-md:rounded-none">
+        {/* On a phone the columns stack and the page scrolls as one: the
+            preview first, so a post can be read before it is edited. */}
+        <div className="flex-1 flex max-md:flex-col">
+          <div className="flex flex-col flex-1 border-e border-newBorder max-md:border-e-0 max-md:border-t">
+            <div className="bg-newBgColor h-[65px] rounded-s-[20px] !rounded-b-[0] flex items-center gap-[12px] px-[20px] text-[20px] font-[600] max-md:rounded-none max-md:h-[52px] max-md:px-[12px] max-md:text-[16px]">
               {t('create_post_title', 'Create Post')}
               <CreationMethodBadge
                 creationMethod={existingData?.posts?.[0]?.creationMethod}
@@ -719,7 +721,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
               >
                 <div
                   id="social-content"
-                  className="gap-[32px] flex flex-col pe-[8px] pt-[20px] ps-[20px] absolute top-0 left-0 w-full h-full overflow-x-hidden overflow-y-scroll scrollbar scrollbar-thumb-newColColor scrollbar-track-newBgColorInner"
+                  className="gap-[32px] flex flex-col pe-[8px] pt-[20px] ps-[20px] absolute top-0 left-0 w-full h-full overflow-x-hidden overflow-y-scroll scrollbar scrollbar-thumb-newColColor scrollbar-track-newBgColorInner max-md:static max-md:h-auto max-md:overflow-y-visible max-md:gap-[20px] max-md:px-[12px] max-md:pt-[12px]"
                 >
                   <div className="flex w-full">
                     <div
@@ -762,7 +764,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
               <div
                 id="wrapper-settings"
                 className={clsx(
-                  'pb-[20px] px-[20px] select-none',
+                  'pb-[20px] px-[20px] select-none max-md:px-[12px]',
                   showSettings && 'flex-1 flex pt-[20px]',
                   current === 'global' && 'hidden'
                 )}
@@ -791,7 +793,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
                       'text-[14px] text-textColor font-[500] relative'
                     )}
                   >
-                    <div className="absolute left-0 top-0 w-full h-full flex flex-col overflow-x-hidden overflow-y-auto scrollbar scrollbar-thumb-newBgColorInner scrollbar-track-newColColor">
+                    <div className="absolute left-0 top-0 w-full h-full flex flex-col overflow-x-hidden overflow-y-auto scrollbar scrollbar-thumb-newBgColorInner scrollbar-track-newColColor max-md:static max-md:h-auto">
                       <div
                         id="social-settings"
                         className="flex flex-col gap-[20px] bg-newBgColor"
@@ -805,8 +807,8 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
               </div>
             </div>
           </div>
-          <div className="w-[580px] flex flex-col">
-            <div className="bg-newBgColor h-[65px] rounded-e-[20px] !rounded-b-[0] flex items-center px-[20px] text-[20px] font-[600] gap-[8px]">
+          <div className="w-[580px] flex flex-col max-md:w-full max-md:order-first">
+            <div className="bg-newBgColor h-[65px] rounded-e-[20px] !rounded-b-[0] flex items-center px-[20px] text-[20px] font-[600] gap-[8px] max-md:rounded-none max-md:h-[52px] max-md:px-[12px] max-md:text-[16px] max-md:sticky max-md:top-0 max-md:z-[10]">
               <div className="flex-1">{t('post_preview', 'Post Preview')}</div>
               {!!existingData?.posts?.[0]?.id && (
                 <div
@@ -830,7 +832,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
             <div className="flex-1 relative">
               <Scrollable
                 scrollClasses="!pe-[20px]"
-                className="absolute top-0 p-[20px] pe-[8px] left-0 w-full h-full overflow-x-hidden overflow-y-scroll scrollbar scrollbar-thumb-newColColor scrollbar-track-newBgColorInner"
+                className="absolute top-0 p-[20px] pe-[8px] left-0 w-full h-full overflow-x-hidden overflow-y-scroll scrollbar scrollbar-thumb-newColColor scrollbar-track-newBgColorInner max-md:static max-md:h-auto max-md:overflow-y-visible max-md:p-[12px]"
               >
                 <ShowAllProviders ref={ref} />
               </Scrollable>
@@ -838,14 +840,14 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
           </div>
         </div>
         {paidPlan ? (
-          <div className="select-none h-[84px] py-[20px] border-t border-newBorder flex items-center">
-            <div className="flex-1 flex ps-[20px] gap-[8px]">{footerStart}</div>
-            <div className="pe-[20px] flex items-center justify-end gap-[8px]">
+          <div className="select-none h-[84px] py-[20px] border-t border-newBorder flex items-center max-md:h-auto max-md:py-[12px] max-md:flex-col max-md:items-stretch max-md:gap-[12px] max-md:sticky max-md:bottom-0 max-md:z-[10] max-md:bg-newBgColorInner">
+            <div className="flex-1 flex ps-[20px] gap-[8px] max-md:px-[12px] max-md:flex-wrap">{footerStart}</div>
+            <div className="pe-[20px] flex items-center justify-end gap-[8px] max-md:px-[12px] max-md:flex-wrap">
               {footerEnd}
             </div>
           </div>
         ) : (
-          <div className="select-none border-t border-newBorder flex flex-col">
+          <div className="select-none border-t border-newBorder flex flex-col max-md:sticky max-md:bottom-0 max-md:z-[10] max-md:bg-newBgColorInner">
             {!dummy && !addEditSets && (
               <WalletCostLine
                 cost={walletCost}
@@ -853,11 +855,11 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
                 className="px-[20px] pt-[14px] -mb-[6px]"
               />
             )}
-            <div className="min-h-[84px] py-[20px] flex flex-wrap items-center gap-y-[12px] whitespace-nowrap">
-              <div className="flex-1 flex items-center ps-[20px] gap-[8px]">
+            <div className="min-h-[84px] py-[20px] flex flex-wrap items-center gap-y-[12px] whitespace-nowrap max-md:py-[12px] max-md:min-h-0">
+              <div className="flex-1 flex items-center ps-[20px] gap-[8px] max-md:ps-[12px] max-md:flex-wrap">
                 {footerStart}
               </div>
-              <div className="ps-[20px] pe-[20px] ms-auto flex items-center justify-end gap-[8px]">
+              <div className="ps-[20px] pe-[20px] ms-auto flex items-center justify-end gap-[8px] max-md:px-[12px] max-md:flex-wrap">
                 {footerEnd}
               </div>
             </div>

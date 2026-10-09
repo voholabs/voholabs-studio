@@ -159,7 +159,7 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
               className={clsx(
                 // On a phone the menu is a bar along the bottom; the padding
                 // keeps the page clear of it.
-                'flex flex-col min-h-screen min-w-screen text-newTextColor p-[12px] phone:pb-[80px]',
+                'flex flex-col min-h-screen min-w-screen text-newTextColor p-[12px] compact:pb-[80px]',
                 interTight.className
               )}
             >
@@ -172,9 +172,9 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
                   {apexBanner.show && (
                     <ApexBanner onClose={apexBanner.dismiss} />
                   )}
-                  <div className="flex-1 flex gap-[8px] phone:gap-0">
+                  <div className="flex-1 flex gap-[8px] compact:gap-0">
                     <Support />
-                    <div className="flex flex-col bg-newBgColorInner w-[80px] rounded-[12px] phone:w-0">
+                    <div className="flex flex-col bg-newBgColorInner w-[80px] rounded-[12px] compact:w-0">
                       <div
                         id="left-menu"
                         className={clsx(
@@ -185,33 +185,33 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
                             ? 'top-[44px] h-[calc(100%-44px)]'
                             : 'top-0 h-full',
                           user?.admin && 'pt-[60px] max-h-[1000px]:w-[500px]',
-                          'phone:!top-auto phone:bottom-0 phone:start-0 phone:!h-[68px] phone:w-full phone:!pt-0 phone:z-[100] phone:bg-newBgColorInner phone:border-t phone:border-newBorder'
+                          'compact:!top-auto compact:bottom-0 compact:start-0 compact:!h-[68px] compact:w-full compact:!pt-0 compact:z-[100] compact:bg-newBgColorInner compact:border-t compact:border-newBorder'
                         )}
                       >
-                        <div className="flex flex-col h-full gap-[32px] flex-1 py-[12px] phone:flex-row phone:gap-0 phone:py-[4px] phone:px-[4px] phone:overflow-x-auto">
+                        <div className="flex flex-col h-full gap-[32px] flex-1 py-[12px] compact:flex-row compact:gap-0 compact:py-[4px] compact:px-[4px] compact:overflow-x-auto">
                           <Logo />
                           <TopMenu />
                         </div>
                       </div>
                     </div>
                     <div className="flex-1 bg-newBgLineColor rounded-[12px] overflow-hidden flex flex-col gap-[1px] blurMe">
-                      <div className="relative flex bg-newBgColorInner h-[80px] px-[20px] items-center phone:h-[60px] phone:px-[12px] phone:gap-[8px]">
-                        <div className="text-[24px] font-[600] flex flex-1 min-w-0 phone:text-[18px]">
+                      <div className="relative flex bg-newBgColorInner h-[80px] px-[20px] items-center compact:h-[60px] compact:px-[12px] compact:gap-[8px]">
+                        <div className="text-[24px] font-[600] flex flex-1 min-w-0 compact:text-[18px]">
                           <Title />
                         </div>
-                        <div className="flex gap-[20px] text-textItemBlur items-center phone:gap-[12px]">
+                        <div className="flex gap-[20px] text-textItemBlur items-center compact:gap-[12px]">
                           <TrialBanner />
                           {/* Desktop extras; a phone keeps the workspace,
                               wallet and notifications. */}
-                          <div className="contents phone:hidden">
+                          <div className="contents compact:hidden">
                             <StreakComponent />
                             <div className="w-[1px] h-[20px] bg-blockSeparator" />
                           </div>
                           <OrganizationSelector />
-                          <div className="hover:text-newTextColor phone:hidden">
+                          <div className="hover:text-newTextColor compact:hidden">
                             <ModeComponent />
                           </div>
-                          <div className="contents phone:hidden">
+                          <div className="contents compact:hidden">
                             <div className="w-[1px] h-[20px] bg-blockSeparator" />
                             <LanguageComponent />
                             <ChromeExtensionComponent />
@@ -222,7 +222,7 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
                           <NotificationComponent />
                         </div>
                       </div>
-                      <div className="flex flex-1 gap-[1px] phone:flex-col">
+                      <div className="flex flex-1 gap-[1px] compact:flex-col">
                         {children}
                       </div>
                     </div>

@@ -283,9 +283,11 @@ module.exports = {
         xs: {
           max: '401px',
         },
-        // Phones. Under md, so tablets keep the desktop layout.
-        phone: {
-          raw: '(max-width: 767px)',
+        // The compact layout: phones in either orientation and portrait
+        // tablets. Keep in step with COMPACT_QUERY in
+        // components/layout/compact.query.ts.
+        compact: {
+          raw: '(max-width: 1023px), (max-height: 500px)',
         },
       },
     },

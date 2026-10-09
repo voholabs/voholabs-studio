@@ -702,13 +702,13 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
   );
 
   return (
-    <div className="w-full h-full flex-1 p-[40px] flex relative phone:p-0 phone:h-auto phone:w-screen">
-      <div className="flex flex-1 bg-newBgColorInner rounded-[20px] flex-col phone:rounded-none phone:min-w-0">
+    <div className="w-full h-full flex-1 p-[40px] flex relative compact:p-0 compact:h-auto compact:w-screen">
+      <div className="flex flex-1 bg-newBgColorInner rounded-[20px] flex-col compact:rounded-none compact:min-w-0">
         {/* On a phone the columns stack and the page scrolls as one: the
             preview first, so a post can be read before it is edited. */}
-        <div className="flex-1 flex phone:flex-col">
-          <div className="flex flex-col flex-1 border-e border-newBorder phone:border-e-0 phone:border-t phone:min-w-0">
-            <div className="bg-newBgColor h-[65px] rounded-s-[20px] !rounded-b-[0] flex items-center gap-[12px] px-[20px] text-[20px] font-[600] phone:rounded-none phone:h-[52px] phone:px-[12px] phone:text-[16px]">
+        <div className="flex-1 flex compact:flex-col">
+          <div className="flex flex-col flex-1 border-e border-newBorder compact:border-e-0 compact:border-t compact:min-w-0">
+            <div className="bg-newBgColor h-[65px] rounded-s-[20px] !rounded-b-[0] flex items-center gap-[12px] px-[20px] text-[20px] font-[600] compact:rounded-none compact:h-[52px] compact:px-[12px] compact:text-[16px]">
               {t('create_post_title', 'Create Post')}
               <CreationMethodBadge
                 creationMethod={existingData?.posts?.[0]?.creationMethod}
@@ -721,7 +721,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
               >
                 <div
                   id="social-content"
-                  className="gap-[32px] flex flex-col pe-[8px] pt-[20px] ps-[20px] absolute top-0 left-0 w-full h-full overflow-x-hidden overflow-y-scroll scrollbar scrollbar-thumb-newColColor scrollbar-track-newBgColorInner phone:static phone:h-auto phone:overflow-y-visible phone:gap-[20px] phone:px-[12px] phone:pt-[12px]"
+                  className="gap-[32px] flex flex-col pe-[8px] pt-[20px] ps-[20px] absolute top-0 left-0 w-full h-full overflow-x-hidden overflow-y-scroll scrollbar scrollbar-thumb-newColColor scrollbar-track-newBgColorInner compact:static compact:h-auto compact:overflow-y-visible compact:gap-[20px] compact:px-[12px] compact:pt-[12px]"
                 >
                   <div className="flex w-full">
                     <div
@@ -764,7 +764,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
               <div
                 id="wrapper-settings"
                 className={clsx(
-                  'pb-[20px] px-[20px] select-none phone:px-[12px]',
+                  'pb-[20px] px-[20px] select-none compact:px-[12px]',
                   showSettings && 'flex-1 flex pt-[20px]',
                   current === 'global' && 'hidden'
                 )}
@@ -793,7 +793,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
                       'text-[14px] text-textColor font-[500] relative'
                     )}
                   >
-                    <div className="absolute left-0 top-0 w-full h-full flex flex-col overflow-x-hidden overflow-y-auto scrollbar scrollbar-thumb-newBgColorInner scrollbar-track-newColColor phone:static phone:h-auto">
+                    <div className="absolute left-0 top-0 w-full h-full flex flex-col overflow-x-hidden overflow-y-auto scrollbar scrollbar-thumb-newBgColorInner scrollbar-track-newColColor compact:static compact:h-auto">
                       <div
                         id="social-settings"
                         className="flex flex-col gap-[20px] bg-newBgColor"
@@ -807,8 +807,8 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
               </div>
             </div>
           </div>
-          <div className="w-[580px] flex flex-col phone:w-full phone:order-first">
-            <div className="bg-newBgColor h-[65px] rounded-e-[20px] !rounded-b-[0] flex items-center px-[20px] text-[20px] font-[600] gap-[8px] phone:rounded-none phone:h-[52px] phone:px-[12px] phone:text-[16px] phone:sticky phone:top-0 phone:z-[10]">
+          <div className="w-[580px] flex flex-col compact:w-full compact:order-first">
+            <div className="bg-newBgColor h-[65px] rounded-e-[20px] !rounded-b-[0] flex items-center px-[20px] text-[20px] font-[600] gap-[8px] compact:rounded-none compact:h-[52px] compact:px-[12px] compact:text-[16px] compact:sticky compact:top-0 compact:z-[10]">
               <div className="flex-1">{t('post_preview', 'Post Preview')}</div>
               {!!existingData?.posts?.[0]?.id && (
                 <div
@@ -832,7 +832,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
             <div className="flex-1 relative">
               <Scrollable
                 scrollClasses="!pe-[20px]"
-                className="absolute top-0 p-[20px] pe-[8px] left-0 w-full h-full overflow-x-hidden overflow-y-scroll scrollbar scrollbar-thumb-newColColor scrollbar-track-newBgColorInner phone:static phone:h-auto phone:overflow-y-visible phone:p-[12px]"
+                className="absolute top-0 p-[20px] pe-[8px] left-0 w-full h-full overflow-x-hidden overflow-y-scroll scrollbar scrollbar-thumb-newColColor scrollbar-track-newBgColorInner compact:static compact:h-auto compact:overflow-y-visible compact:p-[12px]"
               >
                 <ShowAllProviders ref={ref} />
               </Scrollable>
@@ -840,14 +840,14 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
           </div>
         </div>
         {paidPlan ? (
-          <div className="select-none h-[84px] py-[20px] border-t border-newBorder flex items-center phone:h-auto phone:py-[12px] phone:flex-col phone:items-stretch phone:gap-[12px] phone:sticky phone:bottom-0 phone:z-[10] phone:bg-newBgColorInner">
-            <div className="flex-1 flex ps-[20px] gap-[8px] phone:px-[12px] phone:flex-wrap">{footerStart}</div>
-            <div className="pe-[20px] flex items-center justify-end gap-[8px] phone:px-[12px] phone:flex-wrap">
+          <div className="select-none h-[84px] py-[20px] border-t border-newBorder flex items-center compact:h-auto compact:py-[12px] compact:flex-wrap compact:gap-[12px] compact:sticky compact:bottom-0 compact:z-[10] compact:bg-newBgColorInner">
+            <div className="flex-1 flex ps-[20px] gap-[8px] compact:px-[12px] compact:flex-wrap">{footerStart}</div>
+            <div className="pe-[20px] flex items-center justify-end gap-[8px] compact:px-[12px] compact:flex-wrap">
               {footerEnd}
             </div>
           </div>
         ) : (
-          <div className="select-none border-t border-newBorder flex flex-col phone:sticky phone:bottom-0 phone:z-[10] phone:bg-newBgColorInner">
+          <div className="select-none border-t border-newBorder flex flex-col compact:sticky compact:bottom-0 compact:z-[10] compact:bg-newBgColorInner">
             {!dummy && !addEditSets && (
               <WalletCostLine
                 cost={walletCost}
@@ -855,11 +855,11 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
                 className="px-[20px] pt-[14px] -mb-[6px]"
               />
             )}
-            <div className="min-h-[84px] py-[20px] flex flex-wrap items-center gap-y-[12px] whitespace-nowrap phone:py-[12px] phone:min-h-0">
-              <div className="flex-1 flex items-center ps-[20px] gap-[8px] phone:ps-[12px] phone:flex-wrap">
+            <div className="min-h-[84px] py-[20px] flex flex-wrap items-center gap-y-[12px] whitespace-nowrap compact:py-[12px] compact:min-h-0">
+              <div className="flex-1 flex items-center ps-[20px] gap-[8px] compact:ps-[12px] compact:flex-wrap">
                 {footerStart}
               </div>
-              <div className="ps-[20px] pe-[20px] ms-auto flex items-center justify-end gap-[8px] phone:px-[12px] phone:flex-wrap">
+              <div className="ps-[20px] pe-[20px] ms-auto flex items-center justify-end gap-[8px] compact:px-[12px] compact:flex-wrap">
                 {footerEnd}
               </div>
             </div>

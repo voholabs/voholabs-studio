@@ -1,6 +1,15 @@
 import { SentryComponent } from '@gitroom/frontend/components/layout/sentry.component';
 
 export const dynamic = 'force-dynamic';
+import type { Viewport } from 'next';
+
+// maximumScale stops iOS zooming into every input under 16px on focus and
+// leaving the page zoomed; pinch-zoom still works.
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+};
 import '../global.scss';
 import 'react-tooltip/dist/react-tooltip.css';
 import '@copilotkit/react-ui/styles.css';

@@ -332,7 +332,7 @@ export const Filters = () => {
   return (
     <div className="text-textColor flex flex-row flex-wrap md:flex-nowrap gap-[8px] items-center select-none">
       {!isFeedView && (
-        <div className="flex flex-grow flex-row items-center gap-[10px] phone:flex-wrap">
+        <div className="flex flex-grow flex-row items-center gap-[10px] compact:flex-wrap">
           <div className="border h-[42px] border-newTableBorder bg-newTableBorder gap-[1px] flex items-center rounded-[8px] overflow-hidden">
             <div
               onClick={previous}
@@ -354,7 +354,7 @@ export const Filters = () => {
                 />
               </svg>
             </div>
-            <div className="min-w-[200px] phone:min-w-[150px] text-center bg-newBgColorInner h-full flex items-center justify-center">
+            <div className="min-w-[200px] compact:min-w-[150px] text-center bg-newBgColorInner h-full flex items-center justify-center">
               <div className="py-[3px] px-[9px] rounded-[5px] transition-all text-[14px]">
                 {getDisplayText()}
               </div>
@@ -393,7 +393,7 @@ export const Filters = () => {
         </div>
       )}
       {isFeedView && (
-        <div className="flex flex-grow flex-row items-center gap-[10px] phone:flex-wrap">
+        <div className="flex flex-grow flex-row items-center gap-[10px] compact:flex-wrap">
           <div className="border h-[42px] border-newTableBorder bg-newTableBorder gap-[1px] flex items-center rounded-[8px] overflow-hidden">
             <div
               onClick={previousPage}
@@ -420,7 +420,7 @@ export const Filters = () => {
                 />
               </svg>
             </div>
-            <div className="min-w-[200px] phone:min-w-[150px] text-center bg-newBgColorInner h-full flex items-center justify-center">
+            <div className="min-w-[200px] compact:min-w-[150px] text-center bg-newBgColorInner h-full flex items-center justify-center">
               <div className="py-[3px] px-[9px] rounded-[5px] transition-all text-[14px]">
                 {t('page', 'Page')} {calendar.listPage + 1} {t('of', 'of')} {Math.max(1, calendar.listTotalPages)}
               </div>
@@ -457,7 +457,7 @@ export const Filters = () => {
                 key={option.value}
                 onClick={setListStateFilter(option.value)}
                 className={clsx(
-                  'pt-[6px] pb-[5px] cursor-pointer min-w-[80px] phone:min-w-0 px-[12px] phone:px-[8px] text-center rounded-[6px]',
+                  'pt-[6px] pb-[5px] cursor-pointer min-w-[80px] compact:min-w-0 px-[12px] compact:px-[8px] text-center rounded-[6px]',
                   calendar.listState === option.value &&
                     'text-textItemFocused bg-boxFocused'
                 )}
@@ -506,7 +506,7 @@ export const Filters = () => {
         <div className="flex flex-row p-[4px] border border-newTableBorder rounded-[8px] text-[14px] font-[500]">
           <div
             className={clsx(
-              'pt-[6px] pb-[5px] cursor-pointer w-[74px] phone:w-[60px] text-center rounded-[6px]',
+              'pt-[6px] pb-[5px] cursor-pointer w-[74px] compact:w-[60px] text-center rounded-[6px]',
               calendar.display === 'day' && 'text-textItemFocused bg-boxFocused'
             )}
             onClick={setDay}
@@ -515,7 +515,7 @@ export const Filters = () => {
           </div>
           <div
             className={clsx(
-              'pt-[6px] pb-[5px] cursor-pointer w-[74px] phone:w-[60px] text-center rounded-[6px]',
+              'pt-[6px] pb-[5px] cursor-pointer w-[74px] compact:w-[60px] text-center rounded-[6px]',
               calendar.display === 'week' && 'text-textItemFocused bg-boxFocused'
             )}
             onClick={setWeek}
@@ -524,7 +524,7 @@ export const Filters = () => {
           </div>
           <div
             className={clsx(
-              'pt-[6px] pb-[5px] cursor-pointer w-[74px] phone:w-[60px] text-center rounded-[6px]',
+              'pt-[6px] pb-[5px] cursor-pointer w-[74px] compact:w-[60px] text-center rounded-[6px]',
               calendar.display === 'month' && 'text-textItemFocused bg-boxFocused'
             )}
             onClick={setMonth}

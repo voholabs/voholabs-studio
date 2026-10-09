@@ -548,9 +548,9 @@ export const LaunchesComponent = () => {
                 </svg>
               </div>
             </div>
-            <div className="flex flex-col gap-[8px] group-[.sidebar]:mx-auto group-[.sidebar]:w-[44px] compact:!mx-0 compact:!w-full">
+            <div className="flex flex-col gap-[8px] group-[.sidebar]:mx-auto group-[.sidebar]:w-[44px] compact:!mx-0 compact:!w-full compact:!flex-row-reverse">
               <AddProviderButton update={() => update(true)} />
-              <div className="flex gap-[8px] group-[.sidebar]:flex-col compact:!flex-row">
+              <div className="flex gap-[8px] group-[.sidebar]:flex-col compact:!flex-row compact:flex-1 compact:min-w-0">
                 {sortedIntegrations?.length > 0 && <NewPost />}
                 {sortedIntegrations?.length > 0 &&
                   user?.tier?.ai &&

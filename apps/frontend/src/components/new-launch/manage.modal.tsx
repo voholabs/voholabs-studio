@@ -840,14 +840,14 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
           </div>
         </div>
         {paidPlan ? (
-          <div className="select-none h-[84px] py-[20px] border-t border-newBorder flex items-center compact:h-auto compact:py-[12px] compact:flex-wrap compact:gap-[12px] compact:sticky compact:bottom-0 compact:z-[10] compact:bg-newBgColorInner">
+          <div className="select-none h-[84px] py-[20px] border-t border-newBorder flex items-center compact:h-auto compact:py-[12px] compact:flex-wrap compact:gap-[12px]">
             <div className="flex-1 flex ps-[20px] gap-[8px] compact:px-[12px] compact:flex-wrap">{footerStart}</div>
             <div className="pe-[20px] flex items-center justify-end gap-[8px] compact:px-[12px] compact:flex-wrap">
               {footerEnd}
             </div>
           </div>
         ) : (
-          <div className="select-none border-t border-newBorder flex flex-col compact:sticky compact:bottom-0 compact:z-[10] compact:bg-newBgColorInner">
+          <div className="select-none border-t border-newBorder flex flex-col">
             {!dummy && !addEditSets && (
               <WalletCostLine
                 cost={walletCost}

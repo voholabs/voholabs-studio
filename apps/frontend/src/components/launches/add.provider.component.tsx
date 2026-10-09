@@ -70,9 +70,10 @@ export const AddProviderButton: FC<{
   const t = useT();
 
   return (
-    <div className="flex group-[.sidebar]:block gap-[8px]">
+    <div className="flex group-[.sidebar]:block gap-[8px] compact:!flex">
       <button
-        className="flex-1 group-[.sidebar]:w-[100%] group-[.sidebar]:flex-none text-btnText bg-btnSimple h-[44px] pt-[12px] pb-[14px] ps-[16px] pe-[20px] justify-center items-center flex rounded-[8px] gap-[8px]"
+        title={t('add_channel', 'Add Channel')}
+        className="flex-1 group-[.sidebar]:w-[100%] group-[.sidebar]:flex-none text-btnText bg-btnSimple h-[44px] pt-[12px] pb-[14px] ps-[16px] pe-[20px] justify-center items-center flex rounded-[8px] gap-[8px] compact:!flex-none compact:!w-[44px] compact:!p-0"
         onClick={add}
       >
         <div>
@@ -92,7 +93,7 @@ export const AddProviderButton: FC<{
             />
           </svg>
         </div>
-        <div className="text-start text-[14px] group-[.sidebar]:hidden">
+        <div className="text-start text-[14px] group-[.sidebar]:hidden compact:hidden">
           {t('add_channel', 'Add Channel')}
         </div>
       </button>
@@ -103,7 +104,7 @@ export const AddProviderButton: FC<{
           'invite_link',
           'Send Invite Link to a customer to add channel'
         )}
-        className="group-[.sidebar]:hidden min-h-[44px] min-w-[44px] bg-btnSimple justify-center items-center flex rounded-[8px] cursor-pointer"
+        className="group-[.sidebar]:hidden compact:!flex min-h-[44px] min-w-[44px] bg-btnSimple justify-center items-center flex rounded-[8px] cursor-pointer"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"

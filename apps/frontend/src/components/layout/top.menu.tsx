@@ -455,14 +455,14 @@ const LockedMenuItem: FC<{
       data-tooltip-place={place}
       data-tooltip-class-name="!max-w-[280px] !whitespace-normal !leading-[1.5]"
       className={clsx(
-        'group relative w-full minCustom:h-[54px] custom:h-[44px] py-[8px] px-[6px] minCustom:gap-[4px] custom:gap-[2px] flex flex-col font-[600] items-center justify-center rounded-[12px] transition-colors hover:bg-boxHover hover:text-newTextColor compact:w-[60px] compact:shrink-0 compact:!h-[58px]',
+        'group relative w-full minCustom:h-[54px] custom:h-[44px] py-[8px] px-[6px] minCustom:gap-[4px] custom:gap-[2px] flex flex-col font-[600] items-center justify-center rounded-[12px] transition-colors hover:bg-boxHover hover:text-newTextColor compact:w-[60px] compact:shrink-0 compact:!h-[58px] short:!h-[40px] short:!py-[4px]',
         isActive ? 'bg-boxHover text-newTextColor' : 'text-textItemBlur'
       )}
     >
       <div className="custom:scale-90 opacity-60 group-hover:opacity-90 transition-opacity">
         {icon}
       </div>
-      <div className="custom:text-[9px] minCustom:text-[10px] leading-[1.1] text-center opacity-60 group-hover:opacity-90">
+      <div className="custom:text-[9px] minCustom:text-[10px] leading-[1.1] text-center opacity-60 group-hover:opacity-90 short:hidden">
         {label}
       </div>
       <span

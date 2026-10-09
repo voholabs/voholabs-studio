@@ -289,6 +289,10 @@ module.exports = {
         compact: {
           raw: '(max-width: 1023px), (max-height: 500px)',
         },
+        // Short screens (phones on their side): the bottom menu drops its labels.
+        short: {
+          raw: '(max-height: 500px)',
+        },
       },
     },
   },

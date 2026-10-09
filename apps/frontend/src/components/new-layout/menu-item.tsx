@@ -15,7 +15,7 @@ export const MenuItem: FC<{
   const isActive = currentPath.indexOf(path) === 0;
 
   const className = clsx(
-    'group w-full minCustom:h-[54px] custom:h-[44px] py-[8px] px-[6px] minCustom:gap-[4px] custom:gap-[2px] flex flex-col font-[600] items-center justify-center rounded-[12px] transition-colors compact:w-[60px] compact:shrink-0 compact:!h-[58px]',
+    'group w-full minCustom:h-[54px] custom:h-[44px] py-[8px] px-[6px] minCustom:gap-[4px] custom:gap-[2px] flex flex-col font-[600] items-center justify-center rounded-[12px] transition-colors compact:w-[60px] compact:shrink-0 compact:!h-[58px] short:!h-[40px] short:!py-[4px]',
     comingSoon
       ? 'text-textItemBlur opacity-70 grayscale cursor-default pointer-events-none'
       : clsx(
@@ -27,7 +27,7 @@ export const MenuItem: FC<{
   const inner = (
     <>
       <div className="custom:scale-90 transition-transform">{icon}</div>
-      <div className="custom:text-[9px] minCustom:text-[10px] leading-[1.1] text-center">
+      <div className="custom:text-[9px] minCustom:text-[10px] leading-[1.1] text-center short:hidden">
         {label}
       </div>
     </>

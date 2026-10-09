@@ -404,7 +404,7 @@ export const WalletHeader: FC = () => {
               <Num>{f.credits(wallet.balance)}</Num>
             </span>
           ) : (
-            <span className="text-[13px] font-[600] whitespace-nowrap">
+            <span className="text-[13px] font-[600] whitespace-nowrap xs:hidden">
               {t('wallet_top_up', 'Top up')}
             </span>
           )}

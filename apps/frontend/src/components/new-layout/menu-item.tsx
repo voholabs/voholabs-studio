@@ -15,7 +15,7 @@ export const MenuItem: FC<{
   const isActive = currentPath.indexOf(path) === 0;
 
   const className = clsx(
-    'group w-full minCustom:h-[54px] custom:h-[44px] py-[8px] px-[6px] minCustom:gap-[4px] custom:gap-[2px] flex flex-col font-[600] items-center justify-center rounded-[12px] transition-colors max-md:w-[60px] max-md:shrink-0 max-md:!h-[58px]',
+    'group w-full minCustom:h-[54px] custom:h-[44px] py-[8px] px-[6px] minCustom:gap-[4px] custom:gap-[2px] flex flex-col font-[600] items-center justify-center rounded-[12px] transition-colors phone:w-[60px] phone:shrink-0 phone:!h-[58px]',
     comingSoon
       ? 'text-textItemBlur opacity-70 grayscale cursor-default pointer-events-none'
       : clsx(

@@ -283,6 +283,10 @@ module.exports = {
         xs: {
           max: '401px',
         },
+        // Phones. Under md, so tablets keep the desktop layout.
+        phone: {
+          raw: '(max-width: 767px)',
+        },
       },
     },
   },

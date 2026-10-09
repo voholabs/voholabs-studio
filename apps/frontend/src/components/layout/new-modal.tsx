@@ -197,11 +197,11 @@ export const Component: FC<{
             <div
               className={clsx(
                 !modal.removeLayout &&
-                  'gap-[40px] p-[32px] max-md:gap-[24px] max-md:p-[20px]',
+                  'gap-[40px] p-[32px] phone:gap-[24px] phone:p-[20px]',
                 'bg-newBgColorInner mx-auto flex flex-col w-fit rounded-[24px] relative',
                 // A phone is narrower than any of the set sizes.
-                'max-md:!max-w-[calc(100vw-24px)]',
-                modal.size ? '' : 'min-w-[600px] max-md:min-w-[calc(100vw-24px)]',
+                'phone:!max-w-[calc(100vw-24px)]',
+                modal.size ? '' : 'min-w-[600px] phone:min-w-[calc(100vw-24px)]',
                 modal.fullScreen && 'h-full'
               )}
               {...((!!modal.size || !!modal.height || !!modal.maxSize) && {

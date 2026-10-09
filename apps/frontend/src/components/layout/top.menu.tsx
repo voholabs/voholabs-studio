@@ -455,7 +455,7 @@ const LockedMenuItem: FC<{
       data-tooltip-place={place}
       data-tooltip-class-name="!max-w-[280px] !whitespace-normal !leading-[1.5]"
       className={clsx(
-        'group relative w-full minCustom:h-[54px] custom:h-[44px] py-[8px] px-[6px] minCustom:gap-[4px] custom:gap-[2px] flex flex-col font-[600] items-center justify-center rounded-[12px] transition-colors hover:bg-boxHover hover:text-newTextColor max-md:w-[60px] max-md:shrink-0 max-md:!h-[58px]',
+        'group relative w-full minCustom:h-[54px] custom:h-[44px] py-[8px] px-[6px] minCustom:gap-[4px] custom:gap-[2px] flex flex-col font-[600] items-center justify-center rounded-[12px] transition-colors hover:bg-boxHover hover:text-newTextColor phone:w-[60px] phone:shrink-0 phone:!h-[58px]',
         isActive ? 'bg-boxHover text-newTextColor' : 'text-textItemBlur'
       )}
     >
@@ -519,7 +519,7 @@ export const TopMenu: FC = () => {
 
   return (
     <>
-      <div className="flex flex-1 flex-col minCustom:gap-[16px] blurMe max-md:flex-row max-md:flex-none max-md:!gap-0">
+      <div className="flex flex-1 flex-col minCustom:gap-[16px] blurMe phone:flex-row phone:flex-none phone:!gap-0">
         {
           // @ts-ignore
           user?.orgId &&
@@ -546,7 +546,7 @@ export const TopMenu: FC = () => {
                   )
                 )}
                 {firstComingSoon.length > 0 && (
-                  <div className="flex flex-col minCustom:gap-[16px] custom:gap-[8px] minCustom:mt-[12px] custom:mt-[6px] max-md:hidden">
+                  <div className="flex flex-col minCustom:gap-[16px] custom:gap-[8px] minCustom:mt-[12px] custom:mt-[6px] phone:hidden">
                     <div className="text-[9px] uppercase tracking-[0.08em] text-textItemBlur text-center leading-none whitespace-nowrap">
                       {t('coming_soon', 'Coming soon')}
                     </div>
@@ -565,7 +565,7 @@ export const TopMenu: FC = () => {
             )
         }
       </div>
-      <div className="flex flex-col minCustom:gap-[20px] custom:gap-[8px] blurMe max-md:flex-row max-md:!gap-0">
+      <div className="flex flex-col minCustom:gap-[20px] custom:gap-[8px] blurMe phone:flex-row phone:!gap-0">
         {secondMenu
           .filter((f) => {
             if (f.hide) {
@@ -598,7 +598,7 @@ export const TopMenu: FC = () => {
             label. */}
         {!!user?.tier?.current && user.tier.current !== 'FREE' && (
           <div
-            className="w-full px-[4px] custom:text-[8px] minCustom:text-[9px] font-[700] uppercase tracking-[0.04em] text-center leading-[1.1] break-words overflow-hidden max-md:hidden"
+            className="w-full px-[4px] custom:text-[8px] minCustom:text-[9px] font-[700] uppercase tracking-[0.04em] text-center leading-[1.1] break-words overflow-hidden phone:hidden"
             style={{ color: '#E8A33D' }}
             title={`Your plan: ${user.tier.current}`}
           >

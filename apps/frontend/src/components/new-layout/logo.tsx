@@ -10,7 +10,7 @@ export const Logo = () => {
       fill="none"
       role="img"
       aria-label="Voholabs"
-      className="mt-[8px] min-w-[60px] min-h-[60px] max-md:hidden"
+      className="mt-[8px] min-w-[60px] min-h-[60px] phone:hidden"
     >
       <rect width="340" height="330" rx="58" fill="#091717" />
       <rect

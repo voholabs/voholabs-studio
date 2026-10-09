@@ -10,7 +10,6 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { useUser } from '@gitroom/frontend/components/layout/user.context';
 import { AddEditModalProps } from '@gitroom/frontend/components/new-launch/add.edit.modal';
 import clsx from 'clsx';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
@@ -31,7 +30,6 @@ import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 import { useModals } from '@gitroom/frontend/components/layout/new-modal';
 import { capitalize } from 'lodash';
 import { SelectCustomer } from '@gitroom/frontend/components/launches/select.customer';
-import { CopilotPopup } from '@copilotkit/react-ui';
 import { DummyCodeComponent } from '@gitroom/frontend/components/new-launch/dummy.code.component';
 import { CreationMethodBadge } from '@gitroom/frontend/components/launches/creation.method.badge';
 import {
@@ -64,7 +62,6 @@ import { useWalletAccess } from '@gitroom/frontend/components/wallet-locks/walle
 
 export const ManageModal: FC<AddEditModalProps> = (props) => {
   const t = useT();
-  const user = useUser();
   const fetch = useFetch();
   const ref = useRef(null);
   const existingData = useExistingData();
@@ -867,30 +864,6 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
           </div>
         )}
       </div>
-      {!!user?.tier?.ai && (
-        <CopilotPopup
-          hitEscapeToClose={false}
-          clickOutsideToClose={true}
-          instructions={`
-  You are an assistant that help the user to schedule their social media posts,
-  Here are the things you can do:
-  - Add a new comment / post to the list of posts
-  - Delete a comment / post from the list of posts
-  - Add content to the comment / post
-  - Activate or deactivate the comment / post
-
-  Post content can be added using the addPostContentFor{num} function.
-  After using the addPostFor{num} it will create a new addPostContentFor{num+ 1} function.
-  `}
-          labels={{
-            title: t('your_assistant', 'Your Assistant'),
-            initial: t(
-              'assistant_initial_message',
-              'Hi! I can help you to refine your social media posts.'
-            ),
-          }}
-        />
-      )}
     </div>
   );
 };

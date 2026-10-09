@@ -122,12 +122,13 @@ export const Plugs = () => {
     <>
       <div
         className={clsx(
-          'bg-newBgColorInner p-[20px] flex flex-col gap-[15px] transition-all',
+          'bg-newBgColorInner p-[20px] flex flex-col gap-[15px] transition-all shrink-0 compact:!w-full compact:p-[12px]',
           collapseMenu === '1' ? 'group sidebar w-[100px]' : 'w-[260px]'
         )}
       >
-        <div className="flex gap-[12px] flex-col">
-          <div className="flex items-center">
+        {/* Compact: the channels are a strip across the top. */}
+        <div className="flex gap-[12px] flex-col compact:flex-row compact:overflow-x-auto">
+          <div className="flex items-center compact:hidden">
             <h2 className="group-[.sidebar]:hidden flex-1 text-[20px] font-[500]">
               {t('channels')}
             </h2>
@@ -170,7 +171,7 @@ export const Plugs = () => {
                 setCurrent(index);
               }}
               className={clsx(
-                'flex gap-[8px] items-center justify-center group/profile hover:bg-boxHover rounded-e-[8px]',
+                'flex gap-[8px] compact:shrink-0 compact:max-w-[200px] compact:rounded-[8px] compact:px-[8px] compact:py-[4px] items-center justify-center group/profile hover:bg-boxHover rounded-e-[8px]',
                 currentIntegration.id !== integration.id &&
                   'opacity-20 hover:opacity-100 cursor-pointer'
               )}
@@ -189,7 +190,7 @@ export const Plugs = () => {
                     <div className="bg-primary/60 w-[39px] h-[46px] start-0 top-0 absolute rounded-full z-[199]" />
                   </div>
                 )}
-                <div className="h-full w-[4px] -ms-[12px] rounded-s-[3px] opacity-0 group-hover/profile:opacity-100 transition-opacity">
+                <div className="h-full w-[4px] -ms-[12px] rounded-s-[3px] opacity-0 group-hover/profile:opacity-100 transition-opacity compact:hidden">
                   <SVGLine />
                 </div>
                 <ImageWithFallback
@@ -220,7 +221,7 @@ export const Plugs = () => {
           ))}
         </div>
       </div>
-      <div className="bg-newBgColorInner flex-1 flex-col flex p-[20px] gap-[12px]">
+      <div className="bg-newBgColorInner flex-1 flex-col flex p-[20px] gap-[12px] compact:p-[12px] min-w-0">
         <PlugsContext.Provider value={currentIntegrationPlug}>
           <Plug />
         </PlugsContext.Provider>

@@ -823,7 +823,7 @@ export const MultiMediaComponent: FC<{
             </ReactSortable>
           )}
         </div>
-        <div className="flex gap-[8px] px-[12px] border-t border-newColColor w-full b1 text-textColor">
+        <div className="flex flex-wrap gap-[8px] px-[12px] border-t border-newColColor w-full b1 text-textColor">
           {!mediaNotAvailable && (
             <div className="flex py-[10px] b2 items-center gap-[4px]">
               <div

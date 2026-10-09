@@ -118,7 +118,7 @@ export const SettingsPopup: FC<{
 
   return (
     <>
-      <div className="bg-newBgColorInner p-[20px] flex flex-col transition-all w-[260px] compact:w-full compact:p-[12px] compact:gap-[8px]">
+      <div className="bg-newBgColorInner p-[20px] flex flex-col transition-all w-[260px] shrink-0 compact:w-full compact:p-[12px] compact:gap-[8px]">
         <div className="flex flex-1 flex-col gap-[15px] compact:flex-row compact:gap-[4px] compact:overflow-x-auto compact:whitespace-nowrap">
           {list.map(({ tab: tabKey, label }) => (
             <div
@@ -149,7 +149,7 @@ export const SettingsPopup: FC<{
           )}
         </div>
       </div>
-      <div className="bg-newBgColorInner flex-1 flex-col flex p-[20px] gap-[12px] compact:p-[12px] compact:min-w-0">
+      <div className="bg-newBgColorInner flex-1 flex-col flex p-[20px] gap-[12px] compact:p-[12px] min-w-0">
         <FormProvider {...form}>
           <form onSubmit={form.handleSubmit(submit)}>
             {!!getRef && (

@@ -48,7 +48,7 @@ export const DatePicker: FC<{
       {open && (
         <div
           onClick={(e) => e.stopPropagation()}
-          className="animate-fadeIn absolute bottom-[100%] mb-[16px] start-[50%] -translate-x-[50%] bg-sixth border border-tableBorder text-textColor rounded-[16px] z-[300] p-[16px] flex flex-col"
+          className="animate-fadeIn absolute bottom-[100%] mb-[16px] start-[50%] -translate-x-[50%] bg-sixth border border-tableBorder text-textColor rounded-[16px] z-[300] p-[16px] flex flex-col compact:fixed compact:top-[50%] compact:bottom-auto compact:mb-0 compact:-translate-y-[50%] compact:z-[400] compact:max-h-[calc(100dvh-24px)] compact:overflow-y-auto"
         >
           <Calendar
             onChange={changeDate('date')}

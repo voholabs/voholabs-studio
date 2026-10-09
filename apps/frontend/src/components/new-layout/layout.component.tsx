@@ -222,7 +222,7 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
                           <NotificationComponent />
                         </div>
                       </div>
-                      <div className="flex flex-1 gap-[1px] compact:flex-col">
+                      <div className="flex flex-1 gap-[1px] compact:flex-col short:min-h-[400px]">
                         {children}
                       </div>
                     </div>

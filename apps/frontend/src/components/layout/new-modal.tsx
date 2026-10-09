@@ -141,17 +141,17 @@ export const Component: FC<{
           !isLast && '!overflow-hidden'
         )}
       >
-        <div className={clsx(modal.fullScreen && 'flex', 'relative flex-1')}>
+        <div className={clsx(modal.fullScreen && 'flex', 'relative flex-1 min-w-0')}>
           <div
             className={clsx(
               modal.fullScreen
-                ? 'flex flex-1'
+                ? 'flex flex-1 min-w-0'
                 : 'absolute top-0 left-0 min-w-full min-h-full'
             )}
           >
             <div
               className={clsx(
-                modal.fullScreen ? 'w-full h-full flex-1' : 'mx-auto py-[48px]'
+                modal.fullScreen ? 'w-full h-full flex-1 min-w-0' : 'mx-auto py-[48px]'
               )}
               {...(modal.size && { style: { width: modal.size } })}
             >

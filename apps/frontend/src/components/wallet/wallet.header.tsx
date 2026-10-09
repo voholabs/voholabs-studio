@@ -223,7 +223,7 @@ const WalletPopover: FC<{ wallet: WalletSummary; close: () => void }> = ({
     openTopUp();
   };
   const wrap =
-    'opacity-0 animate-normalFadeDown absolute top-[calc(100%+14px)] end-[-8px] w-[min(360px,calc(100vw-32px))] max-h-[calc(100vh-110px)] overflow-y-auto bg-newBgColorInner text-newTextColor rounded-[16px] flex flex-col border border-newTableBorder shadow-menu z-[600] cursor-default';
+    'opacity-0 animate-normalFadeDown absolute top-[calc(100%+14px)] end-[-8px] w-[min(360px,calc(100vw-32px))] compact:start-[8px] compact:end-[8px] compact:w-auto compact:min-w-0 max-h-[calc(100vh-110px)] overflow-y-auto bg-newBgColorInner text-newTextColor rounded-[16px] flex flex-col border border-newTableBorder shadow-menu z-[600] cursor-default';
 
   if (!wallet.payAsYouGo) {
     return (
@@ -376,7 +376,7 @@ export const WalletHeader: FC = () => {
   return (
     <>
       <WalletHost />
-      <div className="relative" ref={ref}>
+      <div className="relative compact:static" ref={ref}>
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}

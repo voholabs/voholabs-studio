@@ -80,7 +80,7 @@ export const NotificationOpenComponent = () => {
   return (
     <div
       id="notification-popup"
-      className="opacity-0 animate-normalFadeDown mt-[10px] absolute w-[420px] min-h-[200px] top-[100%] end-0 bg-third text-textColor rounded-[16px] flex flex-col border border-tableBorder z-[600]"
+      className="opacity-0 animate-normalFadeDown mt-[10px] absolute w-[420px] min-h-[200px] top-[100%] end-0 compact:start-[8px] compact:end-[8px] compact:w-auto compact:min-w-0 bg-third text-textColor rounded-[16px] flex flex-col border border-tableBorder z-[600]"
     >
       <div
         className={`p-[16px] border-b border-tableBorder font-bold`}
@@ -152,7 +152,7 @@ const NotificationComponent = () => {
   }, [show, data]);
   const ref = useClickAway<HTMLDivElement>(() => setShow(false));
   return (
-    <div className="relative cursor-pointer select-none" ref={ref}>
+    <div className="relative compact:static cursor-pointer select-none" ref={ref}>
       <div onClick={changeShow}>
         <svg
           xmlns="http://www.w3.org/2000/svg"

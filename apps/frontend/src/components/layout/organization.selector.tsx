@@ -67,7 +67,7 @@ export const OrganizationSelector: FC<{ asOpenSelect?: boolean }> = ({
   }
   return (
     <>
-      <div className="text-[12px] relative" ref={ref}>
+      <div className="text-[12px] relative compact:static" ref={ref}>
         {asOpenSelect ? (
           <div className="bg-btnPrimary !flex !relative max-w-[500px] mx-auto py-[12px] px-[12px]">
             {t('select_organization', 'Select Organization')}
@@ -102,7 +102,7 @@ export const OrganizationSelector: FC<{ asOpenSelect?: boolean }> = ({
         {(open || asOpenSelect) && (
           <div
             className={clsx(
-              'flex absolute top-[calc(100%+4px)] end-0 z-[200] min-w-[220px] flex-col overflow-hidden rounded-[8px] border border-btnPrimary bg-newBgColorInner shadow-lg',
+              'flex absolute top-[calc(100%+4px)] end-0 z-[200] min-w-[220px] compact:start-[8px] compact:end-[8px] compact:w-auto compact:min-w-0 flex-col overflow-hidden rounded-[8px] border border-btnPrimary bg-newBgColorInner shadow-lg',
               asOpenSelect
                 ? '!flex !relative max-w-[500px] mx-auto mb-[10px] mt-[8px]'
                 : ''

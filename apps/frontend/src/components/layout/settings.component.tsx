@@ -118,7 +118,7 @@ export const SettingsPopup: FC<{
 
   return (
     <>
-      <div className="bg-newBgColorInner p-[20px] flex flex-col transition-all w-[260px] phone:w-full phone:p-[12px] phone:flex-row phone:items-center phone:gap-[12px]">
+      <div className="bg-newBgColorInner p-[20px] flex flex-col transition-all w-[260px] phone:w-full phone:p-[12px] phone:gap-[8px]">
         <div className="flex flex-1 flex-col gap-[15px] phone:flex-row phone:gap-[4px] phone:overflow-x-auto phone:whitespace-nowrap">
           {list.map(({ tab: tabKey, label }) => (
             <div

@@ -702,12 +702,12 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
   );
 
   return (
-    <div className="w-full h-full flex-1 p-[40px] flex relative phone:p-0 phone:h-auto">
-      <div className="flex flex-1 bg-newBgColorInner rounded-[20px] flex-col phone:rounded-none">
+    <div className="w-full h-full flex-1 p-[40px] flex relative phone:p-0 phone:h-auto phone:w-screen">
+      <div className="flex flex-1 bg-newBgColorInner rounded-[20px] flex-col phone:rounded-none phone:min-w-0">
         {/* On a phone the columns stack and the page scrolls as one: the
             preview first, so a post can be read before it is edited. */}
         <div className="flex-1 flex phone:flex-col">
-          <div className="flex flex-col flex-1 border-e border-newBorder phone:border-e-0 phone:border-t">
+          <div className="flex flex-col flex-1 border-e border-newBorder phone:border-e-0 phone:border-t phone:min-w-0">
             <div className="bg-newBgColor h-[65px] rounded-s-[20px] !rounded-b-[0] flex items-center gap-[12px] px-[20px] text-[20px] font-[600] phone:rounded-none phone:h-[52px] phone:px-[12px] phone:text-[16px]">
               {t('create_post_title', 'Create Post')}
               <CreationMethodBadge

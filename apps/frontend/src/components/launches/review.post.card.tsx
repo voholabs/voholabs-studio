@@ -523,7 +523,7 @@ export const ReviewPostCard: FC<{
           : 'border-newTableBorder'
       )}
     >
-      <div className="flex items-center gap-[10px] px-[14px] py-[12px] border-b border-newTableBorder">
+      <div className="flex items-center gap-[10px] px-[14px] py-[12px] border-b border-newTableBorder phone:flex-wrap">
         <div className="relative min-w-[36px]">
           <img
             className="w-[36px] h-[36px] rounded-full object-cover"
@@ -557,7 +557,7 @@ export const ReviewPostCard: FC<{
           </div>
         </div>
 
-        <div className="flex items-center gap-[6px] flex-1 min-w-0 flex-wrap">
+        <div className="flex items-center gap-[6px] flex-1 min-w-0 flex-wrap phone:order-last phone:basis-full">
           {isNext && (
             <Badge className="bg-forth text-white">
               {t('next_up', 'Next up')}
@@ -628,7 +628,7 @@ export const ReviewPostCard: FC<{
           <CreationMethodBadge creationMethod={post.creationMethod} size="md" />
         </div>
 
-        <div className="flex items-center gap-[6px] text-textColor">
+        <div className="flex items-center gap-[6px] text-textColor phone:ms-auto">
           {/* Nothing has been scheduled yet, so there is no post to mark as
               reviewed and nothing of ours to edit - the actions are "give it a
               time" and "take it down in Sanity". */}

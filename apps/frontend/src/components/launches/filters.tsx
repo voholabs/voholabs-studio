@@ -332,7 +332,7 @@ export const Filters = () => {
   return (
     <div className="text-textColor flex flex-row flex-wrap md:flex-nowrap gap-[8px] items-center select-none">
       {!isFeedView && (
-        <div className="flex flex-grow flex-row items-center gap-[10px]">
+        <div className="flex flex-grow flex-row items-center gap-[10px] phone:flex-wrap">
           <div className="border h-[42px] border-newTableBorder bg-newTableBorder gap-[1px] flex items-center rounded-[8px] overflow-hidden">
             <div
               onClick={previous}
@@ -393,7 +393,7 @@ export const Filters = () => {
         </div>
       )}
       {isFeedView && (
-        <div className="flex flex-grow flex-row items-center gap-[10px]">
+        <div className="flex flex-grow flex-row items-center gap-[10px] phone:flex-wrap">
           <div className="border h-[42px] border-newTableBorder bg-newTableBorder gap-[1px] flex items-center rounded-[8px] overflow-hidden">
             <div
               onClick={previousPage}

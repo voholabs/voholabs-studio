@@ -637,7 +637,7 @@ export const ListView = () => {
   }
 
   return (
-    <div className="flex flex-col gap-[10px] flex-1 relative">
+    <div className="flex flex-col gap-[10px] flex-1 relative compact:min-w-0">
       {/* On a phone the filters above take most of the screen, so the feed
           scrolls with the page instead of inside the space left over. */}
       <div className="absolute start-0 top-0 w-full h-full flex flex-col overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor compact:static compact:h-auto compact:overflow-visible">
@@ -726,7 +726,7 @@ export const ReviewView = () => {
       : undefined;
 
   return (
-    <div className="flex flex-col gap-[10px] flex-1 relative">
+    <div className="flex flex-col gap-[10px] flex-1 relative compact:min-w-0">
       {/* On a phone the filters above take most of the screen, so the feed
           scrolls with the page instead of inside the space left over. */}
       <div className="absolute start-0 top-0 w-full h-full flex flex-col overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor compact:static compact:h-auto compact:overflow-visible">

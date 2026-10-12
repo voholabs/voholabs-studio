@@ -240,7 +240,7 @@ export const PlugItem: FC<{
           }
         : {})}
       className={clsx(
-        'w-full h-[300px] rounded-[8px] bg-newTableHeader hover:bg-newTableBorder',
+        'w-full h-[300px] compact:h-auto compact:min-h-[220px] rounded-[8px] bg-newTableHeader hover:bg-newTableBorder',
         !!wallet && 'ring-1 ring-inset ring-warmRing',
         wallet?.mode === 'unavailable' && 'cursor-not-allowed'
       )}
@@ -378,7 +378,9 @@ export const Plug = () => {
     return null;
   }
   return (
-    <div className="grid grid-cols-3 gap-[30px]">
+    // Three fixed columns leave each card a sliver on a phone: there the
+    // columns fit the width instead (one on a phone, two on a tablet).
+    <div className="grid grid-cols-3 gap-[30px] compact:grid-cols-[repeat(auto-fill,minmax(260px,1fr))] compact:gap-[16px]">
       {plug.plugs.map((p) => (
         <PlugItem
           key={p.title + '-' + plug.providerId}

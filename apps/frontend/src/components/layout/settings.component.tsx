@@ -20,6 +20,8 @@ import clsx from 'clsx';
 import { TeamsComponent } from '@gitroom/frontend/components/settings/teams.component';
 import { useUser } from '@gitroom/frontend/components/layout/user.context';
 import { LogoutComponent } from '@gitroom/frontend/components/layout/logout.component';
+import { LanguageComponent } from '@gitroom/frontend/components/layout/language.component';
+import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import { useVariables } from '@gitroom/react/helpers/variable.context';
 import { PublicComponent } from '@gitroom/frontend/components/public-api/public.component';
@@ -33,6 +35,11 @@ import { SVGLine } from '@gitroom/frontend/components/launches/launches.componen
 import { GlobalSettings } from '@gitroom/frontend/components/settings/global.settings';
 import { ApprovedAppsComponent } from '@gitroom/frontend/components/approved-apps/approved-apps.component';
 import { UsageComponent } from '@gitroom/frontend/components/settings/usage.component';
+const ModeComponent = dynamic(
+  () => import('@gitroom/frontend/components/layout/mode.component'),
+  { ssr: false }
+);
+
 export const SettingsPopup: FC<{
   getRef?: Ref<any>;
 }> = (props) => {
@@ -141,12 +148,18 @@ export const SettingsPopup: FC<{
             </div>
           ))}
         </div>
-        <div>
+        <div className="compact:flex compact:items-center compact:gap-[16px]">
           {showLogout && (
-            <div className="mt-4 compact:mt-0">
+            <div className="mt-4 compact:mt-0 compact:flex-1">
               <LogoutComponent />
             </div>
           )}
+          {/* The top bar drops the theme and language switches on a phone,
+              so they live here instead. */}
+          <div className="hidden compact:flex items-center gap-[16px] text-textItemBlur hover:text-newTextColor">
+            <ModeComponent />
+            <LanguageComponent />
+          </div>
         </div>
       </div>
       <div className="bg-newBgColorInner flex-1 flex-col flex p-[20px] gap-[12px] compact:p-[12px] min-w-0">

@@ -638,7 +638,9 @@ export const ListView = () => {
 
   return (
     <div className="flex flex-col gap-[10px] flex-1 relative">
-      <div className="absolute start-0 top-0 w-full h-full flex flex-col overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
+      {/* On a phone the filters above take most of the screen, so the feed
+          scrolls with the page instead of inside the space left over. */}
+      <div className="absolute start-0 top-0 w-full h-full flex flex-col overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor compact:static compact:h-auto compact:overflow-visible">
         {groupedPosts.map(([dateKey, datePosts]) => (
           <Fragment key={dateKey}>
             <div className="text-center text-[14px] min-h-[21px] text-textColor font-[500] mt-[10px]">
@@ -725,7 +727,9 @@ export const ReviewView = () => {
 
   return (
     <div className="flex flex-col gap-[10px] flex-1 relative">
-      <div className="absolute start-0 top-0 w-full h-full flex flex-col overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
+      {/* On a phone the filters above take most of the screen, so the feed
+          scrolls with the page instead of inside the space left over. */}
+      <div className="absolute start-0 top-0 w-full h-full flex flex-col overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor compact:static compact:h-auto compact:overflow-visible">
         <div className="w-full max-w-[640px] mx-auto px-[10px] pb-[20px]">
           {groupedPosts.map(([dateKey, datePosts]) => (
             <Fragment key={dateKey}>

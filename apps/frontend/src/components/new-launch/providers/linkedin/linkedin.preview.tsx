@@ -352,7 +352,7 @@ export const LinkedinPreview: FC<{
           <div>8 Reposts</div>
         </div>
       </div>
-      <div className="pt-[8px] flex text-[14px] font-[700] px-[32px] justify-between border-t border-borderLinkedin text-textLinkedin">
+      <div className="pt-[8px] flex text-[14px] font-[700] px-[32px] compact:px-[8px] gap-[8px] justify-between border-t border-borderLinkedin text-textLinkedin">
         <div className="flex gap-[4px] items-center">
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -366,7 +366,7 @@ export const LinkedinPreview: FC<{
               fill="currentColor"
             />
           </svg>
-          <div>Like</div>
+          <div className="xs:hidden">Like</div>
         </div>
         <div className="flex gap-[4px] items-center">
           <svg
@@ -382,7 +382,7 @@ export const LinkedinPreview: FC<{
               strokeWidth="2"
             />
           </svg>
-          <div>Comments</div>
+          <div className="xs:hidden">Comments</div>
         </div>
         <div className="flex gap-[4px] items-center">
           <svg
@@ -408,7 +408,7 @@ export const LinkedinPreview: FC<{
               </clipPath>
             </defs>
           </svg>
-          <div>Repost</div>
+          <div className="xs:hidden">Repost</div>
         </div>
         <div className="flex gap-[4px] items-center">
           <svg
@@ -423,7 +423,7 @@ export const LinkedinPreview: FC<{
               fill="currentColor"
             />
           </svg>
-          <div>Send</div>
+          <div className="xs:hidden">Send</div>
         </div>
       </div>
       {renderContent.length > 1 && (

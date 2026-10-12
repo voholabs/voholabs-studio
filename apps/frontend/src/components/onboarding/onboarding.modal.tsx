@@ -37,13 +37,13 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
     <div
       className={clsx(
         'w-full min-h-full flex-1 flex relative',
-        paidPlan ? 'p-[40px]' : 'p-[8px] sm:p-[40px]'
+        paidPlan ? 'p-[40px] compact:p-[8px]' : 'p-[8px] sm:p-[40px]'
       )}
     >
       <style>
         {`#support-discord {display: none}`}
       </style>
-      <div className="flex flex-1 bg-newBgColorInner rounded-[20px] flex-col relative">
+      <div className="flex flex-1 min-w-0 bg-newBgColorInner rounded-[20px] flex-col relative">
         <button
           className="outline-none absolute end-[20px] top-[20px] mantine-UnstyledButton-root mantine-ActionIcon-root hover:bg-tableBorder cursor-pointer mantine-Modal-close mantine-1dcetaa"
           type="button"
@@ -67,7 +67,7 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
         <div
           className={clsx(
             'flex-1 flex',
-            paidPlan ? 'p-[40px]' : 'p-[16px] pt-[56px] sm:p-[40px]'
+            paidPlan ? 'p-[40px] compact:p-[16px] compact:pt-[56px]' : 'p-[16px] pt-[56px] sm:p-[40px]'
           )}
         >
           <div

@@ -192,7 +192,7 @@ export const FacebookPreview: FC<{
           <div>20 Comments</div>
         </div>
       </div>
-      <div className="pt-[8px] flex text-[14px] font-[700] px-[32px] justify-between border-t border-borderLinkedin text-textLinkedin">
+      <div className="pt-[8px] flex text-[14px] font-[700] px-[32px] compact:px-[8px] gap-[8px] justify-between border-t border-borderLinkedin text-textLinkedin">
         <div className="flex gap-[4px] items-center">
           <svg
             width="24"
@@ -206,7 +206,7 @@ export const FacebookPreview: FC<{
               fill="currentColor"
             />
           </svg>
-          <div>Like</div>
+          <div className="xs:hidden">Like</div>
         </div>
         <div className="flex gap-[4px] items-center">
           <svg
@@ -240,7 +240,7 @@ export const FacebookPreview: FC<{
               />
             </g>
           </svg>
-          <div>Comments</div>
+          <div className="xs:hidden">Comments</div>
         </div>
         <div className="flex gap-[4px] items-center">
           <svg
@@ -255,7 +255,7 @@ export const FacebookPreview: FC<{
               fill="currentColor"
             />
           </svg>
-          <div>Share</div>
+          <div className="xs:hidden">Share</div>
         </div>
       </div>
       {renderContent.length > 1 && (

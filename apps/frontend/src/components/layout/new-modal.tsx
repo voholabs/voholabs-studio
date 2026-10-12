@@ -141,17 +141,17 @@ export const Component: FC<{
           !isLast && '!overflow-hidden'
         )}
       >
-        <div className={clsx(modal.fullScreen && 'flex', 'relative flex-1')}>
+        <div className={clsx(modal.fullScreen && 'flex', 'relative flex-1 compact:min-w-0')}>
           <div
             className={clsx(
               modal.fullScreen
-                ? 'flex flex-1'
+                ? 'flex flex-1 compact:min-w-0'
                 : 'absolute top-0 left-0 min-w-full min-h-full'
             )}
           >
             <div
               className={clsx(
-                modal.fullScreen ? 'w-full h-full flex-1' : 'mx-auto py-[48px]'
+                modal.fullScreen ? 'w-full h-full flex-1 compact:min-w-0' : 'mx-auto py-[48px]'
               )}
               {...(modal.size && { style: { width: modal.size } })}
             >
@@ -196,9 +196,12 @@ export const Component: FC<{
           >
             <div
               className={clsx(
-                !modal.removeLayout && 'gap-[40px] p-[32px]',
+                !modal.removeLayout &&
+                  'gap-[40px] p-[32px] compact:gap-[24px] compact:p-[20px]',
                 'bg-newBgColorInner mx-auto flex flex-col w-fit rounded-[24px] relative',
-                modal.size ? '' : 'min-w-[600px]',
+                // A phone is narrower than any of the set sizes.
+                'compact:!max-w-[calc(100vw-24px)]',
+                modal.size ? '' : 'min-w-[600px] compact:min-w-[calc(100vw-24px)]',
                 modal.fullScreen && 'h-full'
               )}
               {...((!!modal.size || !!modal.height || !!modal.maxSize) && {

@@ -37,6 +37,25 @@ interface CharacterCondition {
   maximumCharacters: number;
 }
 
+/**
+ * On a phone the editor stacks and scrolls as one page, so the preview pane no
+ * longer has a height of its own for an absolutely positioned preview to fill.
+ * YouTube and Pinterest are stacks of content-sized rows and go back into
+ * normal flow; TikTok sizes its 9:16 frame from the pane, so it gets a pane
+ * height. Same split as the review card. Static strings so Tailwind emits them.
+ */
+const compactPaneClassName = (identifier?: string) => {
+  switch (identifier) {
+    case 'tiktok':
+      return 'compact:relative compact:h-[560px]';
+    case 'youtube':
+    case 'pinterest':
+      return 'compact:[&>div]:!static compact:[&>div]:!h-auto';
+    default:
+      return '';
+  }
+};
+
 export const withProvider = function <T extends object>(params: {
   comments?: boolean | 'no-media';
   postComment: PostComment;
@@ -241,6 +260,7 @@ export const withProvider = function <T extends object>(params: {
           <div
             className={clsx(
               'border border-borderPreview rounded-[12px] shadow-previewShadow',
+              compactPaneClassName(selectedIntegration?.integration?.identifier),
               !current && 'hidden'
             )}
           >

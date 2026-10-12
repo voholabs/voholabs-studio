@@ -111,7 +111,8 @@ export const AccountFilter = () => {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-[8px] text-textColor select-none">
+    // One row you swipe sideways on a phone, so the chips don't push the feed off screen.
+    <div className="flex flex-wrap items-center gap-[8px] text-textColor select-none compact:flex-nowrap compact:overflow-x-auto compact:[&>*]:shrink-0 compact:[scrollbar-width:none]">
       <div
         onClick={select(null)}
         className={clsx(

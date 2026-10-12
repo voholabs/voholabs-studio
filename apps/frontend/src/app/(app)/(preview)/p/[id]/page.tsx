@@ -48,10 +48,12 @@ export default async function Auth(
   return (
     <div>
       <div className="mx-auto w-full max-w-[1346px] py-3 text-white">
-        <div className="flex items-center justify-between">
+        {/* On a phone the logo, share button and date wrap onto their own
+            lines instead of squeezing into one row. */}
+        <div className="flex items-center justify-between compact:flex-wrap compact:gap-[12px] compact:px-[12px]">
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-2">
-              <div className="min-w-[250px]">
+              <div className="min-w-[250px] compact:min-w-0">
                 <Link
                   href="/"
                   className="text-2xl flex items-center justify-center gap-[10px] text-textColor order-1"
@@ -63,9 +65,9 @@ export default async function Auth(
               </div>
             </div>
           </div>
-          <div className="text-sm text-gray-400 flex items-center gap-[20px]">
+          <div className="text-sm text-gray-400 flex items-center gap-[20px] compact:flex-wrap compact:gap-[12px]">
             {!!searchParams?.share && (
-              <div>
+              <div className="compact:whitespace-nowrap">
                 <CopyClient />
               </div>
             )}
@@ -105,7 +107,7 @@ export default async function Auth(
                     </div>
                   </div>
                   <div className="flex-1 space-y-1">
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 compact:flex-wrap">
                       <h2 className="text-sm font-semibold">
                         {post[0].integration.name}
                       </h2>

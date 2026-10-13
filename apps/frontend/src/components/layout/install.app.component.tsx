@@ -32,17 +32,9 @@ const isIos = () =>
   /iPhone|iPad|iPod/.test(navigator.userAgent) ||
   (navigator.userAgent.includes('Macintosh') && navigator.maxTouchPoints > 1);
 
-// Registers the offline service worker, and on phones offers to add Studio to
-// the home screen: an Install button where the browser supports it (Android),
-// and Share › Add to Home Screen steps on iPhone. Closing it hides it on this
-// browser for 30 days.
-export const InstallAppComponent: FC = () => {
-  const t = useT();
+// Registers sw.js, which only shows /offline.html when the device is offline.
+export const ServiceWorkerComponent: FC = () => {
   const { environment } = useVariables();
-  const [mode, setMode] = useState<'prompt' | 'ios' | null>(null);
-  const [installEvent, setInstallEvent] = useState<InstallPromptEvent | null>(
-    null
-  );
 
   useEffect(() => {
     if (environment === 'development' || !('serviceWorker' in navigator)) {
@@ -52,6 +44,30 @@ export const InstallAppComponent: FC = () => {
       // No offline page on this browser; the app works the same without it.
     });
   }, [environment]);
+
+  return null;
+};
+
+// On phones, offers to add Studio to the home screen: an Install button where
+// the browser supports it (Android), and Share › Add to Home Screen steps on
+// iPhone. Closing it hides it on this browser for 30 days.
+export const InstallAppComponent: FC = () => {
+  const t = useT();
+  const [mode, setMode] = useState<'prompt' | 'ios' | null>(null);
+  const [installEvent, setInstallEvent] = useState<InstallPromptEvent | null>(
+    null
+  );
+
+  // the support bubble would cover the card's buttons
+  useEffect(() => {
+    if (!mode) {
+      return;
+    }
+    document.querySelector('body')?.classList.add('installAppOpen');
+    return () => {
+      document.querySelector('body')?.classList.remove('installAppOpen');
+    };
+  }, [mode]);
 
   useEffect(() => {
     if (isInstalled() || dismissedRecently()) {
@@ -103,7 +119,7 @@ export const InstallAppComponent: FC = () => {
   }
 
   return (
-    <div className="hidden mobile:flex fixed bottom-[12px] inset-x-[12px] z-[489] items-center gap-[12px] p-[12px] bg-newBgColorInner border border-newBorder rounded-[12px] shadow-lg">
+    <div className="hidden mobile:flex fixed bottom-[12px] inset-x-[12px] z-[150] items-center gap-[12px] p-[12px] bg-newBgColorInner border border-newBorder rounded-[12px] shadow-lg">
       <img
         src="/icons/app/icon-192.png"
         alt=""

@@ -540,6 +540,15 @@ div div .set-font-family {
   display: none !important;
 }
 
+// the install card on phones sits where the support bubble would be
+@media (max-width: 1025px) {
+  .installAppOpen #support-discord,
+  .installAppOpen #chatbase-bubble-button,
+  .installAppOpen #chatbase-message-bubbles {
+    display: none !important;
+  }
+}
+
 html[dir='rtl'] .rbox {
   direction: rtl !important;
 }

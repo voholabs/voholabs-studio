@@ -21,6 +21,7 @@ self.addEventListener('activate', (event) => {
       .then((keys) =>
         Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)))
       )
+      .then(() => self.registration.navigationPreload?.enable())
       .then(() => self.clients.claim())
   );
 });
@@ -30,6 +31,8 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   event.respondWith(
-    fetch(event.request).catch(() => caches.match(OFFLINE_URL))
+    Promise.resolve(event.preloadResponse)
+      .then((preloaded) => preloaded || fetch(event.request))
+      .catch(() => caches.match(OFFLINE_URL))
   );
 });

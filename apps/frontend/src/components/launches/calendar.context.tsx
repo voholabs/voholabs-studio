@@ -20,7 +20,6 @@ import isoWeek from 'dayjs/plugin/isoWeek';
 import weekOfYear from 'dayjs/plugin/weekOfYear';
 import { extend } from 'dayjs';
 import useCookie from 'react-use-cookie';
-import { isCompact } from '@gitroom/frontend/components/layout/compact.query';
 import { newDayjs } from '@gitroom/frontend/components/layout/set.timezone';
 import { timer } from '@gitroom/helpers/utils/timer';
 import { expandPostsList, expandPosts } from '@gitroom/helpers/utils/posts.list.minify';
@@ -113,10 +112,16 @@ export const CalendarContext = createContext({
   setListReviewed: (reviewed: ListReviewedFilter) => {
     /** empty **/
   },
+  selectedChannels: null as string[] | null,
+  setSelectedChannels: (channels: string[] | null) => {
+    /** empty **/
+  },
+  currentHour: newDayjs().startOf('hour'),
 });
 
 export interface Integrations {
   name: string;
+  originalName?: string;
   id: string;
   disabled?: boolean;
   inBetweenSteps: boolean;
@@ -166,6 +171,23 @@ function getDateRange(display: string, referenceDate?: string) {
   }
 }
 
+// The current time rounded down to the unit. It checks on every minute, so it
+// also catches up within a minute after the computer wakes up from sleep.
+export const useNow = (unit: 'minute' | 'hour' = 'minute') => {
+  const [now, setNow] = useState(() => newDayjs().startOf(unit).valueOf());
+  useEffect(() => {
+    let timeout: NodeJS.Timeout;
+    const tick = () => {
+      // same number = no re-render, so the hour clock only renders once an hour
+      setNow(newDayjs().startOf(unit).valueOf());
+      timeout = setTimeout(tick, 60000 - (Date.now() % 60000));
+    };
+    tick();
+    return () => clearTimeout(timeout);
+  }, [unit]);
+  return useMemo(() => newDayjs(now), [now]);
+};
+
 export const CalendarWeekProvider: FC<{
   children: ReactNode;
   integrations: Integrations[];
@@ -174,10 +196,13 @@ export const CalendarWeekProvider: FC<{
   const [internalData, setInternalData] = useState([] as any[]);
   const [trendings] = useState<string[]>([]);
   const searchParams = useSearchParams();
-  // A phone opens on the list: seven day columns do not fit its width.
+  // A 7-column week doesn't fit a phone, so default small screens (tailwind `mobile`) to the day view
   const [displaySaved, setDisplaySaved] = useCookie(
     'calendar-display',
-    isCompact() ? 'list' : 'week'
+    typeof window !== 'undefined' &&
+      window.matchMedia('(max-width: 1025px)').matches
+      ? 'day'
+      : 'week'
   );
   const display = searchParams.get('display') || displaySaved;
 
@@ -214,12 +239,24 @@ export const CalendarWeekProvider: FC<{
       ? { startDate: initStartDate, endDate: initEndDate }
       : getDateRange(display);
 
+  const [selectedChannels, setSelectedChannelsRaw] = useState<
+    string[] | null
+  >(null);
+  const setSelectedChannels = useCallback((next: string[] | null) => {
+    setSelectedChannelsRaw(next);
+    setListPage(0);
+  }, []);
+
   const [filters, setFilters] = useState({
     startDate: initialRange.startDate,
     endDate: initialRange.endDate,
     customer: initCustomer || null,
     display,
   });
+
+  useEffect(() => {
+    setSelectedChannels(null);
+  }, [filters.customer]);
 
   const params = useMemo(() => {
     return new URLSearchParams({
@@ -252,6 +289,7 @@ export const CalendarWeekProvider: FC<{
       customer: filters?.customer?.toString() || '',
       state: listState,
       ...(listIntegration ? { integration: listIntegration } : {}),
+      ...(selectedChannels ? { integrations: selectedChannels.join(',') } : {}),
       // Only review shows the mark on every row and offers the pills, so the
       // list view must not inherit a filter it gives you no way to see or undo.
       reviewed: filters.display === 'review' ? listReviewed : 'all',
@@ -263,6 +301,7 @@ export const CalendarWeekProvider: FC<{
     filters.display,
     listState,
     listIntegration,
+    selectedChannels,
     listReviewed,
   ]);
 
@@ -355,6 +394,14 @@ export const CalendarWeekProvider: FC<{
     []
   );
 
+  const filterByChannels = useCallback(
+    (list: any[]) =>
+      selectedChannels
+        ? list.filter((p) => selectedChannels.includes(p.integration?.id))
+        : list,
+    [selectedChannels]
+  );
+
   const posts = useMemo(() => calendarData?.posts || [], [calendarData?.posts]);
   const comments = useMemo(() => calendarData?.comments || [], [calendarData?.comments]);
 
@@ -389,13 +436,13 @@ export const CalendarWeekProvider: FC<{
         // to be applied to them here.
         ...(listIntegration
           ? sanityItems.filter((i) => i.integration?.id === listIntegration)
-          : sanityItems),
+          : filterByChannels(sanityItems)),
       ].sort((a, b) =>
         listState === 'published'
           ? String(b.publishDate).localeCompare(String(a.publishDate))
           : String(a.publishDate).localeCompare(String(b.publishDate))
       ),
-    [realListPosts, sanityItems, listState, listIntegration]
+    [realListPosts, sanityItems, listState, listIntegration, filterByChannels]
   );
 
   // The server counts rows it holds; unscheduled Sanity documents only exist in
@@ -463,13 +510,16 @@ export const CalendarWeekProvider: FC<{
     ? listIsLoading
     : calendarIsLoading;
 
+  // one clock for every calendar cell, instead of a timer per cell
+  const currentHour = useNow('hour');
+
   return (
     <CalendarContext.Provider
       value={{
         trendings,
         reloadCalendarView,
         ...filters,
-        posts: calendarIsLoading ? [] : internalData,
+        posts: calendarIsLoading ? [] : filterByChannels(internalData),
         loading,
         integrations,
         setFilters: setFiltersWrapper,
@@ -490,6 +540,9 @@ export const CalendarWeekProvider: FC<{
         listChannelCounts,
         listReviewed,
         setListReviewed,
+        selectedChannels,
+        setSelectedChannels,
+        currentHour,
       }}
     >
       {children}

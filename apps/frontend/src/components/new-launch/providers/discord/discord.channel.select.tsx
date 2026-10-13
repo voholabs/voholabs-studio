@@ -43,8 +43,9 @@ export const DiscordChannelSelect: FC<{
   };
   useEffect(() => {
     customFunc.get('channels').then((data) => {
-      setOrgs(data);
-      report(data, getValues()[props.name]);
+      const list = Array.isArray(data) ? data : [];
+      setOrgs(list);
+      report(list, getValues()[props.name]);
     });
     const settings = getValues()[props.name];
     if (settings) {

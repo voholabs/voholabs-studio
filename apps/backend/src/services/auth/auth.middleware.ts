@@ -28,6 +28,7 @@ import {
   Sections,
   SubscriptionException,
 } from '@gitroom/backend/services/auth/permissions/permission.exception.class';
+import { setSentryUserContext } from '@gitroom/nestjs-libraries/sentry/initialize.sentry';
 
 export const removeAuth = (res: Response) => {
   clearAuthCookie(res);
@@ -124,6 +125,13 @@ export class AuthMiddleware implements NestMiddleware {
           // eslint-disable-next-line @typescript-eslint/ban-ts-comment
           // @ts-expect-error
           req.org = loadImpersonate.organization;
+
+          setSentryUserContext({
+            userId: user.id,
+            email: user.email,
+            orgId: loadImpersonate.organization.id,
+            paymentId: loadImpersonate.organization.paymentId,
+          });
           next();
           return;
         }
@@ -160,6 +168,13 @@ export class AuthMiddleware implements NestMiddleware {
       // For the daily active users on /admin/growth. An admin impersonating
       // somebody returned further up, so it never counts as them.
       this._userService.markActive(user.id);
+
+      setSentryUserContext({
+        userId: user.id,
+        email: user.email,
+        orgId: setOrg.id,
+        paymentId: setOrg.paymentId,
+      });
     } catch (err) {
       throw new HttpForbiddenException();
     }

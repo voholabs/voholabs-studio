@@ -5,13 +5,14 @@ import {
   SocialProvider,
 } from '@gitroom/nestjs-libraries/integrations/social/social.integrations.interface';
 import {
+  BadBody,
   SocialAbstract,
   ValidityMedia,
 } from '@gitroom/nestjs-libraries/integrations/social.abstract';
 import { makeState, makeCodeVerifier } from '@gitroom/nestjs-libraries/services/make.is';
 import { TumblrDto } from '@gitroom/nestjs-libraries/dtos/posts/providers-settings/tumblr.dto';
 import { Integration } from '@prisma/client';
-import { safeFetchBuffer } from '@gitroom/nestjs-libraries/dtos/webhooks/safe.fetch';
+import FormDataUpload from 'form-data';
 import { lookup } from 'mime-types';
 import { hasExtension } from '@gitroom/helpers/utils/has.extension';
 
@@ -509,35 +510,53 @@ export class TumblrProvider extends SocialAbstract implements SocialProvider {
     payload: { content: TumblrContentBlock[]; [key: string]: any },
     media: NonNullable<PostDetails['media']>
   ) {
-    const formData = new FormData();
-    formData.append(
-      'json',
-      new Blob([JSON.stringify(payload)], { type: 'application/json' })
-    );
+    // Each media part is streamed from its source into the multipart request
+    // (with its size from a HEAD request) so files are never held in memory.
+    // runStreamedUpload rebuilds the whole form per attempt (a consumed
+    // stream can't be replayed) and keeps handleErrors classification.
+    return this.runStreamedUpload<TumblrCreatePostResponse>(async () => {
+      const formData = new FormDataUpload();
+      formData.append('json', JSON.stringify(payload), {
+        contentType: 'application/json',
+      });
 
-    for (const [index, item] of media.entries()) {
-      const mimeType = this.getMimeType(item.path);
-      const data = await safeFetchBuffer(this.getMediaUrl(item.path));
-      formData.append(
-        `media-${index}`,
-        new Blob([Buffer.from(data)], { type: mimeType }),
-        item.path.split('/').pop() || `media-${index}`
-      );
-    }
+      for (const [index, item] of media.entries()) {
+        const mediaUrl = this.getMediaUrl(item.path);
+        const mimeType = this.getMimeType(item.path);
+        const fileSize = await this.mediaSize(mediaUrl, this.identifier);
+        const stream = await this.mediaStream(mediaUrl, this.identifier);
+        formData.append(`media-${index}`, stream, {
+          filename: item.path.split('/').pop() || `media-${index}`,
+          contentType: mimeType,
+          knownLength: fileSize,
+        });
+      }
 
-    return (await (
-      await this.fetch(
+      const { data: response } = await this.getSsrfSafeAxios().post(
         `${TUMBLR_API_URL}/blog/${encodeURIComponent(blogName)}/posts`,
+        formData,
         {
-          method: 'POST',
           headers: {
+            ...formData.getHeaders(),
             Authorization: `Bearer ${accessToken}`,
             'User-Agent': TUMBLR_USER_AGENT,
           },
-          body: formData,
         }
-      )
-    ).json()) as TumblrCreatePostResponse;
+      );
+
+      // axios parses JSON silently: a non-JSON 200 (proxy/WAF page) comes
+      // back as a raw string, which would publish the post with an empty id.
+      if (!response || typeof response !== 'object' || !response.response) {
+        throw new BadBody(
+          this.identifier,
+          String(response || '{}'),
+          '{}',
+          'Tumblr did not return a valid post response'
+        );
+      }
+
+      return response as TumblrCreatePostResponse;
+    }, this.identifier);
   }
 
   private async createContentBlocks(post: PostDetails<TumblrDto>) {

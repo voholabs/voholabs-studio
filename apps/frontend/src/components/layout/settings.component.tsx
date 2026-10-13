@@ -20,8 +20,6 @@ import clsx from 'clsx';
 import { TeamsComponent } from '@gitroom/frontend/components/settings/teams.component';
 import { useUser } from '@gitroom/frontend/components/layout/user.context';
 import { LogoutComponent } from '@gitroom/frontend/components/layout/logout.component';
-import { LanguageComponent } from '@gitroom/frontend/components/layout/language.component';
-import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import { useVariables } from '@gitroom/react/helpers/variable.context';
 import { PublicComponent } from '@gitroom/frontend/components/public-api/public.component';
@@ -33,13 +31,10 @@ import { Autopost } from '@gitroom/frontend/components/autopost/autopost';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { SVGLine } from '@gitroom/frontend/components/launches/launches.component';
 import { GlobalSettings } from '@gitroom/frontend/components/settings/global.settings';
-import { ApprovedAppsComponent } from '@gitroom/frontend/components/approved-apps/approved-apps.component';
 import { UsageComponent } from '@gitroom/frontend/components/settings/usage.component';
-const ModeComponent = dynamic(
-  () => import('@gitroom/frontend/components/layout/mode.component'),
-  { ssr: false }
-);
-
+import { AppsComponent } from '@gitroom/frontend/components/settings/apps.component';
+import { ThirdPartyComponent } from '@gitroom/frontend/components/third-parties/third-party.component';
+import { Plugs } from '@gitroom/frontend/components/plugs/plugs';
 export const SettingsPopup: FC<{
   getRef?: Ref<any>;
 }> = (props) => {
@@ -89,14 +84,15 @@ export const SettingsPopup: FC<{
     close();
   }, []);
 
-  const [tab, setTab] = useState('global_settings');
-
   const t = useT();
   const list = useMemo(() => {
     const arr = [];
     arr.push({ tab: 'global_settings', label: t('global_settings', 'Global Settings') });
     // Populate tabs based on user permissions
-    if (user?.tier?.team_members && isGeneral) {
+    if (user?.tier?.public_api && isGeneral && showLogout) {
+      arr.push({ tab: 'agents', label: t('connect_agent', 'Connect Agent') });
+    }
+    if (user?.tier?.team_members && isGeneral && user?.role !== 'USER') {
       arr.push({ tab: 'teams', label: t('teams', 'Teams') });
     }
     if (user?.tier?.webhooks) {
@@ -107,17 +103,23 @@ export const SettingsPopup: FC<{
     }
     arr.push({ tab: 'sets', label: t('sets', 'Sets') });
     arr.push({ tab: 'signatures', label: t('signatures', 'Signatures') });
-    if (user?.tier?.public_api && isGeneral && showLogout) {
-      arr.push({ tab: 'api', label: t('connect_agent', 'Connect Agent') });
-    }
     // AI media credits, which the free plan has none of.
     if (user?.tier?.ai) {
       arr.push({ tab: 'usage', label: t('usage', 'Usage') });
     }
-    arr.push({ tab: 'approved_apps', label: t('approved_apps', 'Approved Apps') });
+    arr.push({ tab: 'integrations', label: t('integrations', 'Integrations') });
+    arr.push({ tab: 'plugs', label: t('plugs', 'Plugs') });
+    arr.push({ tab: 'apps', label: t('apps', 'Apps') });
 
     return arr;
   }, [user, isGeneral, showLogout, t]);
+
+  const [tab, setTab] = useState(() => {
+    const requested = url.get('tab');
+    return list.some((p) => p.tab === requested)
+      ? requested!
+      : 'global_settings';
+  });
 
   useEffect(() => {
     loadProfile();
@@ -125,20 +127,20 @@ export const SettingsPopup: FC<{
 
   return (
     <>
-      <div className="bg-newBgColorInner p-[20px] flex flex-col transition-all w-[260px] shrink-0 compact:w-full compact:p-[12px] compact:gap-[8px]">
-        <div className="flex flex-1 flex-col gap-[15px] compact:flex-row compact:gap-[4px] compact:overflow-x-auto compact:whitespace-nowrap">
+      <div className="bg-newBgColorInner p-[20px] mobile:p-[12px] flex flex-col transition-all w-[260px] mobile:w-full">
+        <div className="flex flex-1 flex-col gap-[15px] mobile:flex-row mobile:gap-[8px] mobile:overflow-x-auto mobile:pb-[6px] scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
           {list.map(({ tab: tabKey, label }) => (
             <div
               key={tabKey}
               className={clsx(
-                'cursor-pointer flex items-center gap-[12px] group/profile hover:bg-boxHover rounded-e-[8px] compact:rounded-[8px] compact:px-[10px] compact:py-[6px] compact:shrink-0',
+                'cursor-pointer flex items-center gap-[12px] group/profile hover:bg-boxHover rounded-e-[8px] mobile:shrink-0 mobile:whitespace-nowrap mobile:rounded-[8px] mobile:px-[12px] mobile:py-[8px]',
                 tabKey === tab && 'bg-boxHover'
               )}
               onClick={() => setTab(tabKey)}
             >
               <div
                 className={clsx(
-                  'h-full w-[4px] rounded-s-[3px] opacity-0 group-hover/profile:opacity-100 transition-opacity compact:hidden',
+                  'h-full w-[4px] rounded-s-[3px] opacity-0 group-hover/profile:opacity-100 transition-opacity mobile:hidden',
                   tabKey === tab && 'opacity-100'
                 )}
               >
@@ -148,21 +150,15 @@ export const SettingsPopup: FC<{
             </div>
           ))}
         </div>
-        <div className="compact:flex compact:items-center compact:gap-[16px]">
+        <div>
           {showLogout && (
-            <div className="mt-4 compact:mt-0 compact:flex-1">
+            <div className="mt-4 mobile:mt-[8px]">
               <LogoutComponent />
             </div>
           )}
-          {/* The top bar drops the theme and language switches on a phone,
-              so they live here instead. */}
-          <div className="hidden compact:flex items-center gap-[16px] text-textItemBlur hover:text-newTextColor">
-            <ModeComponent />
-            <LanguageComponent />
-          </div>
         </div>
       </div>
-      <div className="bg-newBgColorInner flex-1 flex-col flex p-[20px] gap-[12px] compact:p-[12px] min-w-0">
+      <div className="bg-newBgColorInner flex-1 min-w-0 flex-col flex p-[20px] mobile:p-[12px] gap-[12px]">
         <FormProvider {...form}>
           <form onSubmit={form.handleSubmit(submit)}>
             {!!getRef && (
@@ -179,11 +175,14 @@ export const SettingsPopup: FC<{
                   <GlobalSettings />
                 </div>
               )}
-              {tab === 'teams' && !!user?.tier?.team_members && isGeneral && (
-                <div>
-                  <TeamsComponent />
-                </div>
-              )}
+              {tab === 'teams' &&
+                !!user?.tier?.team_members &&
+                isGeneral &&
+                user?.role !== 'USER' && (
+                  <div>
+                    <TeamsComponent />
+                  </div>
+                )}
 
               {tab === 'webhooks' && !!user?.tier?.webhooks && (
                 <div>
@@ -209,7 +208,19 @@ export const SettingsPopup: FC<{
                 </div>
               )}
 
-              {tab === 'api' &&
+              {tab === 'integrations' && (
+                <div>
+                  <ThirdPartyComponent />
+                </div>
+              )}
+
+              {tab === 'plugs' && (
+                <div>
+                  <Plugs />
+                </div>
+              )}
+
+              {tab === 'agents' &&
                 !!user?.tier?.public_api &&
                 isGeneral &&
                 showLogout && (
@@ -224,9 +235,16 @@ export const SettingsPopup: FC<{
                 </div>
               )}
 
-              {tab === 'approved_apps' && (
+              {tab === 'apps' && (
                 <div>
-                  <ApprovedAppsComponent />
+                  <AppsComponent
+                    canManageApps={
+                      !!user?.tier?.public_api &&
+                      isGeneral &&
+                      showLogout &&
+                      user?.role !== 'USER'
+                    }
+                  />
                 </div>
               )}
             </div>

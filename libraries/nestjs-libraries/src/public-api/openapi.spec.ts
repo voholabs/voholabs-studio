@@ -17,8 +17,11 @@ const routes = readdirSync(controllers)
     if (!source.includes("@Controller('/public/v1')")) {
       return [];
     }
+    // Routes behind SuperAdminGuard are for Studio staff, not customers
     return Array.from(
-      source.matchAll(/@(Get|Post|Put|Patch|Delete)\('([^']*)'\)/g)
+      source.matchAll(
+        /@(Get|Post|Put|Patch|Delete)\('([^']*)'\)(?!\s*@UseGuards\(SuperAdminGuard\))/g
+      )
     ).map(
       ([, method, path]) =>
         `${method.toLowerCase()} ${path.replace(/:(\w+)/g, '{$1}')}`

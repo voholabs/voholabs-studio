@@ -31,7 +31,24 @@ export default {
         },
       },
     ],
+    // file-type and its tokenizer dependencies ship as ES modules only;
+    // they are compiled to CommonJS so jest's runtime can load them.
+    '^.+/node_modules/(file-type|strtok3|token-types|peek-readable|uint8array-extras|@tokenizer|@borewit|@noble|@scure|nostr-tools)/.+\\.js$':
+      [
+        'ts-jest',
+        {
+          tsconfig: {
+            allowJs: true,
+            isolatedModules: true,
+            module: 'commonjs',
+            target: 'es2020',
+          },
+        },
+      ],
   },
+  transformIgnorePatterns: [
+    '/node_modules/(?!(file-type|strtok3|token-types|peek-readable|uint8array-extras|@tokenizer|@borewit|@noble|@scure|nostr-tools)/)',
+  ],
   moduleFileExtensions: ['ts', 'js', 'json'],
   moduleNameMapper: {
     '^isomorphic-dompurify$':

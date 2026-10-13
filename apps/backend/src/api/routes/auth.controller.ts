@@ -9,6 +9,8 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import { ThrottlerRealIpGuard } from '@gitroom/nestjs-libraries/throttler/throttler.provider';
 import { Response, Request } from 'express';
 
 import { CreateOrgUserDto } from '@gitroom/nestjs-libraries/dtos/auth/create.org.user.dto';
@@ -30,6 +32,7 @@ import {
   AuthRateLimit,
   AuthRateLimitGuard,
 } from '@gitroom/nestjs-libraries/throttler/auth.rate.limit.guard';
+import { FarcasterProvider } from '@gitroom/nestjs-libraries/integrations/social/farcaster.provider';
 
 @ApiTags('Auth')
 @Controller('/auth')
@@ -199,6 +202,8 @@ export class AuthController {
     return response.redirect(302, `${scheme}?${params.toString()}`);
   }
 
+  // The one-time login state is issued and checked by AuthService (stored
+  // server side per provider), so the link needs no state cookie.
   @Get('/oauth/:provider')
   async oauthLink(@Param('provider') provider: string, @Query() query: any) {
     return this._authService.oauthLink(provider, query);
@@ -242,6 +247,51 @@ export class AuthController {
     };
   }
 
+  // public and creates a signer at Neynar per call, so cap it per client
+  @UseGuards(ThrottlerRealIpGuard)
+  @Throttle({ default: { limit: 30, ttl: 3600000 } })
+  @Post('/farcaster/signer')
+  async farcasterSigner() {
+    try {
+      return await new FarcasterProvider().createSigner();
+    } catch (err: any) {
+      return { error: err.message || 'Failed to create signer' };
+    }
+  }
+
+  // the modal polls every 2s for up to 10 minutes, so leave room for that
+  @UseGuards(ThrottlerRealIpGuard)
+  @Throttle({ default: { limit: 1000, ttl: 3600000 } })
+  @Get('/farcaster/signer')
+  async farcasterSignerStatus(@Query('signerUuid') signerUuid: string) {
+    try {
+      return await new FarcasterProvider().signerStatus(signerUuid);
+    } catch (err: any) {
+      return { error: err.message || 'Failed to check signer' };
+    }
+  }
+
+  @Post('/oauth/:provider/redirect')
+  oauthRedirect(
+    @Param('provider') provider: string,
+    @Body('code') code: string,
+    @Body('state') state: string,
+    @Res({ passthrough: false }) response: Response
+  ) {
+    if (!code) {
+      return response.redirect(303, `${process.env.FRONTEND_URL}/auth/login`);
+    }
+
+    const params = new URLSearchParams();
+    params.set('code', code);
+    if (state) params.set('state', state);
+    params.set('provider', provider.toUpperCase());
+    return response.redirect(
+      303,
+      `${process.env.FRONTEND_URL}/auth?${params.toString()}`
+    );
+  }
+
   @Post('/oauth/:provider/exists')
   @UseGuards(AuthRateLimitGuard)
   @AuthRateLimit(...AuthLimits.oauthExists)
@@ -253,6 +303,11 @@ export class AuthController {
     @Param('provider') provider: string,
     @Res({ passthrough: false }) response: Response
   ) {
+    // a cross-site form post can spoof any body field, a json body cannot
+    if (!req.headers['content-type']?.includes('application/json')) {
+      return response.status(400).send('Invalid request');
+    }
+
     let exists: Awaited<ReturnType<AuthService['checkExists']>>;
     try {
       exists = await this._authService.checkExists(

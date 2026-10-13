@@ -8,7 +8,7 @@ import React, {
   useImperativeHandle,
   useMemo,
 } from 'react';
-import { useForm, FormProvider } from 'react-hook-form';
+import { useForm, useWatch, FormProvider } from 'react-hook-form';
 import { IsOptional } from 'class-validator';
 import { classValidatorResolver } from '@hookform/resolvers/class-validator';
 import { useLaunchStore } from '@gitroom/frontend/components/new-launch/store';
@@ -37,25 +37,6 @@ interface CharacterCondition {
   maximumCharacters: number;
 }
 
-/**
- * On a phone the editor stacks and scrolls as one page, so the preview pane no
- * longer has a height of its own for an absolutely positioned preview to fill.
- * YouTube and Pinterest are stacks of content-sized rows and go back into
- * normal flow; TikTok sizes its 9:16 frame from the pane, so it gets a pane
- * height. Same split as the review card. Static strings so Tailwind emits them.
- */
-const compactPaneClassName = (identifier?: string) => {
-  switch (identifier) {
-    case 'tiktok':
-      return 'compact:relative compact:h-[560px]';
-    case 'youtube':
-    case 'pinterest':
-      return 'compact:[&>div]:!static compact:[&>div]:!h-auto';
-    default:
-      return '';
-  }
-};
-
 export const withProvider = function <T extends object>(params: {
   comments?: boolean | 'no-media';
   postComment: PostComment;
@@ -68,6 +49,7 @@ export const withProvider = function <T extends object>(params: {
   }>;
   dto?: any;
   maximumCharacters?: number | ((settings: any) => number);
+  inlineImages?: boolean | ((values: any) => boolean);
 }) {
   const {
     postComment,
@@ -94,13 +76,14 @@ export const withProvider = function <T extends object>(params: {
       allIntegrations,
       setPostComment,
       setEditor,
+      setInlineImages,
       dummy,
       setChars,
       setComments,
       setHide,
     } = useLaunchStore(
       useShallow((state) => ({
-        date: state.date,
+        date: state.channelDates[props.id] || state.date,
         tab: state.tab,
         global: state.global,
         dummy: state.dummy,
@@ -116,6 +99,7 @@ export const withProvider = function <T extends object>(params: {
         setTotalChars: state.setTotalChars,
         setPostComment: state.setPostComment,
         setEditor: state.setEditor,
+        setInlineImages: state.setInlineImages,
         setChars: state.setChars,
         selectedIntegration: state.selectedIntegrations.find(
           (p) => p.integration.id === props.id
@@ -144,6 +128,7 @@ export const withProvider = function <T extends object>(params: {
         setPostComment(PostComment.ALL);
         setTotalChars(0);
         setEditor('normal');
+        setInlineImages(false);
       }
 
       if (current) {
@@ -197,6 +182,21 @@ export const withProvider = function <T extends object>(params: {
       reValidateMode: 'onChange',
     });
 
+    // the post settings can turn inline images on, like an X article
+    const values = useWatch({
+      control: form.control,
+      disabled: typeof params.inlineImages !== 'function',
+    });
+    const inlineImages =
+      typeof params.inlineImages === 'function'
+        ? params.inlineImages(values)
+        : !!params.inlineImages;
+    useEffect(() => {
+      if (current) {
+        setInlineImages(inlineImages);
+      }
+    }, [current, inlineImages]);
+
     useImperativeHandle(
       ref,
       () => ({
@@ -218,14 +218,6 @@ export const withProvider = function <T extends object>(params: {
                       selectedIntegration.integration.additionalSettings || '[]'
                     )
                   ),
-            fix: () => {
-              setCurrent(props.id);
-              setHide(true);
-            },
-            preview: () => {
-              setCurrent(props.id);
-              setHide(true);
-            },
           };
         },
         getValues: () => {
@@ -238,6 +230,17 @@ export const withProvider = function <T extends object>(params: {
         },
         trigger: () => {
           return form.trigger();
+        },
+        // a save that failed on this channel brings it into view, with its
+        // settings showing what is wrong
+        fix: () => {
+          setCurrent(props.id);
+          setHide(true);
+          form.trigger();
+        },
+        preview: () => {
+          setCurrent(props.id);
+          setHide(true);
         },
       }),
       [value]
@@ -260,7 +263,6 @@ export const withProvider = function <T extends object>(params: {
           <div
             className={clsx(
               'border border-borderPreview rounded-[12px] shadow-previewShadow',
-              compactPaneClassName(selectedIntegration?.integration?.identifier),
               !current && 'hidden'
             )}
           >
@@ -308,7 +310,7 @@ export const withProvider = function <T extends object>(params: {
               ))}
             {(SettingsComponent || !!data?.internalPlugs?.length) &&
               createPortal(
-                <div data-id={props.id} className={isGlobal ? 'bg-newSettings pb-[12px] px-[12px]' : 'hidden bg-newSettings px-[12px] pb-[12px]'}>
+                <div data-id={props.id} className={isGlobal ? 'bg-newSettings pb-[12px] px-[12px] mobile:bg-transparent mobile:px-[16px]' : 'hidden bg-newSettings px-[12px] pb-[12px] mobile:bg-transparent mobile:px-[16px]'}>
                   {isGlobal && (
                     <style>{`#wrapper-settings {display: flex !important} #social-empty {display: block !important;}`}</style>
                   )}

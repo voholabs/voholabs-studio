@@ -1,6 +1,6 @@
 'use client';
 
-import React, { ReactNode, useCallback } from 'react';
+import React, { ReactNode, useCallback, useEffect, useState } from 'react';
 import { Logo } from '@gitroom/frontend/components/new-layout/logo';
 import { Inter_Tight } from 'next/font/google';
 const ModeComponent = dynamic(
@@ -14,7 +14,7 @@ import clsx from 'clsx';
 import dynamic from 'next/dynamic';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { useVariables } from '@gitroom/react/helpers/variable.context';
-import { useSearchParams } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import useSWR from 'swr';
 import { CheckPayment } from '@gitroom/frontend/components/layout/check.payment';
 import { ToolTip } from '@gitroom/frontend/components/layout/top.tip';
@@ -50,6 +50,7 @@ import { TrialTracker } from '@gitroom/frontend/components/layout/gtm.component'
 import { RequiredOnboarding } from '@gitroom/frontend/components/onboarding/required.onboarding';
 import { RequiredTerms } from '@gitroom/frontend/components/onboarding/required.terms';
 import { WalletHeader } from '@gitroom/frontend/components/wallet/wallet.header';
+import { setSentryUser } from '@gitroom/react/sentry/initialize.sentry.client';
 
 const interTight = Inter_Tight({
   weight: ['600', '500', '700'],
@@ -64,6 +65,18 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
 
   // Feedback icon component attaches Sentry feedback to a top-bar icon when DSN is present
   const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
+  // the drawer only exists in the mobile layout, so leaving it closes it
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 1025px)');
+    const close = () => setMenuOpen(false);
+    query.addEventListener('change', close);
+    return () => query.removeEventListener('change', close);
+  }, []);
   const load = useCallback(async (path: string) => {
     return await (await fetch(path)).json();
   }, []);
@@ -75,6 +88,12 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
     refreshWhenHidden: false,
   });
   const apexBanner = useApexBanner(user?.tier === 'FREE');
+
+  useEffect(() => {
+    setSentryUser(
+      user ? { id: user.id, email: user.email, orgId: user.orgId } : null
+    );
+  }, [user]);
 
   if (!user) return null;
 
@@ -141,6 +160,7 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
       <CopilotKit
         credentials="include"
         runtimeUrl={backendUrl + '/copilot/chat'}
+        useSingleEndpoint={true}
         showDevConsole={false}
       >
         <MantineWrapper>
@@ -157,9 +177,7 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
             <ContinueProvider />
             <div
               className={clsx(
-                // On a phone the menu is a bar along the bottom; the padding
-                // keeps the page clear of it.
-                'flex flex-col min-h-screen min-w-screen text-newTextColor p-[12px] compact:pb-[80px] short:pb-[60px]',
+                'flex flex-col min-h-screen min-w-screen text-newTextColor p-[12px] mobile:p-[8px] mobile:pb-[80px]',
                 interTight.className
               )}
             >
@@ -172,57 +190,88 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
                   {apexBanner.show && (
                     <ApexBanner onClose={apexBanner.dismiss} />
                   )}
-                  <div className="flex-1 flex gap-[8px] compact:gap-0">
+                  <div className="flex-1 flex gap-[8px] mobile:gap-0">
                     <Support />
-                    <div className="flex flex-col bg-newBgColorInner w-[80px] rounded-[12px] compact:w-0">
+                    {menuOpen && (
+                      <div
+                        className="hidden mobile:block fixed inset-0 bg-newBackdrop opacity-60 z-[490]"
+                        onClick={() => setMenuOpen(false)}
+                      />
+                    )}
+                    <div
+                      className={clsx(
+                        'flex flex-col bg-newBgColorInner w-[80px] rounded-[12px] mobile:fixed mobile:top-0 mobile:bottom-0 mobile:start-0 mobile:z-[491] mobile:rounded-none mobile:overflow-y-auto mobile:overflow-x-hidden',
+                        !menuOpen && 'mobile:hidden'
+                      )}
+                      onClick={() => setMenuOpen(false)}
+                    >
                       <div
                         id="left-menu"
                         className={clsx(
-                          'fixed w-[64px] start-[17px] flex flex-1',
+                          'fixed w-[64px] start-[20px] flex flex-1 mobile:static mobile:h-auto mobile:min-h-full mobile:mx-auto',
                           // The Apex banner pushes the page down 44px; the
                           // fixed menu moves with it to stay aligned.
                           apexBanner.show
                             ? 'top-[44px] h-[calc(100%-44px)]'
                             : 'top-0 h-full',
-                          user?.admin && 'pt-[60px] max-h-[1000px]:w-[500px]',
-                          'compact:!top-auto compact:bottom-0 compact:start-0 compact:!h-[68px] short:!h-[48px] compact:w-full compact:!pt-0 compact:z-[100] compact:bg-newBgColorInner compact:border-t compact:border-newBorder'
+                          user?.admin && 'pt-[52px] max-h-[1000px]:w-[500px]'
                         )}
                       >
-                        <div className="flex flex-col h-full gap-[32px] flex-1 py-[12px] compact:flex-row compact:gap-0 compact:py-[4px] compact:px-[4px] compact:overflow-x-auto">
-                          <Logo />
+                        <div className="flex flex-col h-full gap-[32px] mobile:gap-[16px] flex-1 pt-[12px] pb-[20px] mobile:pb-[12px]">
+                          <div className="flex justify-center">
+                            <Logo />
+                          </div>
                           <TopMenu />
                         </div>
                       </div>
                     </div>
-                    <div className="flex-1 bg-newBgLineColor rounded-[12px] overflow-hidden flex flex-col gap-[1px] blurMe">
-                      <div className="relative flex bg-newBgColorInner h-[80px] px-[20px] items-center compact:h-[60px] compact:px-[12px] compact:gap-[8px]">
-                        <div className="text-[24px] font-[600] flex flex-1 min-w-0 compact:text-[18px] compact:overflow-hidden compact:whitespace-nowrap compact:[&_h1]:truncate">
+                    <div className="flex-1 min-w-0 bg-newBgLineColor rounded-[12px] overflow-hidden flex flex-col gap-[1px] blurMe">
+                      <div className="relative flex bg-newBgColorInner h-[80px] mobile:h-[64px] px-[20px] mobile:px-[12px] gap-[12px] items-center">
+                        <button
+                          className="hidden mobile:flex items-center justify-center w-[36px] h-[36px] -ms-[6px] rounded-[8px] text-textItemBlur hover:text-newTextColor hover:bg-boxFocused"
+                          onClick={() => setMenuOpen(true)}
+                          aria-label="Open menu"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="22"
+                            height="22"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                          >
+                            <path
+                              d="M3 6H21M3 12H21M3 18H21"
+                              stroke="currentColor"
+                              strokeWidth="1.8"
+                              strokeLinecap="round"
+                            />
+                          </svg>
+                        </button>
+                        <div className="text-[24px] mobile:text-[20px] font-[600] flex flex-1 min-w-0">
                           <Title />
                         </div>
-                        <div className="flex gap-[20px] text-textItemBlur items-center compact:gap-[12px] compact:shrink-0">
+                        <div className="flex gap-[20px] mobile:gap-[8px] items-center text-textItemBlur">
                           <TrialBanner />
-                          {/* Desktop extras; a phone keeps the workspace,
-                              wallet and notifications. */}
-                          <div className="contents compact:hidden">
-                            <StreakComponent />
-                            <div className="w-[1px] h-[20px] bg-blockSeparator" />
-                          </div>
+                          <StreakComponent />
+                          <div className="w-[1px] h-[20px] bg-blockSeparator mobile:hidden" />
                           <OrganizationSelector />
-                          <div className="hover:text-newTextColor compact:hidden">
+                          <div className="hover:text-newTextColor">
                             <ModeComponent />
                           </div>
-                          <div className="contents compact:hidden">
-                            <div className="w-[1px] h-[20px] bg-blockSeparator" />
-                            <LanguageComponent />
+                          <div className="w-[1px] h-[20px] bg-blockSeparator mobile:hidden" />
+                          <LanguageComponent />
+                          <div className="contents mobile:hidden">
                             <ChromeExtensionComponent />
-                            <div className="w-[1px] h-[20px] bg-blockSeparator" />
+                          </div>
+                          <div className="w-[1px] h-[20px] bg-blockSeparator mobile:hidden" />
+                          <div className="contents mobile:hidden">
                             <AttachToFeedbackIcon />
                           </div>
                           {user.tier === 'FREE' && <WalletHeader />}
                           <NotificationComponent />
                         </div>
                       </div>
-                      <div className="flex flex-1 gap-[1px] compact:flex-col short:min-h-[400px]">
+                      <div className="flex flex-1 min-w-0 gap-[1px] mobile:flex-col">
                         {children}
                       </div>
                     </div>

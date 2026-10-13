@@ -10,6 +10,7 @@ import { UPLOAD_WIDGET_URI } from '@gitroom/nestjs-libraries/chat/ui/upload.widg
 export class UploadWidgetTool implements AgentToolInterface {
   constructor(private _mediaService: MediaService) {}
   name = 'uploadWidgetTool';
+  mcpOnly = true;
 
   run() {
     return createTool({

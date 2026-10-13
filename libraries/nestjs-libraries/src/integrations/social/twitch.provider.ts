@@ -4,14 +4,14 @@ import {
   PostResponse,
   SocialProvider,
 } from '@gitroom/nestjs-libraries/integrations/social/social.integrations.interface';
-import { makeId, makeCodeVerifier } from '@gitroom/nestjs-libraries/services/make.is';
+import { makeId, makeState, makeCodeVerifier } from '@gitroom/nestjs-libraries/services/make.is';
 import { SocialAbstract } from '@gitroom/nestjs-libraries/integrations/social.abstract';
 import { Integration } from '@prisma/client';
 import { TwitchDto } from '@gitroom/nestjs-libraries/dtos/posts/providers-settings/twitch.dto';
 import { timer } from '@gitroom/helpers/utils/timer';
 
 export class TwitchProvider extends SocialAbstract implements SocialProvider {
-  override maxConcurrentJob = 1;
+  override maxConcurrentJob = 5; // Twitch limits are per user
   identifier = 'twitch';
   name = 'Twitch';
   isBetweenSteps = false;
@@ -54,7 +54,7 @@ export class TwitchProvider extends SocialAbstract implements SocialProvider {
   }
 
   async generateAuthUrl() {
-    const state = makeId(32);
+    const state = makeState();
 
     const redirectUri = `${process.env.FRONTEND_URL}/integrations/social/twitch`;
 

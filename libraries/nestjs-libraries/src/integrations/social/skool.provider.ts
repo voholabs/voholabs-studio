@@ -1,5 +1,5 @@
 import { makeState, makeCodeVerifier } from '@gitroom/nestjs-libraries/services/make.is';
-import { SocialAbstract } from '../social.abstract';
+import { BadBody, SocialAbstract } from '../social.abstract';
 import { safeFetchMedia } from '@gitroom/nestjs-libraries/dtos/webhooks/safe.fetch';
 import {
   AuthTokenDetails,
@@ -207,10 +207,27 @@ export class SkoolProvider extends SocialAbstract implements SocialProvider {
     const fileIds: string[] = [];
 
     for (const item of media) {
-      const fileResponse = await safeFetchMedia(item.path);
-      const fileBuffer = await fileResponse.arrayBuffer();
+      // Size and type come from a HEAD request; the PUT below streams the
+      // bytes so the file is never buffered in memory.
+      const headResponse = await safeFetchMedia(item.path, {
+        method: 'HEAD',
+        // identity encoding so content-length matches the bytes the GET streams
+        headers: { 'accept-encoding': 'identity' },
+      });
       const contentType =
-        fileResponse.headers.get('content-type') || 'application/octet-stream';
+        headResponse.headers.get('content-type') || 'application/octet-stream';
+      const contentLength = Number(
+        headResponse.headers.get('content-length') || 0
+      );
+      if (!headResponse.ok || !contentLength) {
+        // A permanent condition - fail fast instead of letting Temporal retry
+        throw new BadBody(
+          this.identifier,
+          '{}',
+          '{}',
+          'Could not determine the media size for upload'
+        );
+      }
       const fileName = item.path.split('/').pop() || 'file';
 
       const createFileResponse = await (
@@ -223,7 +240,7 @@ export class SkoolProvider extends SocialAbstract implements SocialProvider {
           body: JSON.stringify({
             file_name: fileName,
             content_type: contentType,
-            content_length: fileBuffer.byteLength,
+            content_length: contentLength,
             content_disposition: '',
             ref: '',
             owner_id: userId,
@@ -232,14 +249,36 @@ export class SkoolProvider extends SocialAbstract implements SocialProvider {
         }, 'create file record')
       ).json();
 
-      await fetch(createFileResponse.write_url, {
+      const fileResponse = await safeFetchMedia(
+        item.path,
+        { headers: { 'accept-encoding': 'identity' } },
+        // the PUT below reads the body at its own pace
+        { timeoutCoversBody: false }
+      );
+      if (!fileResponse.ok || !fileResponse.body) {
+        throw new Error(`Failed to fetch media: ${fileResponse.statusText}`);
+      }
+      const uploadResponse = await fetch(createFileResponse.write_url, {
         method: 'PUT',
         headers: {
           'Content-Type': createFileResponse.content_type,
+          'Content-Length': String(contentLength),
           'x-amz-acl': createFileResponse.acl,
         },
-        body: fileBuffer,
-      });
+        body: fileResponse.body,
+        // Required by undici when streaming a request body.
+        duplex: 'half',
+      } as any);
+      // A rejected PUT would otherwise publish the post with an empty
+      // attachment - the file id exists but no bytes were stored.
+      if (!uploadResponse.ok) {
+        throw new BadBody(
+          this.identifier,
+          await uploadResponse.text().catch(() => '{}'),
+          '{}',
+          'Failed to upload the media file'
+        );
+      }
 
       fileIds.push(createFileResponse.file.id);
     }

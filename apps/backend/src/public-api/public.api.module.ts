@@ -17,6 +17,7 @@ import { PublicBriefUploadController } from '@gitroom/backend/public-api/routes/
 import { PublicWalletController } from '@gitroom/backend/public-api/routes/v1/public.wallet.controller';
 import { PublicSkillsController } from '@gitroom/backend/public-api/routes/v1/public.skills.controller';
 import { PublicOpenApiController } from '@gitroom/backend/public-api/routes/v1/public.openapi.controller';
+import { SuperAdminGuard } from '@gitroom/backend/services/auth/super.admin.guard';
 
 const authenticatedController = [
   PublicIntegrationsController,
@@ -37,11 +38,10 @@ const ticketController = [
 const openController = [PublicOpenApiController];
 @Module({
   imports: [UploadModule],
-  controllers: [
-    ...authenticatedController,
-    ...ticketController,
-    ...openController,
-  ],
+  // MCP_ONLY runs this process as the MCP server alone, without the REST API.
+  controllers: process.env.MCP_ONLY
+    ? []
+    : [...authenticatedController, ...ticketController, ...openController],
   providers: [
     AuthService,
     StripeService,
@@ -51,6 +51,7 @@ const openController = [PublicOpenApiController];
     PermissionsService,
     CodesService,
     IntegrationManager,
+    SuperAdminGuard,
   ],
   get exports() {
     return [...this.imports, ...this.providers];

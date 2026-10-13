@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   AdminStatsRepository,
+  OrgActivityParams,
   StatsParams,
 } from '@gitroom/nestjs-libraries/database/prisma/admin-stats/admin-stats.repository';
 
@@ -14,5 +15,9 @@ export class AdminStatsService {
 
   getGrowth() {
     return this._adminStatsRepository.getGrowth();
+  }
+
+  getOrgActivity(params: OrgActivityParams) {
+    return this._adminStatsRepository.getOrgActivity(params);
   }
 }

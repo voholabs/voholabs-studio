@@ -10,8 +10,11 @@ const client = new NeynarAPIClient({
 
 @AuthProvider({ provider: 'FARCASTER' })
 export class FarcasterProvider extends AuthProviderAbstract {
-  generateLink() {
-    return '';
+  override readonly requiresState = true;
+  // no OAuth redirect here, the frontend only needs the one-time state that
+  // AuthService issued for /auth/oauth/FARCASTER
+  generateLink(query?: { state?: string }) {
+    return query?.state || '';
   }
 
   async getToken(code: string, _redirectUri?: string) {

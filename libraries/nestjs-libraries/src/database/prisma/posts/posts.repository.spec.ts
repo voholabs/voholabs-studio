@@ -125,7 +125,11 @@ describe('PostsRepository.createOrUpdatePost', () => {
       'APP' as any
     );
     expect(post.updateMany).not.toHaveBeenCalled();
-    expect(post.findFirst).not.toHaveBeenCalled();
+    // Only the batch lookup reads other posts, and only within the workspace
+    for (const [args] of post.findFirst.mock.calls as any[]) {
+      expect(args.select).toEqual({ batchId: true });
+      expect(args.where.organizationId).toBe('org-a');
+    }
   });
 });
 
@@ -180,6 +184,11 @@ describe('PostsRepository organization scoping', () => {
       organizationId: 'org-a',
       userId: 'u1',
       postId: 'p1',
+      parentId: null,
+      displayName: null,
+      anchorStart: null,
+      anchorEnd: null,
+      anchorQuote: null,
       content: 'hi',
     });
   });

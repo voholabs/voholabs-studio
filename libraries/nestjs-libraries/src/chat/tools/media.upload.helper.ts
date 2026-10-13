@@ -6,7 +6,7 @@ import { getMaxSize } from '@gitroom/nestjs-libraries/upload/custom.upload.valid
 import { ssrfSafeDispatcher } from '@gitroom/nestjs-libraries/dtos/webhooks/ssrf.safe.dispatcher';
 import { Readable } from 'stream';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { fromBuffer } = require('file-type');
+const { fileTypeFromBuffer } = require('file-type');
 
 // Same allow-list as the public API upload routes.
 export const ALLOWED_MEDIA_MIME = new Set<string>([
@@ -38,7 +38,7 @@ export const storeBufferAsMedia = async (params: {
 }): Promise<StoredMedia> => {
   const { storage, mediaService, organizationId, buffer, fileName } = params;
 
-  const detected = await fromBuffer(buffer);
+  const detected = await fileTypeFromBuffer(buffer);
   if (!detected || !ALLOWED_MEDIA_MIME.has(detected.mime)) {
     return {
       error:

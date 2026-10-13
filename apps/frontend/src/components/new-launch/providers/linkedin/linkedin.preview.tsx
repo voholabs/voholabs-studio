@@ -320,6 +320,7 @@ export const LinkedinPreview: FC<{
         </div>
       </div>
       <div
+        dir="auto"
         className="text-[14px] font-[400] whitespace-pre-line"
         dangerouslySetInnerHTML={{
           __html: sanitizePreviewHtml(renderContent?.[0]?.text),
@@ -352,7 +353,7 @@ export const LinkedinPreview: FC<{
           <div>8 Reposts</div>
         </div>
       </div>
-      <div className="pt-[8px] flex text-[14px] font-[700] px-[32px] compact:px-[8px] gap-[8px] justify-between border-t border-borderLinkedin text-textLinkedin">
+      <div className="pt-[8px] flex text-[14px] font-[700] px-[32px] justify-between border-t border-borderLinkedin text-textLinkedin">
         <div className="flex gap-[4px] items-center">
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -366,7 +367,7 @@ export const LinkedinPreview: FC<{
               fill="currentColor"
             />
           </svg>
-          <div className="xs:hidden">Like</div>
+          <div>Like</div>
         </div>
         <div className="flex gap-[4px] items-center">
           <svg
@@ -382,7 +383,7 @@ export const LinkedinPreview: FC<{
               strokeWidth="2"
             />
           </svg>
-          <div className="xs:hidden">Comments</div>
+          <div>Comments</div>
         </div>
         <div className="flex gap-[4px] items-center">
           <svg
@@ -408,7 +409,7 @@ export const LinkedinPreview: FC<{
               </clipPath>
             </defs>
           </svg>
-          <div className="xs:hidden">Repost</div>
+          <div>Repost</div>
         </div>
         <div className="flex gap-[4px] items-center">
           <svg
@@ -423,7 +424,7 @@ export const LinkedinPreview: FC<{
               fill="currentColor"
             />
           </svg>
-          <div className="xs:hidden">Send</div>
+          <div>Send</div>
         </div>
       </div>
       {renderContent.length > 1 && (
@@ -454,6 +455,7 @@ export const LinkedinPreview: FC<{
                     </div>
                   </div>
                   <div
+                    dir="auto"
                     className="whitespace-pre-line text-[14px] font-[400]"
                     dangerouslySetInnerHTML={{
                       __html: sanitizePreviewHtml(value.text),

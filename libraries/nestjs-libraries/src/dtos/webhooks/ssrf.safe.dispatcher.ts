@@ -1,6 +1,9 @@
 import { Agent, buildConnector } from 'undici';
+import axios, { AxiosInstance } from 'axios';
 import dns from 'node:dns';
 import net from 'node:net';
+import http from 'node:http';
+import https from 'node:https';
 import { isBlockedIp } from './webhook.url.validator';
 
 // DNS pinning for hostnames: every resolved IP is checked with `isBlockedIp`
@@ -55,6 +58,55 @@ export const ssrfSafeDispatcher = new Agent({
   connect: guardedConnector,
 });
 
+// The IP-literal check of `guardedConnector`, for Node's http(s) agents: they
+// skip `lookup` for an IP literal too. Every socket the agent opens comes
+// through here, including the ones for redirect hops axios follows.
+const blockedLiteralHost = (options: any) => {
+  const host = String(options?.host || options?.hostname || '').replace(
+    /^\[|\]$/g,
+    ''
+  );
+  return net.isIP(host) && isBlockedIp(host);
+};
+
+class GuardedHttpAgent extends http.Agent {
+  createConnection(options: any, callback?: any): any {
+    if (blockedLiteralHost(options)) {
+      return callback?.(new Error('Blocked IP'));
+    }
+    return (http.Agent.prototype as any).createConnection.call(
+      this,
+      options,
+      callback
+    );
+  }
+}
+
+class GuardedHttpsAgent extends https.Agent {
+  createConnection(options: any, callback?: any): any {
+    if (blockedLiteralHost(options)) {
+      return callback?.(new Error('Blocked IP'));
+    }
+    return (https.Agent.prototype as any).createConnection.call(
+      this,
+      options,
+      callback
+    );
+  }
+}
+
+// axios can't use an undici dispatcher, but Node's http(s) agents accept the
+// same `lookup` hook, so axios requests (providers that need form-data /
+// stream uploads) get the identical pinned-DNS guard as `this.fetch`.
+const ssrfSafeAxios = axios.create({
+  httpAgent: new GuardedHttpAgent({
+    lookup: guardedLookup,
+  } as http.AgentOptions),
+  httpsAgent: new GuardedHttpsAgent({
+    lookup: guardedLookup,
+  } as https.AgentOptions),
+});
+
 // Self-hosters legitimately connect Voholabs to WordPress/Mastodon/Lemmy/Listmonk
 // instances that live on a private network (e.g. the same Docker network or VPC).
 // Setting DISABLE_SSRF_PROTECTION=true opts those deployments out of the IP
@@ -63,4 +115,8 @@ export function getSsrfSafeDispatcher(): Agent | undefined {
   return process.env.DISABLE_SSRF_PROTECTION === 'true'
     ? undefined
     : ssrfSafeDispatcher;
+}
+
+export function getSsrfSafeAxios(): AxiosInstance {
+  return process.env.DISABLE_SSRF_PROTECTION === 'true' ? axios : ssrfSafeAxios;
 }

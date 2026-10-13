@@ -12,6 +12,7 @@ export interface PricingInnerInterface {
   image_generator?: boolean;
   image_generation_count: number;
   generate_videos: number;
+  clipping_minutes: number;
   public_api: boolean;
   webhooks: number;
   autoPost: boolean;
@@ -44,13 +45,14 @@ export const pricing: PricingInterface = {
     autoPost: false,
     generate_videos: 0,
     storage_mb: 2048,
+    clipping_minutes: 0,
   },
   STANDARD: {
     current: 'STANDARD',
     month_price: 29,
     year_price: 278,
     channel: 5,
-    posts_per_month: 400,
+    posts_per_month: 1000000,
     image_generation_count: 20,
     team_members: false,
     ai: true,
@@ -63,6 +65,7 @@ export const pricing: PricingInterface = {
     autoPost: false,
     generate_videos: 3,
     storage_mb: 10240,
+    clipping_minutes: 60,
   },
   TEAM: {
     current: 'TEAM',
@@ -82,6 +85,7 @@ export const pricing: PricingInterface = {
     autoPost: true,
     generate_videos: 10,
     storage_mb: 25600,
+    clipping_minutes: 120,
   },
   PRO: {
     current: 'PRO',
@@ -101,6 +105,7 @@ export const pricing: PricingInterface = {
     autoPost: true,
     generate_videos: 30,
     storage_mb: 51200,
+    clipping_minutes: 300,
   },
   ULTIMATE: {
     current: 'ULTIMATE',
@@ -120,5 +125,6 @@ export const pricing: PricingInterface = {
     autoPost: true,
     generate_videos: 60,
     storage_mb: 102400,
+    clipping_minutes: 600,
   },
 };

@@ -43,20 +43,20 @@ export class IntegrationSchedulePostTool implements AgentToolInterface {
         annotations: {
           title: 'Schedule Social Media Post',
           readOnlyHint: false,
-          destructiveHint: false,
+          destructiveHint: true,
           idempotentHint: false,
           openWorldHint: true,
         },
       },
       description: `
-This tool allows you to schedule a post to a social media platform, based on integrationSchema tool.
-So for example:
+Use this when the user wants to create a draft, scheduled, or immediate social media post on their connected channels, based on the integrationSchema tool.
+Examples of the input shape:
 
-If the user want to post a post to LinkedIn with one comment
+A single LinkedIn post with one comment
 - socialPost array length will be one
 - postsAndComments array length will be two (one for the post, one for the comment)
 
-If the user want to post 20 posts for facebook each in individual days without comments
+20 Facebook posts each on individual days without comments
 - socialPost array length will be 20
 - postsAndComments array length will be one
 
@@ -81,6 +81,10 @@ Some channels are paid per post from the workspace's wallet credits (walletPrice
 - A draft costs nothing until it is put on the schedule; "costWhenScheduled" says what that will take.
 - When the credits (with auto top-up) do not cover a post, nothing is scheduled for it and the error carries the top-up link. Pass that link to the user rather than retrying.
 - A channel a wallet top-up has not opened yet is refused the same way.
+
+Do not use this to update or delete existing posts: editPostTool changes one in place, postSettingsTool changes only its channel settings, deletePostTool removes it.
+On success, each item in output contains a previewUrl the user can open to see the post.
+If validation fails, the result contains output.errors describing what to fix; the call can be retried with corrected parameters.
 `,
       inputSchema: z.object({
         socialPost: z
@@ -112,7 +116,7 @@ Some channels are paid per post from the workspace's wallet credits (walletPrice
                     content: z
                       .string()
                       .describe(
-                        "The content of the post, HTML, Each line must be wrapped in <p> here is the possible tags: h1, h2, h3, u, strong, li, ul, p (you can't have u and strong together). Use \"(post:<postId>)\" to embed another post's live URL - see the tool description."
+                        "The content of the post, HTML, Each line must be wrapped in <p> here is the possible tags: h1, h2, h3, u, strong, li, ul, p (you can't have u and strong together), and img (<img src=\"...\">) only when the integration rules say pictures go inside the content. Use \"(post:<postId>)\" to embed another post's live URL - see the tool description."
                       ),
                     attachments: z
                       .array(attachmentUrl)
@@ -139,7 +143,7 @@ Some channels are paid per post from the workspace's wallet credits (walletPrice
                     value: z
                       .any()
                       .describe(
-                        'Value of the key, always prefer the id then label if possible'
+                        'Value of the key, always prefer the id then label if possible. When the settings schema says a field is an id, pass the id returned by the channel tools, never the display label'
                       ),
                   })
                 )
@@ -169,6 +173,12 @@ Some channels are paid per post from the workspace's wallet credits (walletPrice
                   'For a draft: what it will take from the wallet once it is put on the schedule. Nothing is charged for a draft.'
                 ),
               walletWarning: z.string().optional(),
+              previewUrl: z
+                .string()
+                .describe(
+                  'Public preview page of the created post, share it with the user'
+                )
+                .optional(),
             })
           )
           .or(z.object({ errors: z.string() })),
@@ -384,7 +394,9 @@ Some channels are paid per post from the workspace's wallet credits (walletPrice
           }
 
           const cost = costs.get(index);
-          for (const item of output) {
+          for (const item of output as any[]) {
+            // Same public preview page the calendar "Preview Post" button opens.
+            item.previewUrl = `${process.env.FRONTEND_URL}/p/${item.postId}?share=true`;
             if (cost !== undefined) {
               // "cost" is what was taken now. A draft is not charged until it
               // is scheduled, so it only says what that will take.

@@ -17,6 +17,7 @@ model Organization {
   streakSince         DateTime?
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
+  deletedAt           DateTime?
   allowTrial          Boolean              @default(false)
   isTrailing          Boolean              @default(false)
   shortlink           ShortLinkPreference  @default(ASK)
@@ -43,6 +44,7 @@ model Organization {
   autoPost            AutoPost[]
   Comments            Comments[]
   credits             Credits[]
+  clippings           Clipping[]
   customers           Customer[]
   errors              Errors[]
   github              GitHub[]
@@ -76,6 +78,7 @@ model Organization {
   @@index([paymentId])
   @@index([agentFirstConnectedAt])
   @@index([agentLastSeenAt])
+  @@index([deletedAt])
 }
 
 model Tags {
@@ -168,6 +171,7 @@ model User {
   // nullable: never renamed, never required.
   tutorialStartedAt     DateTime?
   tutorialWatchedPercent Int?
+  deletedAt             DateTime?
   comments              Comments[]
   items                 ItemUser[]
   groupBuyer            MessagesGroup[]      @relation("groupBuyer")
@@ -189,6 +193,7 @@ model User {
   @@index([account])
   @@index([lastOnline])
   @@index([pictureId])
+  @@index([deletedAt])
 }
 
 model UsedCodes {
@@ -214,6 +219,7 @@ model UserOrganization {
   user           User         @relation(fields: [userId], references: [id])
 
   @@unique([userId, organizationId])
+  @@index([organizationId])
   @@index([disabled])
 }
 
@@ -289,6 +295,8 @@ model Media {
   thumbnail          String?
   alt                String?
   thumbnailTimestamp Int?
+  status             String              @default("ready")
+  processingError    String?
   organization       Organization        @relation(fields: [organizationId], references: [id])
   agencies           SocialMediaAgency[]
   userPicture        User[]
@@ -349,10 +357,55 @@ model Credits {
   @@index([createdAt])
 }
 
+model Clipping {
+  id             String         @id @default(uuid())
+  organizationId String
+  url            String
+  status         String         @default("analysing")
+  error          String?
+  title          String?
+  thumbnail      String?
+  duration       Int?
+  maxClips       Int            @default(5)
+  fit            String         @default("blur")
+  integrations   String
+  creditsId      String?
+  deletedAt      DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  organization   Organization   @relation(fields: [organizationId], references: [id])
+  clips          ClippingClip[]
+
+  @@index([organizationId])
+  @@index([deletedAt])
+}
+
+model ClippingClip {
+  id         String    @id @default(uuid())
+  clippingId String
+  title      String
+  content    String
+  start      Float
+  end        Float
+  trimStart  Int?
+  status     String    @default("pending")
+  error      String?
+  mediaId    String?
+  path       String?
+  thumbnail  String?
+  draftedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  clipping   Clipping  @relation(fields: [clippingId], references: [id])
+
+  @@index([clippingId])
+}
+
 model Subscription {
   id               String           @id @default(cuid())
   organizationId   String           @unique
   subscriptionTier SubscriptionTier
+  provider         String           @default("stripe")
   identifier       String?
   cancelAt         DateTime?
   period           Period
@@ -385,6 +438,7 @@ model Integration {
   internalId            String
   organizationId        String
   name                  String
+  customName            String?
   // What every consumer renders. This is our own /picture proxy URL, not the
   // asset: it never changes for the life of the channel, so nothing here rots
   // the way the old copied-to-R2 URL did.
@@ -487,18 +541,28 @@ model Comments {
   content        String
   organizationId String
   postId         String
-  userId         String
+  userId         String?
+  displayName    String?
+  parentId       String?
+  anchorStart    Int?
+  anchorEnd      Int?
+  anchorQuote    String?
+  resolvedAt     DateTime?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   deletedAt      DateTime?
   organization   Organization @relation(fields: [organizationId], references: [id])
   post           Post         @relation(fields: [postId], references: [id])
-  user           User         @relation(fields: [userId], references: [id])
+  user           User?        @relation(fields: [userId], references: [id])
+  parent         Comments?    @relation("CommentReplies", fields: [parentId], references: [id])
+  replies        Comments[]   @relation("CommentReplies")
 
   @@index([createdAt])
   @@index([organizationId])
   @@index([userId])
   @@index([postId])
+  @@index([parentId])
+  @@index([resolvedAt])
   @@index([deletedAt])
 }
 
@@ -511,6 +575,7 @@ model Post {
   content                    String
   delay                      Int                       @default(0)
   group                      String
+  batchId                    String?
   title                      String?
   description                String?
   parentPostId               String?
@@ -544,6 +609,7 @@ model Post {
   tags                       TagsPosts[]
 
   @@index([group])
+  @@index([batchId])
   @@index([deletedAt])
   @@index([publishDate])
   @@index([state])
@@ -801,54 +867,59 @@ model Mentions {
 }
 
 /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
-/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 model OAuthApp {
-  id             String               @id @default(uuid())
+  id                       String                         @id @default(uuid())
   // Null for a client that registered itself (dynamic client registration,
   // isPublic): an AI assistant such as Claude or ChatGPT, owned by no workspace.
-  organizationId String?
-  name           String
-  description    String?
-  pictureId      String?
-  redirectUrl    String
+  organizationId           String?
+  name                     String
+  description              String?
+  pictureId                String?
+  redirectUrl              String
   // Every redirect URI a self-registered client declared; redirectUrl holds the
-  // first. Empty for an app a workspace created.
-  redirectUris   String[]             @default([])
+  // first. Empty for an app a workspace created. A text array: never change
+  // its type, db push would drop the column with its data.
+  redirectUris             String[]                       @default([])
   // A public client: no secret at the token endpoint, PKCE required instead.
-  isPublic       Boolean              @default(false)
-  clientId       String               @unique
-  clientSecret   String
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
-  deletedAt      DateTime?
-  organization   Organization?        @relation(fields: [organizationId], references: [id])
-  picture        Media?               @relation(fields: [pictureId], references: [id])
-  authorizations OAuthAuthorization[]
+  isPublic                 Boolean                        @default(false)
+  clientId                 String                         @unique
+  clientSecret             String?
+  dynamic                  Boolean                        @default(false)
+  tokenEndpointAuthMethod  String?
+  createdAt                DateTime                       @default(now())
+  updatedAt                DateTime                       @updatedAt
+  deletedAt                DateTime?
+  organization             Organization?                  @relation(fields: [organizationId], references: [id])
+  picture                  Media?                         @relation(fields: [pictureId], references: [id])
+  authorizations           OAuthAuthorization[]
+  selfHostedAuthorizations OAuthSelfHostedAuthorization[]
 
   @@unique([organizationId, deletedAt])
   @@index([clientId])
   @@index([organizationId])
   @@index([deletedAt])
+  @@index([dynamic])
 }
 
 model OAuthAuthorization {
-  id                String       @id @default(uuid())
-  oauthAppId        String
-  userId            String
-  organizationId    String
-  accessToken       String?
-  authorizationCode String?
-  codeExpiresAt     DateTime?
-  // PKCE (S256) challenge and the redirect URI the code was issued for, both
+  id                  String       @id @default(uuid())
+  oauthAppId          String
+  userId              String
+  organizationId      String
+  accessToken         String?
+  authorizationCode   String?
+  codeExpiresAt       DateTime?
+  // PKCE challenge and the redirect URI the code was issued for, both
   // checked again when the code is exchanged.
-  codeChallenge     String?
-  redirectUri       String?
-  revokedAt         DateTime?
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
-  oauthApp          OAuthApp     @relation(fields: [oauthAppId], references: [id])
-  user              User         @relation(fields: [userId], references: [id])
-  organization      Organization @relation(fields: [organizationId], references: [id])
+  codeChallenge       String?
+  codeChallengeMethod String?
+  redirectUri         String?
+  revokedAt           DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  oauthApp            OAuthApp     @relation(fields: [oauthAppId], references: [id])
+  user                User         @relation(fields: [userId], references: [id])
+  organization        Organization @relation(fields: [organizationId], references: [id])
 
   @@unique([oauthAppId, userId, organizationId])
   @@index([accessToken])
@@ -857,6 +928,28 @@ model OAuthAuthorization {
   @@index([userId])
   @@index([organizationId])
   @@index([revokedAt])
+}
+
+model OAuthSelfHostedAuthorization {
+  id                  String    @id @default(uuid())
+  oauthAppId          String
+  mcpUrl              String
+  apiKey              String
+  email               String?
+  accessToken         String?
+  authorizationCode   String?
+  codeExpiresAt       DateTime?
+  codeChallenge       String?
+  codeChallengeMethod String?
+  redirectUri         String?
+  revokedAt           DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  oauthApp            OAuthApp  @relation(fields: [oauthAppId], references: [id])
+
+  @@index([accessToken])
+  @@index([authorizationCode])
+  @@index([oauthAppId])
 }
 
 enum OrderStatus {
@@ -894,6 +987,7 @@ enum Provider {
   LOCAL
   GITHUB
   GOOGLE
+  APPLE
   FARCASTER
   WALLET
   GENERIC

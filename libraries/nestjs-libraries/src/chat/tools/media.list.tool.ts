@@ -27,12 +27,16 @@ Use it to reuse an existing asset in a post (pass its "path" as the attachment) 
       inputSchema: z.object({
         page: z
           .number()
+          .int()
+          .min(1)
           .optional()
           .describe('Page number, starting at 1 (defaults to 1)'),
         search: z
           .string()
           .optional()
-          .describe('Optional text to search in the original file name'),
+          .describe(
+            'Optional text to search in the original file name (case-insensitive contains)'
+          ),
       }),
       outputSchema: z.object({
         pages: z.number().optional(),
@@ -44,6 +48,7 @@ Use it to reuse an existing asset in a post (pass its "path" as the attachment) 
               originalName: z.string().nullable(),
               path: z.string(),
               alt: z.string().nullable(),
+              createdAt: z.string().optional(),
             })
           )
           .optional(),
@@ -70,6 +75,9 @@ Use it to reuse an existing asset in a post (pass its "path" as the attachment) 
               originalName: media.originalName ?? null,
               path: media.path,
               alt: media.alt ?? null,
+              ...(media.createdAt
+                ? { createdAt: new Date(media.createdAt).toISOString() }
+                : {}),
             })),
           };
         } catch (err) {

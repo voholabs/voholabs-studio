@@ -283,16 +283,6 @@ module.exports = {
         xs: {
           max: '401px',
         },
-        // The compact layout: phones in either orientation and portrait
-        // tablets. Keep in step with COMPACT_QUERY in
-        // components/layout/compact.query.ts.
-        compact: {
-          raw: '(max-width: 1023px), (max-height: 500px)',
-        },
-        // Short screens (phones on their side): the bottom menu drops its labels.
-        short: {
-          raw: '(max-height: 500px)',
-        },
       },
     },
   },

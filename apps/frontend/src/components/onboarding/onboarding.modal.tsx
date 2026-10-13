@@ -37,7 +37,7 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
     <div
       className={clsx(
         'w-full min-h-full flex-1 flex relative',
-        paidPlan ? 'p-[40px] compact:p-[8px]' : 'p-[8px] sm:p-[40px]'
+        paidPlan ? 'p-[40px]' : 'p-[8px] sm:p-[40px]'
       )}
     >
       <style>
@@ -66,8 +66,8 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
         </button>
         <div
           className={clsx(
-            'flex-1 flex',
-            paidPlan ? 'p-[40px] compact:p-[16px] compact:pt-[56px]' : 'p-[16px] pt-[56px] sm:p-[40px]'
+            'flex-1 flex min-w-0',
+            paidPlan ? 'p-[40px]' : 'p-[16px] pt-[56px] sm:p-[40px]'
           )}
         >
           <div
@@ -165,7 +165,7 @@ const OnboardingStepper: FC<{
   return (
     <nav
       aria-label={t('onboarding_steps', 'Onboarding steps')}
-      className="flex items-center justify-center gap-[10px] sm:gap-[14px]"
+      className="flex items-center justify-center gap-[6px] sm:gap-[14px]"
     >
       {steps.map((item, index) => {
         const state =
@@ -176,7 +176,7 @@ const OnboardingStepper: FC<{
               <span
                 aria-hidden="true"
                 className={clsx(
-                  'h-[2px] w-[24px] sm:w-[64px] rounded-full',
+                  'h-[2px] w-[12px] sm:w-[64px] rounded-full',
                   index <= current ? 'bg-btnPrimary' : 'bg-newBorder'
                 )}
               />
@@ -352,13 +352,14 @@ const OnboardingStep1: FC<{
   );
 };
 
-// Second step: connect Claude, ChatGPT or a coding agent over MCP. The panel
-// is the one in Settings, so both stay the same. Skippable.
+// Second step: connect Claude, ChatGPT, a coding agent or the API. The panel
+// is the one in Settings (plus an API tab), so both stay the same. Skippable.
 const OnboardingAgentStep: FC<{ onBack: () => void; onDone: () => void }> = ({
   onBack,
   onDone,
 }) => {
   const t = useT();
+  useTrackView('onboarding_step', { step: 'connect_agent' });
   return (
     <div className="flex flex-col gap-[24px] w-full max-w-[760px] mx-auto">
       <div className="flex gap-[4px] flex-col text-center">

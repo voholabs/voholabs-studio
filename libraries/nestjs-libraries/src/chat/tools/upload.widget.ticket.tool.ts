@@ -12,6 +12,7 @@ import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
 export class UploadWidgetTicketTool implements AgentToolInterface {
   constructor(private _mediaService: MediaService) {}
   name = 'uploadWidgetTicketTool';
+  mcpOnly = true;
 
   run() {
     return createTool({

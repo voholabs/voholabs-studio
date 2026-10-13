@@ -53,4 +53,5 @@ export const termsOpenPaths = [
   '/user/terms',
   '/user/onboarding',
   '/user/logout',
+  '/user/delete-account',
 ];

@@ -1,15 +1,24 @@
 import { INestApplication } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { MastraService } from '@gitroom/nestjs-libraries/chat/mastra.service';
+import { LoadToolsService } from '@gitroom/nestjs-libraries/chat/load.tools.service';
 import { MCPServer } from '@mastra/mcp';
-import { mcpOnlyToolList } from '@gitroom/nestjs-libraries/chat/tools/mcp.only.tool.list';
 import {
   UPLOAD_WIDGET_URI,
   r2UploadOrigins,
   uploadWidgetHtml,
 } from '@gitroom/nestjs-libraries/chat/ui/upload.widget';
+import {
+  CLIPPING_WIDGET_URI,
+  clippingWidgetHtml,
+} from '@gitroom/nestjs-libraries/chat/ui/clipping.widget';
+import { UploadFactory } from '@gitroom/nestjs-libraries/upload/upload.factory';
+import { McpRelayService } from '@gitroom/nestjs-libraries/chat/mcp.relay.service';
 import { OrganizationService } from '@gitroom/nestjs-libraries/database/prisma/organizations/organization.service';
-import { OAuthService } from '@gitroom/nestjs-libraries/database/prisma/oauth/oauth.service';
+import {
+  OAuthService,
+  selfHostedRelayEnabled,
+} from '@gitroom/nestjs-libraries/database/prisma/oauth/oauth.service';
 import { runWithContext } from './async.storage';
 import { createOAuthMiddleware } from './oauth-middleware';
 import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
@@ -31,6 +40,16 @@ import {
 const authMethodOf = (token?: string): McpRequestSeen['authMethod'] =>
   token?.startsWith('pos_') ? 'OAUTH' : 'API_KEY';
 
+// OIDC email claims (openid/email scopes, userinfo) are only offered when the
+// ChatGPT app's pre-registered client is configured
+const openAiOAuthClientId = process.env.OPENAI_OAUTH_CLIENT_ID?.trim();
+const enableOidcEmailClaims = Boolean(openAiOAuthClientId);
+const oauthScopes = [
+  ...(enableOidcEmailClaims ? ['openid', 'email'] : []),
+  'mcp:read',
+  'mcp:write',
+];
+
 const fixAcceptHeader = (req: Request) => {
   const value = 'application/json, text/event-stream';
   req.headers.accept = value;
@@ -46,6 +65,8 @@ export const startMcp = async (app: INestApplication) => {
   const mastraService = app.get(MastraService, { strict: false });
   const organizationService = app.get(OrganizationService, { strict: false });
   const oauthService = app.get(OAuthService, { strict: false });
+  const loadToolsService = app.get(LoadToolsService, { strict: false });
+  const mcpRelayService = app.get(McpRelayService, { strict: false });
 
   const walletService = app.get(WalletService, { strict: false });
   const agentConnectionService = app.get(AgentConnectionService, {
@@ -95,6 +116,11 @@ export const startMcp = async (app: INestApplication) => {
     return withWallet(await organizationService.getOrgByApiKey(token));
   };
 
+  // psh_ tokens: a self-hosted instance this server relays to
+  // (McpRelayService). Always null unless MCP_SELF_HOSTED_RELAY=true.
+  const resolveSelfHosted = (token: string) =>
+    oauthService.getSelfHostedByAccessToken(token);
+
   // The free plan keeps the MCP, and the paid tools refuse on their own (see
   // paidOnly), so nothing is turned away here for its plan. These routes are
   // raw middleware and never reach the Nest throttler, hence a limit of their
@@ -132,38 +158,61 @@ export const startMcp = async (app: INestApplication) => {
   const agent = mastra.getAgent('postiz');
   const tools = await agent.listTools();
 
-  // Tools that need an MCP host (the upload box) and its ui:// page, served to
-  // every plan.
-  const widgetTools = Object.fromEntries(
-    await Promise.all(
-      mcpOnlyToolList.map(async (tool) => {
-        const instance = app.get(tool, { strict: false });
-        return [instance.name, await instance.run()] as const;
-      })
-    )
-  );
+  // Tools that need an MCP host (the upload box, the clipping widget) and
+  // their ui:// pages. The plan filters below apply to them like to any tool.
+  const widgetTools = await loadToolsService.loadTools(true);
   const widgetBackend = (
     process.env.NEXT_PUBLIC_OVERRIDE_BACKEND_URL ||
     process.env.NEXT_PUBLIC_BACKEND_URL!
   ).replace(/\/+$/, '');
-  const appResources = {
-    [UPLOAD_WIDGET_URI]: {
-      name: 'Upload media',
-      description:
-        'Upload photos and videos from the device to the Voholabs Studio media library',
-      html: uploadWidgetHtml(widgetBackend),
-      meta: {
-        // The iframe may only reach these: the backend, which signs each part,
-        // and the bucket each part is sent to.
-        csp: {
-          connectDomains: [
-            new URL(widgetBackend).origin,
-            ...r2UploadOrigins(),
-          ],
-        },
-        prefersBorder: true,
+  // This runs before the backend listens: a bucket url that doesn't parse only
+  // costs the clipping widget its thumbnails, never the boot
+  let storageOrigin: string | undefined;
+  try {
+    storageOrigin = new URL(UploadFactory.createStorage().publicUrl!('')).origin;
+  } catch (err) {}
+
+  // MCP Apps widgets (ui:// resources). They run in the host's sandboxed
+  // iframe, which can only reach the domains listed in the csp
+  const uploadWidgetResource = {
+    name: 'Upload media',
+    description:
+      'Upload photos and videos from the device to the Voholabs Studio media library',
+    html: uploadWidgetHtml(widgetBackend),
+    meta: {
+      // The iframe may only reach these: the backend, which signs each part,
+      // and the bucket each part is sent to.
+      csp: {
+        connectDomains: [new URL(widgetBackend).origin, ...r2UploadOrigins()],
       },
+      // the "Copy link" button of the uploaded media
+      permissions: { clipboardWrite: {} },
+      prefersBorder: true,
     },
+  };
+  const uploadResources = { [UPLOAD_WIDGET_URI]: uploadWidgetResource };
+  const appResources: Record<string, typeof uploadWidgetResource> = {
+    ...uploadResources,
+    ...(UploadFactory.clippingEnabled()
+      ? {
+          [CLIPPING_WIDGET_URI]: {
+            name: 'Video clipping',
+            description: 'Progress of a video clipping and the clips it made',
+            html: clippingWidgetHtml(widgetBackend),
+            meta: {
+              csp: {
+                connectDomains: [new URL(widgetBackend).origin],
+                // the thumbnails of the clips live wherever the storage serves
+                // files
+                ...(storageOrigin ? { resourceDomains: [storageOrigin] } : {}),
+              } as typeof uploadWidgetResource.meta.csp,
+              // the "Copy link" button of a clip
+              permissions: { clipboardWrite: {} },
+              prefersBorder: true,
+            },
+          },
+        }
+      : {}),
   };
 
   // What a paid plan is served: every tool except the wallet's and the
@@ -171,14 +220,11 @@ export const startMcp = async (app: INestApplication) => {
   const serverConfig = {
     name: 'Voholabs MCP',
     version: '1.0.0',
-    tools: {
-      ...Object.fromEntries(
-        Object.entries(tools).filter(
-          ([name]) => !notOnPlanToolNames.includes(name)
-        )
-      ),
-      ...widgetTools,
-    },
+    tools: Object.fromEntries(
+      Object.entries({ ...tools, ...widgetTools }).filter(
+        ([name]) => !notOnPlanToolNames.includes(name)
+      )
+    ),
     appResources,
     // Registering the agent here is what publishes `ask_postiz`: MCPServer
     // generates an `ask_<name>` tool for every agent in this map. That tool
@@ -195,12 +241,11 @@ export const startMcp = async (app: INestApplication) => {
   // The tool map cannot vary per request, a whole server can.
   const freeServerConfig = {
     ...serverConfig,
-    tools: {
-      ...Object.fromEntries(
-        Object.entries(tools).filter(([name]) => !paidToolNames.includes(name))
-      ),
-      ...widgetTools,
-    },
+    tools: Object.fromEntries(
+      Object.entries({ ...tools, ...widgetTools }).filter(
+        ([name]) => !paidToolNames.includes(name)
+      )
+    ),
     appResources,
   };
   const freeServer = new MCPServer(freeServerConfig);
@@ -209,15 +254,12 @@ export const startMcp = async (app: INestApplication) => {
   // opens.
   const walletServerConfig = {
     ...serverConfig,
-    tools: {
-      ...Object.fromEntries(
-        Object.entries(tools).filter(
-          ([name]) =>
-            !paidToolNames.includes(name) || walletToolNames.includes(name)
-        )
-      ),
-      ...widgetTools,
-    },
+    tools: Object.fromEntries(
+      Object.entries({ ...tools, ...widgetTools }).filter(
+        ([name]) =>
+          !paidToolNames.includes(name) || walletToolNames.includes(name)
+      )
+    ),
     appResources,
   };
   const walletServer = new MCPServer(walletServerConfig);
@@ -234,17 +276,29 @@ export const startMcp = async (app: INestApplication) => {
       : freeServerConfig;
   // The sign-in endpoint (/mcp-oauth) is the one listed in the Claude and
   // ChatGPT directories, and Claude's directory policy does not accept AI
-  // image or video generation. It leaves those two tools out; the key-in-URL
-  // endpoints keep every tool.
-  const directoryHiddenTools = ['mediaMcpList', 'mediaMcpCall'];
+  // image or video generation. It leaves those tools out (clipping renders new
+  // videos: AI picked cuts, burned-in captions), and a widget of a hidden tool
+  // is hidden with it; the key-in-URL endpoints keep every tool.
+  const directoryHiddenTools = [
+    'mediaMcpList',
+    'mediaMcpCall',
+    'clippingTool',
+    'clippingStatusTool',
+    'clippingWidgetTicketTool',
+  ];
+  const withoutDirectoryHidden = <T extends Record<string, unknown>>(
+    source: T
+  ) =>
+    Object.fromEntries(
+      Object.entries(source).filter(
+        ([name]) => !directoryHiddenTools.includes(name)
+      )
+    ) as T;
   const forDirectory = (config: typeof serverConfig) =>
     new MCPServer({
       ...config,
-      tools: Object.fromEntries(
-        Object.entries(config.tools).filter(
-          ([name]) => !directoryHiddenTools.includes(name)
-        )
-      ) as typeof config.tools,
+      tools: withoutDirectoryHidden(config.tools),
+      appResources: uploadResources,
     });
   const directoryServer = forDirectory(serverConfig);
   const directoryFreeServer = forDirectory(freeServerConfig);
@@ -263,6 +317,18 @@ export const startMcp = async (app: INestApplication) => {
       ? walletServer
       : freeServer;
 
+  // A self-hosted connection (Use self-hosted on the consent screen) runs its
+  // tool calls on the person's own instance. Built from the agent tools, so
+  // the ui:// widgets (which upload to this server) are left out. Off unless
+  // MCP_SELF_HOSTED_RELAY=true.
+  const selfHostedServer = selfHostedRelayEnabled()
+    ? new MCPServer({
+        name: 'Voholabs MCP',
+        version: '1.0.0',
+        tools: withoutDirectoryHidden(mcpRelayService.tools(tools)),
+      })
+    : undefined;
+
   // The backend is served under a path (/api behind nginx), and
   // new URL('/x', base) would drop it, so advertised URLs are joined by hand.
   // The issuer is the backend URL itself; nginx serves its RFC 8414 path-inserted
@@ -275,8 +341,11 @@ export const startMcp = async (app: INestApplication) => {
     oauth: {
       resource: advertised('/mcp-oauth'),
       authorizationServers: [backendBase],
+      scopesSupported: oauthScopes,
       validateToken: async (token: string) => {
-        const org = await resolveAuth(token);
+        const org = token.startsWith('psh_')
+          ? await resolveSelfHosted(token)
+          : await resolveAuth(token);
         if (!org) {
           return { valid: false, error: 'invalid_token', errorDescription: 'Invalid API Key or OAuth token' };
         }
@@ -298,6 +367,30 @@ export const startMcp = async (app: INestApplication) => {
     await oauthMiddleware(req, res, url);
   });
 
+  const tokenBase = (
+    process.env.NEXT_PUBLIC_OVERRIDE_BACKEND_URL || backendBase
+  ).replace(/\/+$/, '');
+  const authorizationServerMetadata = () => ({
+    issuer: backendBase,
+    authorization_endpoint: `${process.env.FRONTEND_URL}/oauth/authorize`,
+    token_endpoint: `${tokenBase}/oauth/token`,
+    // Dynamic client registration, so an AI assistant can connect without
+    // anyone creating an app for it first.
+    registration_endpoint: `${tokenBase}/oauth/register`,
+    ...(enableOidcEmailClaims && {
+      userinfo_endpoint: `${tokenBase}/oauth/userinfo`,
+    }),
+    token_endpoint_auth_methods_supported: [
+      'none',
+      'client_secret_post',
+      'client_secret_basic',
+    ],
+    response_types_supported: ['code'],
+    grant_types_supported: ['authorization_code'],
+    code_challenge_methods_supported: ['S256'],
+    scopes_supported: oauthScopes,
+  });
+
   app.use('/.well-known/oauth-authorization-server', async (req: Request, res: Response) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     if (req.method === 'OPTIONS') {
@@ -309,21 +402,29 @@ export const startMcp = async (app: INestApplication) => {
     }
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Cache-Control', 'max-age=3600');
-    const tokenBase = (
-      process.env.NEXT_PUBLIC_OVERRIDE_BACKEND_URL || backendBase
-    ).replace(/\/+$/, '');
+    res.json(authorizationServerMetadata());
+  });
+
+  // OpenID discovery, only while email claims are offered
+  app.use('/.well-known/openid-configuration', async (req: Request, res: Response, next: () => void) => {
+    if (!enableOidcEmailClaims) {
+      next();
+      return;
+    }
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    if (req.method === 'OPTIONS') {
+      res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'max-age=3600');
     res.json({
-      issuer: backendBase,
-      authorization_endpoint: `${process.env.FRONTEND_URL}/oauth/authorize`,
-      token_endpoint: `${tokenBase}/oauth/token`,
-      // Dynamic client registration, so an AI assistant can connect without
-      // anyone creating an app for it first.
-      registration_endpoint: `${tokenBase}/oauth/register`,
-      token_endpoint_auth_methods_supported: ['none', 'client_secret_post'],
-      response_types_supported: ['code'],
-      grant_types_supported: ['authorization_code'],
-      code_challenge_methods_supported: ['S256'],
-      scopes_supported: ['mcp:read', 'mcp:write'],
+      ...authorizationServerMetadata(),
+      subject_types_supported: ['public'],
+      claims_supported: ['sub', 'email', 'email_verified'],
     });
   });
 
@@ -340,7 +441,34 @@ export const startMcp = async (app: INestApplication) => {
     if (!result.proceed) return;
 
     const token = result.tokenValidation?.subject;
-    const auth = await resolveAuth(token!);
+    // A self-hosted connection has no organization here
+    const relay = token!.startsWith('psh_')
+      ? await resolveSelfHosted(token!)
+      : undefined;
+    if (relay && selfHostedServer) {
+      if (await rateLimited({ id: `relay:${relay.id}` }, res)) {
+        return;
+      }
+      if (!(await bufferJsonBody(req, res))) {
+        return;
+      }
+      fixAcceptHeader(req);
+      await runWithContext({ requestId: token!, auth: undefined, relay }, async () => {
+        await selfHostedServer.startHTTP({
+          url: url,
+          httpPath: url.pathname,
+          options: {
+            serverless: true,
+            enableJsonResponse: true,
+          },
+          req,
+          res,
+        });
+      });
+      return;
+    }
+
+    const auth = relay ? null : await resolveAuth(token!);
     if (!auth) {
       res.status(401).json({ error: 'invalid_token', error_description: 'Could not resolve organization' });
       return;
@@ -364,9 +492,10 @@ export const startMcp = async (app: INestApplication) => {
           // redeploy invalidates every client's session id. Mastra then answers
           // an unknown session with 400, and the MCP spec only tells a client to
           // re-initialise on 404 — so the client is stuck reporting an expired
-          // session until it is disconnected and reconnected by hand. Without a
-          // session there is nothing to expire and a restart goes unnoticed.
-          sessionIdGenerator: undefined,
+          // session until it is disconnected and reconnected by hand. Each
+          // request is served by a transient server and transport that keep
+          // nothing, so there is nothing to expire and a restart goes unnoticed.
+          serverless: true,
           enableJsonResponse: true,
         },
         req,
@@ -431,9 +560,10 @@ export const startMcp = async (app: INestApplication) => {
           // redeploy invalidates every client's session id. Mastra then answers
           // an unknown session with 400, and the MCP spec only tells a client to
           // re-initialise on 404 — so the client is stuck reporting an expired
-          // session until it is disconnected and reconnected by hand. Without a
-          // session there is nothing to expire and a restart goes unnoticed.
-          sessionIdGenerator: undefined,
+          // session until it is disconnected and reconnected by hand. Each
+          // request is served by a transient server and transport that keep
+          // nothing, so there is nothing to expire and a restart goes unnoticed.
+          serverless: true,
           enableJsonResponse: true,
         },
         req,
@@ -492,7 +622,7 @@ export const startMcp = async (app: INestApplication) => {
             // Stateless, for the same reason as the routes above: a session
             // only exists in one process's memory, so a redeploy leaves every
             // client holding an id the server no longer knows.
-            sessionIdGenerator: undefined,
+            serverless: true,
             enableJsonResponse: true,
           },
           req,

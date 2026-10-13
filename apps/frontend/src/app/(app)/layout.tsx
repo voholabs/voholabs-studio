@@ -1,12 +1,6 @@
 import { SentryComponent } from '@gitroom/frontend/components/layout/sentry.component';
 
 export const dynamic = 'force-dynamic';
-import type { Viewport } from 'next';
-
-export const viewport: Viewport = {
-  width: 'device-width',
-  initialScale: 1,
-};
 import '../global.scss';
 import 'react-tooltip/dist/react-tooltip.css';
 import '@copilotkit/react-ui/styles.css';
@@ -94,6 +88,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           facebookPixel={process.env.NEXT_PUBLIC_FACEBOOK_PIXEL!}
           telegramBotName={process.env.TELEGRAM_BOT_NAME!}
           neynarClientId={process.env.NEYNAR_CLIENT_ID!}
+          appleClientId={process.env.APPLE_CLIENT_ID!}
           isSecured={!process.env.NOT_SECURED}
           disableImageCompression={!!process.env.DISABLE_IMAGE_COMPRESSION}
           disableXAnalytics={!!process.env.DISABLE_X_ANALYTICS}
@@ -102,6 +97,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           googleAdsId={process.env.NEXT_PUBLIC_GTM_ID}
           googleAdsTrialTracking={process.env.NEXT_PUBLIC_TRACKING_TRIAL}
           language={language}
+          recaptchaSiteKey={process.env.RECAPTCHA_SITE_KEY || ''}
+          mediaProcessing={
+            process.env.STORAGE_PROVIDER === 'cloudflare' &&
+            !!process.env.RUNPOD_API_KEY &&
+            !!process.env.RUNPOD_ENDPOINT_ID
+          }
           transloadit={
             process.env.TRANSLOADIT_AUTH && process.env.TRANSLOADIT_TEMPLATE
               ? [

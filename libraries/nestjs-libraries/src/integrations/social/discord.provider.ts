@@ -9,7 +9,7 @@ import { SocialAbstract } from '@gitroom/nestjs-libraries/integrations/social.ab
 import { Integration } from '@prisma/client';
 import { DiscordDto } from '@gitroom/nestjs-libraries/dtos/posts/providers-settings/discord.dto';
 import { Tool } from '@gitroom/nestjs-libraries/integrations/tool.decorator';
-import { safeFetchMedia } from '@gitroom/nestjs-libraries/dtos/webhooks/safe.fetch';
+import FormDataUpload from 'form-data';
 
 // https://discord.com/developers/docs/topics/permissions
 // BigInt() rather than 1n literals: the TS target is below ES2020.
@@ -451,49 +451,6 @@ export class DiscordProvider extends SocialAbstract implements SocialProvider {
     return path.split('?')[0].split('/').pop() || 'attachment';
   }
 
-  // Images and videos both go up as plain multipart attachments; Discord picks
-  // the player or the preview from the file type itself. Links need nothing
-  // special — they travel in the message content and Discord unfurls them.
-  private async buildMessageForm(
-    post: PostDetails,
-    // Present only for a forum, where the payload is a named thread wrapping
-    // the same message body. Absent, the payload is exactly what it always was.
-    thread?: { name: string }
-  ) {
-    const media = post.media || [];
-    const form = new FormData();
-
-    const message = {
-      content: post.message.replace(/\[\[\[(@.*?)]]]/g, (match, p1) => {
-        return `<${p1}>`;
-      }),
-      attachments: media.map((p, index) => ({
-        id: index,
-        description: p.alt || this.mediaFilename(p.path),
-        filename: this.mediaFilename(p.path),
-      })),
-    };
-
-    form.append(
-      'payload_json',
-      JSON.stringify(thread ? { name: thread.name, message } : message)
-    );
-
-    let index = 0;
-    for (const item of media) {
-      const loaded = await safeFetchMedia(this.mediaUrl(item.path));
-
-      form.append(
-        `files[${index}]`,
-        await loaded.blob(),
-        this.mediaFilename(item.path)
-      );
-      index++;
-    }
-
-    return form;
-  }
-
   /**
    * A channel the bot cannot post in is the classic way a Discord post dies:
    * scheduling succeeds, and hours later the publish fails with "Bot doesn't
@@ -566,6 +523,65 @@ export class DiscordProvider extends SocialAbstract implements SocialProvider {
     }
   }
 
+  // Builds the multipart message and streams each attachment straight from its
+  // source (size from a HEAD request) so files are never buffered in memory.
+  // runStreamedUpload rebuilds the whole form per attempt (a consumed stream
+  // can't be replayed) and keeps handleErrors classification.
+  //
+  // Images and videos both go up as plain multipart attachments; Discord picks
+  // the player or the preview from the file type itself. Links need nothing
+  // special: they travel in the message content and Discord unfurls them.
+  // `thread` is present only for a forum, where the payload is a named thread
+  // wrapping the same message body.
+  private async sendMessageWithMedia(
+    url: string,
+    post: PostDetails,
+    thread?: { name: string }
+  ) {
+    const media = post.media || [];
+
+    return this.runStreamedUpload(async () => {
+      const form = new FormDataUpload();
+
+      const message = {
+        content: post.message.replace(/\[\[\[(@.*?)]]]/g, (match, p1) => {
+          return `<${p1}>`;
+        }),
+        attachments: media.map((p, index) => ({
+          id: index,
+          description: p.alt || this.mediaFilename(p.path),
+          filename: this.mediaFilename(p.path),
+        })),
+      };
+
+      form.append(
+        'payload_json',
+        JSON.stringify(thread ? { name: thread.name, message } : message)
+      );
+
+      let index = 0;
+      for (const item of media) {
+        const mediaUrl = this.mediaUrl(item.path);
+        const fileSize = await this.mediaSize(mediaUrl, this.identifier);
+        const stream = await this.mediaStream(mediaUrl, this.identifier);
+        form.append(`files[${index}]`, stream, {
+          filename: this.mediaFilename(item.path),
+          knownLength: fileSize,
+        });
+        index++;
+      }
+
+      const { data } = await this.getSsrfSafeAxios().post(url, form, {
+        headers: {
+          ...form.getHeaders(),
+          Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN_ID}`,
+        },
+      });
+
+      return data;
+    }, this.identifier);
+  }
+
   async post(
     id: string,
     accessToken: string,
@@ -580,17 +596,10 @@ export class DiscordProvider extends SocialAbstract implements SocialProvider {
       return [await this.postToForum(id, channel, firstPost)];
     }
 
-    const form = await this.buildMessageForm(firstPost);
-
-    const data = await (
-      await this.fetch(`https://discord.com/api/channels/${channel}/messages`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN_ID}`,
-        },
-        body: form,
-      })
-    ).json();
+    const data = await this.sendMessageWithMedia(
+      `https://discord.com/api/channels/${channel}/messages`,
+      firstPost
+    );
 
     return [
       {
@@ -623,17 +632,11 @@ export class DiscordProvider extends SocialAbstract implements SocialProvider {
       );
     }
 
-    const form = await this.buildMessageForm(post, { name });
-
-    const data = await (
-      await this.fetch(`https://discord.com/api/channels/${channel}/threads`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN_ID}`,
-        },
-        body: form,
-      })
-    ).json();
+    const data = await this.sendMessageWithMedia(
+      `https://discord.com/api/channels/${channel}/threads`,
+      post,
+      { name }
+    );
 
     // The response is the thread; its opening message is nested under `message`
     // on versions that return it, and shares the thread id either way.
@@ -740,20 +743,10 @@ export class DiscordProvider extends SocialAbstract implements SocialProvider {
       threadChannel = threadId || postId;
     }
 
-    const form = await this.buildMessageForm(commentPost);
-
-    const data = await (
-      await this.fetch(
-        `https://discord.com/api/channels/${threadChannel}/messages`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN_ID}`,
-          },
-          body: form,
-        }
-      )
-    ).json();
+    const data = await this.sendMessageWithMedia(
+      `https://discord.com/api/channels/${threadChannel}/messages`,
+      commentPost
+    );
 
     return [
       {

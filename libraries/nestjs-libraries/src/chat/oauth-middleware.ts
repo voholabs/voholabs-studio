@@ -41,9 +41,17 @@ export function createOAuthMiddleware(options: OAuthMiddlewareOptions) {
 
   const protectedResourceMetadata = generateProtectedResourceMetadata(oauth);
   const wellKnownPath = '/.well-known/oauth-protected-resource';
+  // An explicit resourceMetadataUrl wins; otherwise the RFC 9728
+  // path-inserted form (/.well-known/oauth-protected-resource/mcp-oauth), so
+  // the root well-known can stay 404 and clients don't demand OAuth for other
+  // paths
+  const resourcePath = new URL(oauth.resource).pathname;
   const resourceMetadataUrl =
     options.resourceMetadataUrl ??
-    new URL(wellKnownPath, oauth.resource).toString();
+    new URL(
+      wellKnownPath + (resourcePath === '/' ? '' : resourcePath),
+      oauth.resource,
+    ).toString();
 
   return async function oauthMiddleware(
     req: http.IncomingMessage,

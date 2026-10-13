@@ -2138,6 +2138,267 @@
         },
         "security": []
       }
+    },
+    "/me": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Who is calling",
+        "description": "The workspace the API key or OAuth token belongs to. `user` is set only for OAuth app tokens; an API key belongs to the whole workspace, so it is `null` there.",
+        "operationId": "getMe",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "organization": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "user": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "picture": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/posts/{id}/settings": {
+      "put": {
+        "tags": [
+          "Posts"
+        ],
+        "summary": "Change a post's channel settings",
+        "description": "Replaces the channel-specific settings of one post (the same `settings` object as when creating it). The settings are validated against the channel's schema.",
+        "operationId": "updatePostSettings",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "settings"
+                ],
+                "properties": {
+                  "settings": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The settings do not match the channel's schema"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "No such post in this workspace"
+          }
+        }
+      }
+    },
+    "/clipping": {
+      "post": {
+        "tags": [
+          "Clipping"
+        ],
+        "summary": "Clip a video into short vertical videos",
+        "description": "Starts cutting a long video into short vertical clips. Runs in the background; poll `GET /clipping/{id}`. Paid plans only.",
+        "operationId": "startClipping",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "url"
+                ],
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "A YouTube video URL."
+                  },
+                  "integrations": {
+                    "type": "array",
+                    "maxItems": 20,
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Channel ids to create draft posts for. Without any, the clips only land in the media library."
+                  },
+                  "clips": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10
+                  },
+                  "fit": {
+                    "type": "string",
+                    "enum": [
+                      "crop",
+                      "blur"
+                    ],
+                    "description": "How the 16:9 picture lands on the vertical canvas: `blur` keeps all of it over a blurred copy, `crop` fills the canvas and cuts the sides."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "description": "Not available on this plan"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Clipping"
+        ],
+        "summary": "List clipping jobs",
+        "operationId": "listClippings",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/clipping/{id}": {
+      "get": {
+        "tags": [
+          "Clipping"
+        ],
+        "summary": "One clipping job",
+        "description": "Status of a clipping job and, once done, its clips.",
+        "operationId": "getClipping",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "No such job in this workspace"
+          }
+        }
+      }
     }
   },
   "components": {

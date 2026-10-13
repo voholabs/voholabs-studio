@@ -9,7 +9,7 @@ import { useVariables } from '@gitroom/react/helpers/variable.context';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { useDecisionModal } from '@gitroom/frontend/components/layout/new-modal';
-import { DeveloperComponent } from '@gitroom/frontend/components/developer/developer.component';
+import { McpClientIcon } from '@gitroom/frontend/components/public-api/mcp.client.icons';
 import clsx from 'clsx';
 import { useWalletAccess } from '@gitroom/frontend/components/wallet-locks/wallet.access';
 import { LegacyPublicComponent } from '@gitroom/frontend/components/public-api/public.component.legacy';
@@ -18,31 +18,110 @@ import { AgentConnectionStatus } from '@gitroom/frontend/components/public-api/a
 const mcpClients = [
   'Claude Code',
   'Cursor',
+  'Codex',
+  'OpenClaw',
+  'Hermes',
+  'NanoClaw',
   'VS Code / Copilot',
   'Windsurf',
   'Amp',
-  'Codex',
   'Gemini CLI',
   'Warp',
 ] as const;
 
 type McpClient = (typeof mcpClients)[number];
 
+// sign-in: OAuth on the /mcp-oauth endpoint. The client registers itself and
+// the person signs in to Studio and picks a workspace, so there is no key to
+// copy. apikey: the workspace API key, as a header (or inside the URL).
+type McpAuth = 'oauth' | 'apikey';
+
+// Distinct registration name so adding this MCP doesn't overwrite an existing
+// "postiz" server (or CLI) the user may already have configured.
+const MCP_SERVER_NAME = 'voholabs';
+
+const getMcpOauthUrl = (mcpBase: string) => `${mcpBase}/mcp-oauth`;
+
 // Coding agents read the key from an Authorization header, so they all point at
 // the plain /mcp endpoint. Chat apps (Claude, ChatGPT) cannot set headers, so
-// they use the /mcp/<key> form instead — see connectorUrl below.
+// they use the /mcp/<key> form instead — see connectorUrl below. Signing in
+// needs neither: every client points at the sign-in endpoint.
 const getMcpConfig = (
   client: McpClient,
+  auth: McpAuth,
   mcpBase: string,
   apiKey: string
 ): { config: string; hint: string } => {
+  const serverName = MCP_SERVER_NAME;
+  const json = (obj: object) => JSON.stringify(obj, null, 2);
+
+  if (auth === 'oauth') {
+    const oauthUrl = getMcpOauthUrl(mcpBase);
+    switch (client) {
+      case 'Claude Code':
+        return {
+          config: `claude mcp add --transport http ${serverName} ${oauthUrl}`,
+          hint: 'Run this in your terminal, then type /mcp in Claude Code and pick Authenticate.',
+        };
+      case 'Cursor':
+        return {
+          config: json({ mcpServers: { [serverName]: { url: oauthUrl } } }),
+          hint: 'Add to .cursor/mcp.json in your project root.',
+        };
+      case 'VS Code / Copilot':
+        return {
+          config: json({
+            servers: { [serverName]: { type: 'http', url: oauthUrl } },
+          }),
+          hint: 'Add to .vscode/mcp.json in your project root.',
+        };
+      case 'Windsurf':
+        return {
+          config: json({
+            mcpServers: { [serverName]: { serverUrl: oauthUrl } },
+          }),
+          hint: 'Add to ~/.codeium/windsurf/mcp_config.json',
+        };
+      case 'Amp':
+        return {
+          config: `amp mcp add ${serverName} ${oauthUrl}`,
+          hint: 'Run this command in your terminal.',
+        };
+      case 'Codex':
+        return {
+          config: `codex mcp add ${serverName} --url ${oauthUrl}`,
+          hint: `Run this in your terminal. If no sign-in page opens, run: codex mcp login ${serverName}`,
+        };
+      case 'Gemini CLI':
+        return {
+          config: json({ mcpServers: { [serverName]: { url: oauthUrl } } }),
+          hint: 'Add to ~/.gemini/settings.json',
+        };
+      case 'Warp':
+        return {
+          config: json({ [serverName]: { url: oauthUrl } }),
+          hint: 'Settings > MCP Servers > + Add, then paste this config.',
+        };
+      case 'Hermes':
+        return {
+          config: `# ~/.hermes/config.yaml\n\nmcp_servers:\n  ${serverName}:\n    url: "${oauthUrl}"\n    auth: oauth`,
+          hint: 'Add to ~/.hermes/config.yaml, then run /reload-mcp in the chat.',
+        };
+      case 'OpenClaw':
+        return {
+          config: `openclaw mcp add ${serverName} --url ${oauthUrl} --transport streamable-http --auth oauth && openclaw mcp login ${serverName}`,
+          hint: 'Run this command in your terminal.',
+        };
+      case 'NanoClaw':
+        return {
+          config: `ncl groups config add-mcp-server --id <group-id> --name ${serverName} --url ${oauthUrl}`,
+          hint: 'Run this in your terminal, replace <group-id> with the agent group that should get Voholabs Studio.',
+        };
+    }
+  }
+
   const urlBase = `${mcpBase}/mcp`;
   const bearer = `Bearer ${apiKey}`;
-  // Distinct registration name so adding this MCP doesn't overwrite an
-  // existing "postiz" server (or CLI) the user may already have configured.
-  const serverName = 'voholabs';
-
-  const json = (obj: object) => JSON.stringify(obj, null, 2);
 
   switch (client) {
     case 'Claude Code':
@@ -114,6 +193,50 @@ const getMcpConfig = (
         }),
         hint: 'Settings > MCP Servers > + Add, then paste this config.',
       };
+    case 'Hermes':
+      return {
+        config: `# ~/.hermes/config.yaml\n\nmcp_servers:\n  ${serverName}:\n    url: "${urlBase}"\n    headers:\n      Authorization: "${bearer}"`,
+        hint: 'Add to ~/.hermes/config.yaml, then run /reload-mcp in the chat.',
+      };
+    case 'OpenClaw':
+      return {
+        config: json({
+          mcp: {
+            servers: {
+              [serverName]: {
+                url: urlBase,
+                transport: 'streamable-http',
+                headers: { Authorization: bearer },
+              },
+            },
+          },
+        }),
+        hint: 'Add to ~/.openclaw/openclaw.json',
+      };
+    case 'NanoClaw':
+      // No headers flag, so the key travels inside the URL like the chat apps.
+      return {
+        config: `ncl groups config add-mcp-server --id <group-id> --name ${serverName} --url ${mcpBase}/mcp/${apiKey}`,
+        hint: 'Run this in your terminal, replace <group-id> with the agent group that should get Voholabs Studio.',
+      };
+  }
+};
+
+// One click for clients that install an MCP server from a link. Sign-in only,
+// so the API key never travels inside a link.
+const getMcpInstallLink = (client: McpClient, mcpBase: string) => {
+  const url = getMcpOauthUrl(mcpBase);
+  switch (client) {
+    case 'Cursor':
+      return `cursor://anysphere.cursor-deeplink/mcp/install?name=${MCP_SERVER_NAME}&config=${encodeURIComponent(
+        btoa(JSON.stringify({ url }))
+      )}`;
+    case 'VS Code / Copilot':
+      return `vscode:mcp/install?${encodeURIComponent(
+        JSON.stringify({ name: MCP_SERVER_NAME, type: 'http', url })
+      )}`;
+    default:
+      return null;
   }
 };
 
@@ -217,7 +340,7 @@ const SectionCard: FC<{
   children: ReactNode;
 }> = ({ title, description, actions, children }) => (
   <div className="bg-newBgColorInnerInner rounded-[12px] border border-newBorder overflow-hidden">
-    <div className="bg-newBgColorInner px-[20px] py-[14px] border-b border-newBorder flex items-start justify-between gap-[12px]">
+    <div className="bg-newBgColorInner px-[20px] mobile:px-[14px] py-[14px] border-b border-newBorder flex items-start justify-between gap-[12px] mobile:flex-col">
       <div>
         <div className="text-[15px] font-[600]">{title}</div>
         <div className="text-[13px] text-textItemBlur mt-[2px]">
@@ -225,10 +348,14 @@ const SectionCard: FC<{
         </div>
       </div>
       {!!actions && (
-        <div className="flex gap-[6px] shrink-0 pt-[2px]">{actions}</div>
+        <div className="flex flex-wrap gap-[6px] shrink-0 pt-[2px]">
+          {actions}
+        </div>
       )}
     </div>
-    <div className="p-[20px] flex flex-col gap-[16px]">{children}</div>
+    <div className="p-[20px] mobile:p-[14px] flex flex-col gap-[16px]">
+      {children}
+    </div>
   </div>
 );
 
@@ -262,7 +389,7 @@ const Tabs = <T extends string>({
   value,
   onChange,
 }: {
-  options: readonly { value: T; label: string }[];
+  options: readonly { value: T; label: string; icon?: ReactNode }[];
   value: T;
   onChange: (value: T) => void;
 }) => (
@@ -271,14 +398,16 @@ const Tabs = <T extends string>({
       <button
         key={option.value}
         type="button"
+        aria-pressed={value === option.value}
         className={clsx(
-          'cursor-pointer px-[14px] h-[36px] text-[13px] font-[500] rounded-[8px] transition-colors',
+          'cursor-pointer px-[14px] h-[36px] text-[13px] font-[500] rounded-[8px] transition-colors flex items-center gap-[8px]',
           value === option.value
             ? 'bg-btnPrimary text-white'
             : 'bg-btnSimple text-textItemBlur hover:bg-boxHover hover:text-textColor'
         )}
         onClick={() => onChange(option.value)}
       >
+        {option.icon}
         {option.label}
       </button>
     ))}
@@ -557,18 +686,18 @@ const ConnectorLinkBlock = ({
   );
 };
 
-const ConnectTabs = ({
+const ConnectTabs = <T extends string>({
   value,
   onChange,
   options,
 }: {
-  value: ConnectTarget;
-  onChange: (value: ConnectTarget) => void;
-  options: { value: ConnectTarget; label: string }[];
+  value: T;
+  onChange: (value: T) => void;
+  options: { value: T; label: string }[];
 }) => (
   <div
     role="tablist"
-    className="flex w-full sm:w-auto sm:self-start gap-[4px] p-[4px] rounded-[10px] bg-btnSimple"
+    className="flex w-full sm:w-auto sm:self-start gap-[4px] p-[4px] rounded-[10px] bg-btnSimple overflow-x-auto"
   >
     {options.map((option) => (
       <button
@@ -578,7 +707,7 @@ const ConnectTabs = ({
         aria-selected={value === option.value}
         onClick={() => onChange(option.value)}
         className={clsx(
-          'flex-1 sm:flex-none px-[16px] h-[36px] rounded-[8px] text-[13px] font-[600] transition-colors whitespace-nowrap',
+          'flex-1 sm:flex-none min-w-0 px-[10px] sm:px-[16px] h-[36px] rounded-[8px] text-[13px] font-[600] transition-colors whitespace-nowrap',
           value === option.value
             ? 'bg-btnPrimary text-white'
             : 'text-textItemBlur hover:text-newTextColor'
@@ -590,33 +719,107 @@ const ConnectTabs = ({
   </div>
 );
 
-type ConnectTarget = 'claude' | 'chatgpt' | 'developer';
+// The API key, blurred except its last characters until revealed.
+const ApiKeyField = ({
+  apiKey,
+  revealed,
+}: {
+  apiKey: string;
+  revealed: boolean;
+}) => (
+  <div className="bg-newBgColorInner border border-newBorder rounded-[8px] px-[16px] h-[44px] flex items-center overflow-hidden">
+    <code dir="ltr" className="text-[14px] flex-1 truncate">
+      {revealed ? (
+        apiKey
+      ) : (
+        <span className="flex items-center">
+          <span className="blur-sm select-none">{apiKey.slice(0, -5)}</span>
+          <span>{apiKey.slice(-5)}</span>
+        </span>
+      )}
+    </code>
+  </div>
+);
+
+// Claude and ChatGPT add a connector in their own settings. The coding agents
+// that most people use get a tab each; every other client sits under "Other
+// agents". The API tab is only in onboarding: Settings has its own API key card.
+type ConnectTarget =
+  | 'claude'
+  | 'chatgpt'
+  | 'Claude Code'
+  | 'Cursor'
+  | 'Codex'
+  | 'other'
+  | 'api';
+
+const featuredClients: readonly McpClient[] = [
+  'Claude Code',
+  'Cursor',
+  'Codex',
+];
+const otherClients = mcpClients.filter(
+  (client) => !featuredClients.includes(client)
+);
+
+// "Any other agent": no settings to fill in, a prompt to paste into the chat.
+type OtherPick = McpClient | 'any';
 
 const CONNECTOR_NAME = 'Voholabs Studio';
+
+const CLI_INSTALL = 'npm install -g github:voholabs/voholabs-studio-cli';
 
 const ConnectSection = ({
   apiKey,
   mcpBase,
+  apiBase,
   cloudflareUrl,
   bare,
 }: {
   apiKey: string;
   mcpBase: string;
+  // The public API's base, what the CLI talks to.
+  apiBase: string;
   cloudflareUrl: string;
   // Without the card and its heading, for the onboarding step that has its own.
   bare?: boolean;
 }) => {
   const t = useT();
   const [target, setTarget] = useState<ConnectTarget>('claude');
-  const [activeClient, setActiveClient] = useState<McpClient>('Claude Code');
+  const [otherPick, setOtherPick] = useState<OtherPick>(otherClients[0]);
+  const [auth, setAuth] = useState<McpAuth>('oauth');
   const [revealed, setRevealed] = useState(false);
+
+  // A key revealed on one tab stays hidden on the next.
+  const chooseTarget = (value: ConnectTarget) => {
+    setTarget(value);
+    setRevealed(false);
+  };
+  const chooseAuth = (value: McpAuth) => {
+    setAuth(value);
+    setRevealed(false);
+  };
 
   // Chat apps cannot send an Authorization header, so the key travels in the URL.
   const connectorUrl = `${mcpBase}/mcp/${apiKey}`;
-  const { config, hint } = getMcpConfig(activeClient, mcpBase, apiKey);
+  const oauthUrl = getMcpOauthUrl(mcpBase);
+  const client: OtherPick | null =
+    target === 'other'
+      ? otherPick
+      : target === 'Claude Code' || target === 'Cursor' || target === 'Codex'
+      ? target
+      : null;
+  const mcpClient = client && client !== 'any' ? client : null;
+  const { config, hint } = mcpClient
+    ? getMcpConfig(mcpClient, auth, mcpBase, apiKey)
+    : { config: '', hint: '' };
+  const installLink =
+    mcpClient && auth === 'oauth'
+      ? getMcpInstallLink(mcpClient, mcpBase)
+      : null;
 
   // Agent sandboxes allowlist outbound hosts, so both directions fail until
-  // the host is added (Claude's step 4 below). Uploading a
+  // the host is added (Claude's last step below). Uploading a
   // local file goes to us; reading a photo or video back comes from wherever
   // media is stored, which is a different host when that is object storage.
   const hostOf = (url: string) => {
@@ -644,14 +847,69 @@ const ConnectSection = ({
 
   const docsHref =
     target === 'claude'
-      ? 'https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp'
+      ? 'https://voholabs.com/docs/agents/claude'
       : target === 'chatgpt'
-      ? 'https://developers.openai.com/api/docs/guides/developer-mode'
-      : 'https://voholabs.com/docs/agents/mcp';
+      ? 'https://voholabs.com/docs/agents/chatgpt'
+      : target === 'api'
+      ? 'https://voholabs.com/docs/api'
+      : client === 'any'
+      ? 'https://voholabs.com/docs/agents/mcp'
+      : 'https://voholabs.com/docs/agents/developer-tools';
 
   const securityDetail = t(
     'agent_link_security_full',
     'This link contains your API key. Anyone who has it can read and publish to your channels. Only paste it into your own Claude or ChatGPT settings, never into a shared chat or document. If it leaks, rotate your API key in Settings and add the connector again.'
+  );
+
+  // The paste-in prompt for an agent with no MCP settings screen: it connects
+  // itself, or falls back to the Voholabs CLI. The key is never in the prompt;
+  // the agent asks for it.
+  const chatPrompt = t(
+    'agent_chat_prompt',
+    'Connect to Voholabs Studio, my social media scheduler, over MCP (streamable HTTP). Add the server {{oauthUrl}} and open its sign-in page for me. If you cannot sign in with OAuth, use {{mcpUrl}} with the header "Authorization: Bearer <API key>" and ask me for my Voholabs Studio API key. If you cannot add MCP servers but can run commands, install the Voholabs CLI with `{{cliInstall}}`, ask me for my API key, set it as VOHOLABS_API_KEY and set VOHOLABS_API_URL to {{apiUrl}}. Then list my Voholabs Studio channels.',
+    {
+      oauthUrl,
+      mcpUrl: `${mcpBase}/mcp`,
+      cliInstall: CLI_INSTALL,
+      apiUrl: apiBase,
+      interpolation: { escapeValue: false },
+    }
+  );
+
+  const authTabs = (
+    <div className="flex flex-col gap-[6px]">
+      <ConnectTabs<McpAuth>
+        value={auth}
+        onChange={chooseAuth}
+        options={[
+          { value: 'oauth', label: t('agent_auth_sign_in', 'Sign in') },
+          { value: 'apikey', label: t('agent_auth_api_key', 'With API key') },
+        ]}
+      />
+      <SubLine>
+        {auth === 'oauth'
+          ? t(
+              'agent_auth_sign_in_sub',
+              'Recommended. You sign in to Studio and pick a workspace. No key to copy.'
+            )
+          : t(
+              'agent_auth_api_key_sub',
+              'Uses your API key. Rotating the key disconnects this agent.'
+            )}
+      </SubLine>
+    </div>
+  );
+
+  const signInStep = (index: number, button: string) => (
+    <ShortStep index={index}>
+      <div>
+        {t(
+          'agent_step_sign_in',
+          'Click {{button}}. Studio opens: sign in, pick your workspace and click Authorize.',
+          { button, interpolation: { escapeValue: false } }
+        )}
+      </div>
+    </ShortStep>
   );
 
   const linkBlock = (
@@ -663,25 +921,66 @@ const ConnectSection = ({
     />
   );
 
-  const content = (
-    <div className="flex flex-col gap-[20px]">
-      <AgentConnectionStatus />
-      <ConnectTabs
-        value={target}
-        onChange={setTarget}
-        options={[
-          { value: 'claude', label: t('agent_tab_claude', 'Claude') },
-          { value: 'chatgpt', label: t('agent_tab_chatgpt', 'ChatGPT') },
+  // The URL row of the "add connector" form: the sign-in address to copy, or
+  // the link copied above.
+  const urlRow = (label: string) =>
+    auth === 'oauth'
+      ? { label, value: oauthUrl, copyText: oauthUrl }
+      : {
+          label,
+          value: t('agent_paste_link', 'Paste the link you copied'),
+          hint: true,
+        };
+
+  const targetOptions: {
+    value: ConnectTarget;
+    label: string;
+    icon: ReactNode;
+  }[] = [
+    {
+      value: 'claude',
+      label: t('agent_tab_claude', 'Claude'),
+      icon: <McpClientIcon client="Claude" />,
+    },
+    {
+      value: 'chatgpt',
+      label: t('agent_tab_chatgpt', 'ChatGPT'),
+      icon: <McpClientIcon client="ChatGPT" />,
+    },
+    ...featuredClients.map((item) => ({
+      value: item as ConnectTarget,
+      label: item,
+      icon: <McpClientIcon client={item} />,
+    })),
+    {
+      value: 'other',
+      label: t('agent_tab_other', 'Other agents'),
+      icon: <McpClientIcon client="Other agents" />,
+    },
+    ...(bare
+      ? [
           {
-            value: 'developer',
-            label: t('developer_tools', 'Developer tools'),
+            value: 'api' as ConnectTarget,
+            label: t('agent_tab_api', 'API'),
+            icon: <McpClientIcon client="API" />,
           },
-        ]}
+        ]
+      : []),
+  ];
+
+  const content = (
+    <div className="flex flex-col gap-[20px] min-w-0">
+      <AgentConnectionStatus />
+      <Tabs<ConnectTarget>
+        value={target}
+        onChange={chooseTarget}
+        options={targetOptions}
       />
 
       {target === 'claude' && (
         <>
-          {linkBlock}
+          {authTabs}
+          {auth === 'apikey' && linkBlock}
           <ol className="flex flex-col gap-[16px]">
             <ShortStep index={1}>
               <div>
@@ -689,20 +988,23 @@ const ConnectSection = ({
                 <PathChip>
                   {t(
                     'agent_claude_path',
-                    'Settings › Connectors › Add custom connector'
+                    'Customize › Connectors › Add › Add custom connector'
                   )}
                 </PathChip>
               </div>
               <SubLine>
-                {t('agent_claude_in_cowork', 'In Cowork:')}{' '}
-                <PathChip>
-                  {t('agent_claude_cowork_path', 'Customize › Connectors › +')}
-                </PathChip>
+                {t(
+                  'agent_claude_customize_where',
+                  'Customize is in the left sidebar of claude.ai and the desktop app.'
+                )}
               </SubLine>
             </ShortStep>
             <ShortStep index={2}>
               <div>
-                {t('agent_claude_step_fill', 'Fill in these two fields, then click Add')}
+                {t(
+                  'agent_claude_step_fill',
+                  'Fill in these two fields, then click Continue'
+                )}
               </div>
               <FieldsCard
                 rows={[
@@ -711,15 +1013,12 @@ const ConnectSection = ({
                     value: CONNECTOR_NAME,
                     copyText: CONNECTOR_NAME,
                   },
-                  {
-                    label: t('agent_field_url', 'URL'),
-                    value: t('agent_paste_link', 'Paste the link you copied'),
-                    hint: true,
-                  },
+                  urlRow(t('agent_field_mcp_server_url', 'MCP server URL')),
                 ]}
               />
             </ShortStep>
-            <ShortStep index={3}>
+            {auth === 'oauth' && signInStep(3, 'Connect')}
+            <ShortStep index={auth === 'oauth' ? 4 : 3}>
               <div>
                 {t('agent_claude_step_turn_on', 'In a chat, switch it on:')}{' '}
                 <PathChip>
@@ -730,9 +1029,12 @@ const ConnectSection = ({
                 </PathChip>
               </div>
             </ShortStep>
-            <ShortStep index={4}>
+            <ShortStep index={auth === 'oauth' ? 5 : 4}>
               <div>
-                {t('agent_claude_step_allowlist', "Allow Studio's file domains:")}{' '}
+                {t(
+                  'agent_claude_step_allowlist',
+                  "Allow Studio's file domains:"
+                )}{' '}
                 <PathChip>
                   {t(
                     'agent_claude_allowlist_path',
@@ -769,15 +1071,30 @@ const ConnectSection = ({
                 'Connectors live in your Claude account, so adding this once turns it on everywhere you use Claude — Cowork, the desktop app, claude.ai and mobile.'
               )}
             </div>
-            <div>
-              {t(
-                'leave_advanced_settings_empty',
-                'Leave "Advanced settings" (OAuth Client ID and Secret) empty — the link already signs you in. Click Add, and Claude will connect straight away.'
-              )}
-            </div>
-            <div>{securityDetail}</div>
+            {auth === 'oauth' ? (
+              <div>
+                {t(
+                  'agent_claude_oauth_advanced',
+                  'Claude registers itself with Studio when you click Connect, so there is no client ID or secret to enter. To use another workspace, add the connector again and pick it.'
+                )}
+              </div>
+            ) : (
+              <>
+                <div>
+                  {t(
+                    'leave_advanced_settings_empty',
+                    'The link already signs you in, so there is nothing else to fill in. Click Continue, and Claude will connect straight away.'
+                  )}
+                </div>
+                <div>{securityDetail}</div>
+              </>
+            )}
             <HelpLink
               href={docsHref}
+              label={t('agent_studio_docs', 'Studio docs: step by step')}
+            />
+            <HelpLink
+              href="https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp"
               label={t('agent_claude_docs', 'Claude help: custom connectors')}
             />
           </MoreHelp>
@@ -786,35 +1103,32 @@ const ConnectSection = ({
 
       {target === 'chatgpt' && (
         <>
-          {linkBlock}
+          {authTabs}
+          {auth === 'apikey' && linkBlock}
           <ol className="flex flex-col gap-[16px]">
             <ShortStep index={1}>
               <div>
-                {t('agent_chatgpt_step_dev_mode', 'Turn on developer mode:')}{' '}
+                {t('agent_chatgpt_step_open', 'Open')}{' '}
                 <PathChip>
                   {t(
-                    'agent_chatgpt_dev_mode_path',
-                    'Settings › Security and login › Developer mode'
+                    'agent_chatgpt_create_path',
+                    'Plugins › Add › Add custom MCP server'
                   )}
                 </PathChip>
               </div>
               <SubLine>
                 {t(
-                  'agent_chatgpt_web_only',
-                  'On the web only, on Plus, Pro, Business, Enterprise or Edu.'
+                  'agent_chatgpt_where',
+                  'Plugins is in the left sidebar of chatgpt.com. On the web only, on Plus, Pro, Business, Enterprise or Edu.'
                 )}
               </SubLine>
             </ShortStep>
             <ShortStep index={2}>
               <div>
-                {t('agent_chatgpt_step_open', 'Open')}{' '}
-                <PathChip>{t('agent_chatgpt_plugins_path', 'Plugins › +')}</PathChip>{' '}
-                {t('agent_chatgpt_step_open_end', 'and add a remote MCP server')}
-              </div>
-            </ShortStep>
-            <ShortStep index={3}>
-              <div>
-                {t('agent_chatgpt_step_fill', 'Fill in these fields, then save')}
+                {t(
+                  'agent_chatgpt_step_fill_create',
+                  'Fill in these fields, tick "I understand and want to continue" and click Create as a plugin'
+                )}
               </div>
               <FieldsCard
                 rows={[
@@ -823,48 +1137,57 @@ const ConnectSection = ({
                     value: CONNECTOR_NAME,
                     copyText: CONNECTOR_NAME,
                   },
-                  {
-                    label: t('agent_field_mcp_url', 'MCP Server URL'),
-                    value: t('agent_paste_link', 'Paste the link you copied'),
-                    hint: true,
-                  },
+                  urlRow(t('agent_field_server_url', 'Connection › Server URL')),
                   {
                     label: t('agent_field_auth', 'Authentication'),
-                    value: t('no_authentication', 'No authentication'),
+                    value:
+                      auth === 'oauth'
+                        ? t('agent_auth_oauth_value', 'OAuth')
+                        : t('no_authentication', 'No authentication'),
                   },
                 ]}
               />
             </ShortStep>
+            {auth === 'oauth' && signInStep(3, 'Continue')}
           </ol>
           <TryItBox />
           <MoreHelp title={t('agent_more_help', 'More help')}>
             <div>
               {t(
                 'chatgpt_connector_intro',
-                'ChatGPT needs developer mode to add a connector of your own. It is on Plus, Pro, Business, Enterprise and Edu, and only on the web — the phone apps cannot add one.'
+                'Adding your own MCP server works on the web on Plus, Pro, Business, Enterprise and Edu. The phone apps cannot add one, but use it once it is added.'
               )}
             </div>
             <div>
               {t(
                 'agent_chatgpt_admin_note',
-                'On a work plan the Developer mode switch only appears once an admin has allowed it, so ask yours if it is missing.'
+                'On a work plan, "Add custom MCP server" only appears once an admin has allowed custom servers, so ask yours if it is missing.'
               )}
             </div>
-            <div>
-              {t(
-                'no_authentication_is_correct',
-                '"No authentication" is the right choice here, even though it sounds wrong: your link already carries the key that signs you in, and ChatGPT has no field to put one in separately. Treat the link like a password — anyone holding it can post as you.'
-              )}
-            </div>
-            <div>
-              {t(
-                'chatgpt_ready_after_saving',
-                'Save it and you are done. Start a chat and ask it to list your channels or schedule a post — there is nothing else to switch on.'
-              )}
-            </div>
-            <div>{securityDetail}</div>
+            {auth === 'oauth' ? (
+              <div>
+                {t(
+                  'agent_chatgpt_oauth_note',
+                  'Leave "Advanced OAuth settings" alone: ChatGPT registers itself with Studio. There is no per-chat switch and nothing to allowlist.'
+                )}
+              </div>
+            ) : (
+              <>
+                <div>
+                  {t(
+                    'no_authentication_is_correct',
+                    '"No authentication" is the right choice here, even though it sounds wrong: your link already carries the key that signs you in, and ChatGPT has no field to put one in separately. Treat the link like a password — anyone holding it can post as you.'
+                  )}
+                </div>
+                <div>{securityDetail}</div>
+              </>
+            )}
             <HelpLink
               href={docsHref}
+              label={t('agent_studio_docs', 'Studio docs: step by step')}
+            />
+            <HelpLink
+              href="https://developers.openai.com/api/docs/guides/developer-mode"
               label={t('agent_chatgpt_docs', 'ChatGPT help: developer mode')}
             />
           </MoreHelp>
@@ -878,47 +1201,158 @@ const ConnectSection = ({
         </>
       )}
 
-      {target === 'developer' && (
+      {!!client && (
         <>
-          <div className="text-[13px] text-textItemBlur leading-[1.7]">
-            {t(
-              'developer_tools_intro',
-              'These clients send your key in an Authorization header, so it stays out of the URL. Pick your client and paste the config.'
-            )}
-          </div>
-          <Tabs<McpClient>
-            value={activeClient}
-            onChange={setActiveClient}
-            options={mcpClients.map((client) => ({
-              value: client,
-              label: client,
-            }))}
-          />
-          <div className="flex flex-col gap-[8px]">
-            <div className="text-[12px] text-textItemBlur font-[500]">
-              {hint}
-            </div>
-            <CodeBlock>{revealed ? config : maskKey(config, apiKey)}</CodeBlock>
-            <div className="flex gap-[8px] flex-wrap">
-              <CopyButton
-                text={config}
-                label={t('copy', 'Copy')}
-                primary={true}
-              />
-              <RevealButton
-                revealed={revealed}
-                onClick={() => setRevealed(!revealed)}
-              />
-              <CopyButton
-                text={`${mcpBase}/mcp`}
-                label={t('copy_url', 'Copy URL')}
+          {target === 'other' && (
+            <div className="flex flex-col gap-[8px] rounded-[10px] border border-newBorder bg-newBgColorInner p-[12px]">
+              <div className="text-[12px] font-[600] text-textItemBlur">
+                {t('agent_pick_your_agent', 'Pick your agent')}
+              </div>
+              <Tabs<OtherPick>
+                value={otherPick}
+                onChange={setOtherPick}
+                options={[
+                  ...otherClients.map((item) => ({
+                    value: item as OtherPick,
+                    label: item,
+                    icon: <McpClientIcon client={item} />,
+                  })),
+                  {
+                    value: 'any' as OtherPick,
+                    label: t('agent_any_other', 'Any other agent'),
+                  },
+                ]}
               />
             </div>
-          </div>
+          )}
+          {client === 'any' ? (
+            <div className="flex flex-col gap-[8px]">
+              <div className="text-[13px] text-textItemBlur leading-[1.7]">
+                {t(
+                  'agent_chat_prompt_intro',
+                  'No settings screen? Paste this into your agent. It connects itself and asks you to sign in, or for your API key.'
+                )}
+              </div>
+              <CodeBlock>{chatPrompt}</CodeBlock>
+              <div className="flex gap-[8px] flex-wrap">
+                <CopyButton
+                  text={chatPrompt}
+                  label={t('copy', 'Copy')}
+                  primary={true}
+                />
+              </div>
+            </div>
+          ) : (
+            <>
+              {authTabs}
+              {!!installLink && (
+                <a
+                  href={installLink}
+                  className="w-full sm:w-auto sm:self-start h-[48px] px-[24px] rounded-[10px] bg-btnPrimary hover:brightness-110 transition-all text-white text-[15px] font-[600] flex items-center justify-center gap-[10px]"
+                >
+                  <McpClientIcon client={client} size={18} />
+                  {t('agent_add_to_client', 'Add to {{client}}', {
+                    client,
+                    interpolation: { escapeValue: false },
+                  })}
+                </a>
+              )}
+              <div className="flex flex-col gap-[8px]">
+                <div className="text-[12px] text-textItemBlur font-[500]">
+                  {!!installLink &&
+                    `${t('agent_or_add_by_hand', 'Or add it by hand.')} `}
+                  {hint}
+                  {auth === 'oauth' &&
+                    ` ${t(
+                      'agent_oauth_browser_hint',
+                      'Your agent opens a browser window to sign in to Studio.'
+                    )}`}
+                </div>
+                <CodeBlock>
+                  {revealed ? config : maskKey(config, apiKey)}
+                </CodeBlock>
+                <div className="flex gap-[8px] flex-wrap">
+                  <CopyButton
+                    text={config}
+                    label={t('copy', 'Copy')}
+                    primary={!installLink}
+                  />
+                  {auth === 'apikey' && (
+                    <RevealButton
+                      revealed={revealed}
+                      onClick={() => setRevealed(!revealed)}
+                    />
+                  )}
+                  <CopyButton
+                    text={auth === 'oauth' ? oauthUrl : `${mcpBase}/mcp`}
+                    label={t('copy_url', 'Copy URL')}
+                  />
+                </div>
+              </div>
+              <TryItBox />
+              <MoreHelp
+                title={t(
+                  'agent_prefer_cli',
+                  'Prefer a CLI? Use the Voholabs CLI'
+                )}
+              >
+                <div>
+                  {t(
+                    'agent_cli_intro',
+                    'Agents that run in a terminal can use the Voholabs CLI instead of MCP. Install it and sign in with your browser:'
+                  )}
+                </div>
+                <CodeBlock>{`${CLI_INSTALL}\nvoholabs auth:login`}</CodeBlock>
+                <div className="flex gap-[8px] flex-wrap">
+                  <CopyButton
+                    text={`${CLI_INSTALL} && voholabs auth:login`}
+                    label={t('copy_all', 'Copy All')}
+                  />
+                </div>
+                <HelpLink
+                  href="https://voholabs.com/docs/cli"
+                  label={t('agent_cli_docs', 'CLI documentation')}
+                />
+              </MoreHelp>
+            </>
+          )}
           <HelpLink
             href={docsHref}
             label={t('agent_mcp_docs', 'MCP documentation')}
           />
+        </>
+      )}
+
+      {target === 'api' && (
+        <>
+          <div className="text-[13px] text-textItemBlur leading-[1.7]">
+            {t(
+              'agent_api_intro',
+              'Use the Voholabs Studio API from your own code, n8n or any other automation. Send your API key as the Authorization header on every request.'
+            )}
+          </div>
+          <ApiKeyField apiKey={apiKey} revealed={revealed} />
+          <div className="flex gap-[8px] flex-wrap">
+            <CopyButton
+              text={apiKey}
+              label={t('api_key', 'API Key')}
+              primary={true}
+            />
+            <RevealButton
+              revealed={revealed}
+              onClick={() => setRevealed(!revealed)}
+            />
+          </div>
+          <div className="flex gap-[16px] flex-wrap">
+            <HelpLink
+              href={docsHref}
+              label={t('agent_api_docs', 'API documentation')}
+            />
+            <HelpLink
+              href={`${apiBase}/public/v1/openapi.json`}
+              label={t('agent_openapi', 'OpenAPI spec')}
+            />
+          </div>
         </>
       )}
     </div>
@@ -945,7 +1379,7 @@ const ConnectSection = ({
 const localCliSteps = [
   {
     label: 'Install the CLI',
-    code: 'npm install -g github:voholabs/voholabs-studio-cli',
+    code: CLI_INSTALL,
   },
   {
     label: 'Run: voholabs auth:login',
@@ -960,7 +1394,7 @@ const localCliSteps = [
 const ciCliSteps = [
   {
     label: 'Install the CLI',
-    code: 'npm install -g github:voholabs/voholabs-studio-cli',
+    code: CLI_INSTALL,
   },
   {
     label: 'Set your API key as an environment variable',
@@ -1020,7 +1454,7 @@ const CliSection = ({ apiKey }: { apiKey: string }) => {
           <CodeBlock>{step.code}</CodeBlock>
         </div>
       ))}
-      <div className="flex gap-[8px]">
+      <div className="flex flex-wrap gap-[8px]">
         {mode === 'ci' && (
           <RevealButton
             revealed={revealed}
@@ -1077,6 +1511,7 @@ const PublicApiContent = () => {
       <ConnectSection
         apiKey={user.publicApi}
         mcpBase={mcpBase}
+        apiBase={backendUrl}
         cloudflareUrl={cloudflareUrl}
       />
 
@@ -1099,20 +1534,7 @@ const PublicApiContent = () => {
           </>
         }
       >
-        <div className="bg-newBgColorInner border border-newBorder rounded-[8px] px-[16px] h-[44px] flex items-center overflow-hidden">
-          <code className="text-[14px] flex-1 truncate">
-            {reveal ? (
-              user.publicApi
-            ) : (
-              <span className="flex items-center">
-                <span className="blur-sm select-none">
-                  {user.publicApi.slice(0, -5)}
-                </span>
-                <span>{user.publicApi.slice(-5)}</span>
-              </span>
-            )}
-          </code>
-        </div>
+        <ApiKeyField apiKey={user.publicApi} revealed={reveal} />
         <div className="flex gap-[8px] flex-wrap">
           <RevealButton revealed={reveal} onClick={() => setReveal(!reveal)} />
           <CopyButton text={user.publicApi} label={t('copy', 'Copy')} />
@@ -1143,7 +1565,9 @@ const PublicApiContent = () => {
               'payload_wizard_description',
               'Building a POST request to /posts can be complex. Use the wizard to schedule a post with the UI, then copy the generated payload.'
             )}
-            onClick={() => window.open(`${frontEndUrl}/modal/dark/all`, '_blank')}
+            onClick={() =>
+              window.open(`${frontEndUrl}/modal/dark/all`, '_blank')
+            }
             className="cursor-pointer px-[16px] h-[36px] bg-btnSimple hover:bg-boxHover transition-colors rounded-[8px] text-[13px] font-[600] flex items-center gap-[6px]"
           >
             <svg
@@ -1170,7 +1594,7 @@ const PublicApiContent = () => {
       <div className="text-[13px] text-customColor18 leading-[1.7]">
         {t(
           'api_auth_note_line2',
-          'Building a product that schedules posts on behalf of other Voholabs users? Create an OAuth App under the "Apps" tab — your users authorize it with OAuth2 and you receive a pos_ prefixed token that works with the API, MCP and CLI, just like an API Key.'
+          'Building a product that schedules posts on behalf of other Voholabs users? Create an OAuth App under Settings › Apps — your users authorize it with OAuth2 and you receive a pos_ prefixed token that works with the API, MCP and CLI, just like an API Key.'
         )}
       </div>
     </div>
@@ -1189,6 +1613,7 @@ export const ConnectAgentPanel: FC<{ bare?: boolean }> = ({ bare }) => {
     <ConnectSection
       apiKey={user.publicApi}
       mcpBase={mcpUrl || backendUrl}
+      apiBase={backendUrl}
       cloudflareUrl={cloudflareUrl}
       bare={bare}
     />
@@ -1204,31 +1629,12 @@ export const PublicComponent = () =>
     <WalletPublicComponent />
   );
 
+// OAuth apps are managed under Settings > Apps, so this tab is the connect
+// panel, the API key and the CLI.
 const WalletPublicComponent = () => {
-  const t = useT();
-  const [subTab, setSubTab] = useState<'api' | 'developer'>('api');
-
   return (
     <div className="flex flex-col gap-[20px]">
-      <div className="flex gap-[6px]">
-        {(['api', 'developer'] as const).map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            className={clsx(
-              'cursor-pointer px-[20px] h-[44px] text-[15px] font-[600] rounded-[8px] transition-colors',
-              subTab === tab
-                ? 'bg-btnPrimary text-white'
-                : 'bg-btnSimple text-customColor18 hover:bg-boxHover hover:text-textColor'
-            )}
-            onClick={() => setSubTab(tab)}
-          >
-            {tab === 'api' ? t('connect', 'Connect') : t('apps', 'Apps')}
-          </button>
-        ))}
-      </div>
-      {subTab === 'api' && <PublicApiContent />}
-      {subTab === 'developer' && <DeveloperComponent />}
+      <PublicApiContent />
     </div>
   );
 };

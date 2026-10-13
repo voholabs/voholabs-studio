@@ -5,7 +5,7 @@ jest.mock('@gitroom/nestjs-libraries/videos/video.manager', () => ({
   VideoManager: class {},
 }));
 jest.mock('@gitroom/nestjs-libraries/upload/upload.factory', () => ({
-  UploadFactory: { createStorage: () => ({}) },
+  UploadFactory: { createStorage: () => ({}), createProcessor: () => null },
 }));
 jest.mock(
   '@gitroom/nestjs-libraries/database/prisma/subscriptions/subscription.service',

@@ -86,7 +86,7 @@ export const ApexBanner: FC<{ onClose: () => void }> = ({ onClose }) => {
   const t = useT();
   const [variant] = useState(pickVariant);
   return (
-    <div className="relative flex justify-center items-center gap-[6px] h-[36px] mb-[8px] px-[44px] bg-newBgColorInner rounded-[12px] text-[13px] whitespace-nowrap">
+    <div className="relative flex justify-center items-center gap-x-[6px] h-[36px] mb-[8px] px-[44px] bg-newBgColorInner rounded-[12px] text-[13px] whitespace-nowrap mobile:h-auto mobile:min-h-[36px] mobile:py-[6px] mobile:ps-[12px] mobile:pe-[36px] mobile:whitespace-normal mobile:flex-wrap mobile:text-[12px]">
       <span className="font-[600] text-newTextColor">
         {t(variant.questionKey, variant.question)}
       </span>

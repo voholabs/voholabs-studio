@@ -1283,7 +1283,7 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
                     />
                     {/* phones have no footer, so the cost sits under the editor */}
                     {!paidPlan && !dummy && !addEditSets && (
-                      <div className="hidden mobile:block pb-[16px]">
+                      <div className="hidden mobile:block pb-[88px]">
                         <WalletCostLine cost={walletCost} mode={walletMode} />
                       </div>
                     )}

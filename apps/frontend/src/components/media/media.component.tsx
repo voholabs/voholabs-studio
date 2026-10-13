@@ -543,7 +543,7 @@ export const MediaBox: FC<{
         </div>
         <div
           className={clsx(
-            'flex-1 relative',
+            'flex-1 relative mobile:min-h-[60vh]',
             !isLoading &&
               !data?.results?.length &&
               'bg-newTextColor/[0.02] rounded-[12px]'

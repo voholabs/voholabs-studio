@@ -765,7 +765,7 @@ export const LaunchesComponent = () => {
             </div>
           </div>
         </div>
-        <div className="bg-newBgColorInner flex-1 min-w-0 flex-col flex p-[20px] mobile:p-[12px] gap-[12px] mobile:min-h-[600px]">
+        <div className="bg-newBgColorInner flex-1 min-w-0 flex-col flex p-[20px] mobile:p-[12px] gap-[12px] mobile:min-h-[min(600px,calc(100dvh-140px))]">
           <div className="hidden mobile:flex gap-[8px]">
             <div
               onClick={() => setChannelsOpen(true)}

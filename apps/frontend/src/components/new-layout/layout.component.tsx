@@ -70,6 +70,13 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     setMenuOpen(false);
   }, [pathname]);
+  // the drawer only exists in the mobile layout, so leaving it closes it
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 1025px)');
+    const close = () => setMenuOpen(false);
+    query.addEventListener('change', close);
+    return () => query.removeEventListener('change', close);
+  }, []);
   const load = useCallback(async (path: string) => {
     return await (await fetch(path)).json();
   }, []);
@@ -243,7 +250,7 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
                         <div className="text-[24px] mobile:text-[20px] font-[600] flex flex-1 min-w-0">
                           <Title />
                         </div>
-                        <div className="flex gap-[20px] mobile:gap-[14px] items-center text-textItemBlur">
+                        <div className="flex gap-[20px] mobile:gap-[8px] items-center text-textItemBlur">
                           <TrialBanner />
                           <StreakComponent />
                           <div className="w-[1px] h-[20px] bg-blockSeparator mobile:hidden" />

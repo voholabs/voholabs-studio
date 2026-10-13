@@ -60,8 +60,21 @@ export const BottomSheet: FC<{
     };
   }, []);
 
+  // Escape closes only the sheet, not the modal it was opened from
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') {
+        return;
+      }
+      event.stopImmediatePropagation();
+      onClose();
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 z-[600] flex flex-col justify-end">
+    <div className="fixed inset-0 z-[600] hidden mobile:flex flex-col justify-end">
       <div
         onClick={onClose}
         className="absolute inset-0 bg-popup backdrop-blur-[8px] animate-fadeIn touch-none"

@@ -42,6 +42,13 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       <head>
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" type="image/png" href="/favicon.png" />
+        {/* Home screen app: iPhone reads these tags, Android reads manifest.ts */}
+        <link rel="apple-touch-icon" href="/icons/app/apple-touch-icon.png" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-title" content="Studio" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+        <meta name="theme-color" content="#091717" />
         {/* Open Graph — provide og:image explicitly so scrapers don't infer it */}
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content="Voholabs Studio" />

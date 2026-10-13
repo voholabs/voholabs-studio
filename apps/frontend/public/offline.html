@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#091717" />
+    <title>Voholabs Studio</title>
+    <style>
+      html, body {
+        height: 100%;
+        margin: 0;
+        background: #091717;
+        color: #fff;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      }
+      main {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        padding: 0 24px;
+        text-align: center;
+        box-sizing: border-box;
+      }
+      h1 { margin: 0; font-size: 20px; font-weight: 600; }
+      p { margin: 0; font-size: 15px; color: #999; max-width: 320px; line-height: 1.45; }
+      button {
+        margin-top: 8px;
+        height: 44px;
+        padding: 0 24px;
+        border: 0;
+        border-radius: 8px;
+        background: #20808d;
+        color: #fff;
+        font-size: 15px;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <svg width="56" height="56" viewBox="0 0 340 330" fill="none" aria-hidden="true">
+        <rect width="340" height="330" rx="58" fill="#10201f" />
+        <rect x="33" y="77.876" width="76.4141" height="255.191" rx="38.2071" transform="rotate(-29.714 33 77.876)" fill="#FAF9F5" />
+        <circle cx="251.43" cy="97.751" r="45" fill="#20808D" />
+      </svg>
+      <h1>You're offline</h1>
+      <p>Studio needs an internet connection. Your scheduled posts still go out on time.</p>
+      <button type="button" onclick="location.reload()">Try again</button>
+    </main>
+  </body>
+</html>

@@ -50,6 +50,7 @@ import { TrialTracker } from '@gitroom/frontend/components/layout/gtm.component'
 import { RequiredOnboarding } from '@gitroom/frontend/components/onboarding/required.onboarding';
 import { RequiredTerms } from '@gitroom/frontend/components/onboarding/required.terms';
 import { WalletHeader } from '@gitroom/frontend/components/wallet/wallet.header';
+import { InstallAppComponent } from '@gitroom/frontend/components/layout/install.app.component';
 import { setSentryUser } from '@gitroom/react/sentry/initialize.sentry.client';
 
 const interTight = Inter_Tight({
@@ -167,6 +168,7 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
           <ToolTip />
           <Toaster />
           <TrialTracker />
+          <InstallAppComponent />
           <CheckPayment check={searchParams.get('check') || ''} mutate={mutate}>
             <ShowMediaBoxModal />
             <ShowLinkedinCompany />

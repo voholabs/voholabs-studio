@@ -1398,5 +1398,10 @@
   "agent_field_server_url": "Connection › Server URL",
   "no_authentication": "No authentication",
   "chatgpt_connector_intro": "Adding your own MCP server works on the web on Plus, Pro, Business, Enterprise and Edu. The phone apps cannot add one, but use it once it is added.",
-  "no_authentication_is_correct": "\"No authentication\" is the right choice here, even though it sounds wrong: your link already carries the key that signs you in, and ChatGPT has no field to put one in separately. Treat the link like a password — anyone holding it can post as you."
+  "no_authentication_is_correct": "\"No authentication\" is the right choice here, even though it sounds wrong: your link already carries the key that signs you in, and ChatGPT has no field to put one in separately. Treat the link like a password — anyone holding it can post as you.",
+  "install_app_title": "Get the Studio app",
+  "install_app_ios_steps": "Tap Share, then Add to Home Screen.",
+  "install_app_description": "Open Studio from your home screen, full screen.",
+  "install_app_button": "Install",
+  "install_app_close": "Close"
 }

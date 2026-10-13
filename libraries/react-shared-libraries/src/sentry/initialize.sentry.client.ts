@@ -28,8 +28,8 @@ export const initializeSentryClient = (environment: string, dsn: string) =>
       Sentry.browserProfilingIntegration(),
       Sentry.replayIntegration({
         maskAllText: false,
-        maskAllInputs: false,
-        blockAllMedia: false,
+        maskAllInputs: true,
+        blockAllMedia: true,
       }),
       Sentry.feedbackIntegration({
         // Disable the injection of the default widget

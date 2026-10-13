@@ -64,7 +64,14 @@ export class OrganizationService {
     return this._organizationRepository.getOrgByApiKey(api);
   }
 
+  // Acting for other organizations through the public API (the
+  // x-postiz-org header and the super-admin routes) is off unless
+  // PUBLIC_API_SUPER_ADMIN is "true".
   async canUseSuperAdminApi(orgId: string) {
+    if (process.env.PUBLIC_API_SUPER_ADMIN !== 'true') {
+      return false;
+    }
+
     const [superAdmin, privilegedOther] = await Promise.all([
       this._organizationRepository.getSuperAdminUser(orgId),
       this._organizationRepository.getPrivilegedNonSuperAdminUser(orgId),

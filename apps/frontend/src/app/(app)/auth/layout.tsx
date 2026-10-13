@@ -7,6 +7,10 @@ import { HeroComponent } from '@gitroom/frontend/components/auth/hero.component'
 import { LogoTextComponent } from '@gitroom/frontend/components/ui/logo-text.component';
 import { MantineWrapper } from '@gitroom/react/helpers/mantine.wrapper';
 import { Toaster } from '@gitroom/react/toaster/toaster';
+import {
+  InstallAppComponent,
+  ServiceWorkerComponent,
+} from '@gitroom/frontend/components/layout/install.app.component';
 const ReturnUrlComponent = loadDynamic(() => import('./return.url.component'));
 const OAuthConnectNotice = loadDynamic(() => import('./oauth.connect.notice'));
 export default async function AuthLayout({
@@ -19,6 +23,9 @@ export default async function AuthLayout({
   return (
     <MantineWrapper>
       <Toaster />
+      {/* Installing before signing in means one sign-in, inside the app */}
+      <ServiceWorkerComponent />
+      <InstallAppComponent />
       <div className="bg-[#091717] flex flex-1 p-[12px] gap-[12px] min-h-screen w-screen text-white">
         {/*<style>{`html, body {overflow-x: hidden;}`}</style>*/}
         <ReturnUrlComponent />

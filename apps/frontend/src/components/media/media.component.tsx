@@ -119,8 +119,7 @@ export const Pagination: FC<{
   }, [current, totalPages]);
 
   return (
-    // On a phone the page numbers wrap and Previous/Next keep only their arrows.
-    <ul className="flex flex-row items-center gap-1 justify-center mt-[15px] compact:flex-wrap">
+    <ul className="flex flex-row items-center gap-1 justify-center mt-[15px]">
       <li className={clsx(current === 0 && 'opacity-20 pointer-events-none')}>
         <div
           className="cursor-pointer inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 h-10 px-4 py-2 gap-1 ps-2.5 text-gray-400 hover:text-white border-[#1F1F1F] hover:bg-forth"
@@ -128,7 +127,7 @@ export const Pagination: FC<{
           onClick={() => setPage(current - 1)}
         >
           <ChevronLeftIcon className="lucide lucide-chevron-left h-4 w-4" />
-          <span className="compact:hidden">{t('previous', 'Previous')}</span>
+          <span>{t('previous', 'Previous')}</span>
         </div>
       </li>
       {paginationItems.map((item, index) => (
@@ -163,7 +162,7 @@ export const Pagination: FC<{
           aria-label="Go to next page"
           onClick={() => setPage(current + 1)}
         >
-          <span className="compact:hidden">{t('next', 'Next')}</span>
+          <span>{t('next', 'Next')}</span>
           <ChevronRightIcon className="lucide lucide-chevron-right h-4 w-4" />
         </a>
       </li>
@@ -515,7 +514,7 @@ export const MediaBox: FC<{
                 {[...new Array(16)].map((_, i) => (
                   <div
                     className={clsx(
-                      'px-[3px] py-[3px] float-left rounded-[6px] cursor-pointer w8-max compact:!w-1/3 compact:!max-w-[33.333%] aspect-square'
+                      'px-[3px] py-[3px] float-left rounded-[6px] cursor-pointer w8-max aspect-square'
                     )}
                     key={i}
                   >
@@ -536,8 +535,7 @@ export const MediaBox: FC<{
               .map((media: any) => (
                 <div
                   className={clsx(
-                    // Three to a row on a phone; six leaves thumbnails too small to tell apart.
-                    'group px-[3px] py-[3px] float-left rounded-[6px] w8-max compact:!w-1/3 compact:!max-w-[33.333%] aspect-square',
+                    'group px-[3px] py-[3px] float-left rounded-[6px] w8-max aspect-square',
                     !standalone && 'cursor-pointer'
                   )}
                   key={media.id}

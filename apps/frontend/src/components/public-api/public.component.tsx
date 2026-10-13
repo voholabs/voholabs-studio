@@ -988,22 +988,22 @@ const ConnectSection = ({
                 <PathChip>
                   {t(
                     'agent_claude_path',
-                    'Settings › Connectors › Add custom connector'
+                    'Customize › Connectors › Add › Add custom connector'
                   )}
                 </PathChip>
               </div>
               <SubLine>
-                {t('agent_claude_in_cowork', 'In Cowork:')}{' '}
-                <PathChip>
-                  {t('agent_claude_cowork_path', 'Customize › Connectors › +')}
-                </PathChip>
+                {t(
+                  'agent_claude_customize_where',
+                  'Customize is in the left sidebar of claude.ai and the desktop app.'
+                )}
               </SubLine>
             </ShortStep>
             <ShortStep index={2}>
               <div>
                 {t(
                   'agent_claude_step_fill',
-                  'Fill in these two fields, then click Add'
+                  'Fill in these two fields, then click Continue'
                 )}
               </div>
               <FieldsCard
@@ -1013,7 +1013,7 @@ const ConnectSection = ({
                     value: CONNECTOR_NAME,
                     copyText: CONNECTOR_NAME,
                   },
-                  urlRow(t('agent_field_url', 'URL')),
+                  urlRow(t('agent_field_mcp_server_url', 'MCP server URL')),
                 ]}
               />
             </ShortStep>
@@ -1075,7 +1075,7 @@ const ConnectSection = ({
               <div>
                 {t(
                   'agent_claude_oauth_advanced',
-                  'Leave "Advanced settings" (OAuth Client ID and Secret) empty: Claude registers itself with Studio when you click Connect. To use another workspace, add the connector again and pick it.'
+                  'Claude registers itself with Studio when you click Connect, so there is no client ID or secret to enter. To use another workspace, add the connector again and pick it.'
                 )}
               </div>
             ) : (
@@ -1083,7 +1083,7 @@ const ConnectSection = ({
                 <div>
                   {t(
                     'leave_advanced_settings_empty',
-                    'Leave "Advanced settings" (OAuth Client ID and Secret) empty — the link already signs you in. Click Add, and Claude will connect straight away.'
+                    'The link already signs you in, so there is nothing else to fill in. Click Continue, and Claude will connect straight away.'
                   )}
                 </div>
                 <div>{securityDetail}</div>
@@ -1108,37 +1108,26 @@ const ConnectSection = ({
           <ol className="flex flex-col gap-[16px]">
             <ShortStep index={1}>
               <div>
-                {t('agent_chatgpt_step_dev_mode', 'Turn on developer mode:')}{' '}
+                {t('agent_chatgpt_step_open', 'Open')}{' '}
                 <PathChip>
                   {t(
-                    'agent_chatgpt_dev_mode_path',
-                    'Settings › Security and login › Developer mode'
+                    'agent_chatgpt_create_path',
+                    'Plugins › Add › Add custom MCP server'
                   )}
                 </PathChip>
               </div>
               <SubLine>
                 {t(
-                  'agent_chatgpt_web_only',
-                  'On the web only, on Plus, Pro, Business, Enterprise or Edu.'
+                  'agent_chatgpt_where',
+                  'Plugins is in the left sidebar of chatgpt.com. On the web only, on Plus, Pro, Business, Enterprise or Edu.'
                 )}
               </SubLine>
             </ShortStep>
             <ShortStep index={2}>
               <div>
-                {t('agent_chatgpt_step_open', 'Open')}{' '}
-                <PathChip>
-                  {t(
-                    'agent_chatgpt_create_path',
-                    'Plugins › Add › Create custom MCP server'
-                  )}
-                </PathChip>
-              </div>
-            </ShortStep>
-            <ShortStep index={3}>
-              <div>
                 {t(
                   'agent_chatgpt_step_fill_create',
-                  'Fill in these fields, tick "I understand and want to continue" and click Create'
+                  'Fill in these fields, tick "I understand and want to continue" and click Create as a plugin'
                 )}
               </div>
               <FieldsCard
@@ -1148,7 +1137,7 @@ const ConnectSection = ({
                     value: CONNECTOR_NAME,
                     copyText: CONNECTOR_NAME,
                   },
-                  urlRow(t('agent_field_mcp_url', 'MCP Server URL')),
+                  urlRow(t('agent_field_server_url', 'Connection › Server URL')),
                   {
                     label: t('agent_field_auth', 'Authentication'),
                     value:
@@ -1159,27 +1148,27 @@ const ConnectSection = ({
                 ]}
               />
             </ShortStep>
-            {auth === 'oauth' && signInStep(4, 'Continue')}
+            {auth === 'oauth' && signInStep(3, 'Continue')}
           </ol>
           <TryItBox />
           <MoreHelp title={t('agent_more_help', 'More help')}>
             <div>
               {t(
                 'chatgpt_connector_intro',
-                'ChatGPT needs developer mode to add a connector of your own. It is on Plus, Pro, Business, Enterprise and Edu, and only on the web — the phone apps cannot add one.'
+                'Adding your own MCP server works on the web on Plus, Pro, Business, Enterprise and Edu. The phone apps cannot add one, but use it once it is added.'
               )}
             </div>
             <div>
               {t(
                 'agent_chatgpt_admin_note',
-                'On a work plan the Developer mode switch only appears once an admin has allowed it, so ask yours if it is missing.'
+                'On a work plan, "Add custom MCP server" only appears once an admin has allowed custom servers, so ask yours if it is missing.'
               )}
             </div>
             {auth === 'oauth' ? (
               <div>
                 {t(
                   'agent_chatgpt_oauth_note',
-                  'Leave the OAuth client ID and secret empty: ChatGPT registers itself with Studio. There is no per-chat switch and nothing to allowlist.'
+                  'Leave "Advanced OAuth settings" alone: ChatGPT registers itself with Studio. There is no per-chat switch and nothing to allowlist.'
                 )}
               </div>
             ) : (

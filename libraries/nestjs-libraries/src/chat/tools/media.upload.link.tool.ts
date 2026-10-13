@@ -18,14 +18,14 @@ export class MediaUploadLinkTool implements AgentToolInterface {
     return createTool({
       id: 'createUploadLinkTool',
       description: `Create a temporary upload link for putting a local file into the media library, for files too big to send inline.
-Call this, then POST the file to the returned "uploadUrl" as multipart form data under the field name "file" — the returned "curl" string is ready to run once you replace the path with the real one.
+Call this, then POST the file to the returned "uploadUrl" as multipart form data under the field name "file". Use the returned "curl" string: it is ready to run once you replace the path with the real one. If you upload from code instead, send a User-Agent header that names your client (for example "voholabs-upload/1.0"): the host refuses Python's built-in urllib, which sends "Python-urllib", with a 403 and "error code: 1010". The requests and httpx libraries and curl are fine.
 The response of that POST is the hosted media { id, path }; pass the "path" as the attachment when scheduling a post.
 If your environment cannot reach the uploadUrl (a sandbox that blocks the network, a proxy error), do not retry: in ChatGPT pass a file attached to the chat to uploadChatFileTool, and otherwise call uploadWidgetTool so the user picks the file in the upload box.
 If the library has no room the POST is refused: on the free plan with 413 when it is full, and on a workspace that pays for storage from its wallet with 402 and a top-up link when the credits do not cover the extra storage (storage above the free amount is paid for when the file is uploaded). Pass that on to the user.
 The link works once and expires after ${Math.round(
         UPLOAD_TICKET_TTL_SECONDS / 60
       )} minutes.
-IMPORTANT: if your upload is refused with a 403 or a blocked-network error, that is your own sandbox refusing to reach this host, not a problem with the link. Do not work around it by uploading the user's file to a third-party host. Instead ask the user to allow the host shown in the "allowlistHost" field in their assistant's network settings — in Claude that is Settings, then Capabilities, then the domain allowlist — and try again. If they cannot change that setting, give them the curl command to run themselves.
+IMPORTANT: a 403 whose body says "error code: 1010" means the host refused your HTTP client, not your network: retry the same link at once with the curl command, or with a User-Agent header as above. Any other 403 or a blocked-network error is your own sandbox refusing to reach this host, not a problem with the link. Do not work around it by uploading the user's file to a third-party host. Instead ask the user to allow the host shown in the "allowlistHost" field in their assistant's network settings — in Claude that is Settings, then Capabilities, then the domain allowlist — and try again. If they cannot change that setting, give them the curl command to run themselves.
 If you cannot make an HTTP request at all, give the curl command to the user to run in a terminal, or use uploadMediaTool for a small file.`,
       mcp: {
         annotations: {
@@ -80,7 +80,7 @@ If you cannot make an HTTP request at all, give the curl command to the user to 
             curl: `curl -X POST -F "file=@/path/to/your/file.jpg" "${uploadUrl}"`,
             expiresInMinutes: Math.round(UPLOAD_TICKET_TTL_SECONDS / 60),
             allowlistHost,
-            ifBlocked: `If this upload is refused with a 403 or a network block, your sandbox is not allowed to reach ${allowlistHost}. Ask the user to allow that domain in their assistant's network settings — in Claude: Settings, then Capabilities, then the domain allowlist — and retry. If they cannot, give them the curl command to run themselves. Never upload the user's file to a third-party host instead.`,
+            ifBlocked: `If the 403 body says "error code: 1010", the host refused your HTTP client: retry with the curl command, or send a User-Agent header such as "voholabs-upload/1.0" (Python's built-in urllib is refused). Any other 403 or a network block means your sandbox is not allowed to reach ${allowlistHost}. Ask the user to allow that domain in their assistant's network settings — in Claude: Settings, then Capabilities, then the domain allowlist — and retry. If they cannot, give them the curl command to run themselves. Never upload the user's file to a third-party host instead.`,
           };
         } catch (err) {
           return {

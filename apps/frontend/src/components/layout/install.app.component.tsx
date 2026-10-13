@@ -32,6 +32,8 @@ const isIos = () =>
   /iPhone|iPad|iPod/.test(navigator.userAgent) ||
   (navigator.userAgent.includes('Macintosh') && navigator.maxTouchPoints > 1);
 
+const isAndroid = () => /Android/.test(navigator.userAgent);
+
 // Registers sw.js, which only shows /offline.html when the device is offline.
 export const ServiceWorkerComponent: FC = () => {
   const { environment } = useVariables();
@@ -48,12 +50,13 @@ export const ServiceWorkerComponent: FC = () => {
   return null;
 };
 
-// On phones, offers to add Studio to the home screen: an Install button where
-// the browser supports it (Android), and Share › Add to Home Screen steps on
-// iPhone. Closing it hides it on this browser for 30 days.
+// On phones, offers to add Studio to the home screen: an Install button when
+// the browser offers one, otherwise the menu steps for iPhone or Android (Chrome
+// only offers the button after some use of the site, and other Android
+// browsers never do). Closing it hides it on this browser for 30 days.
 export const InstallAppComponent: FC = () => {
   const t = useT();
-  const [mode, setMode] = useState<'prompt' | 'ios' | null>(null);
+  const [mode, setMode] = useState<'prompt' | 'ios' | 'android' | null>(null);
   const [installEvent, setInstallEvent] = useState<InstallPromptEvent | null>(
     null
   );
@@ -76,6 +79,9 @@ export const InstallAppComponent: FC = () => {
     if (isIos()) {
       setMode('ios');
       return;
+    }
+    if (isAndroid()) {
+      setMode('android');
     }
     const onPrompt = (event: Event) => {
       event.preventDefault();
@@ -134,6 +140,11 @@ export const InstallAppComponent: FC = () => {
             ? t(
                 'install_app_ios_steps',
                 'Tap Share, then Add to Home Screen.'
+              )
+            : mode === 'android'
+            ? t(
+                'install_app_android_steps',
+                'Tap the ⋮ menu, then Add to Home screen.'
               )
             : t(
                 'install_app_description',

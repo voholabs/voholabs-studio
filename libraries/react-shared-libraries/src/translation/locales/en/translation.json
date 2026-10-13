@@ -1403,5 +1403,6 @@
   "install_app_ios_steps": "Tap Share, then Add to Home Screen.",
   "install_app_description": "Open Studio from your home screen, full screen.",
   "install_app_button": "Install",
-  "install_app_close": "Close"
+  "install_app_close": "Close",
+  "install_app_android_steps": "Tap the ⋮ menu, then Add to Home screen."
 }

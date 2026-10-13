@@ -856,17 +856,3 @@ html[dir='rtl'] [dir='ltr'] {
   font-size: 13px;
   vertical-align: middle;
 }
-
-// iOS zooms into any field under 16px when it is focused and leaves the page
-// zoomed. Size fields up on iPhones and iPads only (the touch-callout check),
-// so pinch-zoom keeps working everywhere. Same query as the `compact:` screen.
-@supports (-webkit-touch-callout: none) {
-  @media (max-width: 1023px), (max-height: 500px) {
-    input,
-    textarea,
-    select,
-    [contenteditable='true'] {
-      font-size: 16px !important;
-    }
-  }
-}

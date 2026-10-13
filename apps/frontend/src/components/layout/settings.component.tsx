@@ -20,8 +20,6 @@ import clsx from 'clsx';
 import { TeamsComponent } from '@gitroom/frontend/components/settings/teams.component';
 import { useUser } from '@gitroom/frontend/components/layout/user.context';
 import { LogoutComponent } from '@gitroom/frontend/components/layout/logout.component';
-import { LanguageComponent } from '@gitroom/frontend/components/layout/language.component';
-import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import { useVariables } from '@gitroom/react/helpers/variable.context';
 import { PublicComponent } from '@gitroom/frontend/components/public-api/public.component';
@@ -35,11 +33,6 @@ import { SVGLine } from '@gitroom/frontend/components/launches/launches.componen
 import { GlobalSettings } from '@gitroom/frontend/components/settings/global.settings';
 import { ApprovedAppsComponent } from '@gitroom/frontend/components/approved-apps/approved-apps.component';
 import { UsageComponent } from '@gitroom/frontend/components/settings/usage.component';
-const ModeComponent = dynamic(
-  () => import('@gitroom/frontend/components/layout/mode.component'),
-  { ssr: false }
-);
-
 export const SettingsPopup: FC<{
   getRef?: Ref<any>;
 }> = (props) => {
@@ -125,20 +118,20 @@ export const SettingsPopup: FC<{
 
   return (
     <>
-      <div className="bg-newBgColorInner p-[20px] flex flex-col transition-all w-[260px] shrink-0 compact:w-full compact:p-[12px] compact:gap-[8px]">
-        <div className="flex flex-1 flex-col gap-[15px] compact:flex-row compact:gap-[4px] compact:overflow-x-auto compact:whitespace-nowrap">
+      <div className="bg-newBgColorInner p-[20px] flex flex-col transition-all w-[260px]">
+        <div className="flex flex-1 flex-col gap-[15px]">
           {list.map(({ tab: tabKey, label }) => (
             <div
               key={tabKey}
               className={clsx(
-                'cursor-pointer flex items-center gap-[12px] group/profile hover:bg-boxHover rounded-e-[8px] compact:rounded-[8px] compact:px-[10px] compact:py-[6px] compact:shrink-0',
+                'cursor-pointer flex items-center gap-[12px] group/profile hover:bg-boxHover rounded-e-[8px]',
                 tabKey === tab && 'bg-boxHover'
               )}
               onClick={() => setTab(tabKey)}
             >
               <div
                 className={clsx(
-                  'h-full w-[4px] rounded-s-[3px] opacity-0 group-hover/profile:opacity-100 transition-opacity compact:hidden',
+                  'h-full w-[4px] rounded-s-[3px] opacity-0 group-hover/profile:opacity-100 transition-opacity',
                   tabKey === tab && 'opacity-100'
                 )}
               >
@@ -148,21 +141,15 @@ export const SettingsPopup: FC<{
             </div>
           ))}
         </div>
-        <div className="compact:flex compact:items-center compact:gap-[16px]">
+        <div>
           {showLogout && (
-            <div className="mt-4 compact:mt-0 compact:flex-1">
+            <div className="mt-4">
               <LogoutComponent />
             </div>
           )}
-          {/* The top bar drops the theme and language switches on a phone,
-              so they live here instead. */}
-          <div className="hidden compact:flex items-center gap-[16px] text-textItemBlur hover:text-newTextColor">
-            <ModeComponent />
-            <LanguageComponent />
-          </div>
         </div>
       </div>
-      <div className="bg-newBgColorInner flex-1 flex-col flex p-[20px] gap-[12px] compact:p-[12px] min-w-0">
+      <div className="bg-newBgColorInner flex-1 flex-col flex p-[20px] gap-[12px]">
         <FormProvider {...form}>
           <form onSubmit={form.handleSubmit(submit)}>
             {!!getRef && (

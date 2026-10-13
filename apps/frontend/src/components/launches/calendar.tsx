@@ -367,7 +367,7 @@ export const WeekView = () => {
   return (
     <div className="flex flex-col text-textColor flex-1">
       <div className="flex-1 relative">
-        <div className="grid [grid-template-columns:136px_repeat(7,_minmax(0,_1fr))] compact:[grid-template-columns:80px_repeat(7,_minmax(96px,_1fr))] gap-[4px] rounded-[10px] absolute h-full start-0 top-0 w-full overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
+        <div className="grid [grid-template-columns:136px_repeat(7,_minmax(0,_1fr))] gap-[4px] rounded-[10px] absolute h-full start-0 top-0 w-full overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
           <div className="z-10 bg-newTableHeader flex justify-center items-center flex-col h-[62px] rounded-[8px] sticky top-0"></div>
           {localizedDays.map((day, index) => (
             <div
@@ -470,7 +470,7 @@ export const MonthView = () => {
   return (
     <div className="flex flex-col text-textColor flex-1">
       <div className="flex-1 flex relative">
-        <div className="grid grid-cols-7 compact:[grid-template-columns:repeat(7,_minmax(96px,_1fr))] grid-rows-[62px_auto] gap-[4px] rounded-[10px] absolute start-0 top-0 overflow-auto w-full h-full scrollbar scrollbar-thumb-tableBorder scrollbar-track-secondary">
+        <div className="grid grid-cols-7 grid-rows-[62px_auto] gap-[4px] rounded-[10px] absolute start-0 top-0 overflow-auto w-full h-full scrollbar scrollbar-thumb-tableBorder scrollbar-track-secondary">
           {localizedDays.map((day) => (
             <div
               key={day}
@@ -637,10 +637,8 @@ export const ListView = () => {
   }
 
   return (
-    <div className="flex flex-col gap-[10px] flex-1 relative compact:min-w-0">
-      {/* On a phone the filters above take most of the screen, so the feed
-          scrolls with the page instead of inside the space left over. */}
-      <div className="absolute start-0 top-0 w-full h-full flex flex-col overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor compact:static compact:h-auto compact:overflow-visible">
+    <div className="flex flex-col gap-[10px] flex-1 relative">
+      <div className="absolute start-0 top-0 w-full h-full flex flex-col overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
         {groupedPosts.map(([dateKey, datePosts]) => (
           <Fragment key={dateKey}>
             <div className="text-center text-[14px] min-h-[21px] text-textColor font-[500] mt-[10px]">
@@ -726,10 +724,8 @@ export const ReviewView = () => {
       : undefined;
 
   return (
-    <div className="flex flex-col gap-[10px] flex-1 relative compact:min-w-0">
-      {/* On a phone the filters above take most of the screen, so the feed
-          scrolls with the page instead of inside the space left over. */}
-      <div className="absolute start-0 top-0 w-full h-full flex flex-col overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor compact:static compact:h-auto compact:overflow-visible">
+    <div className="flex flex-col gap-[10px] flex-1 relative">
+      <div className="absolute start-0 top-0 w-full h-full flex flex-col overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
         <div className="w-full max-w-[640px] mx-auto px-[10px] pb-[20px]">
           {groupedPosts.map(([dateKey, datePosts]) => (
             <Fragment key={dateKey}>

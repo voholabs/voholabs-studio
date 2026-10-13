@@ -509,19 +509,16 @@ export const LaunchesComponent = () => {
       <CalendarWeekProvider integrations={sortedIntegrations}>
         <div
           className={clsx(
-            'flex relative flex-col shrink-0 compact:!w-full',
+            'flex relative flex-col',
             collapseMenu === '1' ? 'group sidebar w-[100px]' : 'w-[260px]'
           )}
         >
           <div
             className={clsx(
-              'bg-newBgColorInner p-[20px] flex flex-col gap-[15px] transition-all absolute start-0 top-0 w-full h-full overflow-x-hidden overflow-y-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor',
-              // A phone keeps only the buttons; the channel list is a desktop
-              // tool and would push the calendar off the screen.
-              'compact:static compact:h-auto compact:p-[12px]'
+              'bg-newBgColorInner p-[20px] flex flex-col gap-[15px] transition-all absolute start-0 top-0 w-full h-full overflow-x-hidden overflow-y-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor'
             )}
           >
-            <div className="flex items-center compact:hidden">
+            <div className="flex items-center">
               <h2 className="group-[.sidebar]:hidden flex-1 text-[20px] font-[500]">
                 {t('channels')}
               </h2>
@@ -548,16 +545,16 @@ export const LaunchesComponent = () => {
                 </svg>
               </div>
             </div>
-            <div className="flex flex-col gap-[8px] group-[.sidebar]:mx-auto group-[.sidebar]:w-[44px] compact:!mx-0 compact:!w-full compact:!flex-row-reverse">
+            <div className="flex flex-col gap-[8px] group-[.sidebar]:mx-auto group-[.sidebar]:w-[44px]">
               <AddProviderButton update={() => update(true)} />
-              <div className="flex gap-[8px] group-[.sidebar]:flex-col compact:!flex-row compact:flex-1 compact:min-w-0">
+              <div className="flex gap-[8px] group-[.sidebar]:flex-col">
                 {sortedIntegrations?.length > 0 && <NewPost />}
                 {sortedIntegrations?.length > 0 &&
                   user?.tier?.ai &&
                   billingEnabled && <GeneratorComponent />}
               </div>
             </div>
-            <div className="gap-[32px] flex flex-col select-none flex-1 compact:hidden">
+            <div className="gap-[32px] flex flex-col select-none flex-1">
               {sortedIntegrations.length === 0 && collapseMenu === '0' && (
                 <div className="flex-1 max-h-[500px] justify-center items-center flex">
                   <div className="flex flex-col gap-[12px] text-center">
@@ -593,7 +590,7 @@ export const LaunchesComponent = () => {
                 />
               ))}
             </div>
-            <div className="mt-[5px] text-center flex flex-col compact:hidden">
+            <div className="mt-[5px] text-center flex flex-col">
               {billingEnabled && user?.isLifetime && (
                 <div>{capitalize(user?.tier?.current || '')} tier</div>
               )}
@@ -605,7 +602,7 @@ export const LaunchesComponent = () => {
             </div>
           </div>
         </div>
-        <div className="bg-newBgColorInner flex-1 min-w-0 flex-col flex p-[20px] gap-[12px] compact:p-[12px] compact:min-h-[560px]">
+        <div className="bg-newBgColorInner flex-1 flex-col flex p-[20px] gap-[12px]">
           <Filters />
           <AccountFilter />
           <div className="flex-1 flex">

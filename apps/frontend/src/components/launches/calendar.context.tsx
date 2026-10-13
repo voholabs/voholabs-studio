@@ -20,7 +20,6 @@ import isoWeek from 'dayjs/plugin/isoWeek';
 import weekOfYear from 'dayjs/plugin/weekOfYear';
 import { extend } from 'dayjs';
 import useCookie from 'react-use-cookie';
-import { isCompact } from '@gitroom/frontend/components/layout/compact.query';
 import { newDayjs } from '@gitroom/frontend/components/layout/set.timezone';
 import { timer } from '@gitroom/helpers/utils/timer';
 import { expandPostsList, expandPosts } from '@gitroom/helpers/utils/posts.list.minify';
@@ -174,11 +173,7 @@ export const CalendarWeekProvider: FC<{
   const [internalData, setInternalData] = useState([] as any[]);
   const [trendings] = useState<string[]>([]);
   const searchParams = useSearchParams();
-  // A phone opens on the list: seven day columns do not fit its width.
-  const [displaySaved, setDisplaySaved] = useCookie(
-    'calendar-display',
-    isCompact() ? 'list' : 'week'
-  );
+  const [displaySaved, setDisplaySaved] = useCookie('calendar-display', 'week');
   const display = searchParams.get('display') || displaySaved;
 
   // List view state

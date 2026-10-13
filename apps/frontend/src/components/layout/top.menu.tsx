@@ -455,14 +455,14 @@ const LockedMenuItem: FC<{
       data-tooltip-place={place}
       data-tooltip-class-name="!max-w-[280px] !whitespace-normal !leading-[1.5]"
       className={clsx(
-        'group relative w-full minCustom:h-[54px] custom:h-[44px] py-[8px] px-[6px] minCustom:gap-[4px] custom:gap-[2px] flex flex-col font-[600] items-center justify-center rounded-[12px] transition-colors hover:bg-boxHover hover:text-newTextColor compact:w-[60px] compact:shrink-0 compact:!h-[58px] short:!h-[40px] short:!py-[4px]',
+        'group relative w-full minCustom:h-[54px] custom:h-[44px] py-[8px] px-[6px] minCustom:gap-[4px] custom:gap-[2px] flex flex-col font-[600] items-center justify-center rounded-[12px] transition-colors hover:bg-boxHover hover:text-newTextColor',
         isActive ? 'bg-boxHover text-newTextColor' : 'text-textItemBlur'
       )}
     >
       <div className="custom:scale-90 opacity-60 group-hover:opacity-90 transition-opacity">
         {icon}
       </div>
-      <div className="custom:text-[9px] minCustom:text-[10px] leading-[1.1] text-center opacity-60 group-hover:opacity-90 short:hidden">
+      <div className="custom:text-[9px] minCustom:text-[10px] leading-[1.1] text-center opacity-60 group-hover:opacity-90">
         {label}
       </div>
       <span
@@ -519,7 +519,7 @@ export const TopMenu: FC = () => {
 
   return (
     <>
-      <div className="flex flex-1 flex-col minCustom:gap-[16px] blurMe compact:flex-row compact:flex-none compact:!gap-0 compact:ms-auto">
+      <div className="flex flex-1 flex-col minCustom:gap-[16px] blurMe">
         {
           // @ts-ignore
           user?.orgId &&
@@ -546,7 +546,7 @@ export const TopMenu: FC = () => {
                   )
                 )}
                 {firstComingSoon.length > 0 && (
-                  <div className="flex flex-col minCustom:gap-[16px] custom:gap-[8px] minCustom:mt-[12px] custom:mt-[6px] compact:hidden">
+                  <div className="flex flex-col minCustom:gap-[16px] custom:gap-[8px] minCustom:mt-[12px] custom:mt-[6px]">
                     <div className="text-[9px] uppercase tracking-[0.08em] text-textItemBlur text-center leading-none whitespace-nowrap">
                       {t('coming_soon', 'Coming soon')}
                     </div>
@@ -565,7 +565,7 @@ export const TopMenu: FC = () => {
             )
         }
       </div>
-      <div className="flex flex-col minCustom:gap-[20px] custom:gap-[8px] blurMe compact:flex-row compact:!gap-0 compact:me-auto">
+      <div className="flex flex-col minCustom:gap-[20px] custom:gap-[8px] blurMe">
         {secondMenu
           .filter((f) => {
             if (f.hide) {
@@ -598,7 +598,7 @@ export const TopMenu: FC = () => {
             label. */}
         {!!user?.tier?.current && user.tier.current !== 'FREE' && (
           <div
-            className="w-full px-[4px] custom:text-[8px] minCustom:text-[9px] font-[700] uppercase tracking-[0.04em] text-center leading-[1.1] break-words overflow-hidden compact:hidden"
+            className="w-full px-[4px] custom:text-[8px] minCustom:text-[9px] font-[700] uppercase tracking-[0.04em] text-center leading-[1.1] break-words overflow-hidden"
             style={{ color: '#E8A33D' }}
             title={`Your plan: ${user.tier.current}`}
           >

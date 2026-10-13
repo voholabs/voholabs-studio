@@ -2,7 +2,7 @@
 // brand (guidelines, decks, briefs). They are kept in the media library for
 // storage accounting, but are not offered as post media.
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { fromBuffer } = require('file-type');
+const { fileTypeFromBuffer } = require('file-type');
 
 export const BRIEF_DOCUMENT_TYPES: Record<string, string> = {
   pdf: 'application/pdf',
@@ -22,7 +22,7 @@ export async function detectBriefDocument(
   buffer: Buffer,
   originalName?: string
 ): Promise<{ ext: string; mime: string } | undefined> {
-  const detected = await fromBuffer(buffer);
+  const detected = await fileTypeFromBuffer(buffer);
   if (!detected) {
     return undefined;
   }

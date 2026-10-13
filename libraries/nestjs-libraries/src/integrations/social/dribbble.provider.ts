@@ -6,10 +6,10 @@ import {
   SocialProvider,
 } from '@gitroom/nestjs-libraries/integrations/social/social.integrations.interface';
 import { makeState, makeCodeVerifier } from '@gitroom/nestjs-libraries/services/make.is';
-import axios from 'axios';
 import { safeFetchStream } from '@gitroom/nestjs-libraries/dtos/webhooks/safe.fetch';
 import FormData from 'form-data';
 import {
+  BadBody,
   SocialAbstract,
   ValidityMedia,
 } from '@gitroom/nestjs-libraries/integrations/social.abstract';
@@ -30,9 +30,9 @@ export class DribbbleProvider extends SocialAbstract implements SocialProvider {
   }
   dto = DribbbleDto;
 
-  override async checkValidity(
-    [firstItem]: Array<ValidityMedia[]>
-  ): Promise<string | true> {
+  override async checkValidity([firstItem]: Array<ValidityMedia[]>): Promise<
+    string | true
+  > {
     const isMp4 = firstItem?.find(
       (item) => (item?.path?.indexOf?.('mp4') ?? -1) > -1
     );
@@ -180,16 +180,31 @@ export class DribbbleProvider extends SocialAbstract implements SocialProvider {
     formData.append('title', postDetails[0].settings.title);
     formData.append('description', postDetails[0].message);
 
-    const data2 = await axios.post(
-      'https://api.dribbble.com/v2/shots',
-      formData,
-      {
-        headers: {
-          ...formData.getHeaders(),
-          Authorization: `Bearer ${accessToken}`,
-        },
+    let data2;
+    try {
+      data2 = await this.getSsrfSafeAxios().post(
+        'https://api.dribbble.com/v2/shots',
+        formData,
+        {
+          headers: {
+            ...formData.getHeaders(),
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+    } catch (err: any) {
+      const status = err?.response?.status;
+      if (status >= 400 && status < 500 && status !== 429) {
+        throw new BadBody(
+          this.identifier,
+          JSON.stringify(err?.response?.data ?? {}),
+          '{}',
+          err?.response?.data?.message ||
+            `Dribbble rejected the shot with status ${status}`
+        );
       }
-    );
+      throw err;
+    }
 
     const location = data2.headers['location'];
     const newId = location.split('/').at(-1);

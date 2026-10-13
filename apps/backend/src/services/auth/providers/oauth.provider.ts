@@ -44,8 +44,8 @@ export class OauthProvider extends AuthProviderAbstract {
       client_id: clientId,
       scope: 'openid profile email',
       response_type: 'code',
+      state: state || 'login',
       redirect_uri: `${frontendUrl}/settings`,
-      ...(state ? { state } : {}),
     });
 
     return `${authUrl}?${params.toString()}`;

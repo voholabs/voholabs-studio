@@ -27,6 +27,7 @@ import {
   safeFetch,
   SafeFetchError,
 } from '@gitroom/nestjs-libraries/dtos/webhooks/safe.fetch';
+import { CreatePublicCommentDto } from '@gitroom/nestjs-libraries/dtos/comments/add.comment.dto';
 
 const pump = promisify(pipeline);
 
@@ -53,9 +54,11 @@ export class PublicController {
 
   @Get(`/posts/:id`)
   async getPreview(@Param('id') id: string) {
+    // the batch only links the posts in the dashboard, it stays out of the
+    // public preview
     return Promise.all(
       (await this._postsService.getPostsRecursively(id, true)).map(
-        async ({ childrenPost, ...p }) => ({
+        async ({ childrenPost, batchId, ...p }) => ({
           ...p,
           // The account alone does not say where the post lands: a Discord
           // connection is a whole server, and this is the channel within it.
@@ -79,6 +82,15 @@ export class PublicController {
   @Get(`/posts/:id/comments`)
   async getComments(@Param('id') postId: string) {
     return { comments: await this._postsService.getComments(postId) };
+  }
+
+  @Post(`/posts/:id/comments`)
+  async createComment(
+    @Param('id') postId: string,
+    @Body() body: CreatePublicCommentDto,
+    @RealIP() ip: string
+  ) {
+    return this._postsService.createPublicComment(postId, body, null, ip);
   }
 
   @Post('/t')

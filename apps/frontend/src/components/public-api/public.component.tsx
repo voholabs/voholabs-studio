@@ -9,7 +9,7 @@ import { useVariables } from '@gitroom/react/helpers/variable.context';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { useDecisionModal } from '@gitroom/frontend/components/layout/new-modal';
-import { DeveloperComponent } from '@gitroom/frontend/components/developer/developer.component';
+import { McpClientIcon } from '@gitroom/frontend/components/public-api/mcp.client.icons';
 import clsx from 'clsx';
 import { useWalletAccess } from '@gitroom/frontend/components/wallet-locks/wallet.access';
 import { LegacyPublicComponent } from '@gitroom/frontend/components/public-api/public.component.legacy';
@@ -18,10 +18,13 @@ import { AgentConnectionStatus } from '@gitroom/frontend/components/public-api/a
 const mcpClients = [
   'Claude Code',
   'Cursor',
+  'Codex',
+  'OpenClaw',
+  'Hermes',
+  'NanoClaw',
   'VS Code / Copilot',
   'Windsurf',
   'Amp',
-  'Codex',
   'Gemini CLI',
   'Warp',
 ] as const;
@@ -113,6 +116,32 @@ const getMcpConfig = (
           [serverName]: { url: urlBase, headers: { Authorization: bearer } },
         }),
         hint: 'Settings > MCP Servers > + Add, then paste this config.',
+      };
+    case 'Hermes':
+      return {
+        config: `# ~/.hermes/config.yaml\n\nmcp_servers:\n  ${serverName}:\n    url: "${urlBase}"\n    headers:\n      Authorization: "${bearer}"`,
+        hint: 'Add to ~/.hermes/config.yaml, then run /reload-mcp in the chat.',
+      };
+    case 'OpenClaw':
+      return {
+        config: json({
+          mcp: {
+            servers: {
+              [serverName]: {
+                url: urlBase,
+                transport: 'streamable-http',
+                headers: { Authorization: bearer },
+              },
+            },
+          },
+        }),
+        hint: 'Add to ~/.openclaw/openclaw.json',
+      };
+    case 'NanoClaw':
+      // No headers flag, so the key travels inside the URL like the chat apps.
+      return {
+        config: `ncl groups config add-mcp-server --id <group-id> --name ${serverName} --url ${mcpBase}/mcp/${apiKey}`,
+        hint: 'Run this in your terminal, replace <group-id> with the agent group that should get Voholabs Studio.',
       };
   }
 };
@@ -217,7 +246,7 @@ const SectionCard: FC<{
   children: ReactNode;
 }> = ({ title, description, actions, children }) => (
   <div className="bg-newBgColorInnerInner rounded-[12px] border border-newBorder overflow-hidden">
-    <div className="bg-newBgColorInner px-[20px] py-[14px] border-b border-newBorder flex items-start justify-between gap-[12px]">
+    <div className="bg-newBgColorInner px-[20px] mobile:px-[14px] py-[14px] border-b border-newBorder flex items-start justify-between gap-[12px] mobile:flex-col">
       <div>
         <div className="text-[15px] font-[600]">{title}</div>
         <div className="text-[13px] text-textItemBlur mt-[2px]">
@@ -225,10 +254,10 @@ const SectionCard: FC<{
         </div>
       </div>
       {!!actions && (
-        <div className="flex gap-[6px] shrink-0 pt-[2px]">{actions}</div>
+        <div className="flex flex-wrap gap-[6px] shrink-0 pt-[2px]">{actions}</div>
       )}
     </div>
-    <div className="p-[20px] flex flex-col gap-[16px]">{children}</div>
+    <div className="p-[20px] mobile:p-[14px] flex flex-col gap-[16px]">{children}</div>
   </div>
 );
 
@@ -262,7 +291,7 @@ const Tabs = <T extends string>({
   value,
   onChange,
 }: {
-  options: readonly { value: T; label: string }[];
+  options: readonly { value: T; label: string; icon?: ReactNode }[];
   value: T;
   onChange: (value: T) => void;
 }) => (
@@ -272,13 +301,14 @@ const Tabs = <T extends string>({
         key={option.value}
         type="button"
         className={clsx(
-          'cursor-pointer px-[14px] h-[36px] text-[13px] font-[500] rounded-[8px] transition-colors',
+          'cursor-pointer px-[14px] h-[36px] text-[13px] font-[500] rounded-[8px] transition-colors flex items-center gap-[8px]',
           value === option.value
             ? 'bg-btnPrimary text-white'
             : 'bg-btnSimple text-textItemBlur hover:bg-boxHover hover:text-textColor'
         )}
         onClick={() => onChange(option.value)}
       >
+        {option.icon}
         {option.label}
       </button>
     ))}
@@ -892,6 +922,7 @@ const ConnectSection = ({
             options={mcpClients.map((client) => ({
               value: client,
               label: client,
+              icon: <McpClientIcon client={client} />,
             }))}
           />
           <div className="flex flex-col gap-[8px]">
@@ -1020,7 +1051,7 @@ const CliSection = ({ apiKey }: { apiKey: string }) => {
           <CodeBlock>{step.code}</CodeBlock>
         </div>
       ))}
-      <div className="flex gap-[8px]">
+      <div className="flex flex-wrap gap-[8px]">
         {mode === 'ci' && (
           <RevealButton
             revealed={revealed}
@@ -1170,7 +1201,7 @@ const PublicApiContent = () => {
       <div className="text-[13px] text-customColor18 leading-[1.7]">
         {t(
           'api_auth_note_line2',
-          'Building a product that schedules posts on behalf of other Voholabs users? Create an OAuth App under the "Apps" tab — your users authorize it with OAuth2 and you receive a pos_ prefixed token that works with the API, MCP and CLI, just like an API Key.'
+          'Building a product that schedules posts on behalf of other Voholabs users? Create an OAuth App under Settings › Apps — your users authorize it with OAuth2 and you receive a pos_ prefixed token that works with the API, MCP and CLI, just like an API Key.'
         )}
       </div>
     </div>
@@ -1204,31 +1235,12 @@ export const PublicComponent = () =>
     <WalletPublicComponent />
   );
 
+// OAuth apps are managed under Settings > Apps, so this tab is the connect
+// panel, the API key and the CLI.
 const WalletPublicComponent = () => {
-  const t = useT();
-  const [subTab, setSubTab] = useState<'api' | 'developer'>('api');
-
   return (
     <div className="flex flex-col gap-[20px]">
-      <div className="flex gap-[6px]">
-        {(['api', 'developer'] as const).map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            className={clsx(
-              'cursor-pointer px-[20px] h-[44px] text-[15px] font-[600] rounded-[8px] transition-colors',
-              subTab === tab
-                ? 'bg-btnPrimary text-white'
-                : 'bg-btnSimple text-customColor18 hover:bg-boxHover hover:text-textColor'
-            )}
-            onClick={() => setSubTab(tab)}
-          >
-            {tab === 'api' ? t('connect', 'Connect') : t('apps', 'Apps')}
-          </button>
-        ))}
-      </div>
-      {subTab === 'api' && <PublicApiContent />}
-      {subTab === 'developer' && <DeveloperComponent />}
+      <PublicApiContent />
     </div>
   );
 };

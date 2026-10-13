@@ -47,6 +47,7 @@ const unregisteredFiles = [
   'generate.video.tool.ts',
   'generate.video.options.tool.ts',
   'video.function.tool.ts',
+  'video.status.tool.ts',
 ];
 
 describe('tool names in descriptions', () => {

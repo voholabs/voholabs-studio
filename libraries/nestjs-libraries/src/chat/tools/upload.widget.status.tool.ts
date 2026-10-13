@@ -9,13 +9,16 @@ import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
 export class UploadWidgetStatusTool implements AgentToolInterface {
   constructor(private _mediaService: MediaService) {}
   name = 'uploadWidgetStatusTool';
+  mcpOnly = true;
 
   run() {
     return createTool({
       id: 'uploadWidgetStatusTool',
       description: `List the media the user uploaded with the upload box, using the sessionId returned by uploadWidgetTool.
+It lists only the files uploaded in that session, not the whole media library.
 An empty list means nothing has finished uploading yet: a large video can take a few minutes, so ask the user or call again later.
-Each item can be attached to a post with its { id, path }.`,
+A media with the status "processing" is still being prepared: wait about 10 seconds and call again.
+A media with the status "ready" (or no status) can be attached to a post with its { id, path }.`,
       mcp: {
         annotations: {
           title: 'Upload Box Status',
@@ -37,6 +40,8 @@ Each item can be attached to a post with its { id, path }.`,
               id: z.string(),
               path: z.string(),
               name: z.string().optional(),
+              status: z.string().optional(),
+              error: z.string().optional(),
             })
           )
           .optional(),
@@ -57,6 +62,8 @@ Each item can be attached to a post with its { id, path }.`,
               id: p.id,
               path: p.path,
               name: p.originalName || p.name || undefined,
+              ...(p.status ? { status: p.status } : {}),
+              ...(p.processingError ? { error: p.processingError } : {}),
             })),
           };
         } catch (err) {

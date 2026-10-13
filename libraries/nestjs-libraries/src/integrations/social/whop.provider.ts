@@ -9,12 +9,16 @@ import {
 } from '@gitroom/nestjs-libraries/integrations/social/social.integrations.interface';
 import { makeId, makeState } from '@gitroom/nestjs-libraries/services/make.is';
 import { timer } from '@gitroom/helpers/utils/timer';
-import { SocialAbstract } from '@gitroom/nestjs-libraries/integrations/social.abstract';
+import {
+  BadBody,
+  SocialAbstract,
+} from '@gitroom/nestjs-libraries/integrations/social.abstract';
 import { WhopDto } from '@gitroom/nestjs-libraries/dtos/posts/providers-settings/whop.dto';
 import { Integration } from '@prisma/client';
 import { Tool } from '@gitroom/nestjs-libraries/integrations/tool.decorator';
 
 export class WhopProvider extends SocialAbstract implements SocialProvider {
+  override maxConcurrentJob = 3; // Whop limits are per token
   identifier = 'whop';
   name = 'Whop';
   isBetweenSteps = false;
@@ -226,8 +230,26 @@ export class WhopProvider extends SocialAbstract implements SocialProvider {
     const attachments: { id: string }[] = [];
 
     for (const item of media) {
-      const fileResponse = await safeFetchMedia(item.path);
-      const fileBuffer = await fileResponse.arrayBuffer();
+      // The size comes from a HEAD request; the PUT below streams the bytes
+      // so the file is never buffered in memory (it used to stay resident
+      // through the whole ~9 minute status poll).
+      const headResponse = await safeFetchMedia(item.path, {
+        method: 'HEAD',
+        // identity encoding so content-length matches the bytes the GET streams
+        headers: { 'accept-encoding': 'identity' },
+      });
+      const contentLength = Number(
+        headResponse.headers.get('content-length') || 0
+      );
+      if (!headResponse.ok || !contentLength) {
+        // A permanent condition - fail fast instead of letting Temporal retry
+        throw new BadBody(
+          this.identifier,
+          '{}',
+          '{}',
+          'Could not determine the media size for upload'
+        );
+      }
       const fileName = item.path.split('/').pop() || 'file';
 
       const createFileResponse = await (
@@ -248,11 +270,36 @@ export class WhopProvider extends SocialAbstract implements SocialProvider {
       ).json();
 
       if (createFileResponse.upload_url) {
-        await fetch(createFileResponse.upload_url, {
+        const fileResponse = await safeFetchMedia(
+          item.path,
+          { headers: { 'accept-encoding': 'identity' } },
+          // the PUT below reads the body at its own pace
+          { timeoutCoversBody: false }
+        );
+        if (!fileResponse.ok || !fileResponse.body) {
+          throw new Error(`Failed to fetch media: ${fileResponse.statusText}`);
+        }
+        const uploadResponse = await fetch(createFileResponse.upload_url, {
           method: 'PUT',
-          headers: createFileResponse.upload_headers || {},
-          body: fileBuffer,
-        });
+          headers: {
+            // Whop's own upload_headers win if they ever include a length.
+            'Content-Length': String(contentLength),
+            ...(createFileResponse.upload_headers || {}),
+          },
+          body: fileResponse.body,
+          // Required by undici when streaming a request body.
+          duplex: 'half',
+        } as any);
+        // A rejected PUT leaves the file pending forever - fail fast instead
+        // of burning the ~9 minute status poll below.
+        if (!uploadResponse.ok) {
+          throw new BadBody(
+            this.identifier,
+            await uploadResponse.text().catch(() => '{}'),
+            '{}',
+            'Failed to upload the media file'
+          );
+        }
 
         let uploadStatus = 'pending';
         let attempts = 0;

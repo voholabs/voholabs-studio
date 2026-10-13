@@ -64,26 +64,24 @@ const make = (opts: { provider?: any } = {}) => {
       user.activated = true;
     }),
   };
-  const notifications = { sendEmail: jest.fn(async () => undefined) };
-  const email = { sendEmail: jest.fn(async () => undefined) };
+  const email = { sendEmailSync: jest.fn(async () => undefined) };
   const providers = { getProvider: jest.fn(() => opts.provider) };
   const service = new AuthService(
     users as any,
     {} as any,
-    notifications as any,
     email as any,
     providers as any
   );
-  return { service, users, notifications, email, user };
+  return { service, users, email, user };
 };
 
 beforeEach(() => redis.clear());
 
 describe('password reset', () => {
   it('emails a reset token that is typed, expires in 20 minutes and has an id', async () => {
-    const { service, notifications } = make();
+    const { service, email } = make();
     await service.forgot('a@b.co');
-    const html = (notifications.sendEmail.mock.calls[0] as any[])[2] as string;
+    const html = (email.sendEmailSync.mock.calls[0] as any[])[2] as string;
     const token = html.match(/auth\/forgot\/([^"]+)"/)![1];
     const payload = verify(token, secret()) as any;
     expect(payload.type).toBe('reset');
@@ -151,12 +149,12 @@ describe('resend activation', () => {
   it('answers the same for unknown, activated and pending addresses', async () => {
     const { service, user, email } = make();
     expect(await service.resendActivationEmail('nobody@b.co')).toBe(true);
-    expect(email.sendEmail).not.toHaveBeenCalled();
+    expect(email.sendEmailSync).not.toHaveBeenCalled();
     expect(await service.resendActivationEmail('a@b.co')).toBe(true);
-    expect(email.sendEmail).toHaveBeenCalledTimes(1);
+    expect(email.sendEmailSync).toHaveBeenCalledTimes(1);
     user.activated = true;
     expect(await service.resendActivationEmail('a@b.co')).toBe(true);
-    expect(email.sendEmail).toHaveBeenCalledTimes(1);
+    expect(email.sendEmailSync).toHaveBeenCalledTimes(1);
   });
 });
 

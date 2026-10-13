@@ -26,16 +26,16 @@ export const Title = () => {
 
   // A paid plan sees the title as it always did.
   if (paidPlan) {
-    return <h1>{current?.name}</h1>;
+    return <h1 className="truncate">{current?.name}</h1>;
   }
 
   if (!current || (!current.titleInfo && !hasTitleExtras(current.path))) {
-    return <h1>{current?.name || walletTitle}</h1>;
+    return <h1 className="truncate">{current?.name || walletTitle}</h1>;
   }
 
   return (
-    <h1 className="flex items-center gap-[10px]">
-      {current.name}
+    <h1 className="flex items-center gap-[10px] min-w-0">
+      <span className="truncate">{current.name}</span>
       <TitleExtras path={current.path} info={current.titleInfo} />
     </h1>
   );

@@ -10,7 +10,7 @@ import {
   providerNeedsPaidPlan,
 } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { fromBuffer } = require('file-type');
+const { fileTypeFromBuffer } = require('file-type');
 
 const ALLOWED_AVATAR_MIME = new Set<string>([
   'image/png',
@@ -227,7 +227,7 @@ export class IntegrationPictureService {
 
       // Sniffed rather than trusted from the header, so the proxy cannot be
       // talked into serving something that is not an image.
-      const detected = await fromBuffer(buffer);
+      const detected = await fileTypeFromBuffer(buffer);
       if (!detected || !ALLOWED_AVATAR_MIME.has(detected.mime)) {
         return null;
       }

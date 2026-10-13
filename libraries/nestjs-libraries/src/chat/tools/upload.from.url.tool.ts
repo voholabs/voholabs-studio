@@ -9,17 +9,17 @@ import { storeUrlAsMedia } from '@gitroom/nestjs-libraries/chat/tools/media.uplo
 
 @Injectable()
 export class UploadFromUrlTool implements AgentToolInterface {
-  private storage = UploadFactory.createStorage();
-
   constructor(private _mediaService: MediaService) {}
+  private storage = UploadFactory.createStorage();
   name = 'uploadFromUrlTool';
 
   run() {
     return createTool({
       id: 'uploadFromUrlTool',
-      description: `Upload a remote image or video into the media library from a public URL.
+      description: `Upload a remote image or video into the media library from a public http(s) URL.
 Anything produced OUTSIDE this system must come through here before it can go on a post: an AI generator's result URL, a link the user pasted, a file an external editing tool handed back. Those URLs are usually temporary — attaching one directly may appear to work, and the post is then pointing at a file that expires before it publishes. The "path" this returns is the durable hosted copy, and that path is what every attachments field (and replacePostAsset's newPath) takes.
-Returns the hosted media { id, path } to use as an attachment, or { error } on failure.`,
+Local or private files cannot be fetched by this tool: use uploadWidgetTool in apps that show it, otherwise uploadMediaTool for a small file or createUploadLinkTool for anything bigger.
+Returns the hosted media { id, path } to use as an attachment (or as the src of an <img> in the content, when the channel rules say pictures go inside the content), or { error } on failure.`,
       mcp: {
         annotations: {
           title: 'Upload Media From URL',
@@ -33,7 +33,9 @@ Returns the hosted media { id, path } to use as an attachment, or { error } on f
         url: z
           .string()
           .url()
-          .describe('The public URL of the image or video to upload'),
+          .describe(
+            'The public http(s) URL of the image or video to upload. Local files and private hosts are not supported'
+          ),
       }),
       // Mastra validates a tool's return against this schema, so it must also
       // allow the graceful { error } shape. Fields are optional (rather than
@@ -63,10 +65,25 @@ Returns the hosted media { id, path } to use as an attachment, or { error } on f
             url: inputData.url,
           });
         } catch (err) {
+          // undici's fetch rejects with a generic TypeError('fetch failed')
+          // and hides the real reason (DNS, TLS, SSRF block, ...) in
+          // err.cause, so walk the chain and surface it for the agent.
+          // Error.cause isn't in the es2020 lib typings this repo compiles
+          // against, hence the cast
+          const message =
+            err instanceof Error ? err.message : 'Unexpected error';
+          const causes: string[] = [];
+          let cause = (err as Error & { cause?: unknown })?.cause;
+          while (cause instanceof Error) {
+            if (cause.message) {
+              causes.push(cause.message);
+            }
+            cause = (cause as Error & { cause?: unknown }).cause;
+          }
+          const causeText = causes.length ? ` (${causes.join(': ')})` : '';
+
           return {
-            error: `Failed to upload media from URL: ${
-              err instanceof Error ? err.message : 'Unexpected error'
-            }`,
+            error: `Failed to upload media from URL: ${message}${causeText}`,
           };
         }
       },

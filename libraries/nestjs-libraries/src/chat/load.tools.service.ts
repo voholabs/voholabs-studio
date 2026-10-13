@@ -9,6 +9,8 @@ import {
   notOnPlanToolNames,
   toolList,
 } from '@gitroom/nestjs-libraries/chat/tools/tool.list';
+import { mcpOnlyToolList } from '@gitroom/nestjs-libraries/chat/tools/mcp.only.tool.list';
+import { AgentToolInterface } from '@gitroom/nestjs-libraries/chat/agent.tool.interface';
 import { hasAccess } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 import dayjs from 'dayjs';
 
@@ -47,11 +49,23 @@ const renderArray = (list: string[], show: boolean) => {
 export class LoadToolsService {
   constructor(private _moduleRef: ModuleRef) {}
 
-  async loadTools() {
+  // mcpOnly=false: the tools of the in-app agent. mcpOnly=true: the tools only
+  // an MCP host can use (a ui:// widget, or a file the host attaches), which
+  // the MCP serves on top of the others. A tool of a feature this install has
+  // not configured is left out of both.
+  async loadTools(mcpOnly = false) {
     return (
       await Promise.all<{ name: string; tool: any }>(
-        toolList
-          .map((p) => this._moduleRef.get(p, { strict: false }))
+        [...toolList, ...mcpOnlyToolList]
+          .map((p) => ({
+            tool: this._moduleRef.get(p, {
+              strict: false,
+            }) as AgentToolInterface,
+            mcpOnly: !!(mcpOnlyToolList as any[]).includes(p),
+          }))
+          .filter((p) => (p.mcpOnly || !!p.tool.mcpOnly) === mcpOnly)
+          .map((p) => p.tool)
+          .filter((p) => !p.available || p.available())
           .map(async (p) => ({
             name: p.name as string,
             tool: await p.run(),
@@ -64,6 +78,16 @@ export class LoadToolsService {
       }),
       {} as Record<string, any>
     );
+  }
+
+  // Tools every install has, whatever features it configured
+  coreToolNames() {
+    return toolList
+      .map(
+        (p) => this._moduleRef.get(p, { strict: false }) as AgentToolInterface
+      )
+      .filter((p) => !p.mcpOnly && !p.available)
+      .map((p) => p.name);
   }
 
   async agent() {
@@ -85,7 +109,7 @@ export class LoadToolsService {
         - Move a post between draft and the schedule
         - List integrations (channels)
         - List groups (customers) and filter the channels by a group
-        - List the posts already on the calendar, edit a post that is on it, and delete (unschedule) a post
+        - List the posts already on the calendar, edit a post that is on it, change its channel settings, and delete (unschedule) a post
         - Find the next free slot in the schedule
         - List the media library, upload media, and delete media
         - Keep your own Experience: what has worked for this brand and what has not
@@ -126,6 +150,10 @@ export class LoadToolsService {
       - In every message I will send you the list of needed social medias (id and platform), if you already have the information use it, if not, use the integrationSchema tool to get it.
       - Make sure you always take the last information I give you about the socials, it might have changed.
       - Before scheduling a post, always make sure you ask the user confirmation by providing all the details of the post (text, images, videos, date, time, social media platform, account).
+      - To reuse media that was already uploaded, use mediaList (search by filename) and pass the returned path as the attachment, instead of asking the user for a URL or uploading it again.
+      - To find or inspect existing posts, use postsList with a UTC start and end date - it returns every post scheduled in that window. To cover "all my upcoming posts", pass a wide window starting now.
+      - To change only the channel settings of an existing post that was not published yet (scheduled or draft), first find it with postsList, then use postSettingsTool with the post's id. It only updates the settings - the content and the publish date stay as they are - and only the keys you pass are changed (get them with the integrationSchema tool). Show the user which post and which settings will change and get their confirmation first.
+      - Never open the "modal with populated content" to edit an existing post - that modal only CREATES a new post, so using it to edit would duplicate the post. It is only for brand new posts.
       - Between tools, we will reference things like: [output:name] and [input:name] to set the information right.
       - When outputting a date for the user, make sure it's human readable with time
       - The content of the post, HTML, Each line must be wrapped in <p> here is the possible tags: h1, h2, h3, u, strong, li, ul, p (you can\'t have u and strong together), don't use a "code" box

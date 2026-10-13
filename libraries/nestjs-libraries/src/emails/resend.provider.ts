@@ -23,8 +23,9 @@ export class ResendProvider implements EmailInterface {
     });
 
     // The Resend SDK resolves with `{ data: null, error }` instead of throwing,
-    // so an unverified domain or a bad key looks identical to a delivered email
-    // unless we surface it ourselves.
+    // so an unverified domain, a bad key or a 429 rate limit looks identical
+    // to a delivered email unless we surface it ourselves. Throwing also lets
+    // sendEmailSync retry the send.
     if (sends.error) {
       throw new Error(
         `Resend refused the email: ${sends.error.name} - ${sends.error.message}`

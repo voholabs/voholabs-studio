@@ -6,11 +6,11 @@ import {
   UploadedFile,
   UseGuards,
   UseInterceptors,
-  UsePipes,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags } from '@nestjs/swagger';
-import { CustomFileValidationPipe } from '@gitroom/nestjs-libraries/upload/custom.upload.validation';
+import { streamUploadOptions } from '@gitroom/nestjs-libraries/upload/multer.stream.engine';
+import { storedObjectSize } from '@gitroom/nestjs-libraries/upload/r2.uploader';
 import { UploadFactory } from '@gitroom/nestjs-libraries/upload/upload.factory';
 import { MediaService } from '@gitroom/nestjs-libraries/database/prisma/media/media.service';
 import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
@@ -19,7 +19,6 @@ import {
   releaseUploadTicket,
   uploadTicketKey,
 } from '@gitroom/nestjs-libraries/upload/upload.ticket';
-import { MEDIA_UPLOAD_OPTIONS } from '@gitroom/nestjs-libraries/upload/upload.limits';
 import { UploadTicketGuard } from '@gitroom/backend/public-api/routes/v1/upload.ticket.guard';
 import * as Sentry from '@sentry/nestjs';
 
@@ -38,8 +37,7 @@ export class PublicUploadTicketController {
 
   @Post('/upload-ticket/:token')
   @UseGuards(UploadTicketGuard(uploadTicketKey))
-  @UseInterceptors(FileInterceptor('file', MEDIA_UPLOAD_OPTIONS))
-  @UsePipes(new CustomFileValidationPipe())
+  @UseInterceptors(FileInterceptor('file', streamUploadOptions()))
   async uploadWithTicket(
     @Param('token') token: string,
     @UploadedFile('file') file: Express.Multer.File
@@ -53,12 +51,15 @@ export class PublicUploadTicketController {
       );
     }
 
+    // The file is streamed into storage (type sniffed, size capped) before
+    // this runs, so anything that rejects the request removes it again.
     // Claimed in one step so the ticket is used once; a failed attempt hands
     // it back, so it can be retried within the TTL instead of stranding the
     // agent.
     const key = uploadTicketKey(token);
     const ticket = await claimUploadTicket(ioRedis, key);
     if (!ticket) {
+      await this.storage.removeFile(file.path).catch(() => undefined);
       throw new HttpException(
         { msg: 'This upload link is invalid or has expired.' },
         404
@@ -67,16 +68,17 @@ export class PublicUploadTicketController {
 
     try {
       const { organizationId } = ticket;
-      await this._mediaService.assertStorage(organizationId, file.size);
-      const getFile = await this.storage.uploadFile(file);
+      const size = (await storedObjectSize(file.filename)) || file.size || 0;
+      await this._mediaService.assertStorage(organizationId, size);
       return await this._mediaService.saveFile(
         organizationId,
-        getFile.originalname,
-        getFile.path,
-        undefined,
-        file.size
+        file.filename,
+        file.path,
+        file.originalname,
+        size
       );
     } catch (err) {
+      await this.storage.removeFile(file.path).catch(() => undefined);
       await releaseUploadTicket(ioRedis, key, ticket).catch(() => undefined);
       throw err;
     }

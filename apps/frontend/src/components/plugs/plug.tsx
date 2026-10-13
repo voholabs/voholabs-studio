@@ -240,7 +240,7 @@ export const PlugItem: FC<{
           }
         : {})}
       className={clsx(
-        'w-full h-[300px] rounded-[8px] bg-newTableHeader hover:bg-newTableBorder',
+        'w-full h-[300px] mobile:h-auto rounded-[8px] bg-newTableHeader hover:bg-newTableBorder',
         !!wallet && 'ring-1 ring-inset ring-warmRing',
         wallet?.mode === 'unavailable' && 'cursor-not-allowed'
       )}
@@ -248,7 +248,7 @@ export const PlugItem: FC<{
       <div
         key={plug.title}
         className={clsx(
-          'p-[16px] h-full flex flex-col flex-1',
+          'p-[16px] h-full flex flex-col flex-1 mobile:gap-[16px]',
           blocked && 'opacity-60'
         )}
       >
@@ -378,7 +378,7 @@ export const Plug = () => {
     return null;
   }
   return (
-    <div className="grid grid-cols-3 gap-[30px]">
+    <div className="grid grid-cols-3 tablet:grid-cols-2 mobile:!grid-cols-1 gap-[30px] mobile:gap-[16px]">
       {plug.plugs.map((p) => (
         <PlugItem
           key={p.title + '-' + plug.providerId}

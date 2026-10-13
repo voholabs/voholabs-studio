@@ -8,6 +8,7 @@ import { IntegrationSchedulePostTool } from './integration.schedule.post';
 // import { VideoFunctionTool } from '@gitroom/nestjs-libraries/chat/tools/video.function.tool';
 // import { GenerateVideoTool } from '@gitroom/nestjs-libraries/chat/tools/generate.video.tool';
 // import { GenerateImageTool } from '@gitroom/nestjs-libraries/chat/tools/generate.image.tool';
+// import { VideoStatusTool } from '@gitroom/nestjs-libraries/chat/tools/video.status.tool';
 import { AccountInfoTool } from '@gitroom/nestjs-libraries/chat/tools/account.info.tool';
 import { IntegrationListTool } from '@gitroom/nestjs-libraries/chat/tools/integration.list.tool';
 import { GroupListTool } from '@gitroom/nestjs-libraries/chat/tools/group.list.tool';
@@ -15,6 +16,7 @@ import { UploadFromUrlTool } from '@gitroom/nestjs-libraries/chat/tools/upload.f
 import { PostsListTool } from '@gitroom/nestjs-libraries/chat/tools/posts.list.tool';
 import { PostsDeleteTool } from '@gitroom/nestjs-libraries/chat/tools/posts.delete.tool';
 import { PostsEditTool } from '@gitroom/nestjs-libraries/chat/tools/posts.edit.tool';
+import { PostSettingsTool } from '@gitroom/nestjs-libraries/chat/tools/post.settings.tool';
 import { PostsReplaceAssetTool } from '@gitroom/nestjs-libraries/chat/tools/posts.replace.asset.tool';
 import { FindSlotTool } from '@gitroom/nestjs-libraries/chat/tools/find.slot.tool';
 import { MediaListTool } from '@gitroom/nestjs-libraries/chat/tools/media.list.tool';
@@ -44,6 +46,9 @@ import { WalletPricesTool } from '@gitroom/nestjs-libraries/chat/tools/wallet.pr
 import { SkillsListTool } from '@gitroom/nestjs-libraries/chat/tools/skills.list.tool';
 import { SkillGetTool } from '@gitroom/nestjs-libraries/chat/tools/skills.get.tool';
 import { BriefOnboardingStatusTool } from '@gitroom/nestjs-libraries/chat/tools/brief.onboarding.status.tool';
+import { ClippingTool } from '@gitroom/nestjs-libraries/chat/tools/clipping.tool';
+import { ClippingStatusTool } from '@gitroom/nestjs-libraries/chat/tools/clipping.status.tool';
+import { ClippingWidgetTicketTool } from '@gitroom/nestjs-libraries/chat/tools/clipping.widget.ticket.tool';
 
 export const toolList = [
   AccountInfoTool,
@@ -64,6 +69,7 @@ export const toolList = [
   IntegrationSchedulePostTool,
   PostsListTool,
   PostsEditTool,
+  PostSettingsTool,
   PostsReplaceAssetTool,
   PostsDeleteTool,
   PostsStatusTool,
@@ -100,18 +106,27 @@ export const toolList = [
   //   GenerateVideoTool      - exposes no models on this account anyway
   //   GenerateVideoOptionsTool - returns {"video":[]}, which four workers blocked on
   //   VideoFunctionTool      - setup call for the above
+  //   VideoStatusTool        - polls a generation started by GenerateVideoTool
   // GenerateVideoOptionsTool,
   // VideoFunctionTool,
   // GenerateVideoTool,
   // GenerateImageTool,
+  // VideoStatusTool,
+  // YouTube clipping. Each tool leaves itself out (available()) when this
+  // install has no clipping configured; the widget ticket is MCP only
+  // (mcpOnly). Paid plans only, see paidToolNames.
+  ClippingTool,
+  ClippingStatusTool,
+  ClippingWidgetTicketTool,
   UploadFromUrlTool,
 ];
 
-// Not part of the free plan: the brief, the skills library, and AI media. The MCP leaves them out
+// Not part of the free plan: the brief, the skills library, AI media and
+// video clipping. The MCP leaves them out
 // of what it lists to a free organization, so the free plan is a complete
 // product on its own terms rather than one with locked doors in it. Each of
-// these also refuses by itself (see paidOnly), for the routes that cannot pick
-// what they list.
+// these also refuses by itself (see paidOnly; clipping by its clipping
+// minutes), for the routes that cannot pick what they list.
 export const paidToolNames = [
   'briefListTool',
   'briefSaveTool',
@@ -125,6 +140,9 @@ export const paidToolNames = [
   'skillGet',
   'mediaMcpList',
   'mediaMcpCall',
+  'clippingTool',
+  'clippingStatusTool',
+  'clippingWidgetTicketTool',
 ];
 
 // The paid tools a wallet top-up opens, when a price row opens the brief or

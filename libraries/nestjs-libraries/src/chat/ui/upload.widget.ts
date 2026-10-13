@@ -23,8 +23,9 @@ export const r2UploadOrigins = () => {
 // the host over postMessage JSON-RPC and to the backend with a ticket:
 // uploadWidgetTool (sessionId) -> uploadWidgetTicketTool (ticket, through the
 // host) -> multipart upload: the backend signs each part, the browser PUTs the
-// part straight to R2, the backend completes and saves the media -> the media
-// is reported back to the model.
+// part straight to R2, the backend completes and saves the media -> a media
+// that is still being normalised is polled until it is ready -> the media is
+// reported back to the model.
 // Calls to the backend stay "simple" requests (GET, form-encoded POST) so the
 // browser never sends it a CORS preflight; the PUTs to R2 rely on the bucket's
 // CORS rule.
@@ -47,7 +48,10 @@ export const uploadWidgetHtml = (backendUrl: string) => `<!DOCTYPE html>
   ul { list-style: none; padding: 0; margin: 0; }
   li { padding: 8px 0; }
   li:first-child { margin-top: 12px; }
-  .top { display: flex; gap: 8px; align-items: baseline; }
+  .top { display: flex; gap: 8px; align-items: center; }
+  .thumb { position: relative; flex: none; width: 40px; height: 40px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: var(--track); color: var(--muted); font-size: 10px; font-weight: 600; }
+  .thumb canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+  .copy { flex: none; border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; background: transparent; color: var(--fg); font: inherit; font-size: 12px; cursor: pointer; }
   .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .state { color: var(--muted); font-variant-numeric: tabular-nums; }
   li.ok .state { color: var(--ok); }
@@ -152,6 +156,63 @@ export const uploadWidgetHtml = (backendUrl: string) => `<!DOCTYPE html>
     });
   }
 
+  // Videos and images may be normalised after the upload: poll until they are
+  // usable. A backend without the status endpoint answers 404, and the media
+  // is then taken as it is.
+  function waitUntilReady(media, deadline) {
+    if (!media || media.status !== 'processing') return Promise.resolve(media);
+    deadline = deadline || Date.now() + 15 * 60 * 1000;
+    if (Date.now() > deadline) return Promise.reject(new Error('Processing is taking too long, check the media library later'));
+    return wait(3000)
+      .then(getTicket)
+      .then(function (t) { return fetch(BACKEND + '/media-widget/status?ticket=' + encodeURIComponent(t)).catch(function () { return null; }); })
+      .then(function (res) {
+        if (!res) return waitUntilReady(media, deadline);
+        // the ticket is short lived and a long video can outlive it
+        if (res.status === 401) { ticket = null; return waitUntilReady(media, deadline); }
+        if (res.status === 404) return media;
+        if (!res.ok) throw new Error('Processing check failed (' + res.status + ')');
+        return res.json().then(function (all) {
+          var current = (all || []).filter(function (p) { return p.id === media.id; })[0] || media;
+          return waitUntilReady(current, deadline);
+        });
+      });
+  }
+
+  // The sandbox CSP blocks blob: urls and the uploads domain, so the preview is
+  // decoded from the picked file and drawn on a canvas, no image url involved.
+  // Anything that can't be decoded that way (videos) keeps the extension label
+  function preview(file, box, label) {
+    if (file.type.indexOf('image/') !== 0 || !window.createImageBitmap) return;
+    window.createImageBitmap(file).then(function (bitmap) {
+      var canvas = document.createElement('canvas');
+      var side = Math.min(bitmap.width, bitmap.height);
+      canvas.width = canvas.height = 80;
+      canvas.getContext('2d').drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, 80, 80);
+      if (bitmap.close) bitmap.close();
+      box.replaceChild(canvas, label);
+    }).catch(function () {});
+  }
+
+  // navigator.clipboard needs the host to grant clipboard-write to the iframe
+  // (requested in the resource permissions); execCommand still works on a
+  // click where it doesn't
+  function copyText(text) {
+    var legacy = function () {
+      var area = document.createElement('textarea');
+      area.value = text;
+      area.style.position = 'fixed';
+      area.style.opacity = '0';
+      document.body.appendChild(area);
+      area.select();
+      var ok = document.execCommand('copy');
+      document.body.removeChild(area);
+      return ok ? Promise.resolve() : Promise.reject(new Error('copy'));
+    };
+    if (!navigator.clipboard || !navigator.clipboard.writeText) return legacy();
+    return navigator.clipboard.writeText(text).catch(legacy);
+  }
+
   // PUT one part straight to the bucket, reporting bytes sent.
   function putPart(url, blob, onProgress) {
     return new Promise(function (resolve, reject) {
@@ -229,21 +290,42 @@ export const uploadWidgetHtml = (backendUrl: string) => `<!DOCTYPE html>
 
   function row(file) {
     var li = document.createElement('li');
-    li.innerHTML = '<div class="top"><span class="name"></span><span class="state"></span></div><div class="bar"><span></span></div>';
+    li.innerHTML = '<div class="top"><span class="thumb"><span class="label"></span></span><span class="name"></span><span class="state"></span></div><div class="bar"><span></span></div>';
     li.querySelector('.name').textContent = file.name;
+    li.querySelector('.name').title = file.name;
+    var label = li.querySelector('.label');
+    label.textContent = (file.name.split('.').pop() || 'file').slice(0, 4).toUpperCase();
+    preview(file, li.querySelector('.thumb'), label);
     list.appendChild(li);
+    var top = li.querySelector('.top');
     var state = li.querySelector('.state');
     var bar = li.querySelector('.bar span');
-    return function (kind, text, fraction) {
+    return function (kind, text, fraction, path) {
       li.className = kind;
       state.textContent = text;
       if (fraction !== undefined) bar.style.width = Math.floor(fraction * 100) + '%';
+      if (path) {
+        var copy = document.createElement('button');
+        copy.type = 'button';
+        copy.className = 'copy';
+        copy.textContent = 'Copy link';
+        copy.addEventListener('click', function () {
+          copyText(path).then(
+            function () { copy.textContent = 'Copied'; },
+            function () { copy.textContent = 'Copy failed'; }
+          ).then(function () { setTimeout(function () { copy.textContent = 'Copy link'; }, 1500); });
+        });
+        top.appendChild(copy);
+      }
       resize();
     };
   }
 
-  function report(done) {
-    var summary = done.map(function (p) { return p.name + ' (id: ' + p.id + ', path: ' + p.path + ')'; }).join(', ');
+  // Always the full list of this upload box, not only the last batch: the
+  // model acts on the latest message, so a later upload must not drop the
+  // earlier ones
+  function report() {
+    var summary = uploaded.map(function (p) { return p.name + ' (id: ' + p.id + ', path: ' + p.path + ')'; }).join(', ');
     // Silent context first, so the model has the ids even if the host defers
     // the message. A host that never answers it must not hold the message back.
     return Promise.race([
@@ -277,10 +359,15 @@ export const uploadWidgetHtml = (backendUrl: string) => `<!DOCTYPE html>
         set('', 'Starting…', 0);
         return uploadFile(file, set)
           .then(function (media) {
-            var item = { id: media.id, path: media.path, name: media.name || file.name };
+            if (media && media.status === 'processing') set('', 'Processing…', 1);
+            return waitUntilReady(media);
+          })
+          .then(function (media) {
+            if (media.status === 'failed') throw new Error(media.processingError || 'Processing failed');
+            var item = { id: media.id, path: media.path, name: media.originalName || media.name || file.name };
             uploaded.push(item);
             done.push(item);
-            set('ok', 'Uploaded');
+            set('ok', 'Uploaded', undefined, media.path);
           })
           .catch(function (err) { set('bad', err.message || 'Upload failed'); });
       });
@@ -288,7 +375,7 @@ export const uploadWidgetHtml = (backendUrl: string) => `<!DOCTYPE html>
       .then(function () {
         busy = false;
         drop.className = '';
-        if (done.length) report(done);
+        if (done.length) report();
       });
   }
 

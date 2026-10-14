@@ -1332,6 +1332,25 @@ export class PostsService {
     }
   }
 
+  describeArticle(
+    integration: { providerIdentifier: string } | null | undefined,
+    settings: string | null | undefined
+  ): { title: string; cover?: string } | undefined {
+    if (!integration) {
+      return undefined;
+    }
+
+    try {
+      const provider = this._integrationManager.getSocialIntegration(
+        integration.providerIdentifier
+      );
+
+      return provider?.describeArticle?.(JSON.parse(settings || '{}'));
+    } catch (err) {
+      return undefined;
+    }
+  }
+
   async deletePostsFromPlatform(orgId: string, group: string) {
     const posts = await this._postRepository.getPostsByGroup(orgId, group);
     const deleted: string[] = [];

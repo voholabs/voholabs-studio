@@ -161,6 +161,14 @@ export interface ISocialMediaIntegration {
     settings: any
   ): Promise<string | undefined>;
 
+  // When the settings turn this post into a long-form article, the title and
+  // cover picture it goes out with. They live in the settings rather than the
+  // content, so the preview has no other way to show the article as it will
+  // look. Optional; providers without articles simply omit it.
+  describeArticle?(
+    settings: any
+  ): { title: string; cover?: string } | undefined;
+
   // Removes an already-published post from the platform itself. Deleting a post
   // in Voholabs Studio only clears our own calendar, so this is what actually takes the
   // message down. Optional: providers with no delete endpoint simply omit it.

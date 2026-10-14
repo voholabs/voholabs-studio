@@ -120,6 +120,17 @@ export class XProvider extends SocialAbstract implements SocialProvider {
     return settings?.post_type === 'article';
   }
 
+  describeArticle(settings?: any) {
+    if (settings?.post_type !== 'article') {
+      return undefined;
+    }
+
+    return {
+      title: settings?.article_title || '',
+      cover: settings?.article_cover?.path,
+    };
+  }
+
   // With `editor = 'html'` the activity hands the provider HTML (needed for
   // articles); everything that becomes a tweet has to be flattened back to the
   // plain text X expects - same output the old 'normal' editor produced.

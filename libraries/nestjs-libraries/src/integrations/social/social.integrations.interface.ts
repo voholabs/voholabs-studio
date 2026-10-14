@@ -273,6 +273,9 @@ export interface SocialProvider
   extensionCookies?: { name: string; domain: string }[];
   editor: 'none' | 'normal' | 'markdown' | 'html';
   inlineImages?: (settings?: any) => boolean;
+  // HTML tags on top of the shared set that this channel turns into its own
+  // formatting (an X article has quotes and code blocks, a tweet does not).
+  htmlTags?: (settings?: any) => string[];
   customFields?: () => Promise<
     {
       key: string;

@@ -138,7 +138,8 @@ export const stripHtmlValidation = (
   none = false,
   plain = false,
   convertMentionFunction?: (idOrHandle: string, name: string) => string,
-  inlineImages = false
+  inlineImages = false,
+  extraTags: string[] = []
 ): string => {
   if (plain) {
     return val;
@@ -173,6 +174,7 @@ export const stripHtmlValidation = (
       'u',
       'a',
       ...(inlineImages ? ['img'] : []),
+      ...extraTags,
       ]
     )
       .replace(/&gt;/gi, '>')

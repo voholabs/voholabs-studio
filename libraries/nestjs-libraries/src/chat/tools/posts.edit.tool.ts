@@ -93,7 +93,7 @@ On a workspace that pays for the channel from its wallet, editing a queued post 
           .string()
           .optional()
           .describe(
-            "The new content of the post, HTML, each line wrapped in <p> — possible tags: h1, h2, h3, u, strong, li, ul, p (you can't have u and strong together). Omit to leave the text as it is. Use \"(post:<postId>)\" to embed another post's live URL."
+            "The new content of the post, HTML, each line wrapped in <p> — possible tags: h1, h2, h3, u, strong, li, ul, p (you can't have u and strong together); a long-form article (see the integration schema) also keeps ol, em, blockquote, pre/code, hr and figure/figcaption. Omit to leave the text as it is. Use \"(post:<postId>)\" to embed another post's live URL."
           ),
         attachments: z
           .array(attachmentUrl)

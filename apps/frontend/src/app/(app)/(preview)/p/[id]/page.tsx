@@ -81,7 +81,7 @@ export default async function Auth(
         </div>
 
         <div className="flex flex-col lg:flex-row gap-[8px]">
-          <div className="flex-1 flex flex-col gap-[8px]">
+          <div className="flex-1 min-w-0 flex flex-col gap-[8px]">
             {post.map((p: any, index: number) => (
               <div
                 key={String(p.id)}

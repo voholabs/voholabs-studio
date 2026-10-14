@@ -915,11 +915,22 @@ export const AddProviderComponent: FC<{
       'X now charges for every post sent through its API, and with high demand we can no longer offer it for free. A premium plan that includes X is coming soon. All other channels remain free.'
     ),
   };
-  const enabledSocial = filteredSocial.filter(
-    (item) =>
-      ENABLED_PROVIDERS.includes(item.identifier) &&
-      !isUnavailable(item.identifier)
-  );
+  // Under maintenance for wallet workspaces (free and pay as you go): shown
+  // greyed out at the end of the grid. Paid plans connect it as before.
+  const walletMaintenance = ['linkedin-page'];
+  const inMaintenance = (identifier: string) =>
+    walletWorkspace && walletMaintenance.includes(identifier);
+  const enabledSocial = filteredSocial
+    .filter(
+      (item) =>
+        ENABLED_PROVIDERS.includes(item.identifier) &&
+        !isUnavailable(item.identifier)
+    )
+    .sort(
+      (a, b) =>
+        Number(inMaintenance(a.identifier)) -
+        Number(inMaintenance(b.identifier))
+    );
   const unavailableSocial = filteredSocial.filter(
     (item) =>
       ENABLED_PROVIDERS.includes(item.identifier) &&
@@ -942,12 +953,20 @@ export const AddProviderComponent: FC<{
         >
           {enabledSocial.map((item) => {
             const mode = walletMode(item.identifier);
-            const tip = walletTip(item.identifier, item.toolTip);
+            const maintenance = inMaintenance(item.identifier);
+            const tip = maintenance
+              ? t(
+                  'channel_under_maintenance',
+                  'Under maintenance, will be available again shortly'
+                )
+              : walletTip(item.identifier, item.toolTip);
             return (
               <div
                 key={item.identifier}
                 onClick={
-                  mode === 'locked'
+                  maintenance
+                    ? undefined
+                    : mode === 'locked'
                     ? () => {
                         modal.closeAll();
                         openTopUp(tip);
@@ -986,7 +1005,8 @@ export const AddProviderComponent: FC<{
                   'w-full text-[14px] rounded-[8px] bg-newTableHeader text-textColor relative items-center flex gap-[10px] cursor-pointer',
                   // Pay-per-use marker: a thin warm ring, locked or not.
                   !!mode && 'ring-1 ring-inset ring-warmRing',
-                  mode === 'locked' && '[&>div]:opacity-40 [&>div]:grayscale'
+                  mode === 'locked' && '[&>div]:opacity-40 [&>div]:grayscale',
+                  maintenance && 'opacity-40 grayscale !cursor-default'
                 )}
               >
                 {!!mode && (
@@ -1024,7 +1044,7 @@ export const AddProviderComponent: FC<{
                   )}
                 >
                   {item.name}
-                  {!!item.toolTip && !isMobile && !mode && (
+                  {!!item.toolTip && !isMobile && !mode && !maintenance && (
                     <svg
                       width="15"
                       height="15"

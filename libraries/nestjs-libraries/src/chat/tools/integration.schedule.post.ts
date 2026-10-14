@@ -116,7 +116,7 @@ If validation fails, the result contains output.errors describing what to fix; t
                     content: z
                       .string()
                       .describe(
-                        "The content of the post, HTML, Each line must be wrapped in <p> here is the possible tags: h1, h2, h3, u, strong, li, ul, p (you can't have u and strong together), and img (<img src=\"...\">) only when the integration rules say pictures go inside the content. Use \"(post:<postId>)\" to embed another post's live URL - see the tool description."
+                        "The content of the post, HTML, Each line must be wrapped in <p> here is the possible tags: h1, h2, h3, u, strong, li, ul, p (you can't have u and strong together), and img (<img src=\"...\">) only when the integration rules say pictures go inside the content. A long-form article (see the integration schema, e.g. X post_type article) also keeps ol, em, blockquote, pre/code, hr and figure/figcaption. Use \"(post:<postId>)\" to embed another post's live URL - see the tool description."
                       ),
                     attachments: z
                       .array(attachmentUrl)

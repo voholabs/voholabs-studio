@@ -63,6 +63,9 @@ export class PublicController {
           // The account alone does not say where the post lands: a Discord
           // connection is a whole server, and this is the channel within it.
           target: await this._postsService.describeTarget(p.integration, p.settings),
+          // A long-form article shows its title and cover, which the settings
+          // hold rather than the content.
+          article: this._postsService.describeArticle(p.integration, p.settings),
           ...(p.integration
             ? {
                 integration: {

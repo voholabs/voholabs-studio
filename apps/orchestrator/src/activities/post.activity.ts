@@ -563,7 +563,8 @@ export class PostActivity {
           false,
           !/<\/?[a-z][\s\S]*>/i.test(p.content),
           getIntegration.mentionFormat,
-          !!getIntegration.inlineImages?.(JSON.parse(p.settings || '{}'))
+          !!getIntegration.inlineImages?.(JSON.parse(p.settings || '{}')),
+          getIntegration.htmlTags?.(JSON.parse(p.settings || '{}')) || []
         ),
         settings: JSON.parse(p.settings || '{}'),
         media: await this._postService.updateMedia(

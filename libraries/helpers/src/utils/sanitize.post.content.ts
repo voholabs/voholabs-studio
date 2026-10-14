@@ -14,6 +14,16 @@ const ALLOWED_TAGS = [
   'h3',
   'span',
   'img',
+  // long-form structure, kept for the channels that publish it (an X
+  // article); every other channel strips it back to text when it posts
+  'ol',
+  'em',
+  'blockquote',
+  'pre',
+  'code',
+  'hr',
+  'figure',
+  'figcaption',
 ];
 
 const ALLOWED_ATTR = [
@@ -56,7 +66,7 @@ export const sanitizePostContent = (value: unknown): string => {
 // The editor previews wrap post content in a little markup of their own: the
 // cropped-text highlight (<mark> with a tooltip) and coloured mention chips.
 // Same allowlist as stored content, plus exactly that markup.
-const PREVIEW_ALLOWED_TAGS = [...ALLOWED_TAGS, 'mark', 'ol', 'em', 'b', 'i'];
+const PREVIEW_ALLOWED_TAGS = [...ALLOWED_TAGS, 'mark', 'b', 'i'];
 
 const PREVIEW_ALLOWED_ATTR = [
   ...ALLOWED_ATTR,

@@ -120,6 +120,25 @@ export class XProvider extends SocialAbstract implements SocialProvider {
     return settings?.post_type === 'article';
   }
 
+  // An article keeps its long-form structure, articleContentState turns each
+  // of these into X's own blocks.
+  htmlTags(settings?: any) {
+    return settings?.post_type === 'article'
+      ? ['ol', 'em', 'blockquote', 'pre', 'code', 'hr', 'figure', 'figcaption']
+      : [];
+  }
+
+  describeArticle(settings?: any) {
+    if (settings?.post_type !== 'article') {
+      return undefined;
+    }
+
+    return {
+      title: settings?.article_title || '',
+      cover: settings?.article_cover?.path,
+    };
+  }
+
   // With `editor = 'html'` the activity hands the provider HTML (needed for
   // articles); everything that becomes a tweet has to be flattened back to the
   // plain text X expects - same output the old 'normal' editor produced.
@@ -1099,10 +1118,12 @@ export class XProvider extends SocialAbstract implements SocialProvider {
   }
 
   // Converts the editor HTML (already sanitized by stripHtmlValidation's
-  // 'html' mode - only p, h1-h3, ul, li, strong, u, a and img survive) into
-  // the content_state the X Articles API expects. Pictures in the body become
-  // atomic image blocks where they are, the post media is appended at the end
-  // (the cover travels separately).
+  // 'html' mode - p, h1-h3, ul, ol, li, strong, em, u, a, blockquote, pre,
+  // code, hr, figure, figcaption and img survive) into the content_state the
+  // X Articles API expects. Pictures in the body become atomic image blocks
+  // where they are (a figcaption becomes their caption), a code block becomes
+  // a markdown block, the post media is appended at the end (the cover
+  // travels separately).
   // X's schema is a snake_case Draft.js dialect with additionalProperties
   // disallowed: blocks only accept key/text/type/data/entity_ranges/
   // inline_style_ranges (no depth).
@@ -1133,6 +1154,10 @@ export class XProvider extends SocialAbstract implements SocialProvider {
 
         if (child.nodeName === 'strong') {
           ctx.styles.push({ offset, length, style: 'bold' });
+        }
+
+        if (child.nodeName === 'em') {
+          ctx.styles.push({ offset, length, style: 'italic' });
         }
 
         if (child.nodeName === 'a') {
@@ -1168,6 +1193,12 @@ export class XProvider extends SocialAbstract implements SocialProvider {
       ...(entityRanges.length ? { entity_ranges: entityRanges } : {}),
     });
 
+    const textOf = (node: any) => {
+      const ctx = { text: '', styles: [] as any[], entityRanges: [] as any[] };
+      walkInline(node, ctx);
+      return ctx.text;
+    };
+
     const pushBlock = (node: any, type: string) => {
       const ctx = { text: '', styles: [] as any[], entityRanges: [] as any[] };
       walkInline(node, ctx);
@@ -1183,26 +1214,30 @@ export class XProvider extends SocialAbstract implements SocialProvider {
       }
     };
 
-    const pushImage = (mediaId: string) => {
+    // Images, code blocks and dividers are all atomic blocks holding one
+    // entity.
+    const pushAtomic = (value: any) => {
       const key = entities.length;
-      entities.push({
-        key: String(key),
-        value: {
-          type: 'image',
-          mutability: 'immutable',
-          data: {
-            media_items: [
-              // Must match the category the media was uploaded with -
-              // lowercase, like the upload endpoint (the uppercase
-              // TWEET_IMAGE in the docs example is wrong).
-              { media_category: 'tweet_image', media_id: mediaId },
-            ],
-          },
-        },
-      });
+      entities.push({ key: String(key), value });
       blocks.push(
         makeBlock(' ', 'atomic', [], [{ offset: 0, length: 1, key }])
       );
+    };
+
+    const pushImage = (mediaId: string, caption?: string) => {
+      pushAtomic({
+        type: 'image',
+        mutability: 'immutable',
+        data: {
+          media_items: [
+            // Must match the category the media was uploaded with -
+            // lowercase, like the upload endpoint (the uppercase
+            // TWEET_IMAGE in the docs example is wrong).
+            { media_category: 'tweet_image', media_id: mediaId },
+          ],
+          ...(caption ? { caption } : {}),
+        },
+      });
     };
 
     const fragment = parseFragment(html) as any;
@@ -1220,6 +1255,51 @@ export class XProvider extends SocialAbstract implements SocialProvider {
           // until X fixes their side.
           pushBlock(node, 'header-two');
           break;
+        case 'blockquote':
+          // a quote can hold several paragraphs, each is a quote block
+          if (
+            (node.childNodes || []).some((n: any) => n.nodeName === 'p')
+          ) {
+            for (const child of node.childNodes || []) {
+              pushBlock(child, 'blockquote');
+            }
+          } else {
+            pushBlock(node, 'blockquote');
+          }
+          break;
+        case 'pre': {
+          const language = (
+            (node.childNodes || [])
+              .find((n: any) => n.nodeName === 'code')
+              ?.attrs?.find((a: any) => a.name === 'class')?.value || ''
+          ).match(/language-([\w-]+)/)?.[1];
+          pushAtomic({
+            type: 'markdown',
+            mutability: 'mutable',
+            data: {
+              markdown: `\`\`\`${language || ''}\n${textOf(node).replace(
+                /\n$/,
+                ''
+              )}\n\`\`\``,
+            },
+          });
+          break;
+        }
+        case 'hr':
+          pushAtomic({ type: 'divider', mutability: 'immutable', data: {} });
+          break;
+        case 'figure': {
+          const figcaption = (node.childNodes || []).find(
+            (n: any) => n.nodeName === 'figcaption'
+          );
+          const caption = figcaption ? textOf(figcaption).trim() : undefined;
+          for (const src of this.articleImages(node)) {
+            if (inlineMediaIds[src]) {
+              pushImage(inlineMediaIds[src], caption);
+            }
+          }
+          break;
+        }
         case 'ul':
         case 'ol':
           for (const li of (node.childNodes || []).filter(

@@ -81,12 +81,30 @@ export default async function Auth(
         </div>
 
         <div className="flex flex-col lg:flex-row gap-[8px]">
-          <div className="flex-1 flex flex-col gap-[8px]">
+          <div className="flex-1 min-w-0 flex flex-col gap-[8px]">
             {post.map((p: any, index: number) => (
               <div
                 key={String(p.id)}
-                className="bg-newBgColorInner border border-newTableBorder rounded-[12px] p-[20px]"
+                className="bg-newBgColorInner border border-newTableBorder rounded-[12px] p-[20px] flex flex-col gap-[16px]"
               >
+                {/* A long-form article goes out with a cover and a title the
+                    content doesn't hold, show them the way the article reads. */}
+                {!!p.article && (
+                  <div className="flex flex-col gap-[16px]">
+                    {!!p.article.cover && (
+                      <img
+                        className="w-full aspect-[5/2] object-cover rounded-[10px] bg-newBgColor"
+                        alt={p.article.title}
+                        src={p.article.cover}
+                      />
+                    )}
+                    {!!p.article.title && (
+                      <h1 className="text-[28px] font-[700] leading-[1.25] break-words">
+                        {p.article.title}
+                      </h1>
+                    )}
+                  </div>
+                )}
                 <div className="flex gap-[12px]">
                   <div>
                     <div className="flex shrink-0 rounded-full relative">
@@ -129,10 +147,12 @@ export default async function Auth(
                       )}
                     </div>
                     <div className="flex flex-col gap-[16px]">
-                      <PostContentClient
-                        postId={p.id}
-                        html={sanitizePostContent(p.content)}
-                      />
+                      <div className={p.article ? 'article-preview' : ''}>
+                        <PostContentClient
+                          postId={p.id}
+                          html={sanitizePostContent(p.content)}
+                        />
+                      </div>
                       {!!JSON.parse(p?.image || '[]').length && (
                         <div className="flex w-full gap-[10px]">
                           {JSON.parse(p?.image || '[]').map((p: any) => (

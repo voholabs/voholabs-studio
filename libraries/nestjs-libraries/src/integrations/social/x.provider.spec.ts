@@ -67,3 +67,49 @@ describe('XProvider reading a new post', () => {
     expect(provider.handleErrors('{"title":"CreditsDepleted"}')).toBeUndefined();
   });
 });
+
+describe('XProvider article body', () => {
+  const provider = new XProvider();
+  const contentState = (html: string, inline: Record<string, string> = {}) =>
+    (provider as any).articleContentState(html, [], inline);
+
+  it('keeps the long-form structure of a blog post', () => {
+    const { blocks, entities } = contentState(
+      '<p>One <em>plain</em> line</p>' +
+        '<blockquote>A callout</blockquote>' +
+        '<ol><li>First</li><li>Second</li></ol>' +
+        '<pre><code class="language-bash">mkdir -p x\n</code></pre>' +
+        '<figure><img src="https://u.example/a.png"><figcaption>The fix</figcaption></figure>' +
+        '<hr>',
+      { 'https://u.example/a.png': 'm1' }
+    );
+
+    expect(blocks.map((b: any) => b.type)).toEqual([
+      'unstyled',
+      'blockquote',
+      'ordered-list-item',
+      'ordered-list-item',
+      'atomic',
+      'atomic',
+      'atomic',
+    ]);
+    expect(blocks[0].inline_style_ranges).toEqual([
+      { offset: 4, length: 5, style: 'italic' },
+    ]);
+    expect(entities.map((e: any) => e.value.type)).toEqual([
+      'markdown',
+      'image',
+      'divider',
+    ]);
+    expect(entities[0].value.data.markdown).toBe('```bash\nmkdir -p x\n```');
+    expect(entities[1].value.data).toEqual({
+      media_items: [{ media_category: 'tweet_image', media_id: 'm1' }],
+      caption: 'The fix',
+    });
+  });
+
+  it('asks for the extra tags only for an article', () => {
+    expect(provider.htmlTags({ post_type: 'post' })).toEqual([]);
+    expect(provider.htmlTags({ post_type: 'article' })).toContain('pre');
+  });
+});

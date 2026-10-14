@@ -106,7 +106,8 @@ export const SelectCustomer: FC<{
   }
 
   return (
-    <div className="relative select-none z-[500]" ref={ref}>
+    // above the calendar, under the header dropdowns (z-[200])
+    <div className="relative select-none z-[199]" ref={ref}>
       <div
         data-tooltip-id="tooltip"
         data-tooltip-content={t('select_customer_tooltip', 'Select Customer')}

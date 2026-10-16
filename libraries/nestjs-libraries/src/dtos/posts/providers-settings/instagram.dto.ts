@@ -60,7 +60,7 @@ export class InstagramDto {
   @JSONSchema({
     type: 'boolean',
     description:
-      'Publish the Reel as a Trial Reel: Instagram shows it to non-followers first. Only for a Reel (post_type post with exactly one video), a carousel or a picture is rejected, and it is ignored for a story. Defaults to false',
+      'Publish the Reel as a Trial Reel: Instagram shows it to non-followers first. Only for a Reel (post_type post with exactly one video), a carousel or a picture is rejected, and it is ignored for a story. Instagram only gives Trial Reels to some professional accounts; when it refuses, the post fails with "This account doesn\'t support Trial Reels". Tell the user this before using it, and if it fails, offer to post the Reel normally instead. Defaults to false',
   })
   is_trial_reel?: boolean;
 

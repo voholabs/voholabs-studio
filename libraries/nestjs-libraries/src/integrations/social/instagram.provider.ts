@@ -60,7 +60,11 @@ export class InstagramProvider
     if (firstPost.length > 10) {
       return 'Instagram carousel only supports up to 10 media attachments';
     }
-    if (this.assetBoolean(settings?.is_trial_reel)) {
+    // A story ignores the trial setting (the toggle is hidden for stories)
+    if (
+      this.assetBoolean(settings?.is_trial_reel) &&
+      settings?.post_type !== 'story'
+    ) {
       if ((firstPost?.length ?? 0) > 1) {
         return 'Trial Reels can only have one video';
       }
@@ -769,7 +773,13 @@ export class InstagramProvider
           ? `image_url=${m.path}&media_type=STORIES`
           : `image_url=${m.path}`;
 
-        const trialParams = isTrialReel
+        // trial_params is only accepted on a REELS container (a single
+        // video that is not a story)
+        const trialParams =
+          isTrialReel &&
+          !isStory &&
+          firstPost?.media?.length === 1 &&
+          hasExtension(m.path, 'mp4')
           ? `&trial_params=${encodeURIComponent(
               JSON.stringify({
                 graduation_strategy:

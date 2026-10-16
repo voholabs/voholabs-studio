@@ -52,7 +52,11 @@ export class InstagramStandaloneProvider
     if (!firstPost?.length) {
       return 'Should have at least one media';
     }
-    if (this.assetBoolean(settings?.is_trial_reel)) {
+    // A story ignores the trial setting (the toggle is hidden for stories)
+    if (
+      this.assetBoolean(settings?.is_trial_reel) &&
+      settings?.post_type !== 'story'
+    ) {
       if ((firstPost?.length ?? 0) > 1) {
         return 'Trial Reels can only have one video';
       }

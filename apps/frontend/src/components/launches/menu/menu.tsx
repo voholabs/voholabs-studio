@@ -172,10 +172,40 @@ export const Menu: FC<{
     onChange(false);
   }, [t]);
   const deleteChannel = useCallback(async () => {
+    // deleting a channel deletes its posts too, scheduled ones included
+    const { count } = await (
+      await fetch(`/integrations/${id}/posts-count`)
+    )
+      .json()
+      .catch(() => ({ count: 0 }));
+
+    const message = [
+      findIntegration?.refreshNeeded
+        ? t(
+            'delete_channel_reconnect_instead',
+            'This channel only needs to sign in again. To keep your posts, cancel and click the channel to reconnect it.'
+          )
+        : '',
+      count
+        ? t(
+            'delete_channel_posts_count',
+            'This channel has {{count}} posts. Deleting it deletes all of them too, scheduled posts included. This cannot be undone.',
+            { count }
+          )
+        : t(
+            'are_you_sure_delete_channel',
+            'Are you sure you want to delete this channel?'
+          ),
+    ]
+      .filter(Boolean)
+      .join(' ');
+
     if (
       !(await deleteDialog(
-        t('are_you_sure_delete_channel', 'Are you sure you want to delete this channel?'),
-        t('delete_channel_title', 'Delete Channel')
+        message,
+        count
+          ? t('delete_channel_and_posts', 'Delete channel and posts')
+          : t('delete_channel_title', 'Delete Channel')
       ))
     ) {
       return;
@@ -216,7 +246,7 @@ export const Menu: FC<{
     toast.show(t('channel_deleted', 'Channel Deleted'), 'success');
     setShow(false);
     onChange(true);
-  }, [t, extensionId, id]);
+  }, [t, extensionId, id, findIntegration]);
 
   const enableChannel = useCallback(async () => {
     await fetch('/integrations/enable', {

@@ -247,6 +247,11 @@ export interface SocialProvider
   stripLinks?: () => boolean;
   refreshCron?: boolean;
   refreshErrorMessage?(err: any): string | undefined;
+  // True when a failed refreshToken was the platform having a moment (outage,
+  // network) rather than the refresh token being dead. Those are retried and
+  // never ask the user to reconnect. Providers without it keep the old
+  // behaviour: any failed refresh asks for a reconnect.
+  refreshErrorTemporary?(err: any): boolean;
   dto?: any;
   maxLength: (additionalSettings?: any, settings?: any) => number;
   checkValidity(

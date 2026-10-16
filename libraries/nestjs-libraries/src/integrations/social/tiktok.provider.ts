@@ -101,7 +101,7 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
       return {
         type: 'refresh-token' as const,
         value:
-          'Access token invalid, please re-authenticate your TikTok account',
+          'TikTok access expired and could not be renewed, please try posting again',
       };
     }
 
@@ -314,6 +314,13 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
     return response.ok;
   }
 
+  // TikTok answers invalid_grant when the refresh token is invalid, expired or
+  // revoked - only then does the user have to reconnect. Anything else
+  // (server_error, temporarily_unavailable, a network failure) passes.
+  refreshErrorTemporary(err: any): boolean {
+    return !`${err?.message || ''}`.includes('invalid_grant');
+  }
+
   async refreshToken(refreshToken: string): Promise<AuthTokenDetails> {
     const value = {
       client_key: process.env.TIKTOK_CLIENT_ID!,
@@ -322,40 +329,47 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
       refresh_token: refreshToken,
     };
 
-    const { access_token, refresh_token, ...all } = await (
-      await fetch('https://open.tiktokapis.com/v2/oauth/token/', {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        method: 'POST',
-        body: new URLSearchParams(value).toString(),
-      })
-    ).json();
-
-    const {
-      data: {
-        user: { avatar_url, display_name, open_id, username },
-      },
-    } = await (
-      await fetch(
-        'https://open.tiktokapis.com/v2/user/info/?fields=open_id,avatar_url,display_name,union_id,username',
-        {
-          method: 'GET',
+    const { access_token, refresh_token, open_id, error, error_description } =
+      await (
+        await fetch('https://open.tiktokapis.com/v2/oauth/token/', {
           headers: {
-            Authorization: `Bearer ${access_token}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
           },
-        }
-      )
-    ).json();
+          method: 'POST',
+          body: new URLSearchParams(value).toString(),
+        })
+      ).json();
+
+    if (!access_token) {
+      throw new Error(
+        `${error || 'no_access_token'}: ${error_description || ''}`
+      );
+    }
+
+    // TikTok can hand back a new refresh token here, and only that one is
+    // valid from now on - so a failing profile lookup must not throw the new
+    // tokens away. The caller keeps the stored name and picture on a refresh.
+    const user = await fetch(
+      'https://open.tiktokapis.com/v2/user/info/?fields=open_id,avatar_url,display_name,union_id,username',
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${access_token}`,
+        },
+      }
+    )
+      .then((res) => res.json())
+      .then((res) => res?.data?.user)
+      .catch(() => undefined);
 
     return {
       refreshToken: refresh_token,
       expiresIn: dayjs().add(23, 'hours').unix() - dayjs().unix(),
       accessToken: access_token,
-      id: open_id.replace(/-/g, ''),
-      name: display_name,
-      picture: avatar_url || '',
-      username: username,
+      id: (user?.open_id || open_id || '').replace(/-/g, ''),
+      name: user?.display_name || '',
+      picture: user?.avatar_url || '',
+      username: user?.username || '',
     };
   }
 

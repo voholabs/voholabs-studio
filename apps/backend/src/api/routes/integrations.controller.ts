@@ -493,6 +493,20 @@ export class IntegrationsController {
     );
   }
 
+  // How many posts deleting this channel takes with it, so the confirmation
+  // can say so before anything is gone
+  @Get('/:id/posts-count')
+  async getPostsCount(
+    @GetOrgFromRequest() org: Organization,
+    @Param('id') id: string
+  ) {
+    const posts = await this._integrationService.getPostsForChannel(
+      org.id,
+      id
+    );
+    return { count: posts.length };
+  }
+
   @Delete('/')
   async deleteChannel(
     @GetOrgFromRequest() org: Organization,

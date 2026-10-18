@@ -82,6 +82,18 @@ export class InstagramStandaloneProvider
     return instagramProvider.handleErrors(body, status);
   }
 
+  // Asked by the avatar proxy, so a picture changed on Instagram shows up
+  // here. Same lookup authenticate uses.
+  async currentProfilePicture(accessToken: string) {
+    const { profile_picture_url } = await (
+      await fetch(
+        `https://graph.instagram.com/${META_GRAPH_API_VERSION}/me?fields=profile_picture_url&access_token=${accessToken}`
+      )
+    ).json();
+
+    return profile_picture_url || undefined;
+  }
+
   async refreshToken(refresh_token: string): Promise<AuthTokenDetails> {
     const { access_token } = await (
       await fetch(

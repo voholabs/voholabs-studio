@@ -32,6 +32,7 @@ import {
   walletPaymentsEnabled,
 } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.billing.service';
 import { AgentConnectionService } from '@gitroom/nestjs-libraries/database/prisma/agent-connections/agent-connection.service';
+import { IntegrationService } from '@gitroom/nestjs-libraries/database/prisma/integrations/integration.service';
 import { walletAlert } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.alert';
 import { isGrowthViewer } from '@gitroom/nestjs-libraries/database/prisma/admin-stats/growth.viewer';
 
@@ -61,7 +62,8 @@ export class AdminController {
     private _postsService: PostsService,
     private _walletService: WalletService,
     private _walletBilling: WalletBillingService,
-    private _agentConnectionService: AgentConnectionService
+    private _agentConnectionService: AgentConnectionService,
+    private _integrationService: IntegrationService
   ) {}
 
   private assertSuperAdmin(user: User) {
@@ -218,6 +220,19 @@ export class AdminController {
   ) {
     this.assertSuperAdmin(user);
     return this._agentConnectionService.backfill(!!body?.apply);
+  }
+
+  // One off: channels connected before avatars were proxied, or whose page was
+  // picked during connect, still point at a copy in the bucket, which breaks
+  // once the bucket expires it. Points them at the proxy. Reports what it
+  // would change unless `apply` is set.
+  @Post('/channel-pictures/backfill')
+  async channelPicturesBackfill(
+    @GetUserFromRequest() user: User,
+    @Body() body: { apply?: boolean }
+  ) {
+    this.assertSuperAdmin(user);
+    return this._integrationService.backfillPictures(!!body?.apply);
   }
 
   private async assertOrganization(organizationId: string) {

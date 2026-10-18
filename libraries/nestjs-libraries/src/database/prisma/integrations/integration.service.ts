@@ -27,6 +27,7 @@ import { difference, uniq } from 'lodash';
 import utc from 'dayjs/plugin/utc';
 import { AutopostRepository } from '@gitroom/nestjs-libraries/database/prisma/autopost/autopost.repository';
 import { RefreshIntegrationService } from '@gitroom/nestjs-libraries/integrations/refresh.integration.service';
+import { IntegrationPictureService } from '@gitroom/nestjs-libraries/integrations/integration.picture.service';
 import { TemporalService } from 'nestjs-temporal-core';
 
 dayjs.extend(utc);
@@ -109,7 +110,8 @@ export class IntegrationService {
     private _refreshIntegrationService: RefreshIntegrationService,
     private _temporalService: TemporalService,
     private _walletService: WalletService,
-    private _walletBilling: WalletBillingService
+    private _walletBilling: WalletBillingService,
+    private _integrationPictureService: IntegrationPictureService
   ) {}
 
   async changeActiveCron(orgId: string) {
@@ -236,6 +238,44 @@ export class IntegrationService {
 
   updateCustomName(org: string, id: string, name: string) {
     return this._integrationRepository.updateCustomName(org, id, name);
+  }
+
+  // Points channels still holding a copied avatar at the proxy. The copy
+  // becomes pictureSource: for a page picked during connect it is the page's
+  // avatar, while pictureSource still holds the account's. A provider that can
+  // look its avatar up replaces it on the first fetch. Without `apply` it only
+  // reports.
+  async backfillPictures(apply: boolean) {
+    const candidates = (
+      await this._integrationRepository.pictureBackfillCandidates()
+    ).filter(
+      (candidate) =>
+        candidate.picture !==
+          IntegrationPictureService.proxyUrl(candidate.id) &&
+        // a proxy URL under an older backend address is not an image to keep
+        !candidate.picture!.endsWith(`/integrations/${candidate.id}/picture`)
+    );
+
+    if (apply) {
+      for (const candidate of candidates) {
+        await this._integrationRepository.applyPictureBackfill(
+          candidate.id,
+          IntegrationPictureService.proxyUrl(candidate.id),
+          candidate.picture!
+        );
+        await this._integrationPictureService.invalidate(candidate.id);
+      }
+    }
+
+    return {
+      dryRun: !apply,
+      channelsToUpdate: candidates.length,
+      byProvider: candidates.reduce((all, candidate) => {
+        all[candidate.providerIdentifier] =
+          (all[candidate.providerIdentifier] || 0) + 1;
+        return all;
+      }, {} as Record<string, number>),
+    };
   }
 
   updateNameAndUrl(id: string, name: string, url: string) {
@@ -547,7 +587,7 @@ export class IntegrationService {
       org,
       String(getIntegrationInformation.id)
     );
-    await this._integrationRepository.updateIntegration(id, {
+    const updated = await this._integrationRepository.updateIntegration(id, {
       picture: getIntegrationInformation.picture,
       internalId: String(getIntegrationInformation.id),
       organizationId: org,
@@ -556,6 +596,10 @@ export class IntegrationService {
       token: getIntegrationInformation.access_token,
       profile: getIntegrationInformation.username,
     });
+
+    // The cached avatar is still the account's from before the page was
+    // picked, so drop it and let the proxy fetch the page's own picture.
+    await this._integrationPictureService.invalidate(updated.id);
 
     return { success: true };
   }

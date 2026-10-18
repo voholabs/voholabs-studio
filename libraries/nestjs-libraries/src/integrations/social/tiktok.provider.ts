@@ -241,7 +241,7 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
       return {
         type: 'bad-body' as const,
         value:
-          'You have to upload the picture/video to Voholabs when sending a URL',
+          'TikTok could not fetch the photo from our media storage, please contact support',
       };
     }
 

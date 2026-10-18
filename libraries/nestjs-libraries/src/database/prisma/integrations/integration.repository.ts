@@ -5,11 +5,13 @@ import dayjs from 'dayjs';
 import { Integration, Prisma } from '@prisma/client';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 import { IntegrationTimeDto } from '@gitroom/nestjs-libraries/dtos/integrations/integration.time.dto';
+import { UploadFactory } from '@gitroom/nestjs-libraries/upload/upload.factory';
 import { PlugDto } from '@gitroom/nestjs-libraries/dtos/plugs/plug.dto';
 import { IntegrationPictureService } from '@gitroom/nestjs-libraries/integrations/integration.picture.service';
 
 @Injectable()
 export class IntegrationRepository {
+  private storage = UploadFactory.createStorage();
   constructor(
     private _integration: PrismaRepository<'integration'>,
     private _posts: PrismaRepository<'post'>,
@@ -185,10 +187,13 @@ export class IntegrationRepository {
   }
 
   async updateIntegration(id: string, params: Partial<Integration>) {
-    // The page's avatar is a network URL, so like createOrUpdateIntegration it
-    // goes to pictureSource and `picture` stays the proxy URL. Copying it into
-    // the bucket broke the avatar once the bucket expired the copy.
-    const { picture, ...rest } = params;
+    if (
+      params.picture &&
+      (params.picture.indexOf(process.env.CLOUDFLARE_BUCKET_URL!) === -1 ||
+        params.picture.indexOf(process.env.FRONTEND_URL!) === -1)
+    ) {
+      params.picture = await this.storage.uploadSimple(params.picture);
+    }
 
     const existing = await this._integration.model.integration.findUnique({
       where: {
@@ -224,24 +229,15 @@ export class IntegrationRepository {
       });
     }
 
-    const targetId = existing ? existing.id : id;
-
     return this._integration.model.integration.update({
       where: {
-        id: targetId,
+        ...(existing ? { id: existing.id } : { id }),
       },
       data: {
-        ...rest,
-        ...(picture
-          ? {
-              pictureSource: picture,
-              picture: IntegrationPictureService.proxyUrl(targetId),
-            }
-          : {}),
+        ...params,
         disabled: false,
         deletedAt: null,
       },
-      select: { id: true },
     });
   }
 
@@ -493,24 +489,23 @@ export class IntegrationRepository {
     });
   }
 
-  // Channels with an absolute `picture`, for the service to tell the copies
-  // from the proxy URLs. Only the picture columns are read.
-  pictureBackfillCandidates() {
+  // Channels whose avatar is a copy in the bucket rather than the proxy URL.
+  // Only the picture columns are read.
+  bucketPictureChannels() {
     return this._integration.model.integration.findMany({
       where: {
         deletedAt: null,
-        picture: { startsWith: 'http' },
+        picture: { startsWith: `${process.env.CLOUDFLARE_BUCKET_URL}/` },
       },
       select: {
         id: true,
         providerIdentifier: true,
         picture: true,
-        pictureSource: true,
       },
     });
   }
 
-  applyPictureBackfill(id: string, picture: string, pictureSource: string) {
+  updatePicture(id: string, picture: string, pictureSource: string) {
     return this._integration.model.integration.update({
       where: { id },
       data: { picture, pictureSource },

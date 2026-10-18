@@ -222,17 +222,16 @@ export class AdminController {
     return this._agentConnectionService.backfill(!!body?.apply);
   }
 
-  // One off: channels connected before avatars were proxied, or whose page was
-  // picked during connect, still point at a copy in the bucket, which breaks
-  // once the bucket expires it. Points them at the proxy. Reports what it
-  // would change unless `apply` is set.
-  @Post('/channel-pictures/backfill')
-  async channelPicturesBackfill(
+  // One off: channel avatars kept as a copy in the bucket broke where the copy
+  // was removed. Copies the current avatar from the network again for those.
+  // Reports what it would change unless `apply` is set.
+  @Post('/channel-pictures/renew')
+  async channelPicturesRenew(
     @GetUserFromRequest() user: User,
     @Body() body: { apply?: boolean }
   ) {
     this.assertSuperAdmin(user);
-    return this._integrationService.backfillPictures(!!body?.apply);
+    return this._integrationService.renewPictures(!!body?.apply);
   }
 
   private async assertOrganization(organizationId: string) {

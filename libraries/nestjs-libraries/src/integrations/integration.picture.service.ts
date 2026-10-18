@@ -99,6 +99,31 @@ export class IntegrationPictureService {
       };
     }
 
+    const source = await this.networkPicture(id);
+    const fetched = source ? await this.download(source) : null;
+
+    await ioRedis.set(
+      this.cacheKey(id),
+      JSON.stringify(
+        fetched
+          ? {
+              body: fetched.buffer.toString('base64'),
+              contentType: fetched.contentType,
+            }
+          : { body: null }
+      ),
+      'EX',
+      fetched ? CACHE_SECONDS : NEGATIVE_CACHE_SECONDS
+    );
+
+    return fetched;
+  }
+
+  /**
+   * Where the channel's avatar is on the network now, or null for a deleted
+   * channel. Also used to renew an avatar copy the bucket no longer has.
+   */
+  async networkPicture(id: string): Promise<string | null> {
     const integration = await this._integration.model.integration.findFirst({
       where: { id, deletedAt: null },
       select: {
@@ -117,24 +142,7 @@ export class IntegrationPictureService {
       return null;
     }
 
-    const source = await this.resolveSource(integration);
-    const fetched = source ? await this.download(source) : null;
-
-    await ioRedis.set(
-      this.cacheKey(id),
-      JSON.stringify(
-        fetched
-          ? {
-              body: fetched.buffer.toString('base64'),
-              contentType: fetched.contentType,
-            }
-          : { body: null }
-      ),
-      'EX',
-      fetched ? CACHE_SECONDS : NEGATIVE_CACHE_SECONDS
-    );
-
-    return fetched;
+    return this.resolveSource(integration);
   }
 
   /**

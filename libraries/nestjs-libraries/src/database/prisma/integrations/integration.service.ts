@@ -240,41 +240,58 @@ export class IntegrationService {
     return this._integrationRepository.updateCustomName(org, id, name);
   }
 
-  // Points channels still holding a copied avatar at the proxy. The copy
-  // becomes pictureSource: for a page picked during connect it is the page's
-  // avatar, while pictureSource still holds the account's. A provider that can
-  // look its avatar up replaces it on the first fetch. Without `apply` it only
-  // reports.
-  async backfillPictures(apply: boolean) {
-    const candidates = (
-      await this._integrationRepository.pictureBackfillCandidates()
-    ).filter(
-      (candidate) =>
-        candidate.picture !==
-          IntegrationPictureService.proxyUrl(candidate.id) &&
-        // a proxy URL under an older backend address is not an image to keep
-        !candidate.picture!.endsWith(`/integrations/${candidate.id}/picture`)
-    );
+  // Renews channel avatars whose copy is gone from the bucket: the current
+  // avatar is fetched from the network, copied into the bucket again and the
+  // channel points at the new copy. Copies still in the bucket are left alone.
+  // Without `apply` it only reports.
+  async renewPictures(apply: boolean) {
+    const channels = await this._integrationRepository.bucketPictureChannels();
+    const missing: typeof channels = [];
 
+    for (const channel of channels) {
+      const response = await fetch(channel.picture!, { method: 'HEAD' }).catch(
+        () => null
+      );
+      if (response?.status === 404) {
+        missing.push(channel);
+      }
+    }
+
+    const failed: string[] = [];
     if (apply) {
-      for (const candidate of candidates) {
-        await this._integrationRepository.applyPictureBackfill(
-          candidate.id,
-          IntegrationPictureService.proxyUrl(candidate.id),
-          candidate.picture!
-        );
-        await this._integrationPictureService.invalidate(candidate.id);
+      for (const channel of missing) {
+        try {
+          const source = await this._integrationPictureService.networkPicture(
+            channel.id
+          );
+          if (!source) {
+            failed.push(channel.id);
+            continue;
+          }
+
+          const picture = await this.storage.uploadSimple(source);
+          await this._integrationRepository.updatePicture(
+            channel.id,
+            picture,
+            source
+          );
+        } catch (err) {
+          failed.push(channel.id);
+        }
       }
     }
 
     return {
       dryRun: !apply,
-      channelsToUpdate: candidates.length,
-      byProvider: candidates.reduce((all, candidate) => {
-        all[candidate.providerIdentifier] =
-          (all[candidate.providerIdentifier] || 0) + 1;
+      checked: channels.length,
+      missing: missing.length,
+      missingByProvider: missing.reduce((all, channel) => {
+        all[channel.providerIdentifier] =
+          (all[channel.providerIdentifier] || 0) + 1;
         return all;
       }, {} as Record<string, number>),
+      renewed: apply ? missing.length - failed.length : 0,
+      failed,
     };
   }
 
@@ -587,7 +604,7 @@ export class IntegrationService {
       org,
       String(getIntegrationInformation.id)
     );
-    const updated = await this._integrationRepository.updateIntegration(id, {
+    await this._integrationRepository.updateIntegration(id, {
       picture: getIntegrationInformation.picture,
       internalId: String(getIntegrationInformation.id),
       organizationId: org,
@@ -596,10 +613,6 @@ export class IntegrationService {
       token: getIntegrationInformation.access_token,
       profile: getIntegrationInformation.username,
     });
-
-    // The cached avatar is still the account's from before the page was
-    // picked, so drop it and let the proxy fetch the page's own picture.
-    await this._integrationPictureService.invalidate(updated.id);
 
     return { success: true };
   }

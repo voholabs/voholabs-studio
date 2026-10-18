@@ -1,10 +1,24 @@
 import { Injectable } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
+import { Provider } from '@prisma/client';
 import { AuthProviderAbstract } from '@gitroom/backend/services/auth/providers.interface';
 
 @Injectable()
 export class AuthProviderManager {
   constructor(private _moduleRef: ModuleRef) {}
+
+  // The providers whose stored addresses were verified by the provider.
+  emailVerifyingProviders(): Provider[] {
+    const metadata =
+      Reflect.getMetadata('auth-provider', AuthProviderAbstract) || [];
+
+    return metadata
+      .filter(
+        (m: any) =>
+          this._moduleRef.get(m.target, { strict: false })?.verifiesEmail
+      )
+      .map((m: any) => m.provider);
+  }
 
   getProvider(provider: string): AuthProviderAbstract {
     const metadata =

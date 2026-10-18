@@ -24,6 +24,10 @@ export class UsersService {
 
   private readonly _logger = new Logger(UsersService.name);
 
+  getProviderUserByEmail(email: string, providers: Provider[]) {
+    return this._usersRepository.getProviderUserByEmail(email, providers);
+  }
+
   getUserByEmail(email: string) {
     return this._usersRepository.getUserByEmail(email);
   }

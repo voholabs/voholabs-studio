@@ -6,6 +6,7 @@ import {
 @AuthProvider({ provider: 'GITHUB' })
 export class GithubProvider extends AuthProviderAbstract {
   override readonly requiresState = true;
+  override readonly verifiesEmail = true;
 
   generateLink(_query?: unknown, state?: string): string {
     return `https://github.com/login/oauth/authorize?client_id=${
@@ -76,7 +77,9 @@ export class GithubProvider extends AuthProviderAbstract {
     return String(data.user.id);
   }
 
-  async getUser(access_token: string): Promise<{ email: string; id: string }> {
+  async getUser(
+    access_token: string
+  ): Promise<{ email: string; id: string; emailVerified: boolean }> {
     const id = await this.checkTokenIsOurs(access_token);
 
     const emails = await (
@@ -101,6 +104,7 @@ export class GithubProvider extends AuthProviderAbstract {
     return {
       email: primary.email,
       id,
+      emailVerified: true,
     };
   }
 }

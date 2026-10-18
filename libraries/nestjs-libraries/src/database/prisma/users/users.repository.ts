@@ -142,6 +142,23 @@ export class UsersRepository {
     });
   }
 
+  // The account that signs in through one of `providers` for this address,
+  // oldest first. Password login reaches it only once its owner set a password
+  // through a reset link sent to that address.
+  getProviderUserByEmail(email: string, providers: Provider[]) {
+    return this._user.model.user.findFirst({
+      where: {
+        email: {
+          equals: email,
+          mode: 'insensitive',
+        },
+        providerName: { in: providers.filter((p) => p !== Provider.LOCAL) },
+        deletedAt: null,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
   getUserByEmail(email: string) {
     return this._user.model.user.findFirst({
       where: {
@@ -242,11 +259,12 @@ export class UsersRepository {
     });
   }
 
+  // Any provider: a Google account adds a password the same way, through a
+  // reset link sent to its address.
   updatePassword(id: string, password: string) {
     return this._user.model.user.update({
       where: {
         id,
-        providerName: Provider.LOCAL,
       },
       data: {
         password: AuthService.hashPassword(password),

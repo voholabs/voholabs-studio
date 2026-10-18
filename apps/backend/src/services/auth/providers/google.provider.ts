@@ -18,6 +18,7 @@ const makeClient = (redirectUri: string) =>
 @AuthProvider({ provider: 'GOOGLE' })
 export class GoogleProvider extends AuthProviderAbstract {
   override readonly requiresState = true;
+  override readonly verifiesEmail = true;
 
   // The state starts with `login` on purpose: the frontend tells a sign-in
   // callback apart from a YouTube channel connection (same redirect URI) by
@@ -75,6 +76,7 @@ export class GoogleProvider extends AuthProviderAbstract {
     return {
       id: data.id!,
       email: data.email!,
+      emailVerified: !!data.verified_email,
     };
   }
 }

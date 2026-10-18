@@ -10,11 +10,19 @@ export abstract class AuthProviderAbstract {
    * Neynar's own widget, so there is no callback to carry a state.
    */
   readonly requiresState: boolean = false;
+  /**
+   * True for a provider that only ever hands us an address it verified
+   * belongs to the user. Only accounts of such a provider can add a password
+   * by email or be found by their address (AuthService).
+   */
+  readonly verifiesEmail: boolean = false;
   abstract generateLink(query?: any, state?: string): Promise<string> | string;
   abstract getToken(code: string, redirectUri?: string): Promise<string>;
+  // `emailVerified` is this sign-in's own answer, for a provider that can say
+  // per user (Google). See verifiesEmail.
   abstract getUser(
     providerToken: string
-  ): Promise<{ email: string; id: string }> | false;
+  ): Promise<{ email: string; id: string; emailVerified?: boolean }> | false;
   async postRegistration(
     providerToken: string,
     orgId: string

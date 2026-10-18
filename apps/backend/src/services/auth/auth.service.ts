@@ -10,6 +10,7 @@ import { UsersService } from '@gitroom/nestjs-libraries/database/prisma/users/us
 import { OrganizationService } from '@gitroom/nestjs-libraries/database/prisma/organizations/organization.service';
 import { AuthService as AuthChecker } from '@gitroom/helpers/auth/auth.service';
 import { AuthProviderManager } from '@gitroom/backend/services/auth/providers/providers.manager';
+import { AuthProviderAbstract } from '@gitroom/backend/services/auth/providers.interface';
 import dayjs from 'dayjs';
 import { ForgotReturnPasswordDto } from '@gitroom/nestjs-libraries/dtos/auth/forgot-return.password.dto';
 import { EmailService } from '@gitroom/nestjs-libraries/services/email.service';
@@ -38,6 +39,17 @@ const providerTokenKey = (provider: string, token: string) =>
   `provider-token:${provider}:${sha256(token)}`;
 const oauthStateKey = (state: string) => `oauth-state:${state}`;
 const usedResetKey = (jti: string) => `reset-used:${jti}`;
+
+// "GOOGLE" -> "Google", for telling someone how their account signs in.
+const providerLabel = (provider: Provider) =>
+  provider.charAt(0) + provider.slice(1).toLowerCase();
+
+const signsInWithProviderMessage = (provider: Provider) =>
+  `This email signs in with ${providerLabel(
+    provider
+  )}. Continue with ${providerLabel(
+    provider
+  )}, or use "Forgot password" to add a password.`;
 
 @Injectable()
 export class AuthService {
@@ -72,10 +84,18 @@ export class AuthService {
       if (body instanceof CreateOrgUserDto) {
         body.email = body.email.toLowerCase();
       }
-      const user = await this._userService.getUserByEmail(body.email);
+      const user =
+        (await this._userService.getUserByEmail(body.email)) ||
+        (await this.providerUserByEmail(body.email));
       if (body instanceof CreateOrgUserDto) {
         if (user) {
-          throw new Error('Email already exists');
+          // A second account for the same address is what this prevents: the
+          // person then has two workspaces and two ways in that never meet.
+          throw new Error(
+            user.providerName === Provider.LOCAL
+              ? 'Email already exists'
+              : signsInWithProviderMessage(user.providerName)
+          );
         }
 
         if (!(await this.canRegister(provider))) {
@@ -116,6 +136,12 @@ export class AuthService {
           )}">here</a> to activate your account`
         );
         return obj;
+      }
+
+      // A provider account has no password until its owner adds one through
+      // a reset link, so it is pointed at its provider instead.
+      if (user && user.providerName !== Provider.LOCAL && !user.password) {
+        throw new Error(signsInWithProviderMessage(user.providerName));
       }
 
       if (!user || !AuthChecker.comparePassword(body.password, user.password)) {
@@ -206,9 +232,10 @@ export class AuthService {
       throw new Error('Invalid provider token');
     }
 
-    const user = await this._userService.getUserByProvider(
-      providerUser.id,
-      provider
+    const user = await this.existingUserForProvider(
+      providerInstance,
+      provider,
+      providerUser
     );
     if (user) {
       await ioRedis.del(providerTokenKey(provider, body.providerToken));
@@ -290,8 +317,12 @@ export class AuthService {
   }
 
   async forgot(email: string) {
-    const user = await this._userService.getUserByEmail(email);
-    if (!user || user.providerName !== Provider.LOCAL) {
+    // A provider account (Google...) gets the same link: following it adds a
+    // password, after which email and password open the same account.
+    const user =
+      (await this._userService.getUserByEmail(email)) ||
+      (await this.providerUserByEmail(email));
+    if (!user) {
       return false;
     }
 
@@ -447,9 +478,10 @@ export class AuthService {
     if (!user) {
       throw new Error('Invalid user');
     }
-    const checkExists = await this._userService.getUserByProvider(
-      user.id,
-      provider as Provider
+    const checkExists = await this.existingUserForProvider(
+      providerInstance,
+      provider as Provider,
+      user
     );
     if (checkExists) {
       return { jwt: await this.jwt(checkExists) };
@@ -463,6 +495,44 @@ export class AuthService {
     );
 
     return { token };
+  }
+
+  // The provider's own account first. Failing that, the email+password account
+  // with the same address, so signing in with Google does not open a second,
+  // empty account. Only when the provider verified the address, and only into
+  // an account activated by its emailed link, whose owner proved the address
+  // too: otherwise someone could register an address that is not theirs and
+  // wait for its owner to sign in with Google. Without an email provider an
+  // account is activated with no link at all, so nothing is linked then.
+  private async existingUserForProvider(
+    providerInstance: AuthProviderAbstract,
+    provider: Provider,
+    providerUser: { id: string; email: string; emailVerified?: boolean }
+  ) {
+    const user = await this._userService.getUserByProvider(
+      providerUser.id,
+      provider
+    );
+    if (
+      user ||
+      !providerInstance.verifiesEmail ||
+      !providerUser.emailVerified ||
+      !providerUser.email ||
+      !this._emailService.hasProvider()
+    ) {
+      return user;
+    }
+
+    const local = await this._userService.getUserByEmail(providerUser.email);
+    return local?.activated ? local : null;
+  }
+
+  // A provider account for this address, only of a provider that verified it.
+  private providerUserByEmail(email: string) {
+    return this._userService.getProviderUserByEmail(
+      email,
+      this._providerManager.emailVerifyingProviders()
+    );
   }
 
   // The session carries the user id and nothing else: everything about the

@@ -419,6 +419,58 @@ export class WalletPlusService {
     return { id: promotion.id, code: promotion.code };
   }
 
+  // What each Plus subscription bills now, read from Stripe: its item's
+  // price and interval, and whether a discount takes all of it (a comped
+  // subscription). Read by the growth dashboard, so nothing is thrown: a
+  // subscription Stripe could not return is left out.
+  async subscriptionPrices(subscriptionIds: string[]) {
+    const prices = new Map<
+      string,
+      { amount: number; currency: string; interval: string; comped: boolean }
+    >();
+    if (!subscriptionIds.length || !walletPaymentsEnabled()) {
+      return prices;
+    }
+    await Promise.all(
+      subscriptionIds.map(async (id) => {
+        try {
+          const subscription =
+            await this._billing.stripe.subscriptions.retrieve(id, {
+              expand: ['discounts.source.coupon'],
+            });
+          const price = subscription.items?.data?.[0]?.price;
+          if (!price?.unit_amount || !price.recurring) {
+            return;
+          }
+          const amount = price.unit_amount;
+          const comped = (subscription.discounts || []).some((discount) => {
+            const coupon =
+              typeof discount === 'string' ? null : discount.source?.coupon;
+            return (
+              !!coupon &&
+              typeof coupon !== 'string' &&
+              ((coupon.percent_off || 0) >= 100 ||
+                (coupon.amount_off || 0) >= amount)
+            );
+          });
+          prices.set(id, {
+            amount,
+            currency: price.currency.toUpperCase(),
+            interval: price.recurring.interval,
+            comped,
+          });
+        } catch (err) {
+          this._logger.error(
+            `Plus subscription ${id} could not be read: ${
+              err instanceof Error ? err.message : err
+            }`
+          );
+        }
+      })
+    );
+    return prices;
+  }
+
   // Everything the Plus and wallet pages show.
   async plan(organizationId: string) {
     const offer = await this.offer();

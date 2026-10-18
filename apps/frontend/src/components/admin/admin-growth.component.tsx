@@ -5,6 +5,7 @@ import useSWR from 'swr';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { useUser } from '@gitroom/frontend/components/layout/user.context';
 import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
+import { fractionDigits } from '@gitroom/frontend/components/wallet/wallet.hooks';
 
 type GrowthWindow = '24h' | '7d' | '30d' | 'all';
 
@@ -47,8 +48,57 @@ interface ActiveAgents {
   clients: { client: string; monthly: number; allTime: number }[];
 }
 
+interface MoneyFunnelRow {
+  window: GrowthWindow;
+  signups: number;
+  claimedCredits: number;
+  skippedCredits: number;
+  spentCredits: number;
+  subscribed: number;
+  subscribedMonthly: number;
+  subscribedAnnual: number;
+  subscribedNow: number;
+}
+
+interface Amount {
+  currency: string;
+  amount: number;
+}
+
+interface GrowthMoney {
+  funnel: MoneyFunnelRow[];
+  plus: {
+    active: number;
+    monthly: number;
+    annual: number;
+    cancelling: number;
+    pastDue: number;
+    comped: number;
+    mrr: Amount[];
+    mrrSource: 'stripe' | 'settings';
+  };
+  earlyBird: { window: GrowthWindow; issued: number; converted: number }[];
+  credits: {
+    window: GrowthWindow;
+    welcome: number;
+    plan: number;
+    topUp: number;
+    spent: number;
+    expired: number;
+    topUpRevenue: Amount[];
+  }[];
+  legacy: { total: number; open: number; onPlus: number; spentLast30d: number };
+  topActions: {
+    actionKey: string;
+    name: string;
+    monthly: { credits: number; charges: number };
+    allTime: { credits: number; charges: number };
+  }[];
+}
+
 interface GrowthResponse {
   generatedAt: string;
+  money: GrowthMoney;
   funnel: FunnelRow[];
   activeUsers: ActiveUsers;
   activeAgents: ActiveAgents;
@@ -108,14 +158,41 @@ const useGrowth = (enabled: boolean) => {
 const percent = (part: number, whole: number) =>
   whole ? `${Math.round((part / whole) * 100)}%` : '–';
 
-const SummaryCard: FC<{ label: string; value: number; hint?: string }> = ({
-  label,
-  value,
-  hint,
-}) => (
+// Amounts in the smallest unit of their currency, one per currency.
+export const moneyText = (amounts: Amount[]) =>
+  amounts.length
+    ? amounts
+        .map(({ currency, amount }) => {
+          const value = amount / Math.pow(10, fractionDigits(currency));
+          // Decimals only when there are any: "$37.10", "$19"
+          const digits = Number.isInteger(value) ? 0 : fractionDigits(currency);
+          try {
+            return value.toLocaleString(undefined, {
+              style: 'currency',
+              currency,
+              minimumFractionDigits: digits,
+              maximumFractionDigits: digits,
+            });
+          } catch {
+            return `${value.toLocaleString()} ${currency}`;
+          }
+        })
+        .join(' + ')
+    : '–';
+
+const creditsText = (credits: number) =>
+  credits.toLocaleString(undefined, { maximumFractionDigits: 2 });
+
+const SummaryCard: FC<{
+  label: string;
+  value: number | string;
+  hint?: string;
+}> = ({ label, value, hint }) => (
   <div className="border border-newTableBorder rounded-[8px] p-[16px] bg-newBgColorInner">
     <div className="text-[12px] opacity-70">{label}</div>
-    <div className="text-[28px] font-[600]">{value.toLocaleString()}</div>
+    <div className="text-[28px] font-[600]">
+      {typeof value === 'number' ? value.toLocaleString() : value}
+    </div>
     {hint && <div className="text-[12px] opacity-70">{hint}</div>}
   </div>
 );
@@ -157,6 +234,297 @@ const FunnelTable: FC<{ funnel: FunnelRow[] }> = ({ funnel }) => {
         ))}
       </div>
     </div>
+  );
+};
+
+// A table with a column per window, like the sign-up funnel. A row with
+// percentOf shows its value as a share of that number too; hint is a second
+// line under the value.
+interface WindowRow {
+  key: string;
+  label: string;
+  value: (window: GrowthWindow) => number | string;
+  percentOf?: (window: GrowthWindow) => number;
+  hint?: (window: GrowthWindow) => string;
+}
+
+const WindowTable: FC<{ rows: WindowRow[] }> = ({ rows }) => (
+  <div className="border border-newTableBorder rounded-[8px] overflow-x-auto">
+    <div className="min-w-[640px]">
+      <div className="grid grid-cols-[1.4fr_repeat(4,1fr)] gap-[12px] px-[12px] py-[10px] bg-newBgColorInner text-[12px] uppercase opacity-70 border-b border-newTableBorder">
+        <div>Step</div>
+        {WINDOWS.map((w) => (
+          <div key={w.key} className="text-right">
+            {w.label}
+          </div>
+        ))}
+      </div>
+      {rows.map((row) => (
+        <div
+          key={row.key}
+          className="grid grid-cols-[1.4fr_repeat(4,1fr)] gap-[12px] px-[12px] py-[10px] text-[13px] border-b border-newTableBorder last:border-b-0"
+        >
+          <div>{row.label}</div>
+          {WINDOWS.map((w) => {
+            const value = row.value(w.key);
+            const hint = row.hint?.(w.key);
+            return (
+              <div key={w.key} className="text-right">
+                <span className="font-[600]">
+                  {typeof value === 'number' ? value.toLocaleString() : value}
+                </span>
+                {row.percentOf && typeof value === 'number' && (
+                  <span className="opacity-60 ms-[6px]">
+                    {percent(value, row.percentOf(w.key))}
+                  </span>
+                )}
+                {hint && <div className="text-[12px] opacity-60">{hint}</div>}
+              </div>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+// Signed up, then each money step as a share of the step before it.
+export const moneyFunnelRows = (funnel: MoneyFunnelRow[]): WindowRow[] => {
+  const row = (w: GrowthWindow) =>
+    funnel.find((r) => r.window === w) || ({} as Partial<MoneyFunnelRow>);
+  return [
+    {
+      key: 'signups',
+      label: 'Signed up',
+      value: (w) => row(w).signups || 0,
+    },
+    {
+      key: 'claimed',
+      label: 'Claimed free credits',
+      value: (w) => row(w).claimedCredits || 0,
+      percentOf: (w) => row(w).signups || 0,
+      hint: (w) => `${(row(w).skippedCredits || 0).toLocaleString()} skipped`,
+    },
+    {
+      key: 'spent',
+      label: 'Spent credits',
+      value: (w) => row(w).spentCredits || 0,
+      percentOf: (w) => row(w).claimedCredits || 0,
+    },
+    {
+      key: 'subscribed',
+      label: 'Subscribed to Plus',
+      value: (w) => row(w).subscribed || 0,
+      percentOf: (w) => row(w).spentCredits || 0,
+      hint: (w) =>
+        `${(row(w).subscribedMonthly || 0).toLocaleString()} monthly · ${(
+          row(w).subscribedAnnual || 0
+        ).toLocaleString()} annual · ${(
+          row(w).subscribedNow || 0
+        ).toLocaleString()} active now`,
+    },
+  ];
+};
+
+const TopActionsTable: FC<{ actions: GrowthMoney['topActions'] }> = ({
+  actions,
+}) => (
+  <div className="border border-newTableBorder rounded-[8px] overflow-x-auto">
+    <div className="min-w-[560px]">
+      <div className="grid grid-cols-[1fr_110px_80px_110px_80px] gap-[12px] px-[12px] py-[10px] bg-newBgColorInner text-[12px] uppercase opacity-70 border-b border-newTableBorder">
+        <div>Action</div>
+        <div className="text-right">Credits, 30 days</div>
+        <div className="text-right">Uses</div>
+        <div className="text-right">Credits, ever</div>
+        <div className="text-right">Uses</div>
+      </div>
+      {actions.map((a) => (
+        <div
+          key={a.actionKey}
+          className="grid grid-cols-[1fr_110px_80px_110px_80px] gap-[12px] px-[12px] py-[10px] text-[13px] border-b border-newTableBorder last:border-b-0"
+        >
+          <div className="min-w-0">
+            <div className="truncate">{a.name}</div>
+            <div className="text-[12px] opacity-60 truncate">{a.actionKey}</div>
+          </div>
+          <div className="text-right font-[600]">
+            {creditsText(a.monthly.credits)}
+          </div>
+          <div className="text-right opacity-70">
+            {a.monthly.charges.toLocaleString()}
+          </div>
+          <div className="text-right">{creditsText(a.allTime.credits)}</div>
+          <div className="text-right opacity-70">
+            {a.allTime.charges.toLocaleString()}
+          </div>
+        </div>
+      ))}
+      {!actions.length && (
+        <div className="px-[12px] py-[10px] text-[13px] opacity-70">
+          Nothing has been spent yet.
+        </div>
+      )}
+    </div>
+  </div>
+);
+
+const MoneySection: FC<{ money: GrowthMoney }> = ({ money }) => {
+  const credits = (w: GrowthWindow) =>
+    money.credits.find((r) => r.window === w);
+  const early = (w: GrowthWindow) =>
+    money.earlyBird.find((r) => r.window === w);
+  const { plus, legacy } = money;
+  return (
+    <>
+      <div className="flex flex-col gap-[6px] mt-[8px]">
+        <div className="text-[16px] font-[600]">Money funnel</div>
+        <div className="text-[13px] opacity-70">
+          The same sign-ups, and how many of their workspaces claimed the free
+          credits, spent credits and subscribed to Plus (ever, even if it has
+          ended). Each percentage is of the step above.
+        </div>
+      </div>
+      <WindowTable rows={moneyFunnelRows(money.funnel)} />
+
+      <div className="flex flex-col gap-[6px] mt-[8px]">
+        <div className="text-[16px] font-[600]">Plus now</div>
+        <div className="text-[13px] opacity-70">
+          Subscriptions active today. MRR is the monthly price of each monthly
+          subscription plus a twelfth of each annual one, leaving out comped
+          ones (a discount takes all of it).
+          {plus.mrrSource === 'settings' &&
+            ' Stripe could not be read for some of them, so their price is taken from the Plus settings.'}
+        </div>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-[12px]">
+        <SummaryCard
+          label="Active subscribers"
+          value={plus.active}
+          hint={`${plus.monthly.toLocaleString()} monthly · ${plus.annual.toLocaleString()} annual`}
+        />
+        <SummaryCard label="MRR" value={moneyText(plus.mrr)} />
+        <SummaryCard
+          label="Comped"
+          value={plus.comped}
+          hint="Active, not paying"
+        />
+        <SummaryCard
+          label="Cancelling"
+          value={plus.cancelling}
+          hint="Active, ends at the period end"
+        />
+        <SummaryCard
+          label="Past due"
+          value={plus.pastDue}
+          hint="Payment failed, Stripe retrying"
+        />
+      </div>
+
+      <div className="flex flex-col gap-[6px] mt-[8px]">
+        <div className="text-[16px] font-[600]">Early bird</div>
+        <div className="text-[13px] opacity-70">
+          Workspaces given an early-bird code, by when their early bird started
+          (the free credits claim, or the skip), and how many of them went on
+          to subscribe.
+        </div>
+      </div>
+      <WindowTable
+        rows={[
+          {
+            key: 'issued',
+            label: 'Codes issued',
+            value: (w) => early(w)?.issued || 0,
+          },
+          {
+            key: 'converted',
+            label: 'Subscribed',
+            value: (w) => early(w)?.converted || 0,
+            percentOf: (w) => early(w)?.issued || 0,
+          },
+        ]}
+      />
+
+      <div className="flex flex-col gap-[6px] mt-[8px]">
+        <div className="text-[16px] font-[600]">Credits</div>
+        <div className="text-[13px] opacity-70">
+          Wallet entries made in each period, in credits. Spent is charges less
+          their refunds; expired is plan credits left at the end of a plan
+          period. Top-up revenue is what was paid before tax.
+        </div>
+      </div>
+      <WindowTable
+        rows={[
+          {
+            key: 'welcome',
+            label: 'Welcome credits granted',
+            value: (w) => creditsText(credits(w)?.welcome || 0),
+          },
+          {
+            key: 'plan',
+            label: 'Plan credits granted',
+            value: (w) => creditsText(credits(w)?.plan || 0),
+          },
+          {
+            key: 'topUp',
+            label: 'Top-up credits',
+            value: (w) => creditsText(credits(w)?.topUp || 0),
+          },
+          {
+            key: 'spent',
+            label: 'Credits spent',
+            value: (w) => creditsText(credits(w)?.spent || 0),
+          },
+          {
+            key: 'expired',
+            label: 'Plan credits expired',
+            value: (w) => creditsText(credits(w)?.expired || 0),
+          },
+          {
+            key: 'revenue',
+            label: 'Top-up revenue',
+            value: (w) => moneyText(credits(w)?.topUpRevenue || []),
+          },
+        ]}
+      />
+
+      <div className="flex flex-col gap-[6px] mt-[8px]">
+        <div className="text-[16px] font-[600]">
+          Pay-as-you-go from before Plus
+        </div>
+        <div className="text-[13px] opacity-70">
+          Workspaces whose first top-up came before Plus launched. They keep
+          pay-as-you-go while their wallet is not on hold.
+        </div>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-[12px]">
+        <SummaryCard label="Total" value={legacy.total} />
+        <SummaryCard
+          label="Still open"
+          value={legacy.open}
+          hint={percent(legacy.open, legacy.total)}
+        />
+        <SummaryCard
+          label="Now on Plus"
+          value={legacy.onPlus}
+          hint={percent(legacy.onPlus, legacy.total)}
+        />
+        <SummaryCard
+          label="Spent in last 30 days"
+          value={legacy.spentLast30d}
+          hint={percent(legacy.spentLast30d, legacy.total)}
+        />
+      </div>
+
+      <div className="flex flex-col gap-[6px] mt-[8px]">
+        <div className="text-[16px] font-[600]">Top spending actions</div>
+        <div className="text-[13px] opacity-70">
+          What credits are spent on: net credits (charges less refunds) and
+          uses (free ones included) per action, the ten with the most spent in
+          the last 30 days.
+        </div>
+      </div>
+      <TopActionsTable actions={money.topActions} />
+    </>
   );
 };
 
@@ -505,6 +873,7 @@ export const AdminGrowthComponent: FC = () => {
             </div>
           </div>
           <FunnelTable funnel={data.funnel} />
+          <MoneySection money={data.money} />
 
           <div className="flex flex-col gap-[6px] mt-[8px]">
             <div className="text-[16px] font-[600]">Daily active users</div>

@@ -197,47 +197,7 @@ const SummaryCard: FC<{
   </div>
 );
 
-const FunnelTable: FC<{ funnel: FunnelRow[] }> = ({ funnel }) => {
-  const byWindow = new Map(funnel.map((row) => [row.window, row]));
-  return (
-    <div className="border border-newTableBorder rounded-[8px] overflow-x-auto">
-      <div className="min-w-[640px]">
-        <div className="grid grid-cols-[1.4fr_repeat(4,1fr)] gap-[12px] px-[12px] py-[10px] bg-newBgColorInner text-[12px] uppercase opacity-70 border-b border-newTableBorder">
-          <div>Step</div>
-          {WINDOWS.map((w) => (
-            <div key={w.key} className="text-right">
-              {w.label}
-            </div>
-          ))}
-        </div>
-        {STEPS.map((step) => (
-          <div
-            key={step.key}
-            className="grid grid-cols-[1.4fr_repeat(4,1fr)] gap-[12px] px-[12px] py-[10px] text-[13px] border-b border-newTableBorder last:border-b-0"
-          >
-            <div>{step.label}</div>
-            {WINDOWS.map((w) => {
-              const row = byWindow.get(w.key);
-              const value = row?.[step.key] || 0;
-              return (
-                <div key={w.key} className="text-right">
-                  <span className="font-[600]">{value.toLocaleString()}</span>
-                  {step.key !== 'signups' && (
-                    <span className="opacity-60 ms-[6px]">
-                      {percent(value, row?.signups || 0)}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// A table with a column per window, like the sign-up funnel. A row with
+// A table with a column per window. A row with
 // percentOf shows its value as a share of that number too; hint is a second
 // line under the value.
 interface WindowRow {
@@ -287,6 +247,24 @@ const WindowTable: FC<{ rows: WindowRow[] }> = ({ rows }) => (
     </div>
   </div>
 );
+
+// The sign-up funnel: each step as a share of sign-ups.
+const FunnelTable: FC<{ funnel: FunnelRow[] }> = ({ funnel }) => {
+  const byWindow = new Map(funnel.map((row) => [row.window, row]));
+  return (
+    <WindowTable
+      rows={STEPS.map((step) => ({
+        key: step.key,
+        label: step.label,
+        value: (w) => byWindow.get(w)?.[step.key] || 0,
+        percentOf:
+          step.key === 'signups'
+            ? undefined
+            : (w) => byWindow.get(w)?.signups || 0,
+      }))}
+    />
+  );
+};
 
 // Signed up, then each money step as a share of the step before it.
 export const moneyFunnelRows = (funnel: MoneyFunnelRow[]): WindowRow[] => {
@@ -381,7 +359,9 @@ const MoneySection: FC<{ money: GrowthMoney }> = ({ money }) => {
         <div className="text-[13px] opacity-70">
           The same sign-ups, and how many of their workspaces claimed the free
           credits, spent credits and subscribed to Plus (ever, even if it has
-          ended). Each percentage is of the step above.
+          ended). Each percentage is of the step above. The steps are not
+          nested (a workspace can spend without claiming, or subscribe without
+          spending), so one can pass 100%.
         </div>
       </div>
       <WindowTable rows={moneyFunnelRows(money.funnel)} />
@@ -449,7 +429,7 @@ const MoneySection: FC<{ money: GrowthMoney }> = ({ money }) => {
         <div className="text-[13px] opacity-70">
           Wallet entries made in each period, in credits. Spent is charges less
           their refunds; expired is plan credits left at the end of a plan
-          period. Top-up revenue is what was paid before tax.
+          period. Top-up revenue is what was paid before tax, before any refunds.
         </div>
       </div>
       <WindowTable
@@ -481,7 +461,7 @@ const MoneySection: FC<{ money: GrowthMoney }> = ({ money }) => {
           },
           {
             key: 'revenue',
-            label: 'Top-up revenue',
+            label: 'Top-up revenue (gross)',
             value: (w) => moneyText(credits(w)?.topUpRevenue || []),
           },
         ]}

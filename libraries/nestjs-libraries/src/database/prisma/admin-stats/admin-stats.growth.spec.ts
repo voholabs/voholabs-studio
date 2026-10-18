@@ -193,7 +193,7 @@ describe('AdminStatsRepository.getGrowthMoney', () => {
     );
   });
 
-  it('counts a spend as any entry below zero except plan credits expiring', async () => {
+  it('counts a spend as a charge that took credits, not expiry or a clawback', async () => {
     const { repository } = setup({
       users: [
         { createdAt: ago(1), owns: ['a'] },
@@ -204,6 +204,7 @@ describe('AdminStatsRepository.getGrowthMoney', () => {
       entries: [
         entry('a', 'SPEND', -225, { actionKey: 'x.post' }),
         entry('b', 'PLAN_EXPIRE', -4000),
+        entry('b', 'ADJUST', -1000, { idempotencyKey: 'chargeback:pi_1:e1' }),
         // A free use costs nothing, so it is not a spend.
         entry('c', 'SPEND', 0, { actionKey: 'x.post' }),
       ],
@@ -257,7 +258,8 @@ describe('AdminStatsRepository.getGrowthMoney', () => {
       active: 1,
       monthly: 1,
       annual: 0,
-      pastDue: 2,
+      // past_due after being paid; an incomplete first payment is not
+      pastDue: 1,
       subscriptions: [{ subscriptionId: 'sub_paid', interval: 'month' }],
     });
   });
@@ -374,26 +376,39 @@ describe('WalletPlusService.subscriptionPrices', () => {
       {} as any
     );
 
-  const sub = (amount: number, interval: string, discounts: any[] = []) => ({
+  const sub = (amount: number, interval: string, discounts: any[] = [], quantity = 1) => ({
     items: {
-      data: [{ price: { unit_amount: amount, currency: 'usd', recurring: { interval } } }],
+      data: [{ quantity, price: { unit_amount: amount, currency: 'usd', recurring: { interval } } }],
     },
     discounts,
   });
-  const coupon = (c: Record<string, any>) => ({ source: { coupon: c } });
+  const coupon = (c: Record<string, any>) => ({
+    source: { coupon: { duration: 'forever', ...c } },
+  });
 
-  it('reads each price and marks a subscription a discount takes all of as comped', async () => {
+  it('reads what each bills from now on, and marks one a lasting discount takes all of as comped', async () => {
     const prices = await service({
       sub_full: sub(1900, 'month'),
-      sub_early: sub(1900, 'month', [coupon({ percent_off: 10 })]),
+      // The early bird is once: the next periods bill in full.
+      sub_early: sub(1900, 'month', [coupon({ percent_off: 10, duration: 'once' })]),
+      sub_free_once: sub(1900, 'month', [coupon({ percent_off: 100, duration: 'once' })]),
+      sub_half: sub(19000, 'year', [coupon({ percent_off: 50 })]),
       sub_free: sub(19000, 'year', [coupon({ percent_off: 100 })]),
-      sub_amount: sub(1900, 'month', [coupon({ amount_off: 1900 })]),
-    }).subscriptionPrices(['sub_full', 'sub_early', 'sub_free', 'sub_amount', 'sub_gone']);
+      sub_amount: sub(1900, 'month', [coupon({ amount_off: 1900, duration: 'repeating' })]),
+      sub_two: sub(1900, 'month', [], 2),
+    }).subscriptionPrices([
+      'sub_full', 'sub_early', 'sub_free_once', 'sub_half', 'sub_free', 'sub_amount', 'sub_two', 'sub_gone',
+    ]);
+    const month = { currency: 'USD', interval: 'month' };
+    const year = { currency: 'USD', interval: 'year' };
     expect(Object.fromEntries(prices)).toEqual({
-      sub_full: { amount: 1900, currency: 'USD', interval: 'month', comped: false },
-      sub_early: { amount: 1900, currency: 'USD', interval: 'month', comped: false },
-      sub_free: { amount: 19000, currency: 'USD', interval: 'year', comped: true },
-      sub_amount: { amount: 1900, currency: 'USD', interval: 'month', comped: true },
+      sub_full: { ...month, amount: 1900, comped: false },
+      sub_early: { ...month, amount: 1900, comped: false },
+      sub_free_once: { ...month, amount: 1900, comped: false },
+      sub_half: { ...year, amount: 9500, comped: false },
+      sub_free: { ...year, amount: 0, comped: true },
+      sub_amount: { ...month, amount: 0, comped: true },
+      sub_two: { ...month, amount: 3800, comped: false },
     });
   });
 });

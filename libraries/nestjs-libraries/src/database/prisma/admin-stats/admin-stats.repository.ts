@@ -1002,11 +1002,11 @@ export class AdminStatsRepository {
     const now = new Date();
     const starts = windowStarts(now);
     const entry = this._walletEntry.model.walletEntry;
-    // A spend: anything that took credits away, except plan credits running
-    // out at the end of their period.
+    // A spend: a charge that took credits. Plan credits running out
+    // (PLAN_EXPIRE) and clawbacks or admin debits (ADJUST) are not spends.
     const spend: Prisma.WalletEntryWhereInput = {
+      type: 'SPEND',
       amount: { lt: 0 },
-      type: { not: 'PLAN_EXPIRE' },
     };
 
     const [
@@ -1207,7 +1207,9 @@ export class AdminStatsRepository {
         monthly: active.filter((w) => w.plusInterval === 'month').length,
         annual: active.filter((w) => w.plusInterval === 'year').length,
         cancelling: active.filter((w) => w.plusCancelAt).length,
-        pastDue: wallets.filter((w) => plusPaymentFailed(w)).length,
+        // A renewal not paid; a first payment never completed is not one.
+        pastDue: wallets.filter((w) => plusPaymentFailed(w) && everPlus(w))
+          .length,
         subscriptions: active.map((w) => ({
           subscriptionId: w.plusSubscriptionId!,
           interval: w.plusInterval,

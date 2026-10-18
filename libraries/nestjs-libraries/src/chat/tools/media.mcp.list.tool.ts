@@ -27,9 +27,9 @@ export class MediaMcpListTool implements AgentToolInterface {
     return createTool({
       id: 'mediaMcpList',
       description: `Lists the AI media-editing and generation tools available to this workspace - image and video generation, editing an existing image, upscaling, background removal, reframing, model discovery (models_explore), importing media by URL (media_import_url), job polling (job_status), and remaining_budget for the workspace's shared credit allowance - with the exact arguments each one takes.
-      This is where "change the image on my post", "generate an image/video for this post" or any other AI media work starts: call this first, read the returned descriptions carefully (they carry rules that are not repeated anywhere else - for example, media must be imported with media_import_url before it can be referenced in a generation; a raw URL cannot be passed as medias[].value), then run tools with mediaMcpCall.
-      To edit an image already on a post: find it with postsList, import its URL with media_import_url, generate the edit (discover the right model with models_explore if unsure), poll the job with job_status until it finishes, bring the result into the media library with uploadFromUrlTool, and apply it with replacePostAsset - which requires showing the user the replacement and getting their explicit approval first.
-      Generations spend the workspace's shared credit; check remaining_budget when in doubt. No setup or key is needed - this is part of Studio.`,
+      It covers "change the image on my post", "generate an image/video for this post" and any other AI media work. The returned descriptions carry rules that are not repeated anywhere else (for example, a generation references media imported with media_import_url; a raw URL is not accepted as medias[].value). mediaMcpCall runs the listed tools.
+      Editing an image already on a post goes: the image from postsList, its URL imported with media_import_url, the edit generated (models_explore finds a model), the job polled with job_status until it finishes, the result brought into the media library with uploadFromUrlTool, and the swap made with replacePostAsset.
+      Generations spend the workspace's shared credit, which remaining_budget reports. No setup or key is needed - this is part of Studio.`,
       mcp: {
         annotations: {
           title: 'List AI Media Tools',

@@ -16,10 +16,10 @@ export class UploadFromUrlTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'uploadFromUrlTool',
-      description: `Upload a remote image or video into the media library from a public http(s) URL.
-Anything produced OUTSIDE this system must come through here before it can go on a post: an AI generator's result URL, a link the user pasted, a file an external editing tool handed back. Those URLs are usually temporary — attaching one directly may appear to work, and the post is then pointing at a file that expires before it publishes. The "path" this returns is the durable hosted copy, and that path is what every attachments field (and replacePostAsset's newPath) takes.
-Local or private files cannot be fetched by this tool: use uploadWidgetTool in apps that show it, otherwise uploadMediaTool for a small file or createUploadLinkTool for anything bigger.
-Returns the hosted media { id, path } to use as an attachment (or as the src of an <img> in the content, when the channel rules say pictures go inside the content), or { error } on failure.`,
+      description: `Uploads a remote image, video or audio file (mp3, wav) into the media library from a public http(s) URL.
+This is how anything produced OUTSIDE this system gets onto a post: an AI generator's result URL, a link the user pasted, a file an external editing tool handed back. Those URLs are usually temporary: attached directly, a post may look fine and then point at a file that expires before it publishes. The "path" this returns is the durable hosted copy, and that path is what every attachments field (and replacePostAsset's newPath) takes.
+Local or private files cannot be fetched by this tool; uploadWidgetTool (in apps that show it), uploadMediaTool (a small file) and createUploadLinkTool (anything bigger) take those.
+Returns the hosted media { id, path }, or { error } on failure. An image's or video's path is used as an attachment (or an image's as the src of an <img> in the content, when the channel rules say pictures go inside the content); an mp3 is kept as a file to download again and is refused as a post attachment.`,
       mcp: {
         annotations: {
           title: 'Upload Media From URL',
@@ -34,7 +34,7 @@ Returns the hosted media { id, path } to use as an attachment (or as the src of 
           .string()
           .url()
           .describe(
-            'The public http(s) URL of the image or video to upload. Local files and private hosts are not supported'
+            'The public http(s) URL of the image, video or audio file (mp3, wav) to upload. Local files and private hosts are not supported'
           ),
       }),
       // Mastra validates a tool's return against this schema, so it must also

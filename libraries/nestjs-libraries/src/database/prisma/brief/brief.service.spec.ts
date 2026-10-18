@@ -5,6 +5,7 @@ jest.mock(
 
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { BriefService } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.service';
+import { BRIEF_ONBOARDING_DOCUMENTS } from '@gitroom/nestjs-libraries/agent-brief/brief.registry';
 
 // BriefService with stub repositories. A plain delete wipes the document's
 // revisions, as before; keepHistory keeps them and records the removal.
@@ -178,5 +179,126 @@ describe('BriefService.removeAssets', () => {
       assets: 0,
     });
     expect(repository.saveDocument).not.toHaveBeenCalled();
+  });
+});
+
+describe('BriefService.onboardingStatus', () => {
+  const row = (key: string, body: string) => ({
+    category: 'foundation',
+    key,
+    content: JSON.stringify({ blocks: [{ id: 'b', heading: '', body }] }),
+  });
+  const statusOf = (rows: any[]) =>
+    new BriefService(
+      { getDocuments: jest.fn(async () => rows) } as any,
+      { getIntegrationsList: jest.fn(async () => []) } as any,
+      {} as any
+    ).onboardingStatus(ORG);
+
+  it('is not done while a Foundation document is missing or empty', async () => {
+    const status = await statusOf([
+      row('north-star', '<p>Be the default</p>'),
+      row('business-basics', '<p>We sell X</p>'),
+      row('icp', '<p></p>'),
+    ]);
+    expect(status.done).toBe(false);
+    const byKey = Object.fromEntries(
+      status.documents.map((d) => [d.key, d.filled])
+    );
+    expect(byKey['north-star']).toBe(true);
+    expect(byKey['business-basics']).toBe(true);
+    expect(byKey.icp).toBe(false);
+    expect(byKey['branding-assets']).toBe(false);
+    // Tasks is no longer part of the brief.
+    expect(byKey.tasks).toBeUndefined();
+  });
+
+  it('is done once every Foundation document is filled in', async () => {
+    const status = await statusOf(
+      BRIEF_ONBOARDING_DOCUMENTS.map((key) => row(key, '<p>Something real</p>'))
+    );
+    expect(status.documents).toHaveLength(BRIEF_ONBOARDING_DOCUMENTS.length);
+    expect(status.done).toBe(true);
+  });
+});
+
+describe('BriefService.onboardingStatus channels', () => {
+  it('lists each connected channel as "Platform preferences (account)"', async () => {
+    const service = new BriefService(
+      { getDocuments: jest.fn(async () => []) } as any,
+      {
+        getIntegrationsList: jest.fn(async () => [
+          {
+            id: 'int-1',
+            providerIdentifier: 'instagram',
+            name: 'VOHOLABS',
+            profile: 'voholabs',
+            disabled: false,
+            inBetweenSteps: false,
+          },
+          {
+            id: 'int-2',
+            providerIdentifier: 'x',
+            name: 'Paused',
+            profile: 'paused',
+            disabled: true,
+            inBetweenSteps: false,
+          },
+        ]),
+      } as any,
+      {} as any,
+      {
+        getSocialIntegration: jest.fn(() => ({
+          name: 'Instagram\n(Facebook Business)',
+        })),
+      } as any
+    );
+    const status = await service.onboardingStatus('org-1');
+    const channels = status.documents.filter((d) => d.category === 'channels');
+    expect(channels).toEqual([
+      expect.objectContaining({
+        key: 'int-1',
+        label: 'Instagram preferences (voholabs)',
+        filled: false,
+      }),
+    ]);
+    expect(status.done).toBe(false);
+  });
+});
+
+describe('BriefService.missingHeadings', () => {
+  const stored = {
+    content: JSON.stringify({
+      blocks: [
+        { id: 'a', heading: 'Tone', body: 'Warm' },
+        { id: 'b', heading: ' Off limits ', body: 'Politics' },
+        { id: 'c', heading: 'Audience', body: 'Founders' },
+      ],
+    }),
+  };
+
+  it('lists the stored headings the new rules leave out, trimmed and case-insensitively', async () => {
+    const { service } = build(stored);
+    await expect(
+      service.missingHeadings(ORG, 'foundation', 'north-star', [
+        'tone ',
+        'OFF LIMITS',
+      ])
+    ).resolves.toEqual(['Audience']);
+  });
+
+  it('has nothing missing for a document that was never written', async () => {
+    const { service } = build(null);
+    await expect(
+      service.missingHeadings(ORG, 'sources', 'forum', [])
+    ).resolves.toEqual([]);
+  });
+
+  it('leaves an unknown document to saveDocument', async () => {
+    const { service, repository } = build(stored);
+    await expect(
+      service.missingHeadings(ORG, 'foundation', 'brand', [])
+    ).resolves.toEqual([]);
+    expect(repository.getDocument).not.toHaveBeenCalled();
   });
 });

@@ -44,13 +44,6 @@ import { uniqBy } from 'lodash';
 import { RefreshIntegrationService } from '@gitroom/nestjs-libraries/integrations/refresh.integration.service';
 import { IntegrationPictureService } from '@gitroom/nestjs-libraries/integrations/integration.picture.service';
 
-import {
-  hasAccess,
-  paidOnlyChannelMessage,
-  providerNeedsPaidPlan,
-} from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
-import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
-
 @ApiTags('Integrations')
 @Controller('/integrations')
 export class IntegrationsController {
@@ -59,8 +52,7 @@ export class IntegrationsController {
     private _integrationService: IntegrationService,
     private _postService: PostsService,
     private _refreshIntegrationService: RefreshIntegrationService,
-    private _integrationPictureService: IntegrationPictureService,
-    private _walletService: WalletService
+    private _integrationPictureService: IntegrationPictureService
   ) {}
 
   @Post('/provider/:id/connect')
@@ -258,18 +250,8 @@ export class IntegrationsController {
       throw new Error('Integration not allowed');
     }
 
-    if (
-      providerNeedsPaidPlan(integration) &&
-      // @ts-ignore the request organization carries its subscription
-      !hasAccess(org) &&
-      !(await this._integrationService.canUseProvider(org.id, integration))
-    ) {
-      throw await this._walletService.providerLocked(
-        org.id,
-        integration,
-        paidOnlyChannelMessage()
-      );
-    }
+    // Connecting is free on every plan, X included; posting to X is what
+    // needs Plus (PostsService and the post activity check it).
 
     // A provider migrated via MIGRATE_PROVIDERS reconnects through its target
     // provider's OAuth: the callback lands on the target and the channel is

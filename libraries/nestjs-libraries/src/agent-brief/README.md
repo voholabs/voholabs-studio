@@ -47,9 +47,11 @@ A source document that reads well tends to answer: what it is, how to read it, w
 
 ## Writing is a replace, not a merge
 
-`briefSaveTool` replaces the whole document. Rules omitted from the call are deleted, which is why the tool is annotated `destructiveHint: true`. Always read with `briefListTool` first and send back the existing rules plus the change.
+`briefSaveTool` replaces the whole document, which is why the tool is annotated `destructiveHint: true`. When the call leaves out headings the stored document already has, it saves nothing and returns them in `missing` (matched trimmed and case-insensitively, by `BriefService.missingHeadings`); `replace: true` drops them on purpose. Read with `briefListTool` first and send back the existing rules plus the change.
 
 The one exception is `experience`, which the agent maintains itself through `briefLearnTool`. That revises a single lesson at a time rather than replacing the document, and needs no permission, because the content is the agent's own notes rather than the user's instructions.
+
+The missing-headings check lives in code rather than in the tool description on purpose. Tool descriptions and input descriptions only describe what a tool does, its inputs, its effects and what it returns; they never instruct the AI, because ChatGPT's pre-call review flags instruction-like descriptions as "Suspicious Instruction". How-to belongs in the agent's instructions or skills, and `chat/tools/tool.descriptions.spec.ts` enforces the wording.
 
 ## Adding a category
 

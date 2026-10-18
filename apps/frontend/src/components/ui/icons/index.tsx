@@ -790,6 +790,31 @@ export const MediaSettingsIcon: FC<IconProps> = ({
   </svg>
 );
 
+// Audio Icon (music note)
+export const AudioIcon: FC<IconProps> = ({
+  size = 16,
+  className,
+  ...props
+}) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 16 16"
+    fill="none"
+    className={className}
+    {...props}
+  >
+    <path
+      d="M6 12V3.6L13.3333 2V10.6667M6 12C6 13.1046 5.10457 14 4 14C2.89543 14 2 13.1046 2 12C2 10.8954 2.89543 10 4 10C5.10457 10 6 10.8954 6 12ZM13.3333 10.6667C13.3333 11.7712 12.4379 12.6667 11.3333 12.6667C10.2288 12.6667 9.33333 11.7712 9.33333 10.6667C9.33333 9.5621 10.2288 8.66667 11.3333 8.66667C12.4379 8.66667 13.3333 9.5621 13.3333 10.6667Z"
+      stroke="currentColor"
+      strokeWidth="1.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
 // Insert Media Icon
 export const InsertMediaIcon: FC<IconProps> = ({
   size = 16,

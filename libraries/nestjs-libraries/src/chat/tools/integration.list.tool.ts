@@ -15,7 +15,7 @@ export class IntegrationListTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'integrationList',
-      description: `This tool list available integrations to schedule posts to. Optionally pass a group id (from the groupList tool) to only list integrations belonging to that group`,
+      description: `Lists the channels (integrations) posts can be scheduled to. An optional group id (from the groupList tool) lists only the channels belonging to that group`,
       inputSchema: z.object({
         group: z
           .string()

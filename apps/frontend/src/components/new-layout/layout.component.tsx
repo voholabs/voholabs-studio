@@ -31,6 +31,10 @@ import {
   ApexBanner,
   useApexBanner,
 } from '@gitroom/frontend/components/layout/apex.banner';
+import {
+  EarlyBirdBanner,
+  useEarlyBirdBanner,
+} from '@gitroom/frontend/components/plus/early.bird.banner';
 import { CopilotKit } from '@copilotkit/react-core';
 import { MantineWrapper } from '@gitroom/react/helpers/mantine.wrapper';
 import { Impersonate } from '@gitroom/frontend/components/layout/impersonate';
@@ -47,7 +51,6 @@ import { PreConditionComponent } from '@gitroom/frontend/components/layout/pre-c
 import { AttachToFeedbackIcon } from '@gitroom/frontend/components/new-layout/sentry.feedback.component';
 import { FirstBillingComponent } from '@gitroom/frontend/components/billing/first.billing.component';
 import { TrialTracker } from '@gitroom/frontend/components/layout/gtm.component';
-import { RequiredOnboarding } from '@gitroom/frontend/components/onboarding/required.onboarding';
 import { RequiredTerms } from '@gitroom/frontend/components/onboarding/required.terms';
 import { WalletHeader } from '@gitroom/frontend/components/wallet/wallet.header';
 import {
@@ -92,6 +95,15 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
     refreshWhenHidden: false,
   });
   const apexBanner = useApexBanner(user?.tier === 'FREE');
+  // The early-bird bar takes the Apex bar's place while it runs (also on the
+  // Plus page, where it is hidden). Not over the onboarding, which shows the
+  // offer itself.
+  const earlyBird = useEarlyBirdBanner(
+    user?.tier === 'FREE' && !user?.needsOnboarding
+  );
+  const topBanner =
+    earlyBird.show ||
+    (!earlyBird.running && apexBanner.show && !user?.needsOnboarding);
 
   useEffect(() => {
     setSentryUser(
@@ -99,40 +111,26 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
     );
   }, [user]);
 
+  // Until onboarding is finished the app stays on its steps, which open over
+  // the calendar. The wallet and Plus stay reachable (opened in a new tab).
+  // The same while the welcome credits wait on a decision.
+  const holdOnOnboarding =
+    !!user?.needsOnboarding || !!user?.welcomeCreditsPending;
+  useEffect(() => {
+    if (
+      holdOnOnboarding &&
+      !pathname.startsWith('/launches') &&
+      !pathname.startsWith('/wallet') &&
+      !pathname.startsWith('/plus')
+    ) {
+      window.location.href = '/launches?onboarding=true';
+    }
+  }, [holdOnOnboarding, pathname]);
+
   if (!user) return null;
 
-  // The form stands alone, with none of the app mounted around it. Anything
-  // mounted here would call the API, be refused until the form is done, and
-  // leave that refusal cached under keys the calendar reads afterwards. For the
-  // same reason finishing is a fresh page load and not a re-render.
-  if (user.needsOnboarding) {
-    return (
-      <ContextWrapper user={user}>
-        <MantineWrapper>
-          <Toaster />
-          <div
-            className={clsx(
-              'flex flex-col min-h-screen min-w-screen text-newTextColor p-[12px]',
-              interTight.className
-            )}
-          >
-            <RequiredOnboarding
-              name={user.name}
-              email={user.email}
-              onDone={() => {
-                // A new account goes on to connecting its channels.
-                window.location.href = '/launches?onboarding=true';
-              }}
-            />
-          </div>
-        </MantineWrapper>
-      </ContextWrapper>
-    );
-  }
-
   // Same again for the Terms: the app waits until the current version has been
-  // agreed to. It comes after the onboarding form, and nobody sees it while an
-  // admin is impersonating them.
+  // agreed to. Nobody sees it while an admin is impersonating them.
   if (user.needsTerms) {
     return (
       <ContextWrapper user={user}>
@@ -193,8 +191,21 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
               ) : (
                 <>
                   <AnnouncementBanner />
-                  {apexBanner.show && (
-                    <ApexBanner onClose={apexBanner.dismiss} />
+                  {/* Not over the onboarding, which needs the whole screen */}
+                  {earlyBird.running ? (
+                    earlyBird.show &&
+                    earlyBird.earlyBird && (
+                      <EarlyBirdBanner
+                        earlyBird={earlyBird.earlyBird}
+                        offset={earlyBird.offset}
+                        onClose={earlyBird.dismiss}
+                      />
+                    )
+                  ) : (
+                    apexBanner.show &&
+                    !user.needsOnboarding && (
+                      <ApexBanner onClose={apexBanner.dismiss} />
+                    )
                   )}
                   <div className="flex-1 flex gap-[8px] mobile:gap-0">
                     <Support />
@@ -215,9 +226,9 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
                         id="left-menu"
                         className={clsx(
                           'fixed w-[64px] start-[20px] flex flex-1 mobile:static mobile:h-auto mobile:min-h-full mobile:mx-auto',
-                          // The Apex banner pushes the page down 44px; the
-                          // fixed menu moves with it to stay aligned.
-                          apexBanner.show
+                          // A top bar (early bird or Apex) pushes the page
+                          // down 44px; the fixed menu moves with it.
+                          topBanner
                             ? 'top-[44px] h-[calc(100%-44px)]'
                             : 'top-0 h-full',
                           user?.admin && 'pt-[52px] max-h-[1000px]:w-[500px]'

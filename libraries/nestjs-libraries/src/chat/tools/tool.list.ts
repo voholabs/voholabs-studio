@@ -45,6 +45,7 @@ import { WalletTransactionsTool } from '@gitroom/nestjs-libraries/chat/tools/wal
 import { WalletPricesTool } from '@gitroom/nestjs-libraries/chat/tools/wallet.prices.tool';
 import { SkillsListTool } from '@gitroom/nestjs-libraries/chat/tools/skills.list.tool';
 import { SkillGetTool } from '@gitroom/nestjs-libraries/chat/tools/skills.get.tool';
+import { BriefStatusTool } from '@gitroom/nestjs-libraries/chat/tools/brief.status.tool';
 import { BriefOnboardingStatusTool } from '@gitroom/nestjs-libraries/chat/tools/brief.onboarding.status.tool';
 import { ClippingTool } from '@gitroom/nestjs-libraries/chat/tools/clipping.tool';
 import { ClippingStatusTool } from '@gitroom/nestjs-libraries/chat/tools/clipping.status.tool';
@@ -60,6 +61,7 @@ export const toolList = [
   BriefHistoryTool,
   MarkLearnedTool,
   BriefOnboardingStatusTool,
+  BriefStatusTool,
   SkillsListTool,
   SkillGetTool,
   IntegrationListTool,
@@ -97,7 +99,7 @@ export const toolList = [
   MediaMcpListTool,
   MediaMcpCallTool,
   // The credit wallet. Listed to every plan: a paid plan is told it does not
-  // use credits, a free one how to top up.
+  // use credits, a free one what Plus opens.
   WalletBalanceTool,
   WalletTransactionsTool,
   WalletPricesTool,
@@ -121,20 +123,14 @@ export const toolList = [
   UploadFromUrlTool,
 ];
 
-// Not part of the free plan: the brief, the skills library, AI media and
-// video clipping. The MCP leaves them out
+// Not part of the free plan: the brief onboarding run, the skills library, AI
+// media and video clipping. The brief itself is free: onboarding has every new
+// workspace's agent fill it in. The MCP leaves them out
 // of what it lists to a free organization, so the free plan is a complete
 // product on its own terms rather than one with locked doors in it. Each of
 // these also refuses by itself (see paidOnly; clipping by its clipping
 // minutes), for the routes that cannot pick what they list.
 export const paidToolNames = [
-  'briefListTool',
-  'briefSaveTool',
-  'briefDeleteTool',
-  'briefLearnTool',
-  'briefAssetTool',
-  'briefHistory',
-  'markLearned',
   'briefOnboardingStatus',
   'skillsList',
   'skillGet',
@@ -150,13 +146,6 @@ export const paidToolNames = [
 // them. Each tool still refuses on its own when its own key is not open
 // (paidOnly(context, feature, 'brief' | 'skills')).
 export const walletToolNames = [
-  'briefListTool',
-  'briefSaveTool',
-  'briefDeleteTool',
-  'briefLearnTool',
-  'briefAssetTool',
-  'briefHistory',
-  'markLearned',
   'briefOnboardingStatus',
   'skillsList',
   'skillGet',

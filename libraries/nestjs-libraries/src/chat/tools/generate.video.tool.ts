@@ -34,13 +34,12 @@ export class GenerateVideoTool implements AgentToolInterface {
           openWorldHint: true,
         },
       },
-      description: `Generate video to use in a post,
-                    in case the user specified a platform that requires attachment and attachment was not provided,
-                    ask if they want to generate a picture of a video.
-                    In many cases 'videoFunctionTool' will need to be called first, to get things like voice id
-                    Generating takes a few minutes, so this only starts the generation and returns a jobId:
-                    poll 'videoStatusTool' with it until the status is "completed" to get the video url.
-                    Here are the type of video that can be generated:
+      description: `Generates a video to use in a post,
+                    for example for a platform that requires an attachment when none was provided.
+                    Many video types take values that 'videoFunctionTool' returns, such as a voice id.
+                    Generating takes a few minutes, so this starts the generation and returns a jobId;
+                    'videoStatusTool' reports its status and, once it is "completed", the video url.
+                    The types of video that can be generated:
                     ${this._videoManager
                       .getAllVideos()
                       .map((p) => "-" + p.title)

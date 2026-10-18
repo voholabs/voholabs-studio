@@ -24,6 +24,7 @@ import dayjs from 'dayjs';
 import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 import {
   WalletAdjustDto,
+  WalletEarlyBirdPreviewDto,
   WalletGrantDto,
   WalletUnfreezeDto,
 } from '@gitroom/nestjs-libraries/dtos/wallet/wallet.admin.dto';
@@ -33,6 +34,10 @@ import {
 } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.billing.service';
 import { AgentConnectionService } from '@gitroom/nestjs-libraries/database/prisma/agent-connections/agent-connection.service';
 import { IntegrationService } from '@gitroom/nestjs-libraries/database/prisma/integrations/integration.service';
+import {
+  PlusUnavailableError,
+  WalletPlusService,
+} from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.plus.service';
 import { walletAlert } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.alert';
 import { isGrowthViewer } from '@gitroom/nestjs-libraries/database/prisma/admin-stats/growth.viewer';
 
@@ -63,7 +68,8 @@ export class AdminController {
     private _walletService: WalletService,
     private _walletBilling: WalletBillingService,
     private _agentConnectionService: AgentConnectionService,
-    private _integrationService: IntegrationService
+    private _integrationService: IntegrationService,
+    private _walletPlus: WalletPlusService
   ) {}
 
   private assertSuperAdmin(user: User) {
@@ -315,6 +321,28 @@ export class AdminController {
       wasFrozen: result.wasFrozen,
       balance: await this._walletService.balance(body.organizationId),
     };
+  }
+
+  // Sends the Plus early-bird email, rendered exactly as the real one, to
+  // the workspace's admins with "[Preview]" in the subject. The real email
+  // stays unsent. Without a live early bird it shows a sample code.
+  @Post('/wallet/plus-early-bird-email-preview')
+  async walletEarlyBirdEmailPreview(
+    @GetUserFromRequest() user: User,
+    @Body() body: WalletEarlyBirdPreviewDto
+  ) {
+    this.assertSuperAdmin(user);
+    await this.assertOrganization(body.organizationId);
+    try {
+      return await this._walletPlus.sendEarlyBirdEmailPreview(
+        body.organizationId
+      );
+    } catch (err) {
+      if (err instanceof PlusUnavailableError) {
+        throw new HttpException(err.message, 400);
+      }
+      throw err;
+    }
   }
 
   // Wallet payments in Stripe against top-ups in the ledger over the last

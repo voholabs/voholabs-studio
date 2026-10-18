@@ -1,9 +1,11 @@
 import { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import {
+  PublicEarlyBird,
   PublicPricing,
   PublicPrices,
 } from '@gitroom/frontend/components/pricing/public.pricing';
+import { Flow } from '@gitroom/frontend/components/flows/flows.hooks';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,6 +38,47 @@ const loadPrices = async (): Promise<PublicPrices | null> => {
     return res.ok ? await res.json() : null;
   } catch {
     return null;
+  }
+};
+
+// A signed-in workspace's early bird, read with its own session; null for
+// visitors and on any failure (the page then shows the list price).
+const loadEarlyBird = async (
+  auth?: string,
+  showorg?: string
+): Promise<PublicEarlyBird | null> => {
+  if (!auth) {
+    return null;
+  }
+  try {
+    const res = await fetch(`${process.env.BACKEND_INTERNAL_URL}/wallet/plus`, {
+      headers: { auth, ...(showorg ? { showorg } : {}) },
+      cache: 'no-store',
+    });
+    if (!res.ok) {
+      return null;
+    }
+    const plan = await res.json();
+    return {
+      earlyBird: plan?.earlyBird || null,
+      serverNow: plan?.serverNow || new Date().toISOString(),
+      plus: !!plan?.access?.plus,
+    };
+  } catch {
+    return null;
+  }
+};
+
+// The flow catalog, on the same schedule. No flows when it is not available.
+const loadFlows = async (): Promise<Flow[]> => {
+  try {
+    const res = await fetch(
+      `${process.env.BACKEND_INTERNAL_URL}/public/flows`,
+      { next: { revalidate: 60 } }
+    );
+    return res.ok ? (await res.json())?.flows || [] : [];
+  } catch {
+    return [];
   }
 };
 
@@ -88,7 +131,15 @@ const jsonLd = (prices: PublicPrices | null) => {
 };
 
 export default async function PricingPage() {
-  const [prices, cookieStore] = await Promise.all([loadPrices(), cookies()]);
+  const [prices, flows, cookieStore] = await Promise.all([
+    loadPrices(),
+    loadFlows(),
+    cookies(),
+  ]);
+  const earlyBird = await loadEarlyBird(
+    cookieStore.get('auth')?.value,
+    cookieStore.get('showorg')?.value
+  );
   return (
     <>
       <script
@@ -97,7 +148,12 @@ export default async function PricingPage() {
           __html: JSON.stringify(jsonLd(prices)).replace(/</g, '\\u003c'),
         }}
       />
-      <PublicPricing prices={prices} signedIn={!!cookieStore.get('auth')} />
+      <PublicPricing
+        prices={prices}
+        flows={flows}
+        signedIn={!!cookieStore.get('auth')}
+        earlyBird={earlyBird}
+      />
     </>
   );
 }

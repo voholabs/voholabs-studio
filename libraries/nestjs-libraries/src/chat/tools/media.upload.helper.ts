@@ -4,12 +4,13 @@ import { MediaService } from '@gitroom/nestjs-libraries/database/prisma/media/me
 import { UploadFactory } from '@gitroom/nestjs-libraries/upload/upload.factory';
 import { getMaxSize } from '@gitroom/nestjs-libraries/upload/custom.upload.validation';
 import { ssrfSafeDispatcher } from '@gitroom/nestjs-libraries/dtos/webhooks/ssrf.safe.dispatcher';
+import { AUDIO_ATTACHMENT_ERROR } from '@gitroom/helpers/utils/valid.url.path';
 import { Readable } from 'stream';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { fileTypeFromBuffer } = require('file-type');
 
-// Same allow-list as the public API upload routes.
-export const ALLOWED_MEDIA_MIME = new Set<string>([
+// What a post can carry: the same allow-list as the public API upload routes.
+export const POST_ATTACHMENT_MIME = new Set<string>([
   'image/jpeg',
   'image/png',
   'image/gif',
@@ -18,6 +19,15 @@ export const ALLOWED_MEDIA_MIME = new Set<string>([
   'image/bmp',
   'image/tiff',
   'video/mp4',
+]);
+
+// What the agent may put in the media library: post media plus mp3 and wav audio
+// (voice-overs the agent's sandbox downloads again). Audio is never a post
+// attachment, see POST_ATTACHMENT_MIME and AUDIO_ATTACHMENT_ERROR.
+export const ALLOWED_MEDIA_MIME = new Set<string>([
+  ...POST_ATTACHMENT_MIME,
+  'audio/mpeg',
+  'audio/wav',
 ]);
 
 export type StoredMedia = { id?: string; path?: string; error?: string };
@@ -35,15 +45,27 @@ export const storeBufferAsMedia = async (params: {
   organizationId: string;
   buffer: Buffer;
   fileName?: string;
+  // a file about to become a post attachment: audio is refused
+  postAttachment?: boolean;
 }): Promise<StoredMedia> => {
-  const { storage, mediaService, organizationId, buffer, fileName } = params;
+  const {
+    storage,
+    mediaService,
+    organizationId,
+    buffer,
+    fileName,
+    postAttachment,
+  } = params;
 
   const detected = await fileTypeFromBuffer(buffer);
   if (!detected || !ALLOWED_MEDIA_MIME.has(detected.mime)) {
     return {
       error:
-        'Unsupported file type. Allowed: jpeg, png, gif, webp, avif, bmp, tiff and mp4.',
+        'Unsupported file type. Allowed: jpeg, png, gif, webp, avif, bmp, tiff, mp4, mp3 and wav.',
     };
+  }
+  if (postAttachment && !POST_ATTACHMENT_MIME.has(detected.mime)) {
+    return { error: AUDIO_ATTACHMENT_ERROR };
   }
 
   const maxSize = getMaxSize(detected.mime);
@@ -95,7 +117,8 @@ export const storeBufferAsMedia = async (params: {
     getFile.originalname,
     getFile.path,
     undefined,
-    buffer.length
+    buffer.length,
+    detected.mime.startsWith('audio/') ? 'audio' : undefined
   );
 
   return { id: saved.id, path: saved.path };
@@ -117,8 +140,10 @@ export const storeUrlAsMedia = async (params: {
   mediaService: MediaService;
   organizationId: string;
   url: string;
+  postAttachment?: boolean;
 }): Promise<StoredMedia> => {
-  const { storage, mediaService, organizationId, url } = params;
+  const { storage, mediaService, organizationId, url, postAttachment } =
+    params;
 
   try {
     const response = await fetch(url, {
@@ -151,6 +176,7 @@ export const storeUrlAsMedia = async (params: {
       mediaService,
       organizationId,
       buffer,
+      postAttachment,
     });
   } catch (err) {
     // undici's fetch rejects with a generic TypeError('fetch failed') and

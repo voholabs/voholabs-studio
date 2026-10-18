@@ -32,12 +32,19 @@ export class MediaRepository {
     return Number(total._sum.fileSize || 0);
   }
 
-  // Organizations that have topped up their wallet (pay-as-you-go, also when
+  // Organizations that have topped up their wallet or had Plus (also when
   // frozen), with their plan and the bytes in their media library, for the
   // wallet housekeeping. Two queries whatever the number of organizations.
   async storageOfWalletOrganizations() {
     const organizations = await this._organization.model.organization.findMany({
-      where: { wallet: { firstTopUpAt: { not: null } } },
+      where: {
+        wallet: {
+          OR: [
+            { firstTopUpAt: { not: null } },
+            { plusSubscriptionId: { not: null } },
+          ],
+        },
+      },
       select: { id: true, subscription: true },
     });
     if (!organizations.length) {

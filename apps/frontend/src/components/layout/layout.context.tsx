@@ -5,7 +5,7 @@ import { FetchWrapperComponent } from '@gitroom/helpers/utils/custom.fetch';
 import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
 import { useReturnUrl } from '@gitroom/frontend/app/(app)/auth/return.url.component';
 import { useVariables } from '@gitroom/react/helpers/variable.context';
-import { openTopUp } from '@gitroom/frontend/components/wallet/wallet.bridge';
+import { openWalletRefusal } from '@gitroom/frontend/components/wallet/wallet.bridge';
 export default function LayoutContext(params: { children: ReactNode }) {
   if (params?.children) {
     // eslint-disable-next-line react/no-children-prop
@@ -147,9 +147,10 @@ function LayoutContextInner(params: { children: ReactNode }) {
           return false;
         }
 
-        // Opens with a wallet top-up, not a Postiz plan: offer the top-up.
+        // Paid from the wallet, not a Postiz plan: offer Plus when it is
+        // locked (plus: true), else the top-up.
         if (body?.wallet) {
-          openTopUp(body.message);
+          openWalletRefusal(body);
           return false;
         }
 

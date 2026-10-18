@@ -2,10 +2,7 @@ import { AgentToolInterface } from '@gitroom/nestjs-libraries/chat/agent.tool.in
 import { createTool } from '@mastra/core/tools';
 import { Injectable } from '@nestjs/common';
 import z from 'zod';
-import {
-  checkAuth,
-  paidOnly,
-} from '@gitroom/nestjs-libraries/chat/auth.context';
+import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
 import { BriefService } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.service';
 import { BRIEF_REGISTRY } from '@gitroom/nestjs-libraries/agent-brief/brief.registry';
 
@@ -17,10 +14,10 @@ export class BriefListTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'briefListTool',
-      description: `Read the agent brief: everything the user has written about their business — what they do, who they are for, how they sound, what is off limits, how each channel should be steered, and which sources to draw on.
-Read this before writing anything on the user's behalf, so the content matches their business rather than generic advice.
-It returns both the schema (which categories and documents exist, and which of them can be created or deleted) and the content the user has filled in so far. A document that has never been written to simply will not appear in "documents".
-Each document is a list of rules: a heading and the text under it.`,
+      description: `Reads the agent brief: everything the user has written about their business — what they do, who they are for, how they sound, what is off limits, how each channel is steered, and which sources to draw on.
+It is the context for anything written on the user's behalf: content drawn from it matches their business rather than generic advice.
+It returns both the schema (which categories and documents exist, and which of them can be created or deleted) and the content the user has filled in so far. A document that has not been written to yet is absent from "documents".
+Each document is a list of rules: a heading and the text under it. briefSaveTool writes a document's whole list of rules, so the rules returned here are the ones a save sends back alongside its changes.`,
       mcp: {
         annotations: {
           title: 'Read Agent Brief',
@@ -37,7 +34,7 @@ Each document is a list of rules: a heading and the text under it.`,
           .describe(
             `Only return documents of one category: ${BRIEF_REGISTRY.map(
               (category) => category.id
-            ).join(', ')}. Omit for everything.`
+            ).join(', ')}. Left out, every category.`
           ),
         key: z
           .string()
@@ -57,16 +54,12 @@ Each document is a list of rules: a heading and the text under it.`,
           .array(z.string())
           .optional()
           .describe(
-            'Keys that were asked for but have never been written to'
+            'Keys that were asked for but have not been written to yet'
           ),
         error: z.string().optional(),
       }),
       execute: async (inputData, context) => {
         checkAuth(inputData, context);
-        const blocked = paidOnly(context, 'The agent brief', 'brief');
-        if (blocked) {
-          return { error: blocked };
-        }
         if (
           inputData.category &&
           !BRIEF_REGISTRY.some((category) => category.id === inputData.category)

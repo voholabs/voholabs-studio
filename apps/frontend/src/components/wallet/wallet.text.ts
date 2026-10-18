@@ -5,6 +5,7 @@
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import {
   WalletPricedAction,
+  WalletSummary,
   WalletTransaction,
 } from '@gitroom/frontend/components/wallet/wallet.types';
 import { WalletFormat } from '@gitroom/frontend/components/wallet/wallet.hooks';
@@ -13,6 +14,15 @@ export type T = ReturnType<typeof useT>;
 
 const raw = { interpolation: { escapeValue: false } };
 
+// "$1 = 19 credits": what one unit of the currency buys as a top-up.
+export const rateLine = (t: T, f: WalletFormat, w: WalletSummary) =>
+  w.topUp
+    ? t('wallet_rate_line', '{{money}} = {{credits}} credits', {
+        money: f.moneyShort(f.factor),
+        credits: f.creditsShort(f.creditsFor(f.factor, w.topUp.creditsPerUnit)),
+      })
+    : '';
+
 // English defaults for known units; unknown units fall back to the raw value.
 const UNIT_DEFAULTS: Record<string, [string, string]> = {
   post: ['post', 'posts'],
@@ -20,6 +30,8 @@ const UNIT_DEFAULTS: Record<string, [string, string]> = {
   onboarding: ['onboarding', 'onboardings'],
   skill: ['skill', 'skills'],
   '1k_tokens': ['1K tokens', '1K tokens'],
+  '1k_chars': ['1K characters', '1K characters'],
+  image: ['image', 'images'],
   minute: ['minute', 'minutes'],
   read: ['read', 'reads'],
   repost: ['repost', 'reposts'],
@@ -65,11 +77,6 @@ export const tModel = (t: T, a: WalletPricedAction) => {
   return t('wallet_model_per_use', 'per {{unit}}', { unit, ...raw });
 };
 
-const unlocksSuffix = (t: T, a: WalletPricedAction) =>
-  a.requiresTopUp
-    ? t('wallet_allowance_unlocks_suffix', ', unlocks after first top up')
-    : '';
-
 const firstFree = (t: T, n: number) =>
   n === 1
     ? t('wallet_allowance_first_free', 'First time free')
@@ -78,12 +85,10 @@ const firstFree = (t: T, n: number) =>
 // The "Included free" column.
 export const tAllowance = (t: T, a: WalletPricedAction) => {
   if (a.billing === 'UNLOCK')
-    return (
-      t('wallet_allowance_unlimited', 'Unlimited use') + unlocksSuffix(t, a)
-    );
+    return t('wallet_allowance_unlimited', 'Unlimited use');
   const n = a.freeUnits || 0;
   if (!n) return '';
-  if (a.freePeriod === 'ONCE') return firstFree(t, n) + unlocksSuffix(t, a);
+  if (a.freePeriod === 'ONCE') return firstFree(t, n);
   const units = unitLabel(t, a.unit, n);
   if (a.freePeriod === 'MONTH')
     return t('wallet_allowance_monthly', '{{n}} {{units}} free each month', {
@@ -103,6 +108,19 @@ export const tPrice = (t: T, f: WalletFormat, a: WalletPricedAction) =>
     ? t('wallet_price_free', 'Free')
     : t('wallet_price_credits', '{{credits}} credits', {
         credits: f.credits(a.price),
+        ...raw,
+      });
+
+// "0.03 to 1.50 credits", or "1.50 credits" when both ends are the same.
+export const tPriceRange = (t: T, f: WalletFormat, low: number, high: number) =>
+  low === high
+    ? t('wallet_price_credits', '{{credits}} credits', {
+        credits: f.credits(low),
+        ...raw,
+      })
+    : t('wallet_price_credits_range', '{{low}} to {{high}} credits', {
+        low: f.credits(low),
+        high: f.credits(high),
         ...raw,
       });
 
@@ -137,14 +155,6 @@ export const tFreeUse = (t: T, a: WalletPricedAction) => {
     units,
     ...raw,
   });
-};
-
-// The line a locked feature shows on what a top-up gives, e.g. "Any top-up
-// opens it. Your first onboarding is free."
-export const tTopUpGift = (t: T, a?: WalletPricedAction) => {
-  const opens = t('wallet_gift_opens', 'Any top-up opens it.');
-  const free = a ? tFreeUse(t, a) : '';
-  return free ? `${opens} ${free}` : opens;
 };
 
 // One sentence on how something is paid, e.g. for a page's coins hint.
@@ -263,6 +273,8 @@ const TX_TYPES: Record<string, string> = {
   REFUND: 'Refund',
   GRANT: 'Grant',
   ADJUST: 'Adjustment',
+  PLAN_GRANT: 'Plus credits',
+  PLAN_EXPIRE: 'Plus credits reset',
 };
 
 export const txTypeLabel = (t: T, type: string) =>

@@ -3,6 +3,7 @@ import {
   AgentConnectionRepository,
   RecordConnectionInput,
 } from '@gitroom/nestjs-libraries/database/prisma/agent-connections/agent-connection.repository';
+import { clientFromInfoName } from '@gitroom/nestjs-libraries/database/prisma/agent-connections/agent.client';
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -15,18 +16,36 @@ export class AgentConnectionService {
   }
 
   // What the connect-agent panel shows: has an agent reached the MCP for this
-  // organization, which one, and when it was last seen.
+  // organization, which one, and when it was last seen. A finished sign-in
+  // counts too: ChatGPT can sign in and make no call until the first chat, and
+  // onboarding must never wait on that.
   async status(organizationId: string) {
-    const [stamps, latest] = await Promise.all([
+    const [stamps, latest, clients, signIn] = await Promise.all([
       this._agentConnectionRepository.getOrganizationStamps(organizationId),
       this._agentConnectionRepository.latestConnection(organizationId),
+      this._agentConnectionRepository.connectedClients(organizationId),
+      this._agentConnectionRepository.latestSignIn(organizationId),
     ]);
     if (!stamps?.agentFirstConnectedAt && !latest) {
-      return { connected: false as const };
+      if (!signIn) {
+        return { connected: false as const };
+      }
+      const client = clientFromInfoName(signIn.oauthApp?.name) || null;
+      return {
+        connected: true as const,
+        client,
+        clients: client ? [client] : [],
+        authMethod: 'OAUTH',
+        firstConnectedAt: signIn.updatedAt,
+        lastSeenAt: null as Date | null,
+      };
     }
     return {
       connected: true as const,
       client: latest?.client || null,
+      // One host can show up as several: ChatGPT's Work mode calls tools
+      // through Codex.
+      clients,
       authMethod: latest?.authMethod || null,
       firstConnectedAt: stamps?.agentFirstConnectedAt || null,
       lastSeenAt: latest?.lastSeenAt || stamps?.agentLastSeenAt || null,

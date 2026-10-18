@@ -13,8 +13,8 @@ export class MediaDeleteTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'deleteMediaTool',
-      description: `Delete an image or a video from the media library. Use mediaList first to find the id.
-Posts that were already published keep their copy of the file, but any scheduled post still pointing at this asset will lose it, so always confirm with the user before calling it.`,
+      description: `Deletes an image or a video from the media library, by its id from mediaList. A deletion cannot be undone.
+Posts that were already published keep their copy of the file; a scheduled post still pointing at this asset loses it.`,
       mcp: {
         annotations: {
           title: 'Delete Media',

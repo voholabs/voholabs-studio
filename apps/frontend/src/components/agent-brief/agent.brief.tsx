@@ -22,7 +22,7 @@ import { BriefTree } from '@gitroom/frontend/components/agent-brief/brief.tree';
 import { BriefDocument } from '@gitroom/frontend/components/agent-brief/brief.document';
 
 // /brief, /brief/<category>, /brief/<category>/<document key>
-// headerAction sits beside the save indicator (the wallet's redo button).
+// headerAction sits beside the save indicator (the Improve brief button).
 export const AgentBrief: FC<{ headerAction?: ReactNode }> = ({
   headerAction,
 }) => {

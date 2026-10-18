@@ -1,6 +1,7 @@
 'use client';
 
 import { FC, useEffect, useMemo, useState } from 'react';
+import clsx from 'clsx';
 import { useShallow } from 'zustand/react/shallow';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { useLaunchStore } from '@gitroom/frontend/components/new-launch/store';
@@ -13,12 +14,16 @@ import {
   useWalletFormat,
   useWalletPrices,
 } from '@gitroom/frontend/components/wallet/wallet.hooks';
-import { titleCase } from '@gitroom/frontend/components/wallet/wallet.text';
-import { openTopUp } from '@gitroom/frontend/components/wallet/wallet.bridge';
+import {
+  openPlus,
+  openTopUp,
+} from '@gitroom/frontend/components/wallet/wallet.bridge';
 import { WalletEstimate } from '@gitroom/frontend/components/wallet/wallet.types';
 import {
   TONE_TEXT,
+  lockedAmongSelected,
   toneFor,
+  useTopUpProviders,
   useWalletAccess,
   WalletAccess,
 } from '@gitroom/frontend/components/wallet-locks/wallet.access';
@@ -173,6 +178,8 @@ export const WalletCostLine: FC<{
   const { data: wallet } = useWallet(walletOrg && cost.priced.length > 0);
   const { data: prices } = useWalletPrices(walletOrg);
   const f = useWalletFormat(wallet?.currency);
+  // More credits come from a top-up with Plus, from Plus without it.
+  const needsPlus = wallet?.topUpAllowed === false;
 
   if (!walletOrg || !cost.selected) {
     return null;
@@ -312,7 +319,17 @@ export const WalletCostLine: FC<{
         <Dot />
         {blocked ? (
           <span className="text-danger">
-            {mode === 'update'
+            {needsPlus
+              ? mode === 'update'
+                ? t(
+                    'wallet_update_short_plus',
+                    'Not enough credits to update it. Get Plus, or save it as a draft.'
+                  )
+                : t(
+                    'wallet_schedule_short_plus',
+                    'Not enough credits to schedule it. Get Plus, or save it as a draft.'
+                  )
+              : mode === 'update'
               ? t(
                   'wallet_update_short',
                   'Not enough credits to update it. Top up, or save it as a draft.'
@@ -323,10 +340,12 @@ export const WalletCostLine: FC<{
                 )}{' '}
             <button
               type="button"
-              onClick={() => openTopUp()}
+              onClick={() => (needsPlus ? openPlus() : openTopUp())}
               className="underline underline-offset-2 font-[600] hover:opacity-80"
             >
-              {t('wallet_top_up', 'Top up')}
+              {needsPlus
+                ? t('plus_get', 'Get Plus')
+                : t('wallet_top_up', 'Top up')}
             </button>{' '}
             <span className="text-textItemBlur tabular-nums">
               {t('wallet_balance_n', 'Balance: {{credits}}', {
@@ -359,43 +378,60 @@ export const WalletCostLine: FC<{
   );
 };
 
-// Providers a top-up opens, with their display names.
-const useLockedProviders = (enabled: boolean) => {
-  const { data: prices } = useWalletPrices(enabled);
-  const { data: channels } = useSupportedChannels(enabled);
-  return useMemo(() => {
-    const seen = new Map<string, { name: string; billing: string }>();
-    for (const a of (prices || []).flatMap((s) => s.actions)) {
-      if (!a.provider || !a.requiresTopUp || seen.has(a.provider)) continue;
-      const channel = channels?.find((c) => c.identifier === a.provider);
-      seen.set(a.provider, {
-        name: channel
-          ? channel.name.replace(/\n\(.*\)/, '').trim()
-          : titleCase(a.provider),
-        billing: a.billing,
-      });
-    }
-    return [...seen.values()];
-  }, [prices, channels]);
+// Selected channels Plus opens (useTopUpProviders), with their display
+// names. Channels only: this sits beside the channel avatars, and a feature
+// Plus opens (the guided brief run, skills) is not about posting.
+const useLockedProviders = () => {
+  const locked = useTopUpProviders();
+  const selectedIntegrations = useLaunchStore(
+    (state) => state.selectedIntegrations
+  );
+  const lockedSelected = useMemo(
+    () =>
+      lockedAmongSelected(
+        locked,
+        selectedIntegrations.map((s) => s.integration.identifier)
+      ),
+    [locked, selectedIntegrations]
+  );
+  const { data: channels } = useSupportedChannels(lockedSelected.length > 0);
+  return useMemo(
+    () =>
+      (channels || [])
+        .filter((c) => lockedSelected.includes(c.identifier))
+        .map((c) => ({ name: c.name.replace(/\n\(.*\)/, '').trim() })),
+    [channels, lockedSelected]
+  );
 };
 
-// Free plan: beside the channel avatars, which channels a top-up opens.
+// Free plan: beside the channel avatars, which of the selected channels
+// Plus opens. Nothing while none of them needs Plus.
 export const WalletLockHint: FC = () => {
   const t = useT();
   const access = useWalletAccess();
-  const locked = useLockedProviders(access === 'free');
+  const locked = useLockedProviders();
   if (access !== 'free' || !locked.length) {
     return null;
   }
   return (
     <div className="text-[12px] text-textItemBlur flex items-center gap-[6px] ms-[4px] whitespace-nowrap">
-      <span className={TONE_TEXT[toneFor(locked[0].billing)]}>
+      <span className={TONE_TEXT[toneFor()]}>
         <LockIcon size={10} />
       </span>
-      {t('wallet_unlocks_on_top_up', '{{names}} unlocks when you top up', {
+      {t('plus_unlocks_names', '{{names}} is included with Plus', {
         names: locked.map((l) => l.name).join(', '),
         interpolation: { escapeValue: false },
       })}
+      <button
+        type="button"
+        onClick={() => openPlus()}
+        className={clsx(
+          'underline underline-offset-2 font-[600] hover:opacity-80',
+          TONE_TEXT[toneFor()]
+        )}
+      >
+        {t('plus_get', 'Get Plus')}
+      </button>
     </div>
   );
 };

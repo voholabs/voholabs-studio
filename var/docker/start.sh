@@ -3,6 +3,92 @@
 # wait until it accepts connections, then start nginx + the Postiz processes.
 set -e
 
+# With MCP_GATEWAY_URL set (e.g. http://gateway.internal:8080), the MCP
+# endpoints (/api/mcp-oauth, /api/mcp, /api/mcp/<key>) go to that gateway,
+# which relays them to the backend. The URLs connected agents use stay the
+# same. If the gateway cannot be reached, nginx serves the request from the
+# backend directly, so agents keep working (only when nothing reached the
+# gateway, so a tool call is never sent twice). Unset or malformed, the file
+# is empty and nothing changes.
+write_mcp_gateway_conf() {
+  conf=/etc/nginx/mcp-gateway.conf
+  : > "$conf"
+  [ -n "$MCP_GATEWAY_URL" ] || return 0
+  # scheme://host[:port] only: nginx appends the request path itself, so a
+  # path here would be dropped or doubled.
+  gateway=$(printf '%s' "$MCP_GATEWAY_URL" | sed -e 's#/*$##')
+  if ! printf '%s' "$gateway" | grep -Eq '^https?://([A-Za-z0-9.-]+|\[[0-9A-Fa-f:.]+\])(:[0-9]{1,5})?$'; then
+    echo "[start] MCP_GATEWAY_URL is not scheme://host[:port] ($MCP_GATEWAY_URL); MCP endpoints stay on the backend"
+    return 0
+  fi
+  resolver=$(awk '/^nameserver/ { print $2; exit }' /etc/resolv.conf)
+  case "$resolver" in *:*) resolver="[$resolver]" ;; esac
+  echo "[start] MCP endpoints go through the gateway at $gateway"
+  cat > "$conf" <<EOF
+resolver $resolver valid=10s ipv6=on;
+
+# The MCP endpoints. When the gateway cannot be reached, the backend serves
+# the request directly (@mcp_direct). A POST is a tool call and must not run
+# twice, so @mcp_direct only takes a request none of which reached the
+# gateway (\$upstream_bytes_sent is 0, or empty when the name did not
+# resolve): the connection was refused or timed out. A gateway that took the
+# request and then failed gives the agent a 502/504 instead of a resend.
+# nginx 1.22 cannot fail over a variable proxy_pass with proxy_next_upstream
+# (that needs an upstream group, which resolves the name once at boot),
+# hence the check. The gateway's own 502/504 responses pass through as they
+# are (proxy_intercept_errors off) and never trigger the fallback.
+location ~ ^/api/(mcp-oauth|mcp|mcp/[^/]+)/?\$ {
+    set \$mcp_gateway $gateway;
+    rewrite ^/api(/.*)\$ \$1 break;
+    proxy_pass \$mcp_gateway;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_connect_timeout 3s;
+    proxy_read_timeout 3600s;
+    proxy_send_timeout 3600s;
+    proxy_set_header Host \$host;
+    proxy_set_header X-Real-IP \$remote_addr;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto \$scheme;
+    proxy_intercept_errors off;
+    error_page 502 504 = @mcp_direct;
+}
+
+# The gateway's file links. Only the gateway has them, so there is no
+# fallback: a 502 while it is down, its own 404 for a missing file. No
+# add_header here, so the server's security headers apply.
+location ~ ^/api/mcp-files/.+\$ {
+    set \$mcp_gateway $gateway;
+    rewrite ^/api(/.*)\$ \$1 break;
+    proxy_pass \$mcp_gateway;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_connect_timeout 3s;
+    proxy_read_timeout 300s;
+    proxy_set_header Host \$host;
+    proxy_set_header X-Real-IP \$remote_addr;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto \$scheme;
+}
+
+location @mcp_direct {
+    if (\$upstream_bytes_sent ~ [1-9]) {
+        return 502;
+    }
+    rewrite ^/api(/.*)\$ \$1 break;
+    proxy_pass http://localhost:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_read_timeout 3600s;
+    proxy_send_timeout 3600s;
+    proxy_set_header Host \$host;
+    proxy_set_header X-Real-IP \$remote_addr;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto \$scheme;
+}
+EOF
+}
+
 TEMPORAL_DB_DIR="${TEMPORAL_DB_DIR:-/temporal}"
 mkdir -p "$TEMPORAL_DB_DIR"
 
@@ -43,6 +129,8 @@ done
 temporal operator namespace update -n default --retention 24h --address 127.0.0.1:7233 >/dev/null 2>&1 \
   || temporal operator namespace update default --retention 24h --address 127.0.0.1:7233 >/dev/null 2>&1 \
   || echo "[start] warning: could not set Temporal retention (continuing)"
+
+write_mcp_gateway_conf
 
 echo "[start] starting nginx + app processes..."
 nginx

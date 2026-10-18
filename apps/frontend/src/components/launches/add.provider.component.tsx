@@ -24,11 +24,14 @@ import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { useUser } from '@gitroom/frontend/components/layout/user.context';
 import {
   TONE_TEXT,
-  useActionTone,
+  postPriceRange,
+  toneFor,
+  useFreeChannel,
+  usePerUseProviders,
+  useTopUpProviders,
   useWalletAccess,
 } from '@gitroom/frontend/components/wallet-locks/wallet.access';
 import {
-  findAction,
   useWalletFormat,
   useWalletPrices,
 } from '@gitroom/frontend/components/wallet/wallet.hooks';
@@ -36,7 +39,11 @@ import {
   CoinsIcon,
   LockIcon,
 } from '@gitroom/frontend/components/wallet-locks/wallet.icons';
-import { openTopUp } from '@gitroom/frontend/components/wallet/wallet.bridge';
+import { openPlus } from '@gitroom/frontend/components/wallet/wallet.bridge';
+import {
+  TEAL_SOFT,
+  TEAL_TEXT,
+} from '@gitroom/frontend/components/wallet/wallet.ui';
 import clsx from 'clsx';
 import Link from 'next/link';
 import { Tooltip } from 'react-tooltip';
@@ -861,54 +868,69 @@ export const AddProviderComponent: FC<{
       !item.customFields
     );
   });
-  // X is pay-per-use from the wallet on the free plan: shown in the grid,
-  // locked until the first top-up. Paid plans connect it as before.
+  // A channel the wallet pays for (a per-use price row) is pay per use on the
+  // free plan: connecting it is free, each post is charged. When its price
+  // rows need a top-up, its posts stay locked until the first one. Paid plans
+  // connect it as before.
   const walletAccess = useWalletAccess();
   const walletWorkspace =
     walletAccess === 'free' || walletAccess === 'payg';
   const { data: prices } = useWalletPrices(walletWorkspace);
   const walletFormat = useWalletFormat();
-  const xTone = useActionTone('x.post', 'warm', walletWorkspace);
+  const walletTone = toneFor();
+  const perUse = usePerUseProviders();
+  const topUpLocked = useTopUpProviders();
+  // Onboarding and Add Channel tag every channel that stays free, whatever
+  // the plan; never one that sits next to a lock, a price or maintenance.
+  const isFreeChannel = useFreeChannel();
   const walletMode = (identifier: string) =>
-    identifier !== 'x' || !walletWorkspace
+    !walletWorkspace
       ? undefined
-      : walletAccess === 'free'
+      : topUpLocked.has(identifier)
       ? ('locked' as const)
-      : ('metered' as const);
-  // Hover text for a channel the wallet pays for: pay per use, what
-  // connecting costs (its `<provider>.user_lookup` row), and a pricing link.
-  const lookupPrice = (identifier: string) => {
-    const action = findAction(prices, `${identifier}.user_lookup`);
-    return action ? walletFormat.credits(action.price) : null;
+      : perUse.has(identifier)
+      ? ('metered' as const)
+      : undefined;
+  // What a post to a channel the wallet pays for costs, as a range across its
+  // posting rows (e.g. with and without a link). The numbers come from the
+  // price rows, never from here.
+  const postPrices = (identifier: string) => {
+    const range = postPriceRange(prices || [], identifier);
+    if (!range) {
+      return null;
+    }
+    const { low, high } = range;
+    return low === high
+      ? walletFormat.credits(low)
+      : `${walletFormat.credits(low)}–${walletFormat.credits(high)}`;
   };
+  // Hover text for a channel the wallet pays for; the tooltip adds the
+  // "See pricing" link after it.
   const walletTip = (identifier: string, toolTip?: string) => {
     const mode = walletMode(identifier);
     if (!mode) {
       return toolTip;
     }
     const name = filteredSocial.find((i) => i.identifier === identifier)?.name;
-    const price = lookupPrice(identifier);
-    return [
-      t('wallet_channel_pay_per_use', '{{channel}} is pay per use.', {
-        channel: name,
-      }),
-      mode === 'locked'
-        ? t('wallet_channel_top_up_to_connect', 'Top up to connect it.')
-        : price
-        ? t(
-            'wallet_channel_connect_cost',
-            'Connecting costs {{price}} credits.',
-            { price }
-          )
-        : '',
-    ]
-      .filter(Boolean)
-      .join(' ');
+    const price = postPrices(identifier);
+    const cost = price
+      ? t(
+          'wallet_channel_post_cost',
+          'Posts to {{channel}} cost {{price}} credits each.',
+          { channel: name, price }
+        )
+      : t('wallet_channel_posts_cost', 'Posts to {{channel}} cost credits.', {
+          channel: name,
+        });
+    return mode === 'locked'
+      ? `${cost} ${t(
+          'plus_channel_locked',
+          'Included with Plus. Get Plus to post here; free credits do not cover it.'
+        )}`
+      : cost;
   };
   const isUnavailable = (identifier: string) =>
-    isFreePlan &&
-    paidOnly.includes(identifier) &&
-    !walletMode(identifier);
+    isFreePlan && paidOnly.includes(identifier) && !walletWorkspace;
   const unavailableReason: Record<string, string> = {
     x: t(
       'x_unavailable_reason',
@@ -954,6 +976,8 @@ export const AddProviderComponent: FC<{
           {enabledSocial.map((item) => {
             const mode = walletMode(item.identifier);
             const maintenance = inMaintenance(item.identifier);
+            const free =
+              !!isFreeChannel?.(item.identifier) && !mode && !maintenance;
             const tip = maintenance
               ? t(
                   'channel_under_maintenance',
@@ -966,11 +990,6 @@ export const AddProviderComponent: FC<{
                 onClick={
                   maintenance
                     ? undefined
-                    : mode === 'locked'
-                    ? () => {
-                        modal.closeAll();
-                        openTopUp(tip);
-                      }
                     : getSocialLink(
                         props.invite,
                         item.identifier,
@@ -984,7 +1003,10 @@ export const AddProviderComponent: FC<{
                 {...(!!tip
                   ? mode
                     ? {
-                        'data-tooltip-id': 'wallet-channel-tip',
+                        'data-tooltip-id':
+                          mode === 'locked'
+                            ? 'wallet-channel-locked-tip'
+                            : 'wallet-channel-tip',
                         'data-tooltip-content': tip,
                       }
                     : {
@@ -992,28 +1014,44 @@ export const AddProviderComponent: FC<{
                         'data-tooltip-content': tip,
                       }
                   : {})}
-                {...(mode === 'locked'
-                  ? {
-                      role: 'button',
-                      'aria-label': tip ? `${item.name}. ${tip}` : item.name,
-                    }
-                  : {})}
                 className={clsx(
                   isMobile
                     ? 'flex-row h-[72px] p-[16px]'
-                    : 'flex-col p-[10px] h-[100px] justify-center mobile:text-[13px] mobile:leading-[1.2]',
+                    : // A fixed top row holds the "Free" tag and the help
+                      // icon, then the icon, then the name. Every tile in a
+                      // row starts its icon at the same height and grows to
+                      // the tallest name.
+                      'flex-col min-h-[100px] h-full pt-[28px] pb-[12px] px-[10px] justify-start mobile:text-[13px] mobile:leading-[1.2]',
                   'w-full text-[14px] rounded-[8px] bg-newTableHeader text-textColor relative items-center flex gap-[10px] cursor-pointer',
-                  // Pay-per-use marker: a thin warm ring, locked or not.
+                  // Pay-per-use marker: a thin warm ring.
                   !!mode && 'ring-1 ring-inset ring-warmRing',
-                  mode === 'locked' && '[&>div]:opacity-40 [&>div]:grayscale',
                   maintenance && 'opacity-40 grayscale !cursor-default'
                 )}
               >
+                {free && (
+                  <span
+                    tabIndex={0}
+                    data-tooltip-id="tooltip"
+                    data-tooltip-content={t('channel_forever_free', 'Forever free')}
+                    // A tap shows the tooltip without connecting the channel.
+                    onClick={(e) => e.stopPropagation()}
+                    className={clsx(
+                      'absolute inline-flex items-center h-[18px] px-[6px] rounded-full text-[10px] font-[600] leading-none',
+                      TEAL_SOFT,
+                      TEAL_TEXT,
+                      isMobile
+                        ? 'end-[16px] top-1/2 -translate-y-1/2'
+                        : 'top-[8px] start-[8px]'
+                    )}
+                  >
+                    {t('channel_free', 'Free')}
+                  </span>
+                )}
                 {!!mode && (
                   <span
                     className={clsx(
                       'absolute top-[10px] end-[10px]',
-                      TONE_TEXT[xTone]
+                      TONE_TEXT[walletTone]
                     )}
                   >
                     {mode === 'locked' ? (
@@ -1023,7 +1061,11 @@ export const AddProviderComponent: FC<{
                     )}
                   </span>
                 )}
-                <div>
+                <div
+                  className={clsx(
+                    !isMobile && 'h-[32px] flex items-center shrink-0'
+                  )}
+                >
                   {item.identifier === 'youtube' ? (
                     <img src={`/icons/platforms/youtube.svg`} />
                   ) : (
@@ -1074,11 +1116,43 @@ export const AddProviderComponent: FC<{
                 <span>{content}</span>
                 <Link
                   href="/wallet/prices"
-                  onClick={() => modal.closeAll()}
-                  className={clsx('font-[600] underline', TONE_TEXT[xTone])}
+                  target="_blank"
+                  className={clsx('font-[600] underline', TONE_TEXT[walletTone])}
                 >
                   {t('wallet_see_pricing', 'See pricing')}
                 </Link>
+              </div>
+            )}
+          />
+        )}
+        {walletWorkspace && (
+          <Tooltip
+            id="wallet-channel-locked-tip"
+            clickable
+            className="z-[200] max-w-[280px]"
+            render={({ content }) => (
+              <div className="flex flex-col gap-[4px] text-[13px]">
+                <span>{content}</span>
+                <span className="flex items-center gap-[12px]">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      modal.closeAll();
+                      openPlus();
+                    }}
+                    className={clsx('font-[600] underline', TONE_TEXT[walletTone])}
+                  >
+                    {t('plus_get', 'Get Plus')}
+                  </button>
+                  <Link
+                    href="/wallet/prices"
+                    target="_blank"
+                    className={clsx('font-[600] underline', TONE_TEXT[walletTone])}
+                  >
+                    {t('wallet_see_pricing', 'See pricing')}
+                  </Link>
+                </span>
               </div>
             )}
           />
@@ -1104,11 +1178,15 @@ export const AddProviderComponent: FC<{
                   className={clsx(
                     isMobile
                       ? 'flex-row h-[72px] p-[16px]'
-                      : 'flex-col p-[10px] h-[100px] justify-center',
+                      : 'flex-col min-h-[100px] h-full pt-[28px] pb-[12px] px-[10px] justify-start mobile:text-[13px] mobile:leading-[1.2]',
                     'w-full text-[14px] rounded-[8px] bg-newTableHeader text-textColor relative items-center flex gap-[10px] opacity-40 grayscale cursor-default'
                   )}
                 >
-                  <div>
+                  <div
+                    className={clsx(
+                      !isMobile && 'h-[32px] flex items-center shrink-0'
+                    )}
+                  >
                     {item.identifier === 'youtube' ? (
                       <img src={`/icons/platforms/youtube.svg`} />
                     ) : (
@@ -1154,11 +1232,15 @@ export const AddProviderComponent: FC<{
                   className={clsx(
                     isMobile
                       ? 'flex-row h-[72px] p-[16px]'
-                      : 'flex-col p-[10px] h-[100px] justify-center',
+                      : 'flex-col min-h-[100px] h-full pt-[28px] pb-[12px] px-[10px] justify-start mobile:text-[13px] mobile:leading-[1.2]',
                     'w-full text-[14px] rounded-[8px] bg-newTableHeader text-textColor relative items-center flex gap-[10px] opacity-40 grayscale cursor-default'
                   )}
                 >
-                  <div>
+                  <div
+                    className={clsx(
+                      !isMobile && 'h-[32px] flex items-center shrink-0'
+                    )}
+                  >
                     {item.identifier === 'youtube' ? (
                       <img src={`/icons/platforms/youtube.svg`} />
                     ) : (

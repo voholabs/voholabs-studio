@@ -12,11 +12,15 @@ import {
   useWalletPrices,
 } from '@gitroom/frontend/components/wallet/wallet.hooks';
 import {
+  OPEN_PLUS,
   OPEN_TOP_UP,
+  OpenPlusOptions,
   OpenTopUpOptions,
   walletEvents,
 } from '@gitroom/frontend/components/wallet/wallet.events';
+import { PlusPanel } from '@gitroom/frontend/components/plus/plus.panel';
 import { TopUpModal } from '@gitroom/frontend/components/wallet/top.up.modal';
+import { HIDDEN_SECTIONS } from '@gitroom/frontend/components/wallet/wallet.price.list';
 import {
   actionDescription,
   sectionLabel,
@@ -52,15 +56,27 @@ const useTopUpModal = () => {
   );
 };
 
-// English defaults for the line under a feature a first top-up opens; other
-// features fall back to their price row's description.
-const UNLOCK_COPY: Record<string, string> = {
-  brief: 'Tell your agent about your brand.',
-  skills: 'Ready-made skills your agent can use.',
+const PLUS_MODAL_ID = 'wallet-plus';
+
+// Opens the Plus dialog. Used by openPlus() through <WalletHost />.
+const usePlusModal = () => {
+  const modals = useModals();
+  const t = useT();
+  return useCallback(
+    (options: OpenPlusOptions = {}) => {
+      modals.openModal({
+        id: PLUS_MODAL_ID,
+        title: t('plus_name', 'Plus'),
+        size: modalSize(760),
+        children: <PlusPanel context={options.context} />,
+      });
+    },
+    [modals, t]
+  );
 };
 
-// What a first top-up opened, read from the price rows that need one: one
-// line per provider (a channel shows its own name and logo).
+// What Plus opens, read from the price rows that need it: one line per
+// provider (a channel shows its own name and logo).
 const useUnlocks = () => {
   const t = useT();
   const { data: sections } = useWalletPrices();
@@ -77,6 +93,7 @@ const useUnlocks = () => {
       }
     >();
     for (const section of sections || []) {
+      if (HIDDEN_SECTIONS.includes(section.key)) continue;
       for (const a of section.actions) {
         const id = a.provider || a.category || a.key;
         if (!a.requiresTopUp || seen.has(id)) continue;
@@ -95,7 +112,7 @@ const useUnlocks = () => {
               )
             : t(
                 `wallet_unlock_${id}`,
-                UNLOCK_COPY[id] || actionDescription(t, a) || ''
+                actionDescription(t, a) || ''
               ),
         });
       }
@@ -220,15 +237,23 @@ export const useTopUpSuccessModal = () => {
 };
 
 // Mounted once in the app layout: opens the top-up dialog whenever
-// openTopUp() is called.
+// openTopUp() is called, and the Plus dialog for openPlus(). Top-ups need
+// Plus, so without it a top-up opens the Plus dialog instead.
 export const WalletHost: FC = () => {
-  const open = useTopUpModal();
+  const openTopUpModal = useTopUpModal();
+  const openPlusModal = usePlusModal();
+  const { data: wallet } = useWallet();
+  const topUpAllowed = wallet?.topUpAllowed !== false;
   useEffect(() => {
-    const handler = (options: OpenTopUpOptions) => open(options);
-    walletEvents.on(OPEN_TOP_UP, handler);
+    const onTopUp = (options: OpenTopUpOptions) =>
+      topUpAllowed ? openTopUpModal(options) : openPlusModal(options);
+    const onPlus = (options: OpenPlusOptions) => openPlusModal(options);
+    walletEvents.on(OPEN_TOP_UP, onTopUp);
+    walletEvents.on(OPEN_PLUS, onPlus);
     return () => {
-      walletEvents.off(OPEN_TOP_UP, handler);
+      walletEvents.off(OPEN_TOP_UP, onTopUp);
+      walletEvents.off(OPEN_PLUS, onPlus);
     };
-  }, [open]);
+  }, [openTopUpModal, openPlusModal, topUpAllowed]);
   return null;
 };

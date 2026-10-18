@@ -77,7 +77,6 @@ jest.mock('@gitroom/nestjs-libraries/database/prisma/users/terms', () => ({
 }));
 jest.mock('@gitroom/nestjs-libraries/database/prisma/users/onboarding', () => ({
   needsOnboarding: () => false,
-  onboardingOpenPaths: [],
 }));
 
 describe('AuthMiddleware session tokens', () => {

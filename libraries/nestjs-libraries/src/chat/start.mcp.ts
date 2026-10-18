@@ -31,6 +31,7 @@ import {
 import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 import { hasAccess } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 import { bufferJsonBody } from '@gitroom/nestjs-libraries/chat/mcp.body';
+import { fromGateway } from '@gitroom/nestjs-libraries/chat/mcp.gateway';
 import { trackAgentConnection } from '@gitroom/nestjs-libraries/track/product.analytics';
 import { AgentConnectionService } from '@gitroom/nestjs-libraries/database/prisma/agent-connections/agent-connection.service';
 import {
@@ -274,47 +275,30 @@ export const startMcp = async (app: INestApplication) => {
       : opensWalletTools(org)
       ? walletServerConfig
       : freeServerConfig;
-  // The sign-in endpoint (/mcp-oauth) is the one listed in the Claude and
-  // ChatGPT directories, and Claude's directory policy does not accept AI
-  // image or video generation. It leaves those tools out (clipping renders new
-  // videos: AI picked cuts, burned-in captions), and a widget of a hidden tool
-  // is hidden with it; the key-in-URL endpoints keep every tool.
-  const directoryHiddenTools = [
-    'mediaMcpList',
-    'mediaMcpCall',
-    'clippingTool',
-    'clippingStatusTool',
-    'clippingWidgetTicketTool',
-  ];
-  const withoutDirectoryHidden = <T extends Record<string, unknown>>(
-    source: T
-  ) =>
-    Object.fromEntries(
-      Object.entries(source).filter(
-        ([name]) => !directoryHiddenTools.includes(name)
-      )
-    ) as T;
-  const forDirectory = (config: typeof serverConfig) =>
-    new MCPServer({
-      ...config,
-      tools: withoutDirectoryHidden(config.tools),
-      appResources: uploadResources,
-    });
-  const directoryServer = forDirectory(serverConfig);
-  const directoryFreeServer = forDirectory(freeServerConfig);
-  const directoryWalletServer = forDirectory(walletServerConfig);
-  const directoryServerFor = (org: any) =>
-    hasAccess(org)
-      ? directoryServer
-      : opensWalletTools(org)
-      ? directoryWalletServer
-      : directoryFreeServer;
+  // Every endpoint, the sign-in one (/mcp-oauth) included, serves the same
+  // servers: nothing is held back from users who sign in with OAuth.
+  // The MCP gateway (fromGateway) is served each server with the tools only
+  // it may call (gatewayToolList) added. Nobody else is ever served them.
+  const gatewayTools = await loadToolsService.loadGatewayTools();
+  const withGatewayTools = (config: typeof serverConfig) =>
+    new MCPServer({ ...config, tools: { ...config.tools, ...gatewayTools } });
+  const gatewayServers = {
+    server: withGatewayTools(serverConfig),
+    free: withGatewayTools(freeServerConfig),
+    wallet: withGatewayTools(walletServerConfig),
+  };
 
-  const serverFor = (org: any) =>
+  const serverFor = (org: any, gateway = false) =>
     hasAccess(org)
-      ? server
+      ? gateway
+        ? gatewayServers.server
+        : server
       : opensWalletTools(org)
-      ? walletServer
+      ? gateway
+        ? gatewayServers.wallet
+        : walletServer
+      : gateway
+      ? gatewayServers.free
       : freeServer;
 
   // A self-hosted connection (Use self-hosted on the consent screen) runs its
@@ -325,7 +309,7 @@ export const startMcp = async (app: INestApplication) => {
     ? new MCPServer({
         name: 'Voholabs MCP',
         version: '1.0.0',
-        tools: withoutDirectoryHidden(mcpRelayService.tools(tools)),
+        tools: mcpRelayService.tools(tools),
       })
     : undefined;
 
@@ -484,7 +468,7 @@ export const startMcp = async (app: INestApplication) => {
 
     fixAcceptHeader(req);
     await runWithContext({ requestId: token!, auth }, async () => {
-      await directoryServerFor(auth).startHTTP({
+      await serverFor(auth, fromGateway(req)).startHTTP({
         url: url,
         httpPath: url.pathname,
         options: {
@@ -552,7 +536,7 @@ export const startMcp = async (app: INestApplication) => {
     // @ts-ignore
     await runWithContext({ requestId: token, auth: req.auth }, async () => {
       // @ts-ignore
-      await serverFor(req.auth).startHTTP({
+      await serverFor(req.auth, fromGateway(req)).startHTTP({
         url,
         httpPath: url.pathname,
         options: {
@@ -615,7 +599,7 @@ export const startMcp = async (app: INestApplication) => {
       { requestId: req.params.id, auth: req.auth },
       async () => {
         // @ts-ignore
-        await serverFor(req.auth).startHTTP({
+        await serverFor(req.auth, fromGateway(req)).startHTTP({
           url,
           httpPath: url.pathname,
           options: {

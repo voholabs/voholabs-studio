@@ -70,7 +70,7 @@ export const plugNoticeKey = (
   day = dayjs.utc().format('YYYY-MM-DD')
 ) => `plug-not-run:${plug}:${day}`;
 
-const escapeHtml = (text: string) =>
+export const escapeHtml = (text: string) =>
   text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')

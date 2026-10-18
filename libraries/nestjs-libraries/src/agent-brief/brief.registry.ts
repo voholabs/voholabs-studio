@@ -108,15 +108,6 @@ const FOUNDATION: readonly BriefDocumentDef[] = [
     icon: 'shield',
   },
   {
-    key: 'tasks',
-    labelKey: 'brief_tasks',
-    label: 'Tasks',
-    descriptionKey: 'brief_tasks_description',
-    description:
-      'How often you post, the content mix, and how much the agent may publish alone.',
-    icon: 'checklist',
-  },
-  {
     key: 'additional-info',
     labelKey: 'brief_additional_info',
     label: 'Additional info',
@@ -158,6 +149,12 @@ const CHANNEL_TEMPLATE: BriefDocumentDef = {
   description: 'How this account steers the Foundation for this channel.',
   icon: 'channel',
 };
+
+// The documents a new workspace's agent fills in before onboarding ends: the
+// whole Foundation (connected channels are added by BriefService).
+export const BRIEF_ONBOARDING_DOCUMENTS = FOUNDATION.map(
+  (document) => document.key
+);
 
 export const BRIEF_REGISTRY: readonly BriefCategoryDef[] = [
   {

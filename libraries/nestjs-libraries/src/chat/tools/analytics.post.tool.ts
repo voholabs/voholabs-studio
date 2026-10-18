@@ -19,9 +19,9 @@ export class AnalyticsPostTool implements AgentToolInterface {
     return createTool({
       id: 'postAnalyticsTool',
       description: `How one published post performed: likes, comments, shares, impressions and whatever else that network reports for a single post.
-Use postsList first to get the post id. Only published posts have analytics; a queued or draft post has nothing to report yet.
+The post id comes from postsList. Only published posts have analytics; a queued or draft post has nothing to report yet.
 A post can come back marked "missing", which means it was published but is not linked to the message on the network, so the network cannot be asked about it. That is fixable by connecting its release id, not a failure of this tool.
-What comes back differs by network. Read the labels rather than assuming a fixed set, and say which network the numbers came from.`,
+What comes back differs by network: the labels name each metric, and there is no fixed set.`,
       mcp: {
         annotations: {
           title: 'Post Analytics',
@@ -41,7 +41,7 @@ What comes back differs by network. Read the labels rather than assuming a fixed
           .boolean()
           .optional()
           .describe(
-            'Accepted for symmetry: post analytics are always read live'
+            'Accepted for symmetry: post analytics are read live on every call'
           ),
       }),
       outputSchema: z.object({

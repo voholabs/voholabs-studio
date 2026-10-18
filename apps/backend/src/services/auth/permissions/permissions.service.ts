@@ -178,10 +178,8 @@ export class PermissionsService {
         continue;
       }
 
-      if (
-        section === Sections.BRIEF &&
-        (options.ai || (await this._walletService.unlocks(orgId, 'brief')))
-      ) {
+      // Free on every plan: onboarding has every new workspace's agent fill it.
+      if (section === Sections.BRIEF) {
         can(action, section);
         continue;
       }

@@ -226,7 +226,7 @@ describe('WalletHousekeepingService', () => {
       })),
     } as any;
     return {
-      service: new WalletHousekeepingService(media, wallet, billing),
+      service: new WalletHousekeepingService(media, wallet, billing, {} as any),
       wallet,
       billing,
     };

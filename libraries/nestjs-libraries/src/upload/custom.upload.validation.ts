@@ -5,7 +5,9 @@ import { IUploadProvider } from './upload.interface';
 const { fileTypeStream } = require('file-type');
 
 // What users may put in the media library, whether by multipart upload or
-// from a remote URL; narrower than what storage itself accepts, no audio
+// from a remote URL; narrower than what storage itself accepts. No audio:
+// audio comes in only through the agent's MCP upload tools (see
+// ALLOWED_MEDIA_MIME), as a file for the agent to download, never to post
 export const UPLOAD_ALLOWED_MIME = new Set<string>([
   'image/jpeg',
   'image/png',
@@ -15,6 +17,10 @@ export const UPLOAD_ALLOWED_MIME = new Set<string>([
   'image/bmp',
   'image/tiff',
   'video/mp4',
+  // Voice recordings and voice-overs the agent keeps in the media library;
+  // posts refuse audio attachments (isAudioPath)
+  'audio/mpeg',
+  'audio/wav',
 ]);
 
 export function getMaxSize(mimeType: string): number {
@@ -22,6 +28,8 @@ export function getMaxSize(mimeType: string): number {
     return 10 * 1024 * 1024; // 10 MB
   } else if (mimeType.startsWith('video/')) {
     return 1024 * 1024 * 1024; // 1 GB
+  } else if (mimeType.startsWith('audio/')) {
+    return 50 * 1024 * 1024; // 50 MB
   } else {
     throw new BadRequestException('Unsupported file type.');
   }

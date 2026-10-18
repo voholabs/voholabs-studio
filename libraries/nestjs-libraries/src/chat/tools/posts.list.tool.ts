@@ -38,18 +38,18 @@ export class PostsListTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'postsList',
-      description: `List the posts already on the calendar between two dates, so you can tell the user what is scheduled or find the post they want to change or delete.
-Dates are UTC ISO strings. If you don't pass any, it defaults to the next ${DEFAULT_RANGE_IN_DAYS} days — pass a start date in the past to look at posts that were already published.
+      description: `Lists the posts already on the calendar between two dates: what is scheduled, and the post to change or delete.
+Dates are UTC ISO strings. Without them the range is the next ${DEFAULT_RANGE_IN_DAYS} days; a start date in the past also returns posts that were already published.
 Every post returns both an "id" and a "group": the group holds a post together with its thread items and comments, and is what deletePostTool removes.
-Every post also returns "attachments" — the media it carries, with the same "path" the media library uses. That is how you tell whether a post already has its image or video on it, without opening anything.
-A thread comes back whole: "comments" lists the items that follow the post, in order, each with its own text and attachments. Their position in that list is the "commentIndex" replacePostAsset takes, so this is where you find which item carries the image you were asked to change.
-TO GET AT the media rather than just know it exists, pass the "path" values to mediaPreview: it returns a loadable resource link per item, in slide order, for video as well as images. A link is not a picture — download each one yourself and show the downloaded asset in your response; do not stop at printing the link or its name, that leaves the user with nothing to look at. Nothing is inlined and nothing is re-encoded, so what you download is the real thing at full quality. Each attachment also carries "mediaId", "originalName" and a "mimeType" hint, so you can tell a video from an image before you load anything.
-TO CHANGE A POST, use editPostTool with its "id". It edits in place and keeps whatever you do not pass, attachments included. Deleting and re-creating a post is not the way to reword it: it loses the media, the post's history and its id.
+Every post also returns "attachments" — the media it carries, with the same "path" the media library uses. That shows whether a post already has its image or video on it, without opening anything.
+A thread comes back whole: "comments" lists the items that follow the post, in order, each with its own text and attachments. Their position in that list is the "commentIndex" replacePostAsset takes, so this shows which item carries a given image.
+THE MEDIA ITSELF: mediaPreview takes the "path" values and returns a loadable resource link per item, in slide order, for video as well as images. A link is not a picture: the asset is visible to the user once it is downloaded and shown in the response, and a printed link or name leaves them with nothing to look at. Nothing is inlined and nothing is re-encoded, so the download is the real thing at full quality. Each attachment also carries "mediaId", "originalName" and a "mimeType" hint, which tell a video from an image before anything is loaded.
+CHANGING A POST: editPostTool takes its "id", edits in place and keeps whatever is not passed, attachments included. Deleting and re-creating a post loses the media, the post's history and its id.
 
-Every post returns its "settings" too — the channel options it was scheduled with, such as which Discord channel it goes to or an X post's reply permissions and AI-disclosure flags. That is what you read back when you need to know how a post is configured, and what editPostTool merges into rather than replacing.
+Every post returns its "settings" too — the channel options it was scheduled with, such as which Discord channel it goes to or an X post's reply permissions and AI-disclosure flags. That is how a post is configured, and what editPostTool merges into rather than replacing.
 
-TO LINK ONE POST TO ANOTHER (echoing a post to another channel): every post here returns a "linkReference" like "(post:<id>)". Put that string in another post's content and it is replaced with this post's real URL at the moment that post publishes. It works while "releaseURL" is still null - a queued post has no URL yet, and that is exactly the case this is for. Never copy "releaseURL" to build an echo; use "linkReference".
-"references" lists the posts THIS one points at. A chain is only as good as its links: if a post it references is deleted, the reference can never resolve and this post fails at publish time instead of going out with a broken link — a silent no-show. So edit posts rather than deleting them, and check what a delete would break before you run it (deletePostTool refuses and names them).`,
+LINKING ONE POST TO ANOTHER (echoing a post to another channel): every post here returns a "linkReference" like "(post:<id>)". That string in another post's content is replaced with this post's real URL at the moment that post publishes. It works while "releaseURL" is still null - a queued post has no URL yet, and that is exactly the case this is for; a copied "releaseURL" is a fixed link, while "linkReference" is the echo.
+"references" lists the posts THIS one points at. A chain is only as good as its links: when a post it references is deleted, the reference cannot resolve and this post fails at publish time instead of going out with a broken link — a silent no-show. Editing a post keeps its links intact, and deletePostTool refuses a delete that would break one and names the posts affected.`,
       mcp: {
         annotations: {
           title: 'List Scheduled Posts',
@@ -79,7 +79,7 @@ TO LINK ONE POST TO ANOTHER (echoing a post to another channel): every post here
         state: z
           .enum(['QUEUE', 'PUBLISHED', 'ERROR', 'DRAFT'])
           .optional()
-          .describe('Only list posts in this state. Omit for every state.'),
+          .describe('Only posts in this state. Left out, every state.'),
       }),
       outputSchema: z.object({
         total: z.number().optional(),
@@ -112,7 +112,7 @@ TO LINK ONE POST TO ANOTHER (echoing a post to another channel): every post here
                     path: z
                       .string()
                       .describe(
-                        "The media path — the same value mediaList returns and an attachments field takes. Pass this to mediaPreview for a loadable reference to the asset, or hand it to an external image/video tool's import-by-URL step to edit it. The edited result must come back through uploadFromUrlTool before it can be attached — attach the path uploadFromUrlTool returns, never the external tool's own URL."
+                        "The media path — the same value mediaList returns and an attachments field takes. mediaPreview turns it into a loadable reference to the asset, and an external image/video tool's import-by-URL step takes it for editing. An edited result is attached by the path uploadFromUrlTool returns for it, not by the external tool's own URL."
                       ),
                     thumbnail: z.string().nullable(),
                     mediaId: z
@@ -126,7 +126,7 @@ TO LINK ONE POST TO ANOTHER (echoing a post to another channel): every post here
                       .string()
                       .nullable()
                       .describe(
-                        'Best-effort type from the file extension, for telling an image from a video before loading it. The authoritative type is the Content-Type you get when you load the URL.'
+                        'Best-effort type from the file extension, for telling an image from a video before loading it. The authoritative type is the Content-Type returned when the URL is loaded.'
                       ),
                   })
                 )
@@ -165,7 +165,7 @@ TO LINK ONE POST TO ANOTHER (echoing a post to another channel): every post here
               linkReference: z
                 .string()
                 .describe(
-                  "Paste this into ANOTHER post's content to embed this post's URL. It is replaced with the real URL when that post publishes, so it works even while releaseURL is still null. Use it instead of releaseURL to link one post to another."
+                  "Paste this into ANOTHER post's content to embed this post's URL. It is replaced with the real URL when that post publishes, so it works even while releaseURL is still null, which makes it the link from one post to another where releaseURL is a fixed URL."
                 ),
               channel: z.object({
                 id: z.string(),

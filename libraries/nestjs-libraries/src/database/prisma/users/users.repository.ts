@@ -333,11 +333,6 @@ export class UsersRepository {
         id: userId,
       },
       data: {
-        name: body.name,
-        website: body.website.trim().toLowerCase(),
-        jobRole: body.role,
-        heardFrom: body.heardFrom,
-        useCase: body.useCase,
         attribution: body.attribution || null,
         onboardedAt: new Date(),
       },

@@ -96,7 +96,7 @@ const setup = (org: any) => {
   const revisions: any = {
     captureSnapshot: jest.fn(async () => undefined),
     resolveChainId: jest.fn(async () => undefined),
-    deleteChain: jest.fn(async () => undefined),
+    markChainDeleted: jest.fn(async () => undefined),
   };
   const temporal: any = {};
   const service = new PostsService(

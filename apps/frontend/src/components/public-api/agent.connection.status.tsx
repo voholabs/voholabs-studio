@@ -15,6 +15,7 @@ type AgentConnection =
   | {
       connected: true;
       client: string | null;
+      clients?: string[];
       authMethod: string | null;
       firstConnectedAt: string | null;
       lastSeenAt: string | null;
@@ -39,7 +40,7 @@ const clientNames: Record<string, string> = {
 
 // Polls every 5 seconds while the panel is open and nothing has connected
 // yet; stops once an agent shows up.
-const useAgentConnection = (enabled: boolean) => {
+export const useAgentConnection = (enabled: boolean) => {
   const fetch = useFetch();
   const load = useCallback(
     async (path: string) => {

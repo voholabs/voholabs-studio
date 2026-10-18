@@ -71,6 +71,7 @@ import { useClickOutside } from '@mantine/hooks';
 import { ReviewedCheckbox } from '@gitroom/frontend/components/launches/reviewed.checkbox';
 import {
   useRefreshWallet,
+  useWallet,
   useWalletFormat,
 } from '@gitroom/frontend/components/wallet/wallet.hooks';
 import {
@@ -397,11 +398,24 @@ export const ManageModal: FC<AddEditModalProps> = (props) => {
       : 'new';
   const walletBlocked =
     !dummy && !addEditSets && walletBlocksSchedule(walletCost);
+  // More credits come from a top-up with Plus, from Plus without it.
+  const { data: walletSummary } = useWallet(walletBlocked);
+  const walletNeedsPlus = walletSummary?.topUpAllowed === false;
   const walletBlockedTip = walletBlocked
     ? walletMode === 'update'
+      ? walletNeedsPlus
+        ? t(
+            'wallet_update_blocked_tip_plus',
+            'Not enough credits to update this post. Get Plus, or save it as a draft.'
+          )
+        : t(
+            'wallet_update_blocked_tip',
+            'Not enough credits to update this post. Top up, or save it as a draft.'
+          )
+      : walletNeedsPlus
       ? t(
-          'wallet_update_blocked_tip',
-          'Not enough credits to update this post. Top up, or save it as a draft.'
+          'wallet_schedule_blocked_tip_plus',
+          'Not enough credits to schedule this post. Get Plus, or save it as a draft.'
         )
       : t(
           'wallet_schedule_blocked_tip',

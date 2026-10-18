@@ -24,11 +24,11 @@ export class SanityMcpListTool implements AgentToolInterface {
     return createTool({
       id: 'sanityMcpList',
       description: `Lists the Sanity CMS tools available for this workspace's connected Sanity channel, with the arguments each one takes and whether each is a read or a write.
-      Call this first so you pass the right arguments; then run a read with sanityRead or a write with sanityWrite.
+      sanityRead runs a read and sanityWrite runs a write, with arguments matching the inputSchema listed here.
       Calls the Sanity MCP server, see ${SANITY_MCP_DOCS_URL}.
       The list is filtered: reading, creating, patching and publishing content is available, while scheduling, dataset and project administration and schema deploys are not.
-      Scheduling in particular is Studio's job - use findSlotTool and integrationSchedulePostTool for anything with a time on it.
-      You never need to supply the Sanity project id or dataset; Studio fills those in from the connected channel.`,
+      Scheduling in particular is Studio's job: findSlotTool and integrationSchedulePostTool handle anything with a time on it.
+      The Sanity project id and dataset come from the connected channel; Studio fills those in.`,
       mcp: {
         annotations: {
           title: 'List Sanity Tools',

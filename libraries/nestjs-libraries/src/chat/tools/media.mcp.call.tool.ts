@@ -23,9 +23,9 @@ export class MediaMcpCallTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'mediaMcpCall',
-      description: `Runs one of the AI media tools listed by mediaMcpList - generate or edit images and videos, import media by URL, discover models, poll jobs, check remaining_budget. Pass the tool name exactly as mediaMcpList reported it and an arguments object matching the inputSchema it reported; call mediaMcpList first if you have not this conversation, and follow the rules in each tool's own description (media must be imported with media_import_url before a generation can reference it - a URL is not a valid medias[].value).
-      For "change the image on my post": postsList to find the post and its image URL, media_import_url to import that URL, generate the edit with the model models_explore recommends, job_status until the job finishes, then uploadFromUrlTool on the result URL and replacePostAsset to swap it onto the post - after showing the user the replacement and getting their explicit approval.
-      Generations spend the workspace's shared credit allowance. If a call reports the allowance is used up, relay that message to the user as-is - it explains the situation in their terms.`,
+      description: `Runs one of the AI media tools listed by mediaMcpList - generate or edit images and videos, import media by URL, discover models, poll jobs, check remaining_budget. "name" is the tool name exactly as mediaMcpList reported it and "arguments" matches the inputSchema it reported. Each tool's own description carries its rules; for example a generation references media imported with media_import_url, since a plain URL is not a valid medias[].value.
+      "Change the image on my post" runs as: postsList for the post and its image URL, media_import_url on that URL, the edit generated with the model models_explore recommends, job_status until the job finishes, then uploadFromUrlTool on the result URL and replacePostAsset, which swaps it onto the post once the user has seen and approved the replacement.
+      Generations spend the workspace's shared credit allowance. When it is used up, the call returns a message that explains the situation in the user's terms.`,
       mcp: {
         annotations: {
           title: 'Call AI Media Tool',

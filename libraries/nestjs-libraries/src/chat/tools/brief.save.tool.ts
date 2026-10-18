@@ -2,10 +2,7 @@ import { AgentToolInterface } from '@gitroom/nestjs-libraries/chat/agent.tool.in
 import { createTool } from '@mastra/core/tools';
 import { Injectable } from '@nestjs/common';
 import z from 'zod';
-import {
-  checkAuth,
-  paidOnly,
-} from '@gitroom/nestjs-libraries/chat/auth.context';
+import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
 import { BriefService } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.service';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 
@@ -17,13 +14,12 @@ export class BriefSaveTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'briefSaveTool',
-      description: `Write to the agent brief — the description of the business that steers everything published on its behalf.
-"rules" replaces the whole document, so always read the document with briefListTool first and send back the existing rules plus your changes — anything you leave out is deleted.
-Each rule is a heading and the plain text under it. Plain text means plain: no markdown, no HTML, no "#" headings, bullets, tables or bold. Anything sent as markup is stored and rendered literally, so it reads as broken rather than as formatting.
-One rule holding a whole formatted document is the wrong shape. Split it into one rule per idea and let each heading do the work its markdown heading would have done — the headings are the document's structure.
-Sources hold one document per source, not one document listing them all. A source is a single place the agent can read from, so give each its own short key and its own title ("forum", "discord", "notion"), and put its address in "links" with a note saying what the link is and when to use it. A source document with no links is nearly always a mistake, because the link is the source and the rules only say how to use it.
-For Experience use briefLearnTool instead, which revises one lesson at a time rather than replacing the document, and needs no permission.
-Use briefListTool for the list of valid categories and keys. Only documents in a category marked canCreate may be created with a new key; everything else must use a key that already exists.`,
+      description: `Writes one document of the agent brief, the description of the business that steers everything published on its behalf.
+The rules sent become the document's whole list of rules. When the document already holds rules whose headings are not in the call, nothing is saved and the result lists those headings in "missing"; with replace: true they are dropped instead. briefListTool returns the current rules, and the valid categories and keys.
+Each rule is a heading and the plain text under it. Markdown or HTML in a rule (# headings, bullets, tables, bold) is stored and shown literally, so it reads as broken text rather than as formatting. The headings are the document's structure, one rule per idea.
+In the sources category each document is one source: a single place to read from, with its own short key and title ("forum", "discord", "notion") and its address in "links", with a note on what the link is and when it applies. The link is the source; the rules say how it is used.
+Experience lessons are kept by briefLearnTool, one lesson at a time.
+A new key can be created only in a category marked canCreate; the other categories accept their existing keys.`,
       mcp: {
         annotations: {
           title: 'Write Agent Brief',
@@ -38,11 +34,13 @@ Use briefListTool for the list of valid categories and keys. Only documents in a
       inputSchema: z.object({
         category: z
           .string()
-          .describe('foundation, sources or channels (from briefListTool)'),
+          .describe(
+            'foundation, sources or channels (listed by briefListTool)'
+          ),
         key: z
           .string()
           .describe(
-            'The document key. For channels this is the integration id. For a source, invent a short unique key naming that one source ("forum", "notion"), and create a separate document per source rather than collecting them into one.'
+            'The document key. For channels it is the integration id. For a source it is a short unique key naming that one source ("forum", "notion"); each source has its own document.'
           ),
         title: z
           .string()
@@ -60,7 +58,7 @@ Use briefListTool for the list of valid categories and keys. Only documents in a
             })
           )
           .describe(
-            'The complete set of rules for this document, one rule per idea. Anything omitted is removed.'
+            'The rules of this document, one rule per idea. They become its whole list of rules.'
           ),
         links: z
           .array(
@@ -69,12 +67,18 @@ Use briefListTool for the list of valid categories and keys. Only documents in a
               note: z
                 .string()
                 .optional()
-                .describe('What this link is and how to use it'),
+                .describe('What this link is and when it applies'),
             })
           )
           .optional()
           .describe(
-            'Only for documents in the sources category, where it is the substance rather than a decoration: the address the agent actually reads from. A source saved without one is a description of a source rather than a source.'
+            'Sources category only: the addresses this source is read from.'
+          ),
+        replace: z
+          .boolean()
+          .optional()
+          .describe(
+            'Set to true to drop the existing rules not sent in this call'
           ),
       }),
       outputSchema: z.object({
@@ -83,17 +87,31 @@ Use briefListTool for the list of valid categories and keys. Only documents in a
         key: z.string().optional(),
         rules: z.number().optional(),
         error: z.string().optional(),
+        missing: z.array(z.string()).optional(),
       }),
       execute: async (inputData, context) => {
         checkAuth(inputData, context);
-        const blocked = paidOnly(context, 'The agent brief', 'brief');
-        if (blocked) {
-          return { error: blocked };
-        }
         try {
           const organizationId = JSON.parse(
             (context?.requestContext as any)?.get('organization') as string
           ).id;
+
+          if (!inputData.replace) {
+            const missing = await this._briefService.missingHeadings(
+              organizationId,
+              inputData.category,
+              inputData.key,
+              inputData.rules.map((rule: { heading: string }) => rule.heading)
+            );
+
+            if (missing.length) {
+              const named = missing.map((heading) => `"${heading}"`).join(', ');
+              return {
+                error: `Not saved: this document already holds rules that this call leaves out (${named}), and saving would remove them. Sending them again with the rest keeps them; replace: true drops them on purpose.`,
+                missing,
+              };
+            }
+          }
 
           const saved = await this._briefService.saveDocument(
             organizationId,

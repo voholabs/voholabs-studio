@@ -14,6 +14,9 @@ export const notOnWalletMessage = 'Your plan does not use wallet credits.';
 
 export const topUpUrl = () => `${process.env.FRONTEND_URL}/wallet`;
 
+// The Plus page: what opens the paid features and top-ups.
+export const plusUrl = () => `${process.env.FRONTEND_URL}/plus`;
+
 export const shortWarning = () =>
   `Not enough credits yet. If you don't top up before it's due, this post won't go out. Top up: ${topUpUrl()}`;
 
@@ -202,10 +205,10 @@ export const walletErrorText = (
   );
 };
 
-// A request refused because it needs the wallet (HTTP 402 with
-// { message, wallet: true, url }), as one line for the agent, or undefined
-// for any other error.
-export const walletRefusal = (err: any) => {
+// The body of a request refused because it needs the wallet (HTTP 402 with
+// { message, wallet: true, url }, and plus: true when it needs Plus), or
+// undefined for any other error.
+const walletRefusalBody = (err: any) => {
   const status =
     typeof err?.getStatus === 'function' ? err.getStatus() : err?.status;
   const body =
@@ -218,13 +221,37 @@ export const walletRefusal = (err: any) => {
       ? body.url.startsWith('/')
         ? `${process.env.FRONTEND_URL}${body.url}`
         : body.url
+      : body.plus
+      ? plusUrl()
       : topUpUrl();
-  return `${body.message || 'This needs wallet credits.'} Top up: ${url}`;
+  return { message: body.message as string | undefined, plus: !!body.plus, url };
+};
+
+// That refusal as one line for the agent, or undefined for any other error.
+export const walletRefusal = (err: any) => {
+  const body = walletRefusalBody(err);
+  if (!body) {
+    return undefined;
+  }
+  return body.plus
+    ? `${body.message || 'This is included with Plus.'} Get Plus: ${body.url}`
+    : `${body.message || 'This needs wallet credits.'} Top up: ${body.url}`;
+};
+
+// The structured lock of a refusal that needs Plus, to sit next to the
+// message: { locked: true, reason: 'plus', upgradeUrl }. Empty otherwise.
+export const walletRefusalLock = (err: any) => {
+  const body = walletRefusalBody(err);
+  return body?.plus
+    ? { locked: true as const, reason: 'plus' as const, upgradeUrl: body.url }
+    : {};
 };
 
 const UNIT_LABELS: Record<string, [string, string]> = {
   gb: ['GB', 'GB'],
   '1k_tokens': ['1K tokens', '1K tokens'],
+  '1k_chars': ['1K characters', '1K characters'],
+  image: ['image', 'images'],
 };
 
 const SECTION_LABELS: Record<string, string> = {
@@ -232,6 +259,7 @@ const SECTION_LABELS: Record<string, string> = {
   storage: 'Storage',
   brief: 'Brief',
   skills: 'Skills',
+  ai: 'AI generation',
 };
 
 const titleCase = (key: string) =>
@@ -255,7 +283,7 @@ export const pricingModel = (a: PricedAction) =>
     : `per ${unitLabel(a.unit)}`;
 
 export const freeAllowance = (a: PricedAction) => {
-  const afterTopUp = a.requiresTopUp ? ', unlocks after first top up' : '';
+  const afterTopUp = a.requiresTopUp ? ', with Plus' : '';
   if (a.billing === 'UNLOCK') {
     return `Unlimited use${afterTopUp}`;
   }

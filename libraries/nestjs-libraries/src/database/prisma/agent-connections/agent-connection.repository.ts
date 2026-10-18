@@ -33,7 +33,9 @@ export class AgentConnectionRepository {
       'agentConnection' | '$executeRaw' | '$queryRaw'
     >,
     private _organization: PrismaRepository<'organization'>,
-    private _post: PrismaRepository<'post'>
+    private _post: PrismaRepository<'post'>,
+    private _activity: PrismaRepository<'agentActivityDay'>,
+    private _oauthAuthorization: PrismaRepository<'oAuthAuthorization'>
   ) {}
 
   // Upserts the row, then stamps the organization. Returns whether this was
@@ -68,6 +70,22 @@ export class AgentConnectionRepository {
       },
     });
 
+    // The daily active agents chart counts a day only when the agent used a
+    // tool: a client refreshing its tool list on its own is not someone using
+    // their agent. The UTC day.
+    if (toolName) {
+      await this._activity.model.agentActivityDay.createMany({
+        data: [
+          {
+            organizationId,
+            client,
+            day: new Date(at.toISOString().slice(0, 10)),
+          },
+        ],
+        skipDuplicates: true,
+      });
+    }
+
     const first = await this._agentConnection.model.$executeRaw`
       UPDATE "Organization"
       SET "agentFirstConnectedAt" = ${at}, "agentLastSeenAt" = ${at}
@@ -97,6 +115,33 @@ export class AgentConnectionRepository {
       orderBy: { lastSeenAt: 'desc' },
       select: { client: true, authMethod: true, lastSeenAt: true },
     });
+  }
+
+  // The newest agent sign-in (OAuth) still in force: the code was exchanged
+  // for a token and nobody revoked it. Some hosts sign in and then wait for
+  // the first chat before they call the MCP at all.
+  latestSignIn(organizationId: string) {
+    return this._oauthAuthorization.model.oAuthAuthorization.findFirst({
+      where: {
+        organizationId,
+        revokedAt: null,
+        accessToken: { not: null },
+        // Agents register themselves; a workspace's own OAuth app is not one.
+        oauthApp: { isPublic: true },
+      },
+      orderBy: { updatedAt: 'desc' },
+      select: { updatedAt: true, oauthApp: { select: { name: true } } },
+    });
+  }
+
+  // Every client that has reached the MCP for this organization.
+  async connectedClients(organizationId: string) {
+    const rows = await this._agentConnection.model.agentConnection.findMany({
+      where: { organizationId },
+      select: { client: true },
+      distinct: ['client'],
+    });
+    return rows.map((row) => row.client);
   }
 
   countConnectedOrganizations(since?: Date) {

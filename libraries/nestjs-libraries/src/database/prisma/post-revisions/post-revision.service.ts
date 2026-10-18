@@ -85,24 +85,34 @@ export class PostRevisionService {
       args.oldGroup
     );
 
+    const snapshot = {
+      integrationId: args.integrationId,
+      payload,
+      payloadHash,
+      contentHash,
+    };
+
     if (!chainId) {
-      return this._postRevisionRepository.create({
+      const created = await this._postRevisionRepository.create({
         organizationId: args.orgId,
         chainId: uuidv4(),
         kind: 'INITIAL',
-        integrationId: args.integrationId,
         group: args.newGroup,
         postIds: args.postIds,
-        payload,
-        payloadHash,
-        contentHash,
+        ...snapshot,
       });
+      await this.appendVersion(args.orgId, created.chainId, snapshot);
+      return created;
     }
 
     const rows = await this._postRevisionRepository.getChain(
       args.orgId,
       chainId
     );
+
+    // Every distinct state is kept as a version, including edits made after
+    // the post went out, which FINAL below no longer follows.
+    await this.appendVersion(args.orgId, chainId, snapshot, rows);
 
     const final = rows.find((row) => row.kind === 'FINAL');
     const latest = final || rows.find((row) => row.kind === 'INITIAL');
@@ -208,8 +218,117 @@ export class PostRevisionService {
     return byGroup?.chainId;
   }
 
-  deleteChain(orgId: string, chainId: string) {
-    return this._postRevisionRepository.deleteChain(orgId, chainId);
+  // Deleting a post keeps its history: the chain is only marked deleted.
+  markChainDeleted(orgId: string, chainId: string) {
+    return this._postRevisionRepository.markChainDeleted(orgId, chainId);
+  }
+
+  /**
+   * A post moved to another time without being opened (dragged on the
+   * calendar): the same content at the new date becomes the next version.
+   */
+  async captureReschedule(
+    orgId: string,
+    postId: string,
+    group: string,
+    publishDate: Date | string
+  ) {
+    const chainId = await this.resolveChainId(orgId, [postId], group);
+    if (!chainId) {
+      return;
+    }
+    const versions = await this._postRevisionRepository.getVersions(
+      orgId,
+      chainId
+    );
+    const latest = versions[versions.length - 1];
+    if (!latest) {
+      return;
+    }
+    const payloadObject = {
+      ...this.parsePayload(latest.payload),
+      publishDate: new Date(publishDate).toISOString(),
+    };
+    await this.appendVersion(orgId, chainId, {
+      integrationId: latest.integrationId,
+      payload: JSON.stringify(payloadObject),
+      payloadHash: sha256(
+        `${latest.contentHash}|${payloadObject.publishDate}`
+      ),
+      contentHash: latest.contentHash,
+    });
+  }
+
+  /**
+   * Adds the snapshot as the chain's next version unless it is the same as
+   * the last one. A chain recorded before versions existed is first given its
+   * INITIAL (and FINAL, when it differs) as v1 and v2.
+   */
+  private async appendVersion(
+    orgId: string,
+    chainId: string,
+    snapshot: {
+      integrationId: string;
+      payload: string;
+      payloadHash: string;
+      contentHash: string;
+    },
+    rows?: PostRevision[]
+  ) {
+    let latest = await this._postRevisionRepository.latestVersion(chainId);
+
+    if (!latest && rows?.length) {
+      const earlier = [
+        rows.find((row) => row.kind === 'INITIAL'),
+        rows.find((row) => row.kind === 'FINAL'),
+      ].filter((row): row is PostRevision => !!row);
+      for (const row of earlier) {
+        if (latest?.payloadHash === row.payloadHash) {
+          continue;
+        }
+        const version = (latest?.version || 0) + 1;
+        await this._postRevisionRepository.createVersion({
+          organizationId: orgId,
+          chainId,
+          version,
+          integrationId: row.integrationId,
+          payload: row.payload,
+          payloadHash: row.payloadHash,
+          contentHash: row.contentHash,
+          createdAt: row.kind === 'INITIAL' ? row.createdAt : row.updatedAt,
+        });
+        latest = { version, payloadHash: row.payloadHash };
+      }
+    }
+
+    if (latest?.payloadHash === snapshot.payloadHash) {
+      return;
+    }
+
+    try {
+      await this._postRevisionRepository.createVersion({
+        organizationId: orgId,
+        chainId,
+        version: (latest?.version || 0) + 1,
+        ...snapshot,
+      });
+    } catch (err) {
+      // Two saves landing together picked the same number; the one that lost
+      // takes the next.
+      if ((err as { code?: string })?.code !== 'P2002') {
+        throw err;
+      }
+      const current = await this._postRevisionRepository.latestVersion(chainId);
+      if (current?.payloadHash === snapshot.payloadHash) {
+        return;
+      }
+      await this._postRevisionRepository.createVersion({
+        organizationId: orgId,
+        chainId,
+        version: (current?.version || 0) + 1,
+        ...snapshot,
+      });
+    }
   }
 
   async markLearned(

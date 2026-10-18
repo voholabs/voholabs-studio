@@ -2,10 +2,7 @@ import { AgentToolInterface } from '@gitroom/nestjs-libraries/chat/agent.tool.in
 import { createTool } from '@mastra/core/tools';
 import { Injectable } from '@nestjs/common';
 import z from 'zod';
-import {
-  checkAuth,
-  paidOnly,
-} from '@gitroom/nestjs-libraries/chat/auth.context';
+import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
 import { BriefService } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.service';
 
 @Injectable()
@@ -16,11 +13,11 @@ export class BriefLearnTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'briefLearnTool',
-      description: `Record something you have learned about what works for this brand, in the Experience section of the agent brief.
-Experience is your own notebook, not the user's instructions, so unlike the rest of the brief you may write here without asking permission first. Say afterwards what you noted. The user can edit what you wrote, so treat a changed lesson as a correction and keep to it.
-Write one lesson per call. Give it a heading you will recognise again — writing the same heading twice revises what is there instead of adding a duplicate, which is how a lesson gets sharper over time rather than piling up.
-Record what you actually observed, in a form that changes a future decision: what was tried, what happened, and what to do differently. Do not record the user's instructions here — those belong to the Foundation and are theirs to write.
-Group related lessons by using the same "topic": one document per channel, per format, per campaign, or whatever division earns its keep.`,
+      description: `Records one lesson about what works for this brand in the Experience section of the agent brief.
+Experience is the agent's own notebook of what it observed, separate from the user's instructions, which live in the Foundation. The user can edit any lesson there; an edited lesson is the user's correction.
+Each call keeps one lesson. A heading already in the topic's document revises that lesson instead of adding a duplicate, so a lesson gets sharper over time rather than piling up.
+A lesson that changes a future decision records what was tried, what happened, and what to do differently.
+Lessons with the same "topic" share one document: one per channel, per format, per campaign, or another division.`,
       mcp: {
         annotations: {
           title: 'Record Agent Experience',
@@ -41,7 +38,7 @@ Group related lessons by using the same "topic": one document per channel, per f
         title: z
           .string()
           .optional()
-          .describe('Human name for the document, set the first time you use a topic.'),
+          .describe('Human name for the document, set the first time a topic is used.'),
         heading: z
           .string()
           .describe(
@@ -62,10 +59,6 @@ Group related lessons by using the same "topic": one document per channel, per f
       }),
       execute: async (inputData, context) => {
         checkAuth(inputData, context);
-        const blocked = paidOnly(context, 'The agent brief', 'brief');
-        if (blocked) {
-          return { error: blocked };
-        }
         try {
           const organizationId = JSON.parse(
             (context?.requestContext as any)?.get('organization') as string

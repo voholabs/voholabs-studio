@@ -6,6 +6,14 @@ jest.mock(
 jest.mock('@gitroom/nestjs-libraries/integrations/integration.manager', () => ({
   IntegrationManager: class {},
 }));
+jest.mock(
+  '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.research.prices.service',
+  () => ({ WalletResearchPricesService: class {} })
+);
+jest.mock(
+  '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.plus.service',
+  () => ({ WalletPlusService: class {} })
+);
 
 import {
   PUBLIC_PRICES_TTL_MS,
@@ -19,7 +27,38 @@ const SECTIONS = [
   },
 ];
 
-const build = (overrides: Record<string, any> = {}) => {
+const RESEARCH = [
+  {
+    id: 'reviews',
+    title: 'Reviews',
+    summary: 'What customers say',
+    runs: 2,
+    low: 90,
+    high: 150,
+  },
+];
+
+const PLUS_OFFER = {
+  currency: 'USD',
+  creditsPerPeriod: 400,
+  periodDays: 30,
+  topUpCreditsPerUnit: 19,
+  intervals: [
+    {
+      interval: 'month',
+      price: 1900,
+      releases: 1,
+      pricePerRelease: 1900,
+      savingPercent: 9,
+    },
+  ],
+};
+
+const build = (
+  overrides: Record<string, any> = {},
+  research: Record<string, any> = {},
+  plusOffer: any = PLUS_OFFER
+) => {
   const wallet = {
     priceSections: jest.fn(async () => SECTIONS),
     topUpRules: jest.fn(async () => ({
@@ -31,17 +70,33 @@ const build = (overrides: Record<string, any> = {}) => {
       defaultThreshold: 100,
     })),
     currency: jest.fn(async () => 'USD'),
+    rates: jest.fn(async () => ({
+      currency: 'USD',
+      creditsPerUnit: 100,
+      defaultMultiplierBp: 15789,
+      defaultMultiplier: 1.5789,
+    })),
     ...overrides,
   };
+  const plus = { offer: jest.fn(async () => plusOffer) };
   const integrations = {
     socialProviders: jest.fn(() => [
       { identifier: 'x', name: 'X' },
       { identifier: 'tiktok', name: 'TikTok' },
     ]),
   };
+  const researchPrices = {
+    prices: jest.fn(async () => ({ groups: RESEARCH })),
+    ...research,
+  };
   return {
     wallet,
-    service: new WalletPublicPricesService(wallet as any, integrations as any),
+    service: new WalletPublicPricesService(
+      wallet as any,
+      integrations as any,
+      researchPrices as any,
+      plus as any
+    ),
   };
 };
 
@@ -53,12 +108,50 @@ describe('WalletPublicPricesService', () => {
     expect(await service.prices()).toEqual({
       currency: 'USD',
       creditsPerUnit: 100,
+      defaultMultiplierBp: 15789,
       topUp: { minAmount: 500, options: [500, 1000] },
       sections: SECTIONS,
       channels: [
         { identifier: 'x', name: 'X' },
         { identifier: 'tiktok', name: 'TikTok' },
       ],
+      research: RESEARCH,
+      plus: PLUS_OFFER,
+    });
+  });
+
+  it('gives the markup from its setting, and null without it', async () => {
+    const { service } = build({
+      rates: jest.fn(async () => {
+        throw new Error('Billing setting default_multiplier_bp is not configured');
+      }),
+    });
+    expect(await service.prices()).toMatchObject({ defaultMultiplierBp: null });
+    const other = build({
+      rates: jest.fn(async () => ({ defaultMultiplierBp: 12000 })),
+    });
+    expect(await other.service.prices()).toMatchObject({
+      defaultMultiplierBp: 12000,
+    });
+  });
+
+  it('shows no Plus when it is not offered', async () => {
+    const { service } = build({}, {}, null);
+    expect(await service.prices()).toMatchObject({ plus: null });
+  });
+
+  it('still lists prices without the research data', async () => {
+    const { service } = build(
+      {},
+      {
+        prices: jest.fn(async () => {
+          throw new Error('gateway down');
+        }),
+      }
+    );
+    expect(await service.prices()).toMatchObject({
+      sections: SECTIONS,
+      research: [],
     });
   });
 

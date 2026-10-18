@@ -22,7 +22,14 @@ export interface RecorderOptions {
   now?: () => number;
 }
 
-type Entry = { lastWrite: number; pending: number; toolName?: string };
+type Entry = {
+  lastWrite: number;
+  pending: number;
+  toolName?: string;
+  // The UTC day a tool call was last written, so the first one of each day
+  // goes out at once (it is what counts toward daily active agents).
+  toolDay?: string;
+};
 
 // Records MCP requests in the AgentConnection table without ever holding one
 // up: `seen` returns at once and the write happens in the background, at most
@@ -95,7 +102,9 @@ export class AgentConnectionRecorder {
     if (toolName) {
       entry.toolName = toolName;
     }
-    if (now - entry.lastWrite < this.throttleMs) {
+    const today = new Date(now).toISOString().slice(0, 10);
+    const firstToolToday = !!entry.toolName && entry.toolDay !== today;
+    if (now - entry.lastWrite < this.throttleMs && !firstToolToday) {
       return;
     }
 
@@ -109,6 +118,9 @@ export class AgentConnectionRecorder {
     };
     entry.lastWrite = now;
     entry.pending = 0;
+    if (entry.toolName) {
+      entry.toolDay = today;
+    }
     entry.toolName = undefined;
 
     const current = entry;
@@ -122,8 +134,12 @@ export class AgentConnectionRecorder {
         }
       })
       .catch((err) => {
-        // Keep the count for the next write.
+        // Keep the count, and the tool call of the day, for the next write.
         current.pending += input.requests;
+        if (input.toolName) {
+          current.toolName = current.toolName || input.toolName;
+          current.toolDay = undefined;
+        }
         this.logger.warn(
           `Could not record an agent connection: ${String(err?.message || err)}`
         );

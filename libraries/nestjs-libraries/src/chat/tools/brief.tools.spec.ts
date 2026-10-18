@@ -131,6 +131,75 @@ describe('briefSaveTool', () => {
     expect(result.error).toMatch(/Allowed keys: north-star/);
   });
 
+  const existing = () => {
+    const saveDocument = jest.fn(async () => ({ updatedAt: new Date() }));
+    const service = new BriefService(
+      {
+        getDocument: jest.fn(async () => ({
+          content: JSON.stringify({
+            blocks: [
+              { id: 'a', heading: 'Tone', body: 'Warm' },
+              { id: 'b', heading: 'Off limits', body: 'Politics' },
+            ],
+          }),
+        })),
+        saveDocument,
+      } as any,
+      {} as any,
+      { capture: jest.fn() } as any
+    );
+    return { tool: new BriefSaveTool(service).run() as any, saveDocument };
+  };
+
+  it('keeps existing rules the call leaves out, and names them', async () => {
+    const { tool, saveDocument } = existing();
+    const result = await tool.execute(
+      {
+        category: 'foundation',
+        key: 'north-star',
+        rules: [{ heading: ' tone', body: 'Warmer' }],
+      },
+      context()
+    );
+    expect(saveDocument).not.toHaveBeenCalled();
+    expect(result.missing).toEqual(['Off limits']);
+    expect(result.error).toMatch(/"Off limits"/);
+    expect(result.error).toMatch(/replace: true/);
+  });
+
+  it('saves when every existing heading is sent again', async () => {
+    const { tool, saveDocument } = existing();
+    const result = await tool.execute(
+      {
+        category: 'foundation',
+        key: 'north-star',
+        rules: [
+          { heading: 'TONE', body: 'Warmer' },
+          { heading: 'Off limits', body: 'Politics' },
+          { heading: 'Audience', body: 'Founders' },
+        ],
+      },
+      context()
+    );
+    expect(saveDocument).toHaveBeenCalled();
+    expect(result).toMatchObject({ saved: true, rules: 3 });
+  });
+
+  it('drops the rules left out when replace is true', async () => {
+    const { tool, saveDocument } = existing();
+    const result = await tool.execute(
+      {
+        category: 'foundation',
+        key: 'north-star',
+        rules: [{ heading: 'Tone', body: 'Warmer' }],
+        replace: true,
+      },
+      context()
+    );
+    expect(saveDocument).toHaveBeenCalled();
+    expect(result).toMatchObject({ saved: true, rules: 1 });
+  });
+
   it('documents the remove action on briefAssetTool', () => {
     const tool = new BriefAssetTool({} as any).run() as any;
     expect(tool.inputSchema.shape.action.description).toMatch(/remove/);

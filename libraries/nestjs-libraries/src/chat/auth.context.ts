@@ -24,15 +24,15 @@ export const checkAuth = (
 // calls it. Call it right after checkAuth, which is what puts the organization
 // into the request context.
 //
-// walletKey: what a wallet top-up opens it under (see
-// WalletService.unlockedKeys); startMcp lists those on the organization.
+// walletKey: what Plus opens it under (see WalletService.unlockedKeys);
+// startMcp lists those on the organization.
 export const paidOnly = (
   context: any,
   feature: string,
   walletKey?: string
 ) => {
   const locked = walletKey
-    ? `${feature} opens after your first wallet top-up.`
+    ? `${feature} is included with Plus: ${process.env.FRONTEND_URL}/plus`
     : paidFeatureMessage(feature);
   try {
     const organization = JSON.parse(

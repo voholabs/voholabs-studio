@@ -13,8 +13,8 @@ export class FindSlotTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'findSlotTool',
-      description: `Find the next free time slot in the posting schedule, based on the times configured for the channel.
-Use it when the user asks to post "at the next free slot" or doesn't give a date, then pass the returned date to integrationSchedulePostTool.`,
+      description: `Finds the next free time slot in the posting schedule, based on the times configured for the channel.
+It covers posting "at the next free slot" and a post with no date given; the returned date is a date integrationSchedulePostTool accepts.`,
       mcp: {
         annotations: {
           title: 'Find Next Free Slot',
@@ -29,7 +29,7 @@ Use it when the user asks to post "at the next free slot" or doesn't give a date
           .string()
           .optional()
           .describe(
-            'Optional channel (integration) id from the integrationList tool, to use that channel own posting times'
+            'Optional channel (integration) id from the integrationList tool, to use the posting times of that channel'
           ),
       }),
       outputSchema: z.object({

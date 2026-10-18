@@ -25,8 +25,8 @@ export class WalletPricesTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'walletPrices',
-      description: `Get the wallet price list: everything that costs credits or opens after the first top-up, grouped into sections, with how each is charged, what is included free and its price in credits.
-Prices change over time, so always read them here rather than quoting them from memory. Pass provider (e.g. "x") to see only one provider's rows. Channels not listed are free to use.`,
+      description: `Returns the wallet price list: everything that costs credits or opens with Plus, grouped into sections, with how each is charged, what is included free and its price in credits.
+Prices change over time; this list holds the current ones. provider (e.g. "x") limits it to one provider's rows. Channels not listed are free to use.`,
       inputSchema: z.object({
         provider: z
           .string()

@@ -19,9 +19,9 @@ export class AnalyticsChannelTool implements AgentToolInterface {
     return createTool({
       id: 'channelAnalyticsTool',
       description: `How a channel itself is doing: followers, impressions, engagement and whatever else that network reports about the account.
-Use integrationList first to get the channel id. Only social channels report analytics; publishing platforms such as a blog or a newsletter return nothing, which is expected rather than an error.
-What comes back differs by network, because each one exposes its own metrics. Read the labels rather than assuming a fixed set, and say which network the numbers came from.
-Numbers can be a day or two behind what the network's own dashboard shows, so do not present them as live.`,
+The channel id comes from integrationList. Only social channels report analytics; publishing platforms such as a blog or a newsletter return nothing, which is expected rather than an error.
+What comes back differs by network, because each one exposes its own metrics: the labels name each metric, and there is no fixed set.
+Numbers can be a day or two behind what the network's own dashboard shows, so they are not live figures.`,
       mcp: {
         annotations: {
           title: 'Channel Analytics',

@@ -23,10 +23,9 @@ export class MediaUploadTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'uploadMediaTool',
-      description: `Upload a local image or video into the media library by sending its bytes base64 encoded.
-Use this for small files (roughly under 1MB) when you have the file locally and it is not reachable by URL.
-For anything larger — photos from a camera or phone, or any video — use createUploadLinkTool instead, which transfers the file over HTTP without putting it in the conversation.
-Returns the hosted media { id, path }; pass the "path" as the attachment when scheduling a post.`,
+      description: `Uploads a local image, video or audio file (mp3, wav) into the media library from its bytes, base64 encoded.
+It suits small local files (roughly under 1MB) that are not reachable by URL. createUploadLinkTool transfers a larger image or video (photos from a camera or phone, any video) over HTTP, without putting it in the conversation; it takes no audio, so an mp3 comes in here or through uploadFromUrlTool.
+Returns the hosted media { id, path }; the "path" of an image or video is what a post takes as an attachment. An audio file is kept as a file to download again and is refused as a post attachment.`,
       mcp: {
         annotations: {
           title: 'Upload Media',

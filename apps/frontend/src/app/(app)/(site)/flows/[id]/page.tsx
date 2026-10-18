@@ -1,11 +1,14 @@
 export const dynamic = 'force-dynamic';
 import { Metadata } from 'next';
-import { SkillsPage } from '@gitroom/frontend/components/skills/skills.page';
+import { FlowsPage } from '@gitroom/frontend/components/flows/flows.page';
 import { isGeneralServerSide } from '@gitroom/helpers/utils/is.general.server.side';
+
+// The same page as /flows, with this flow's details open.
 export const metadata: Metadata = {
-  title: `${isGeneralServerSide() ? 'Voholabs Studio' : 'Gitroom'} Skills`,
+  title: `${isGeneralServerSide() ? 'Voholabs Studio' : 'Gitroom'} Flows`,
   description: '',
 };
+
 export default async function Index() {
-  return <SkillsPage />;
+  return <FlowsPage />;
 }

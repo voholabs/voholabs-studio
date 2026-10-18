@@ -3,15 +3,18 @@
 import { useTrackView } from '@gitroom/helpers/utils/use.fire.events';
 import React, { FC } from 'react';
 import clsx from 'clsx';
+import Link from 'next/link';
+import { LockIcon } from '@gitroom/frontend/components/wallet-locks/wallet.icons';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import {
   useSupportedChannels,
   useWallet,
   useWalletFormat,
   useWalletPrices,
+  useWalletResearchPrices,
 } from '@gitroom/frontend/components/wallet/wallet.hooks';
 import { openTopUp } from '@gitroom/frontend/components/wallet/wallet.events';
-import { rateLine } from '@gitroom/frontend/components/wallet/wallet.header';
+import { rateLine } from '@gitroom/frontend/components/wallet/wallet.text';
 import {
   Loading,
   NoWallet,
@@ -24,6 +27,8 @@ import {
   PlusIcon,
 } from '@gitroom/frontend/components/wallet/wallet.ui';
 import { PriceList } from '@gitroom/frontend/components/wallet/wallet.price.list';
+import { FlowsPricing } from '@gitroom/frontend/components/pricing/flows.pricing';
+import { usePublicFlows } from '@gitroom/frontend/components/flows/flows.hooks';
 
 // The Prices page, generated only from GET /wallet/prices: no per-row copy.
 export const WalletPricesPage: FC = () => {
@@ -37,6 +42,11 @@ const WalletPrices: FC = () => {
   const { data: wallet } = useWallet(true);
   const { data: sections, error } = useWalletPrices(true);
   const { data: channels } = useSupportedChannels(true);
+  // An empty list when it fails, so the research row still shows.
+  const { data: researchData, error: researchError } =
+    useWalletResearchPrices(true);
+  const research = researchData ?? (researchError ? [] : undefined);
+  const { data: flows } = usePublicFlows();
   const f = useWalletFormat(wallet?.currency);
 
   if (!sections) {
@@ -66,23 +76,41 @@ const WalletPrices: FC = () => {
             {!!wallet && (
               <span className="text-textItemBlur">
                 {rateLine(t, f, wallet)}.
+                {!wallet.legacy && (
+                  <>
+                    {' '}
+                    {t(
+                      'plus_prices_free_credits',
+                      'Free credits pay for everything except what is marked "Included with Plus".'
+                    )}
+                  </>
+                )}
               </span>
             )}
           </span>
         </div>
-        <button
-          type="button"
-          onClick={() => openTopUp()}
-          className={clsx(BTN_PRIMARY, 'shrink-0')}
-        >
-          <PlusIcon /> {t('wallet_top_up', 'Top up')}
-        </button>
+        {wallet?.topUpAllowed === false ? (
+          <Link href="/plus" className={clsx(BTN_PRIMARY, 'shrink-0')}>
+            <LockIcon size={14} /> {t('plus_get', 'Get Plus')}
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={() => openTopUp()}
+            className={clsx(BTN_PRIMARY, 'shrink-0')}
+          >
+            <PlusIcon /> {t('wallet_top_up', 'Top up')}
+          </button>
+        )}
       </div>
       <PriceList
         sections={sections}
         channels={channels}
         currency={wallet?.currency}
+        research={research}
+        open={!!wallet?.legacy}
       />
+      <FlowsPricing flows={flows || []} />
     </WalletPageShell>
   );
 };

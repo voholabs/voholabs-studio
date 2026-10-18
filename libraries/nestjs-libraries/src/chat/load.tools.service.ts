@@ -10,6 +10,7 @@ import {
   toolList,
 } from '@gitroom/nestjs-libraries/chat/tools/tool.list';
 import { mcpOnlyToolList } from '@gitroom/nestjs-libraries/chat/tools/mcp.only.tool.list';
+import { gatewayToolList } from '@gitroom/nestjs-libraries/chat/tools/gateway.tool.list';
 import { AgentToolInterface } from '@gitroom/nestjs-libraries/chat/agent.tool.interface';
 import { hasAccess } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 import dayjs from 'dayjs';
@@ -80,6 +81,21 @@ export class LoadToolsService {
     );
   }
 
+  // The tools only the MCP gateway is served (gatewayToolList)
+  async loadGatewayTools() {
+    return Object.fromEntries(
+      await Promise.all(
+        gatewayToolList
+          .map(
+            (p) =>
+              this._moduleRef.get(p, { strict: false }) as AgentToolInterface
+          )
+          .filter((p) => !p.available || p.available())
+          .map(async (p) => [p.name, await p.run()] as const)
+      )
+    ) as Record<string, any>;
+  }
+
   // Tools every install has, whatever features it configured
   coreToolNames() {
     return toolList
@@ -124,7 +140,7 @@ export class LoadToolsService {
       - Analytics differ by network: each one reports its own metrics, so read the labels rather than assuming a fixed set, and say which network a number came from. Figures can lag the network's own dashboard by a day or two, so do not present them as live.
       - The agent brief is the user's own words about their business. Read it with briefListTool before drafting anything, so what you write sounds like them and respects what they said is off limits.
       - You may edit the brief yourself. Say what you changed afterwards, in a line or two, so the user can see it without having to go looking.
-      - briefSaveTool replaces a whole document, so read it first and send the existing rules back along with your changes, or the rest is lost.
+      - briefSaveTool replaces a whole document, so read it first and send the existing rules back along with your changes. A save that leaves existing rules out is refused and lists them in "missing", unless replace is true.
       - Experience is the exception: it is your own notebook, so record what you learn with briefLearnTool as you go, without asking. Note it after a post lands well or badly, or when the user corrects you on something that will apply again. Say afterwards what you wrote down.
       - Branding & assets holds the brand's own files. Read the notes on them before making anything visual, and respect what they say a file is not for. To add one, upload it to the media library first and register it with briefAssetTool, with a note on when to use it.
       - Keep Experience to what you observed and what to do differently next time. Anything the user tells you to do is an instruction, not a lesson — that belongs in the Foundation, and only they may put it there.

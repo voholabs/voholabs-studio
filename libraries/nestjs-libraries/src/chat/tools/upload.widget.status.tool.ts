@@ -14,10 +14,10 @@ export class UploadWidgetStatusTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'uploadWidgetStatusTool',
-      description: `List the media the user uploaded with the upload box, using the sessionId returned by uploadWidgetTool.
+      description: `Lists the media the user uploaded with the upload box, using the sessionId returned by uploadWidgetTool.
 It lists only the files uploaded in that session, not the whole media library.
-An empty list means nothing has finished uploading yet: a large video can take a few minutes, so ask the user or call again later.
-A media with the status "processing" is still being prepared: wait about 10 seconds and call again.
+An empty list means nothing has finished uploading yet: a large video can take a few minutes.
+A media with the status "processing" is still being prepared, which takes about 10 seconds.
 A media with the status "ready" (or no status) can be attached to a post with its { id, path }.`,
       mcp: {
         annotations: {

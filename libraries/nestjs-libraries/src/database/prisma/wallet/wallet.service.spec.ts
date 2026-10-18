@@ -283,6 +283,10 @@ describe('WalletService.forecast and estimate', () => {
     autoTopUp: true,
     frozenAt: null,
     paymentMethodId: 'pm_1',
+    // Auto top-up is Plus only.
+    plusSubscriptionId: 'sub_1',
+    plusStatus: 'active',
+    plusPeriodEnd: new Date(Date.now() + 86_400_000),
     autoTopUpAmount: 1000,
     autoTopUpMonthlyCap: null,
     ...over,
@@ -574,6 +578,10 @@ describe('WalletService.estimateContents', () => {
     autoTopUp: true,
     frozenAt: null,
     paymentMethodId: 'pm_1',
+    // Auto top-up is Plus only.
+    plusSubscriptionId: 'sub_1',
+    plusStatus: 'active',
+    plusPeriodEnd: new Date(Date.now() + 86_400_000),
     autoTopUpAmount: 1000,
     autoTopUpMonthlyCap: null,
     ...over,
@@ -820,10 +828,150 @@ describe('WalletService.unfreeze and locked messages', () => {
       'on hold'
     );
     expect(await open.lockedProviderMessageFor('o', 'x')).toContain(
-      'Top up your wallet'
+      'Get Plus'
     );
     expect(await open.lockedProviderMessageFor('o', 'linkedin')).toBe(
       'X is temporarily unavailable on the free plan.'
     );
+  });
+});
+
+describe('WalletService welcome credits', () => {
+  // A stub ledger: entries by idempotency key, and addOnce that writes a key
+  // at most once, as the unique index does.
+  const ledger = (settings: Record<string, string>) => {
+    const entries: { idempotencyKey: string; amount: number }[] = [];
+    const wallet: { welcomeCreditsSkippedAt?: Date } = {};
+    return stubRepo(
+      {
+        ensureWallet: jest.fn(async () => wallet),
+        getWallet: jest.fn(async () => wallet),
+        updateWallet: jest.fn(async (_org: string, data: any) =>
+          Object.assign(wallet, data)
+        ),
+        entryByKey: jest.fn(
+          async (key: string) =>
+            entries.find((entry) => entry.idempotencyKey === key) || null
+        ),
+        addOnce: jest.fn(async (entry: any) => {
+          const found = entries.find(
+            (e) => e.idempotencyKey === entry.idempotencyKey
+          );
+          if (found) {
+            return { entry: found, created: false };
+          }
+          entries.push(entry);
+          return { entry, created: true };
+        }),
+      },
+      settings
+    );
+  };
+  const WITH_100 = { ...SETTINGS, [BILLING.signupCredits]: '100' };
+
+  it('offers the configured credits to a workspace that has none yet', async () => {
+    const r = ledger(WITH_100);
+    expect(
+      await new WalletService(r, notifications()).welcomeCredits('org1')
+    ).toEqual({ available: 10000, claimed: false, skipped: false });
+  });
+
+  it('claims the configured credits as a grant that opens nothing', async () => {
+    const r = ledger(WITH_100);
+    const service = new WalletService(r, notifications());
+    expect(await service.claimWelcomeCredits('org1')).toBe(10000);
+    expect(r.addOnce).toHaveBeenCalledWith({
+      organizationId: 'org1',
+      amount: 10000,
+      type: 'GRANT',
+      description: 'Welcome credits',
+      idempotencyKey: 'welcome:org1',
+    });
+    expect(await service.welcomeCredits('org1')).toEqual({
+      available: 0,
+      claimed: true,
+      skipped: false,
+    });
+  });
+
+  it('grants once, however many times it is claimed', async () => {
+    const r = ledger(WITH_100);
+    const service = new WalletService(r, notifications());
+    expect(await service.claimWelcomeCredits('org1')).toBe(10000);
+    expect(await service.claimWelcomeCredits('org1')).toBe(0);
+    expect(r.addOnce).toHaveBeenCalledTimes(1);
+    expect(r.updateWallet).not.toHaveBeenCalled();
+  });
+
+  it('turning them down is final: nothing can be claimed after it', async () => {
+    const r = ledger(WITH_100);
+    const service = new WalletService(r, notifications());
+    expect(await service.skipWelcomeCredits('org1')).toBe(true);
+    expect(await service.skipWelcomeCredits('org1')).toBe(false);
+    expect(await service.welcomeCredits('org1')).toEqual({
+      available: 0,
+      claimed: false,
+      skipped: true,
+    });
+    expect(await service.claimWelcomeCredits('org1')).toBe(0);
+    expect(r.addOnce).not.toHaveBeenCalled();
+  });
+
+  it('turning them down after claiming changes nothing', async () => {
+    const r = ledger(WITH_100);
+    const service = new WalletService(r, notifications());
+    await service.claimWelcomeCredits('org1');
+    expect(await service.skipWelcomeCredits('org1')).toBe(false);
+    expect(r.updateWallet).not.toHaveBeenCalled();
+    expect(await service.welcomeCredits('org1')).toEqual({
+      available: 0,
+      claimed: true,
+      skipped: false,
+    });
+  });
+
+  it('two claims at once write one entry: the second gets the first back', async () => {
+    const r = ledger(WITH_100);
+    const service = new WalletService(r, notifications());
+    const added = await Promise.all([
+      service.claimWelcomeCredits('org1'),
+      service.claimWelcomeCredits('org1'),
+    ]);
+    expect(added.sort()).toEqual([0, 10000]);
+    expect(r.addOnce).toHaveBeenCalledTimes(2);
+    expect(await r.entryByKey('welcome:org1')).toMatchObject({
+      amount: 10000,
+    });
+  });
+
+  it('offers nothing when the setting is missing or zero', async () => {
+    for (const settings of [
+      SETTINGS,
+      { ...SETTINGS, [BILLING.signupCredits]: '0' },
+    ]) {
+      const r = ledger(settings);
+      const service = new WalletService(r, notifications());
+      expect(await service.welcomeCredits('org1')).toEqual({
+        available: 0,
+        claimed: false,
+        skipped: false,
+      });
+      expect(await service.claimWelcomeCredits('org1')).toBe(0);
+      expect(r.addOnce).not.toHaveBeenCalled();
+    }
+  });
+
+  it('reading never throws: on a failure there is nothing to claim', async () => {
+    const r = stubRepo(
+      {
+        entryByKey: jest.fn(async () => {
+          throw new Error('db down');
+        }),
+      },
+      WITH_100
+    );
+    await expect(
+      new WalletService(r, notifications()).welcomeCredits('org1')
+    ).resolves.toEqual({ available: 0, claimed: false, skipped: false });
   });
 });

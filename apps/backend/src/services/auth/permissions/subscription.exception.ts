@@ -33,19 +33,19 @@ export class SubscriptionExceptionFilter implements ExceptionFilter {
       error.section === Sections.ONBOARDING ||
       error.section === Sections.TERMS;
 
-    // Opens with a wallet top-up, so the app offers the top-up instead of
-    // Postiz billing.
+    // Opens with Plus, so the app offers Plus instead of Postiz billing.
     const isWallet =
       error.section === Sections.BRIEF || error.section === Sections.SKILLS;
 
-    // A wallet refusal has the same body as every other one in the app:
-    // { message, wallet: true, url: '/wallet' }.
+    // The same body as every other Plus refusal in the app (plusRequired):
+    // { message, wallet: true, plus: true, url: '/plus' }.
     if (isWallet) {
       response.status(status).json({
         statusCode: status,
         message,
         wallet: true,
-        url: '/wallet',
+        plus: true,
+        url: '/plus',
       });
       return;
     }
@@ -75,9 +75,9 @@ const getErrorMessage = (error: {
     case Sections.AI:
       return paidFeatureMessage('AI');
     case Sections.BRIEF:
-      return 'The agent brief opens after your first wallet top-up.';
+      return 'The agent brief is included with Plus.';
     case Sections.SKILLS:
-      return 'The skills library opens after your first wallet top-up.';
+      return 'The skills library is included with Plus.';
     case Sections.POSTS_PER_MONTH:
       switch (error.action) {
         default:

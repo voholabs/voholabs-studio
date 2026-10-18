@@ -17,8 +17,8 @@ export class SkillsListTool implements AgentToolInterface {
     return createTool({
       id: 'skillsList',
       description: `The Studio skills library: proven, step-by-step methods for content jobs (editing out AI-sounding writing, hooks, writing in the user's voice, shaping a post for each channel, repurposing, learning from results).
-This returns a short catalog only: slug, name, one-line summary, when to use it, tags, and "usesBrief" (true when the skill reads the user's brief and works best once the brief is filled in). It never returns the instructions themselves.
-How to use it: call this once at the start of a content task, pick at most one or two skills whose "whenToUse" matches the task, then read only those with skillGet and follow them. Do not read every skill. Narrow the list with a tag key (from "tags") or a search word when it is long. Using skills is free.`,
+This returns a short catalog only: slug, name, one-line summary, when to use it, tags, and "usesBrief" (true when the skill reads the user's brief and works best once the brief is filled in). The instructions themselves come from skillGet, one skill at a time.
+"whenToUse" says which content tasks a skill fits; a task typically needs one or two. A tag key (from "tags") or a search word narrows the list. Using skills is free.`,
       mcp: {
         annotations: {
           title: 'List Skills',

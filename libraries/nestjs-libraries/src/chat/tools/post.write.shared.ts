@@ -52,9 +52,12 @@ export const withSanitisedContent = <T extends { content?: string }>(
 // to use an upload route it cannot reach.
 export const attachmentUrl = z
   .string()
-  .refine((url) => validUrlExtension.validate(url, {} as any), {
-    message: validUrlExtension.defaultMessage({} as any),
-  });
+  .refine(
+    (url) => validUrlExtension.validate(url, {} as any),
+    (url) => ({
+      message: validUrlExtension.defaultMessage({ value: url } as any),
+    })
+  );
 
 /**
  * The media entries stored on a post row. Kept as the raw stored shape so an
@@ -171,6 +174,7 @@ export const hostExternalAttachments = async (params: {
       mediaService,
       organizationId,
       url,
+      postAttachment: true,
     });
 
     if (stored.error || !stored.path) {

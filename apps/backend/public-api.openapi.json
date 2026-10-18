@@ -324,7 +324,7 @@
           "Channels"
         ],
         "summary": "Get a connect URL for a channel",
-        "description": "Starts connecting a new channel: returns the provider's OAuth URL to open in a browser. `integration` is a provider identifier such as `linkedin`, `tiktok` or `x`. A provider the workspace cannot use yet answers 402: for X on a free workspace the body carries `wallet: true` and the top-up link.",
+        "description": "Starts connecting a new channel: returns the provider's OAuth URL to open in a browser. `integration` is a provider identifier such as `linkedin`, `tiktok` or `x`. Connecting is free on every plan, X included; posting to X needs Plus.",
         "operationId": "getConnectUrl",
         "responses": {
           "200": {
@@ -1475,7 +1475,7 @@
           "Wallet"
         ],
         "summary": "Price list",
-        "description": "Everything that costs credits or opens with the first top-up, grouped into sections. Prices change; read them here rather than hard-coding them. Channels not listed are free.",
+        "description": "Everything that costs credits or is included with Plus, grouped into sections. Prices change; read them here rather than hard-coding them. Channels not listed are free.",
         "operationId": "getWalletPrices",
         "responses": {
           "200": {
@@ -1663,7 +1663,7 @@
           "Skills"
         ],
         "summary": "List skills",
-        "description": "The skills library: step-by-step methods for content jobs, as a short catalog. Opens with the first wallet top-up (402 with `wallet: true` before that); paid plans always pass.",
+        "description": "The skills library: step-by-step methods for content jobs, as a short catalog. Included with Plus (402 with `wallet: true` and `plus: true` before that); paid plans always pass.",
         "operationId": "listSkills",
         "responses": {
           "200": {
@@ -1753,7 +1753,7 @@
           "Brief"
         ],
         "summary": "Brief structure",
-        "description": "The categories and documents of the agent brief and what may be created or deleted in each. Open on a paid plan or after the first wallet top-up; 402 with `wallet: true` otherwise.",
+        "description": "The categories and documents of the agent brief and what may be created or deleted in each. Open on every plan.",
         "operationId": "getBriefSchema",
         "responses": {
           "200": {
@@ -1789,7 +1789,7 @@
           "Brief"
         ],
         "summary": "Read the brief",
-        "description": "Every document in the agent brief. Open on a paid plan or after the first wallet top-up; 402 with `wallet: true` otherwise.",
+        "description": "Every document in the agent brief. Open on every plan.",
         "operationId": "getBrief",
         "responses": {
           "200": {
@@ -1828,7 +1828,7 @@
           "Brief"
         ],
         "summary": "Brief onboarding status",
-        "description": "Whether the guided brief onboarding is available, running or has run, and whether starting a new run takes credits. The onboarding is an interview the user takes in the app, so it is started at `startUrl`, not through the API. Open on a paid plan or after the first wallet top-up; 402 with `wallet: true` otherwise.",
+        "description": "Whether the guided brief onboarding is available, running or has run, and whether starting a new run takes credits. The onboarding is an interview the user takes in the app, so it is started at `startUrl`, not through the API. Open on every plan.",
         "operationId": "getBriefOnboarding",
         "responses": {
           "200": {
@@ -1856,7 +1856,7 @@
           "Brief"
         ],
         "summary": "Read one brief document",
-        "description": "One document. Open on a paid plan or after the first wallet top-up; 402 with `wallet: true` otherwise.",
+        "description": "One document. Open on every plan.",
         "operationId": "getBriefDocument",
         "responses": {
           "200": {
@@ -1905,7 +1905,7 @@
           "Brief"
         ],
         "summary": "Save a brief document",
-        "description": "Saves a document. A field left out keeps what is stored; `blocks`, `links` and `assets` are each replaced whole, so send the existing items with your changes. Open on a paid plan or after the first wallet top-up; 402 with `wallet: true` otherwise.",
+        "description": "Saves a document. A field left out keeps what is stored; `blocks`, `links` and `assets` are each replaced whole, so send the existing items with your changes. Open on every plan.",
         "operationId": "saveBriefDocument",
         "responses": {
           "200": {
@@ -1964,7 +1964,7 @@
           "Brief"
         ],
         "summary": "Delete a brief document",
-        "description": "Deletes a document in a category that allows it. By default its history goes with it; `keepHistory=true` keeps the revisions and records the removal. Open on a paid plan or after the first wallet top-up; 402 with `wallet: true` otherwise.",
+        "description": "Deletes a document in a category that allows it. By default its history goes with it; `keepHistory=true` keeps the revisions and records the removal. Open on every plan.",
         "operationId": "deleteBriefDocument",
         "responses": {
           "200": {
@@ -2438,7 +2438,7 @@
       },
       "WalletRefusal": {
         "type": "object",
-        "description": "Something needs wallet credits or a wallet top-up. Open `url` on the Studio app (relative to it, e.g. https://studio.voholabs.com/wallet) to top up.",
+        "description": "Something needs wallet credits or Plus. Open `url` on the Studio app (relative to it, e.g. https://studio.voholabs.com/wallet): `/plus` when `plus` is true, else the wallet to top up.",
         "properties": {
           "statusCode": {
             "type": "integer",
@@ -2454,6 +2454,10 @@
           "wallet": {
             "type": "boolean",
             "const": true
+          },
+          "plus": {
+            "type": "boolean",
+            "description": "True when the action is included with Plus; `url` is then `/plus`"
           },
           "url": {
             "type": "string",
@@ -2841,7 +2845,7 @@
           },
           "payAsYouGo": {
             "type": "boolean",
-            "description": "True after the first top-up, while the wallet is not frozen"
+            "description": "True while the paid features are open: with Plus, or after a top-up made before Plus while credit is left; false while frozen"
           },
           "frozen": {
             "type": "boolean"
@@ -2966,7 +2970,8 @@
                         ]
                       },
                       "requiresTopUp": {
-                        "type": "boolean"
+                        "type": "boolean",
+                        "description": "True when the action is included with Plus (the free credits don't cover it)"
                       },
                       "pricingModel": {
                         "type": "string"

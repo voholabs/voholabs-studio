@@ -1,6 +1,9 @@
 'use client';
 
-import { useFireEvents, useTrackView } from '@gitroom/helpers/utils/use.fire.events';
+import {
+  useFireEvents,
+  useTrackView,
+} from '@gitroom/helpers/utils/use.fire.events';
 import React, {
   FC,
   ReactNode,
@@ -26,6 +29,12 @@ import {
   WalletFormat,
 } from '@gitroom/frontend/components/wallet/wallet.hooks';
 import { openTopUp } from '@gitroom/frontend/components/wallet/wallet.events';
+import { openPlus } from '@gitroom/frontend/components/wallet/wallet.bridge';
+import { LockIcon } from '@gitroom/frontend/components/wallet-locks/wallet.icons';
+import {
+  PILL_PLUS,
+  PlusCredits,
+} from '@gitroom/frontend/components/plus/plus.offer';
 import {
   cardLabel,
   useIsWalletAdmin,
@@ -34,9 +43,11 @@ import {
   ForecastNotice,
   isLow,
   lowThreshold,
-  rateLine,
 } from '@gitroom/frontend/components/wallet/wallet.header';
+import { rateLine } from '@gitroom/frontend/components/wallet/wallet.text';
 import { WalletCheckoutReturn } from '@gitroom/frontend/components/wallet/wallet.return';
+import { PlusPaymentFailedNotice } from '@gitroom/frontend/components/plus/plus.panel';
+import { usePlusPlan } from '@gitroom/frontend/components/plus/plus.hooks';
 import {
   actionName,
   txName,
@@ -104,8 +115,10 @@ const Toggle: FC<{
   on: boolean;
   label: string;
   disabled?: boolean;
+  // Shows a lock on the knob: the switch needs Plus.
+  locked?: boolean;
   onChange: () => void;
-}> = ({ on, label, disabled, onChange }) => (
+}> = ({ on, label, disabled, locked, onChange }) => (
   <button
     type="button"
     role="switch"
@@ -120,10 +133,12 @@ const Toggle: FC<{
   >
     <span
       className={clsx(
-        'absolute top-[3px] w-[16px] h-[16px] rounded-full bg-white transition-all',
+        'absolute top-[3px] w-[16px] h-[16px] rounded-full bg-white transition-all flex items-center justify-center text-black',
         on ? 'start-[21px]' : 'start-[3px]'
       )}
-    />
+    >
+      {locked && <LockIcon size={10} />}
+    </span>
   </button>
 );
 
@@ -184,6 +199,34 @@ const Segmented: FC<{
   </div>
 );
 
+// Pay-as-you-go from before Plus: Plus is offered as an option, from the
+// Plus offer (credits a month and the monthly price).
+const LegacyPlusNote: FC<{ f: WalletFormat }> = ({ f }) => {
+  const t = useT();
+  const { data: plan } = usePlusPlan(true);
+  const monthly = plan?.offer?.intervals.find((i) => i.interval === 'month');
+  return (
+    <div className="text-[14px] leading-[1.55] text-newTextColor/80">
+      {plan?.offer && monthly
+        ? t(
+            'plus_legacy_offer',
+            "You're on pay-as-you-go. Plus gives you {{credits}} credits a month for {{price}}.",
+            {
+              credits: plan.offer.creditsPerPeriod,
+              price: f.money(monthly.price),
+            }
+          )
+        : t('plus_legacy_short', "You're on pay-as-you-go.")}{' '}
+      <Link
+        href="/plus"
+        className="text-newTextColor underline underline-offset-2 hover:text-btnPrimary"
+      >
+        {t('plus_see', 'See Plus')}
+      </Link>
+    </div>
+  );
+};
+
 const BalanceCard: FC<{
   wallet: WalletSummary;
   f: WalletFormat;
@@ -192,6 +235,9 @@ const BalanceCard: FC<{
   const t = useT();
   const paid = wallet.payAsYouGo;
   const low = isLow(wallet) || wallet.balance < 0;
+  const needsPlus = wallet.topUpAllowed === false;
+  // Topped up before Plus: the credits keep working, top-ups need Plus.
+  const grandfathered = paid && !wallet.plus && needsPlus;
   return (
     <div className={clsx(CARD, 'p-[24px] flex flex-col gap-[20px] min-w-0')}>
       <div className="flex items-center justify-between gap-[8px]">
@@ -200,6 +246,8 @@ const BalanceCard: FC<{
         </div>
         {wallet.frozen ? (
           <span className={PILL_MUTED}>{t('wallet_on_hold', 'On hold')}</span>
+        ) : wallet.plus ? (
+          <span className={PILL_PLUS}>{t('plus_name', 'Plus')}</span>
         ) : paid ? (
           <span className={PILL_TEAL}>{t('wallet_payg', 'Pay-as-you-go')}</span>
         ) : (
@@ -213,7 +261,7 @@ const BalanceCard: FC<{
           <span
             className={clsx(
               'text-[clamp(34px,3.2vw,48px)] font-[600] leading-none tabular-nums',
-              !paid ? 'text-textItemBlur' : low ? 'text-warm' : ''
+              low && 'text-warm'
             )}
           >
             <Num>{f.credits(wallet.balance)}</Num>
@@ -230,7 +278,19 @@ const BalanceCard: FC<{
           </div>
         )}
       </div>
+      {!!wallet.credits && (wallet.plus || wallet.credits.plan > 0) && (
+        <PlusCredits credits={wallet.credits} currency={wallet.currency} />
+      )}
       <ForecastNotice wallet={wallet} />
+      {!!wallet.legacy && !wallet.frozen && <LegacyPlusNote f={f} />}
+      {grandfathered && !wallet.frozen && (
+        <div className="text-[14px] leading-[1.55] text-newTextColor/80">
+          {t(
+            'plus_grandfathered_note',
+            'Your credits keep working until they are used up. Top-ups need Plus.'
+          )}
+        </div>
+      )}
       {wallet.frozen && (
         <div className="text-[14px] leading-[1.55] text-newTextColor/80">
           {t(
@@ -238,6 +298,9 @@ const BalanceCard: FC<{
             'This wallet is on hold. Contact support to restore it.'
           )}
         </div>
+      )}
+      {!wallet.frozen && !!wallet.plusPaymentFailed && (
+        <PlusPaymentFailedNotice />
       )}
       {!paid && !wallet.frozen && (
         <div className="text-[14px] leading-[1.55] text-newTextColor/80">
@@ -248,13 +311,28 @@ const BalanceCard: FC<{
         </div>
       )}
       <div className="flex flex-wrap gap-[8px] mt-auto">
-        <button
-          type="button"
-          onClick={() => openTopUp()}
-          className={clsx(BTN_PRIMARY, 'flex-1 min-w-[160px]')}
-        >
-          <PlusIcon /> {t('wallet_top_up', 'Top up')}
-        </button>
+        {wallet.frozen ||
+        (needsPlus && wallet.plusPaymentFailed) ? null : needsPlus ? (
+          <Link
+            href="/plus"
+            className={clsx(BTN_PRIMARY, 'flex-1 min-w-[160px]')}
+          >
+            <LockIcon size={14} /> {t('plus_get', 'Get Plus')}
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={() => openTopUp()}
+            className={clsx(BTN_PRIMARY, 'flex-1 min-w-[160px]')}
+          >
+            <PlusIcon /> {t('wallet_top_up', 'Top up')}
+          </button>
+        )}
+        {!!wallet.plus && (
+          <Link href="/plus" className={BTN_SIMPLE}>
+            {t('plus_manage', 'Manage Plus')}
+          </Link>
+        )}
         {paid && (
           <button
             type="button"
@@ -304,7 +382,22 @@ const AutoTopUpCard: FC<{ wallet: WalletSummary; f: WalletFormat }> = ({
   const [changingCard, setChangingCard] = useState(false);
   const on = paid && wallet.autoTopUp.enabled;
   const fireEvents = useFireEvents();
-  const canEdit = paid && isAdmin && !!wallet.card && !wallet.frozen;
+  // Auto top-up is a top-up, so it needs Plus; turning it off never does.
+  const needsPlus = wallet.topUpAllowed === false;
+  // A failing Plus payment pauses it (the server refuses turning it on).
+  const paused = !!wallet.plusPaymentFailed;
+  const canEdit =
+    paid &&
+    isAdmin &&
+    !!wallet.card &&
+    !wallet.frozen &&
+    (on || (!needsPlus && !paused));
+  // Off and needing Plus: the switch and the settings open the Plus dialog.
+  const locked = needsPlus && !on && !wallet.frozen;
+  // With Plus and no card yet, turning it on saves a card first.
+  const addsCard =
+    paid && isAdmin && !wallet.card && !wallet.frozen && !needsPlus;
+  const offReason = on ? null : wallet.autoTopUp.offReason;
 
   // Choices come from the billing settings; the saved values always stay
   // selectable.
@@ -330,11 +423,15 @@ const AutoTopUpCard: FC<{ wallet: WalletSummary; f: WalletFormat }> = ({
   const thresholdHundredths = f.parseCredits(form.threshold);
 
   // Swaps the saved card through Stripe (setup mode); Stripe sends the user
-  // back to /wallet?card=saved or ?card=cancelled.
-  const changeCard = useCallback(async () => {
+  // back to /wallet?card=saved or ?card=cancelled. `autoTopUp` turns auto
+  // top-up on once the card is saved.
+  const changeCard = useCallback(async (autoTopUp = false) => {
     setChangingCard(true);
     try {
-      const res = await fetch('/wallet/card', { method: 'POST' });
+      const res = await fetch('/wallet/card', {
+        method: 'POST',
+        ...(autoTopUp ? { body: JSON.stringify({ autoTopUp: true }) } : {}),
+      });
       const body = await res.json().catch(() => ({}));
       if (res.ok && body?.url) {
         window.location.href = body.url;
@@ -403,37 +500,81 @@ const AutoTopUpCard: FC<{ wallet: WalletSummary; f: WalletFormat }> = ({
             {t('wallet_auto_title', 'Auto top-up')}
           </div>
           <div className="text-[13px] text-textItemBlur mt-[4px]">
-            {!paid
-              ? t(
-                  'wallet_auto_after_first',
-                  'Available after your first top-up. You can turn it on at checkout.'
-                )
-              : !wallet.card
-              ? t(
-                  'wallet_auto_needs_card',
-                  'Top up with "Save card and enable auto top-up" ticked to turn this on.'
-                )
-              : t(
-                  'wallet_auto_explainer',
-                  'Keeps pay-per-use features running when your balance runs low.'
-                )}
+            {paused ? (
+              t(
+                'wallet_auto_paused',
+                'Auto top-up is paused while your Plus payment is failing. Update your card on the Plus page to start it again.'
+              )
+            ) : needsPlus && offReason === 'plus_ended' ? (
+              t(
+                'wallet_auto_off_plus_ended',
+                'Auto top-up turned off when your Plus ended. It comes back with Plus.'
+              )
+            ) : locked ? (
+              <>
+                {t('plus_auto_comes_with_plus', 'Auto top-up comes with Plus.')}{' '}
+                <button
+                  type="button"
+                  onClick={() => openPlus()}
+                  className="text-newTextColor underline underline-offset-2 hover:text-btnPrimary"
+                >
+                  {t('plus_get', 'Get Plus')}
+                </button>
+              </>
+            ) : !wallet.card ? (
+              t(
+                'wallet_auto_add_card',
+                'Turn this on to save a card. Nothing is charged until your balance runs low.'
+              )
+            ) : offReason === 'card_failed' ? (
+              t(
+                'wallet_auto_off_card_failed',
+                'Auto top-up turned off because your card could not be charged. Update your card, then turn it back on.'
+              )
+            ) : (
+              t(
+                'wallet_auto_explainer',
+                'Keeps pay-per-use features running when your balance runs low.'
+              )
+            )}
           </div>
         </div>
         <Toggle
           on={on}
           label={t('wallet_auto_title', 'Auto top-up')}
-          disabled={!canEdit || saving}
+          locked={locked}
+          disabled={
+            !locked && (!(canEdit || addsCard) || saving || changingCard)
+          }
           onChange={() =>
-            save(
-              !on,
-              !on
-                ? t('wallet_auto_turned_on', 'Auto top-up turned on')
-                : t('wallet_auto_turned_off', 'Auto top-up turned off')
-            )
+            locked
+              ? openPlus()
+              : addsCard
+              ? changeCard(true)
+              : save(
+                  !on,
+                  !on
+                    ? t('wallet_auto_turned_on', 'Auto top-up turned on')
+                    : t('wallet_auto_turned_off', 'Auto top-up turned off')
+                )
           }
         />
       </div>
-      <div className={clsx('flex flex-col gap-[12px]', !on && 'opacity-50')}>
+      <div
+        className={clsx(
+          'relative flex flex-col gap-[12px]',
+          !on && 'opacity-50'
+        )}
+      >
+        {locked && (
+          <button
+            type="button"
+            onClick={() => openPlus()}
+            tabIndex={-1}
+            aria-hidden="true"
+            className="absolute inset-0 z-[1] cursor-pointer"
+          />
+        )}
         <div className="flex items-center flex-wrap gap-[8px] text-[14px]">
           <span>{t('wallet_auto_when_below', 'When balance falls below')}</span>
           <span className="inline-flex items-center h-[36px] bg-newBgColorInner border border-newTableBorder rounded-[8px] hover:border-newSep focus-within:border-btnPrimary">
@@ -507,7 +648,7 @@ const AutoTopUpCard: FC<{ wallet: WalletSummary; f: WalletFormat }> = ({
                 <button
                   type="button"
                   disabled={changingCard}
-                  onClick={changeCard}
+                  onClick={() => changeCard()}
                   className="text-[13px] text-textItemBlur hover:text-newTextColor underline underline-offset-2 disabled:opacity-50"
                 >
                   {t('wallet_card_change', 'Change')}
@@ -593,13 +734,11 @@ const niceTop = (max: number) => {
 
 const DAY_OPTIONS = [7, 30, 90];
 
-const UsageTab: FC<{ wallet: WalletSummary; f: WalletFormat }> = ({
-  wallet,
-  f,
-}) => {
+const UsageTab: FC<{ f: WalletFormat }> = ({ f }) => {
   const t = useT();
   const [days, setDays] = useState(30);
-  const { data, isLoading } = useWalletUsage(days, wallet.payAsYouGo);
+  // Read on every plan: welcome credits are spent too (images, voice-overs).
+  const { data, isLoading } = useWalletUsage(days);
   const find = usePriceLookup();
 
   // Every day of the window, oldest first, with no gaps (UTC days, as the
@@ -620,17 +759,6 @@ const UsageTab: FC<{ wallet: WalletSummary; f: WalletFormat }> = ({
     });
   }, [data, days]);
 
-  if (!wallet.payAsYouGo) {
-    return (
-      <EmptyState
-        title={t('wallet_no_usage', 'No usage yet')}
-        body={t(
-          'wallet_no_usage_free',
-          'Usage shows here once you top up and start using pay-per-use features.'
-        )}
-      />
-    );
-  }
   if (isLoading && !data) {
     return (
       <div className="flex justify-center py-[40px]">
@@ -677,8 +805,8 @@ const UsageTab: FC<{ wallet: WalletSummary; f: WalletFormat }> = ({
         <EmptyState
           title={t('wallet_no_usage', 'No usage yet')}
           body={t(
-            'wallet_no_usage_payg',
-            'Your first paid action will show here, with its cost, by day.'
+            'wallet_no_usage_any',
+            'Anything you spend credits on, like an image or a voice-over, shows here with its cost, by day.'
           )}
         />
       </>
@@ -851,6 +979,8 @@ const TYPE_STYLE: Record<string, string> = {
   REFUND: clsx(POS_SOFT, POS_TEXT),
   GRANT: clsx(POS_SOFT, POS_TEXT),
   ADJUST: 'bg-warmSoft text-warm',
+  PLAN_GRANT: 'bg-warmSoft text-warm',
+  PLAN_EXPIRE: 'bg-newBgLineColor text-textItemBlur',
 };
 
 const PAGE_SIZE = 10;
@@ -1074,13 +1204,18 @@ const TransactionsTab: FC<{ wallet: WalletSummary; f: WalletFormat }> = ({
   );
 };
 
-const PageShell: FC<{ children: ReactNode; max: number }> = ({
+// `center`: the column sits in the middle of the page (the Plus page).
+const PageShell: FC<{ children: ReactNode; max: number; center?: boolean }> = ({
   children,
   max,
+  center,
 }) => (
   <div className="bg-newBgColorInner flex-1 min-w-0">
     <div
-      className="p-[20px] flex flex-col gap-[20px] w-full"
+      className={clsx(
+        'p-[20px] flex flex-col gap-[20px] w-full',
+        center && 'mx-auto py-[32px] mobile:px-[16px] mobile:py-[20px]'
+      )}
       style={{ maxWidth: max }}
     >
       {children}
@@ -1133,6 +1268,7 @@ const WalletBilling: FC = () => {
               // Starts the form again whenever the saved settings change.
               key={[
                 wallet.payAsYouGo,
+                wallet.topUpAllowed,
                 wallet.autoTopUp.enabled,
                 wallet.autoTopUp.threshold,
                 wallet.autoTopUp.amount,
@@ -1164,7 +1300,7 @@ const WalletBilling: FC = () => {
             {tab === 'transactions' ? (
               <TransactionsTab wallet={wallet} f={f} />
             ) : (
-              <UsageTab wallet={wallet} f={f} />
+              <UsageTab f={f} />
             )}
           </div>
         </PageShell>

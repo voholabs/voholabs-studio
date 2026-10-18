@@ -20,7 +20,7 @@ export const MAX_REFERENCE_ITEMS = 50;
 /**
  * Best-effort MIME from the file extension.
  *
- * Media rows carry a coarse `type` ("image"/"video") and no MIME column, and
+ * Media rows carry a coarse `type` ("image"/"video"/"audio") and no MIME column, and
  * nothing here downloads a file just to sniff it - the caller loads the asset
  * itself and gets the authoritative Content-Type from that request. This is a
  * hint for deciding what is worth loading.
@@ -51,6 +51,10 @@ export const guessMimeFromPath = (path: string): string | null => {
       return 'video/quicktime';
     case 'webm':
       return 'video/webm';
+    case 'mp3':
+      return 'audio/mpeg';
+    case 'wav':
+      return 'audio/wav';
     default:
       return null;
   }
@@ -64,7 +68,16 @@ export const guessMimeFromPath = (path: string): string | null => {
 export const mediaKind = (
   storedType: string | null | undefined,
   mimeType: string | null
-): 'image' | 'video' | 'unknown' => {
+): 'image' | 'video' | 'audio' | 'unknown' => {
+  // A row saved without a type carries the default "image" whatever the
+  // file is, so an audio extension wins over the stored type.
+  if (
+    storedType === 'audio' ||
+    (mimeType && mimeType.indexOf('audio/') === 0)
+  ) {
+    return 'audio';
+  }
+
   if (storedType === 'image' || storedType === 'video') {
     return storedType;
   }

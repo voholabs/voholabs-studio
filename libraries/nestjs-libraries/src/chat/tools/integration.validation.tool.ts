@@ -17,10 +17,8 @@ export class IntegrationValidationTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'integrationSchema',
-      description: `Everytime we want to schedule a social media post, we need to understand the schema of the integration.
-         This tool helps us get the schema of the integration.
-         Sometimes we might get a schema back the requires some id, for that, you can get information from 'tools'
-         And use the triggerTool function.
+      description: `Returns the schema of a platform's integration: the rules, the maximum length and the settings a post to it takes when it is scheduled.
+         Some settings take an id (a tag, a list, a board) that comes from one of the returned 'tools', run through the triggerTool function.
         `,
       mcp: {
         annotations: {
@@ -36,7 +34,7 @@ export class IntegrationValidationTool implements AgentToolInterface {
           .boolean()
           .optional()
           .describe(
-            'Only matters for X: whether the account is X Premium (longer posts). Defaults to false; leave it out for every other platform.'
+            'Only matters for X: whether the account is X Premium (longer posts). Defaults to false and has no effect on other platforms.'
           ),
         platform: z
           .string()
@@ -80,7 +78,7 @@ export class IntegrationValidationTool implements AgentToolInterface {
               })
             )
             .describe(
-              "Sometimes settings require some id, tags and stuff, if you don't have, trigger the `triggerTool` function from the tools list [output:callable-tools]"
+              "Some settings take an id, tags or similar values that come from these tools, run through the `triggerTool` function [output:callable-tools]"
             ),
         }),
       }),

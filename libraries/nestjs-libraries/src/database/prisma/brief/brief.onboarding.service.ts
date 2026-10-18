@@ -4,6 +4,7 @@ import { BriefOnboardingRepository } from '@gitroom/nestjs-libraries/database/pr
 import {
   InsufficientCreditsError,
   WalletService,
+  plusRequired,
   walletPaymentRequired,
 } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 import { WalletBillingService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.billing.service';
@@ -131,6 +132,17 @@ export class BriefOnboardingService {
     lang?: string
   ) {
     const { url, secret } = this.config();
+    // The brief is free, but this guided run is not: a wallet workspace gets
+    // it once its top-up opens the brief. The free plan fills the brief
+    // through its own agent instead.
+    if (
+      (await this._wallet.paysFromWallet(organizationId)) &&
+      !(await this._wallet.unlocks(organizationId, 'brief'))
+    ) {
+      throw plusRequired(
+        'The guided brief onboarding is included with Plus. Your connected agent can fill the brief for free.'
+      );
+    }
     await this.closeStale(organizationId);
 
     let run = await this._repository.running(organizationId);

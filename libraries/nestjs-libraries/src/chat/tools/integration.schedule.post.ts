@@ -23,6 +23,7 @@ import {
   toCredits,
   walletPostCost,
   walletRefusal,
+  walletRefusalLock,
   walletWarning,
 } from '@gitroom/nestjs-libraries/chat/tools/wallet.shared';
 
@@ -49,7 +50,7 @@ export class IntegrationSchedulePostTool implements AgentToolInterface {
         },
       },
       description: `
-Use this when the user wants to create a draft, scheduled, or immediate social media post on their connected channels, based on the integrationSchema tool.
+Creates a draft, scheduled, or immediate social media post on the user's connected channels, based on the integrationSchema tool.
 Examples of the input shape:
 
 A single LinkedIn post with one comment
@@ -60,29 +61,29 @@ A single LinkedIn post with one comment
 - socialPost array length will be 20
 - postsAndComments array length will be one
 
-If the tools return errors, you would need to rerun it with the right parameters, don't ask again, just run it
+A call that returns errors can be run again with corrected parameters.
 
 LINKING TO ANOTHER POST (echoing a post to other channels):
-To put the live URL of another post inside this one, write "(post:<postId>)" in the
-content. It is replaced with that post's real URL at the moment this post publishes,
-so you CAN schedule "here is my new X post: <link>" before the X post exists.
-- Get the postId from postsList, or from the output of a previous call to this tool.
-- The referenced post must be scheduled EARLIER than this one.
-- To echo a post you are creating now, call this tool twice: once for the original
-  post, then again for the echo using the postId this tool returned.
+"(post:<postId>)" in the content puts the live URL of another post inside this
+one. It is replaced with that post's real URL at the moment this post publishes,
+so "here is my new X post: <link>" can be scheduled before the X post exists.
+- The postId comes from postsList, or from the output of a previous call to this tool.
+- Only a post scheduled EARLIER than this one can be referenced.
+- Echoing a post that is being created now takes two calls: one for the original
+  post, then one for the echo with the postId the earlier call returned.
 - If the referenced post has not published by the time this one is due, this post
-  waits for it, and fails instead of publishing a broken link. So an echo never goes
-  out without its link.
-- The reference expands to a full URL, so leave room for it in character limits.
+  waits for it, and fails instead of publishing a broken link. So an echo goes out
+  with its link or not at all.
+- The reference expands to a full URL, which counts toward character limits.
 
 WALLET CREDITS (pay-as-you-go workspaces):
 Some channels are paid per post from the workspace's wallet credits (walletPrices lists them; every other channel is free).
 - A post on such a channel is paid when it is scheduled ("schedule" or "now"), each part of a thread separately. "cost" in the output is what was taken.
 - A draft costs nothing until it is put on the schedule; "costWhenScheduled" says what that will take.
-- When the credits (with auto top-up) do not cover a post, nothing is scheduled for it and the error carries the top-up link. Pass that link to the user rather than retrying.
-- A channel a wallet top-up has not opened yet is refused the same way.
+- When the credits (with auto top-up) fall short of a post, nothing is scheduled for it and the error carries the top-up link. A retry gives the same result until the credits are topped up.
+- A channel that is included with Plus (X) is refused the same way without Plus, and the error carries the Plus link.
 
-Do not use this to update or delete existing posts: editPostTool changes one in place, postSettingsTool changes only its channel settings, deletePostTool removes it.
+Existing posts are changed by other tools: editPostTool changes one in place, postSettingsTool changes only its channel settings, deletePostTool removes it.
 On success, each item in output contains a previewUrl the user can open to see the post.
 If validation fails, the result contains output.errors describing what to fix; the call can be retried with corrected parameters.
 `,
@@ -97,18 +98,18 @@ If validation fails, the result contains output.errors describing what to fix; t
                 .boolean()
                 .optional()
                 .describe(
-                  'Only matters for X: whether the account is X Premium. Defaults to false; leave it out for every other platform.'
+                  'Only matters for X: whether the account is X Premium. Defaults to false and has no effect on other platforms.'
                 ),
               date: z.string().describe('The date of the post in UTC time'),
               shortLink: z
                 .boolean()
                 .describe(
-                  'If the post has a link inside, we can ask the user if they want to add a short link'
+                  'Whether a link inside the post is shortened, as the user chose'
                 ),
               type: z
                 .enum(['draft', 'schedule', 'now'])
                 .describe(
-                  'The type of the post, if we pass now, we should pass the current date also'
+                  'The type of the post; with "now", the date is the current date'
                 ),
               postsAndComments: z
                 .array(
@@ -116,7 +117,7 @@ If validation fails, the result contains output.errors describing what to fix; t
                     content: z
                       .string()
                       .describe(
-                        "The content of the post, HTML, Each line must be wrapped in <p> here is the possible tags: h1, h2, h3, u, strong, li, ul, p (you can't have u and strong together), and img (<img src=\"...\">) only when the integration rules say pictures go inside the content. A long-form article (see the integration schema, e.g. X post_type article) also keeps ol, em, blockquote, pre/code, hr and figure/figcaption. Use \"(post:<postId>)\" to embed another post's live URL - see the tool description."
+                        "The content of the post, HTML, each line wrapped in <p>. The possible tags: h1, h2, h3, u, strong, li, ul, p (u and strong cannot be combined), and img (<img src=\"...\">) only when the integration rules say pictures go inside the content. A long-form article (see the integration schema, e.g. X post_type article) also keeps ol, em, blockquote, pre/code, hr and figure/figcaption. \"(post:<postId>)\" embeds another post's live URL - see the tool description."
                       ),
                     attachments: z
                       .array(attachmentUrl)
@@ -127,7 +128,7 @@ If validation fails, the result contains output.errors describing what to fix; t
                       .array(z.string())
                       .optional()
                       .describe(
-                        "Ids of other posts whose live URL should appear in this post - this is how you echo a post to another channel. Any id listed here that is not already written as \"(post:<id>)\" in the content is appended to it. The URL is filled in when THIS post publishes, so it works even though the other post has not published yet and its releaseURL is still null. Get the ids from postsList (\"linkReference\") or from this tool's own output. The referenced post must be scheduled earlier than this one; if it has not published by the time this one is due, this post waits for it and then fails rather than publishing a broken link."
+                        "Ids of other posts whose live URL appears in this post - this is how a post is echoed to another channel. Any id listed here that is not already written as \"(post:<id>)\" in the content is appended to it. The URL is filled in when THIS post publishes, so it works even though the other post has not published yet and its releaseURL is still null. The ids come from postsList (\"linkReference\") or from this tool's own output. Only a post scheduled earlier than this one can be referenced; if it has not published by the time this one is due, this post waits for it and then fails rather than publishing a broken link."
                       ),
                   })
                 )
@@ -143,7 +144,7 @@ If validation fails, the result contains output.errors describing what to fix; t
                     value: z
                       .any()
                       .describe(
-                        'Value of the key, always prefer the id then label if possible. When the settings schema says a field is an id, pass the id returned by the channel tools, never the display label'
+                        'Value of the key. Where the settings schema says a field is an id, it takes the id returned by the channel tools rather than the display label'
                       ),
                   })
                 )
@@ -181,7 +182,17 @@ If validation fails, the result contains output.errors describing what to fix; t
                 .optional(),
             })
           )
-          .or(z.object({ errors: z.string() })),
+          .or(
+            z.object({
+              errors: z.string(),
+              locked: z
+                .boolean()
+                .optional()
+                .describe('The channel needs Plus and this workspace does not have it'),
+              reason: z.literal('plus').optional(),
+              upgradeUrl: z.string().optional().describe('The Plus page'),
+            })
+          ),
       }),
       execute: async (inputData, context) => {
         checkAuth(inputData, context);
@@ -375,8 +386,8 @@ If validation fails, the result contains output.errors describing what to fix; t
               'MCP'
             );
           } catch (err) {
-            // A channel the wallet has not opened yet: the agent gets the
-            // reason and the top-up link, not a raw tool failure.
+            // A channel Plus has not opened yet (or credits are short): the
+            // agent gets the reason and the link, not a raw tool failure.
             const refusal = walletRefusal(err);
             if (!refusal) {
               throw err;
@@ -389,6 +400,7 @@ If validation fails, the result contains output.errors describing what to fix; t
                       ', '
                     )}.`
                   : refusal,
+                ...walletRefusalLock(err),
               },
             };
           }

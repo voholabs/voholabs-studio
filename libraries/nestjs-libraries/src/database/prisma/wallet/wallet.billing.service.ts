@@ -1,11 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import Stripe from 'stripe';
+import { createHash } from 'crypto';
 import dayjs from 'dayjs';
 import {
   Forecast,
   InsufficientCreditsError,
+  PLUS_OPEN_STATUSES,
+  PlusRequiredError,
   WalletService,
   formatCredits,
+  plusPaymentFailed,
   walletFrozenMessage,
 } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 import { walletAlert } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.alert';
@@ -15,9 +19,10 @@ import { NotificationService } from '@gitroom/nestjs-libraries/database/prisma/n
 // (WALLET_STRIPE_*) on purpose: setting Postiz's STRIPE_* keys switches the
 // whole app into Postiz billing mode, which this must never do.
 //
-// Every payment is a one-off PaymentIntent (Checkout in payment mode, or an
-// off-session charge to the card saved there), never an invoice or a
-// subscription.
+// Every top-up is a one-off PaymentIntent (Checkout in payment mode, or an
+// off-session charge to the card saved there), never an invoice. Top-ups are
+// for Plus subscribers only. The Plus subscription itself is
+// WalletPlusService's, on the same account.
 export const walletPaymentsEnabled = () =>
   !!process.env.WALLET_STRIPE_SECRET_KEY;
 
@@ -63,7 +68,7 @@ const isTransientError = (err: unknown) => {
   );
 };
 
-const paymentIntentIdOf = (value: string | { id: string } | null | undefined) =>
+const idOf = (value: string | { id: string } | null | undefined) =>
   typeof value === 'string' ? value : value?.id;
 
 // A saved card's expiry as stored on the wallet, "MM/YYYY".
@@ -71,6 +76,32 @@ const cardExpOf = (card?: Stripe.PaymentMethod.Card | null) =>
   card?.exp_month && card?.exp_year
     ? `${String(card.exp_month).padStart(2, '0')}/${card.exp_year}`
     : null;
+
+// Whether a stored "MM/YYYY" expiry has passed (a card works through the
+// last day of its month).
+export const cardExpired = (
+  exp: string | null | undefined,
+  now = new Date()
+) => {
+  const [month, year] = (exp || '').split('/').map(Number);
+  if (!month || !year) {
+    return false;
+  }
+  return (
+    year < now.getUTCFullYear() ||
+    (year === now.getUTCFullYear() && month < now.getUTCMonth() + 1)
+  );
+};
+
+// Why auto top-up turned itself off, kept on the wallet and shown there.
+export type AutoTopUpOffReason = 'card_failed' | 'plus_ended';
+
+const AUTO_TOP_UP_OFF_MESSAGES: Record<AutoTopUpOffReason, string> = {
+  card_failed:
+    'Automatic top-up is off because your saved card could not be charged. Top up your wallet or update your card, then turn it back on.',
+  plus_ended:
+    'Automatic top-up is off because your Plus subscription ended. Top-ups and automatic top-up come with Plus.',
+};
 
 const RECONCILE_MAX_DAYS = 90;
 
@@ -104,7 +135,8 @@ export class WalletBillingService {
     private _notifications: NotificationService
   ) {}
 
-  private get stripe() {
+  // Shared with WalletPlusService, which uses the same Stripe account.
+  get stripe() {
     if (!walletPaymentsEnabled()) {
       throw new Error('Wallet payments are not configured');
     }
@@ -112,7 +144,7 @@ export class WalletBillingService {
     return this._client;
   }
 
-  private async customerFor(
+  async customerFor(
     organizationId: string,
     email?: string,
     name?: string
@@ -121,13 +153,24 @@ export class WalletBillingService {
     if (wallet.stripeCustomerId) {
       return wallet.stripeCustomerId;
     }
+    // The key carries the parameters and the wallet's last change, so a
+    // retry (or a second call at the same time) gets the same customer back,
+    // while a call with other details, or one after the stored id was
+    // cleared, is a new request instead of one Stripe refuses as a changed
+    // repeat.
+    const details = createHash('sha256')
+      .update(JSON.stringify([email || null, name || null]))
+      .digest('hex')
+      .slice(0, 16);
     const customer = await this.stripe.customers.create(
       {
         email,
         name,
         metadata: { service: SERVICE, organizationId },
       },
-      { idempotencyKey: `wallet-customer:${organizationId}` }
+      {
+        idempotencyKey: `wallet-customer:${organizationId}:${wallet.updatedAt.getTime()}:${details}`,
+      }
     );
     await this._wallet.updateWallet(organizationId, {
       stripeCustomerId: customer.id,
@@ -137,7 +180,7 @@ export class WalletBillingService {
 
   // The currency a wallet pays in: the one of its first top-up, else today's
   // setting. A wallet never mixes currencies.
-  private async currencyFor(organizationId: string) {
+  async currencyFor(organizationId: string) {
     const wallet = await this._wallet.getWallet(organizationId);
     const current = await this._wallet.currency();
     if (wallet?.currency && wallet.currency.toUpperCase() !== current) {
@@ -150,15 +193,20 @@ export class WalletBillingService {
 
   // Checkout in setup mode: saves a new card for automatic top-ups without
   // charging it. Returns to /wallet?card=saved (with the session id) or
-  // ?card=cancelled; the webhook (or the return) stores the card.
+  // ?card=cancelled; the webhook (or the return) stores the card, and turns
+  // auto top-up on when `autoTopUp` asked for it.
   async createCardSetup(params: {
     organizationId: string;
     email?: string;
     name?: string;
+    autoTopUp?: boolean;
     returnUrl: string;
   }) {
     if (await this._wallet.isFrozen(params.organizationId)) {
       throw new Error(walletFrozenMessage());
+    }
+    if (!(await this._wallet.topUpAllowed(params.organizationId))) {
+      throw new PlusRequiredError();
     }
     const currency = await this.currencyFor(params.organizationId);
     const customer = await this.customerFor(
@@ -170,6 +218,7 @@ export class WalletBillingService {
       service: SERVICE,
       kind: 'card',
       organizationId: params.organizationId,
+      ...(params.autoTopUp ? { autoTopUp: '1' } : {}),
     };
     const session = await this.stripe.checkout.sessions.create({
       mode: 'setup',
@@ -196,6 +245,9 @@ export class WalletBillingService {
   }) {
     if (await this._wallet.isFrozen(params.organizationId)) {
       throw new Error(walletFrozenMessage());
+    }
+    if (!(await this._wallet.topUpAllowed(params.organizationId))) {
+      throw new PlusRequiredError();
     }
     const rules = await this._wallet.topUpRules();
     if (!Number.isInteger(params.amount) || params.amount < rules.minAmount) {
@@ -332,6 +384,10 @@ export class WalletBillingService {
   }
 
   private async checkoutPaid(session: Stripe.Checkout.Session) {
+    // A Plus subscription checkout is WalletPlusService's.
+    if (session.mode === 'subscription' || session.metadata?.kind === 'plus') {
+      return { ok: true };
+    }
     if (session.metadata?.service === SERVICE && session.mode === 'setup') {
       return this.cardSetUp(session);
     }
@@ -341,7 +397,7 @@ export class WalletBillingService {
     ) {
       return { ok: true };
     }
-    const paymentIntentId = paymentIntentIdOf(session.payment_intent);
+    const paymentIntentId = idOf(session.payment_intent);
     const paid = await this.verified(session.id, session.metadata, {
       amount: session.amount_subtotal,
       currency: session.currency,
@@ -374,7 +430,7 @@ export class WalletBillingService {
     if (intent) {
       const saved = await this.rememberCard(paid.organizationId, intent);
       if (saved && session.metadata?.autoTopUp === '1') {
-        await this.enableAutoTopUpDefaults(paid.organizationId);
+        await this.enableAutoTopUpFromWebhook(paid.organizationId);
       }
     }
     this.notifyIfShort(paid.organizationId).catch(() => undefined);
@@ -404,13 +460,57 @@ export class WalletBillingService {
     if (!intent.setup_future_usage || !method?.id) {
       return false;
     }
+    await this.storeCard(organizationId, method);
+    await this.cardForPlus(organizationId, method.id);
+    return true;
+  }
+
+  // Keeps a payment method as the wallet's card, the one auto top-up
+  // charges.
+  async storeCard(organizationId: string, method: Stripe.PaymentMethod) {
     await this._wallet.updateWallet(organizationId, {
       paymentMethodId: method.id,
       cardBrand: method.card?.brand || null,
       cardLast4: method.card?.last4 || null,
       cardExp: cardExpOf(method.card),
     });
-    return true;
+  }
+
+  // A card saved in the wallet (a top-up or the card setup) also pays for
+  // Plus from now on: it becomes the subscription's default payment method
+  // and the customer's, so a renewal and an auto top-up use the same card.
+  // Nothing to do without a Plus subscription that has not ended, or when it
+  // already pays with this card. Never throws: a failure is alerted, and the
+  // subscription keeps its card.
+  async cardForPlus(organizationId: string, paymentMethodId: string) {
+    try {
+      const wallet = await this._wallet.getWallet(organizationId);
+      if (
+        !wallet?.plusSubscriptionId ||
+        !wallet.stripeCustomerId ||
+        !PLUS_OPEN_STATUSES.includes(wallet.plusStatus || '') ||
+        wallet.plusPaymentMethodId === paymentMethodId
+      ) {
+        return;
+      }
+      await this.stripe.subscriptions.update(wallet.plusSubscriptionId, {
+        default_payment_method: paymentMethodId,
+      });
+      await this.stripe.customers.update(wallet.stripeCustomerId, {
+        invoice_settings: { default_payment_method: paymentMethodId },
+      });
+      // Recorded last: Stripe's own events about these updates may come
+      // first and push the same card once more, which changes nothing.
+      await this._wallet.updateWallet(organizationId, {
+        plusPaymentMethodId: paymentMethodId,
+      });
+    } catch (err) {
+      await walletAlert(
+        `The wallet card ${paymentMethodId} of org ${organizationId} could not be made the card of its Plus subscription, which keeps its own card: ${
+          err instanceof Error ? err.message : err
+        }`
+      );
+    }
   }
 
   // The top-up dialog's "auto top-up" choice, applied once the card is
@@ -442,19 +542,35 @@ export class WalletBillingService {
       autoTopUpMonthlyCap: cap,
       autoTopUpThreshold:
         wallet.autoTopUpThreshold ?? rules.defaultThreshold ?? null,
+      autoTopUpOffReason: null,
+      autoTopUpOffAt: null,
     });
     return true;
+  }
+
+  // The same from a webhook, which must not fail once the card is saved: a
+  // failure is alerted and auto top-up stays as it was.
+  private async enableAutoTopUpFromWebhook(organizationId: string) {
+    try {
+      await this.enableAutoTopUpDefaults(organizationId);
+    } catch (err) {
+      await walletAlert(
+        `Auto top-up could not be turned on for org ${organizationId} after its card was saved: ${
+          err instanceof Error ? err.message : err
+        }`
+      );
+    }
   }
 
   // A setup-mode Checkout finished: the new card replaces the saved one.
   private async cardSetUp(session: Stripe.Checkout.Session) {
     const organizationId = session.metadata?.organizationId;
-    const setupIntentId = paymentIntentIdOf(session.setup_intent);
+    const setupIntentId = idOf(session.setup_intent);
     if (session.status !== 'complete' || !organizationId || !setupIntentId) {
       return { ok: true };
     }
     const wallet = await this._wallet.getWallet(organizationId);
-    const customer = paymentIntentIdOf(session.customer);
+    const customer = idOf(session.customer);
     if (!wallet?.stripeCustomerId || wallet.stripeCustomerId !== customer) {
       await walletAlert(
         `Card setup ${session.id} for org ${organizationId} does not match its wallet's Stripe customer. No card was saved.`
@@ -468,12 +584,11 @@ export class WalletBillingService {
     if (intent.status !== 'succeeded' || !method?.id) {
       return { ok: true };
     }
-    await this._wallet.updateWallet(organizationId, {
-      paymentMethodId: method.id,
-      cardBrand: method.card?.brand || null,
-      cardLast4: method.card?.last4 || null,
-      cardExp: cardExpOf(method.card),
-    });
+    await this.storeCard(organizationId, method);
+    await this.cardForPlus(organizationId, method.id);
+    if (session.metadata?.autoTopUp === '1') {
+      await this.enableAutoTopUpFromWebhook(organizationId);
+    }
     return { ok: true };
   }
 
@@ -508,7 +623,8 @@ export class WalletBillingService {
       intent.metadata.organizationId,
       intent.last_payment_error?.code ||
         intent.last_payment_error?.message ||
-        'the payment failed'
+        'the payment failed',
+      'card_failed'
     );
     return { ok: true };
   }
@@ -559,7 +675,7 @@ export class WalletBillingService {
   // A refund of a wallet payment takes the same share of its credits back
   // (allowed below zero), and freezes the wallet.
   private async chargeRefunded(charge: Stripe.Charge) {
-    const paymentIntentId = paymentIntentIdOf(charge.payment_intent);
+    const paymentIntentId = idOf(charge.payment_intent);
     if (!paymentIntentId || !charge.amount) {
       return { ok: true };
     }
@@ -570,6 +686,17 @@ export class WalletBillingService {
       description: 'Payment refunded',
     });
     if (!result) {
+      if (
+        await this.plusChargeBack(
+          paymentIntentId,
+          `refunded (${charge.amount_refunded}/${
+            charge.amount
+          } ${charge.currency.toUpperCase()})`,
+          'Plus payment refunded: plan credits taken back'
+        )
+      ) {
+        return { ok: true };
+      }
       if (charge.metadata?.service === SERVICE) {
         await walletAlert(
           `Refund on wallet payment ${paymentIntentId}, which never credited a wallet.`
@@ -590,7 +717,7 @@ export class WalletBillingService {
   // A dispute takes back all of that payment's credits and freezes the
   // wallet until support clears it.
   private async chargeDisputed(dispute: Stripe.Dispute) {
-    const paymentIntentId = paymentIntentIdOf(dispute.payment_intent);
+    const paymentIntentId = idOf(dispute.payment_intent);
     if (!paymentIntentId) {
       return { ok: true };
     }
@@ -601,6 +728,11 @@ export class WalletBillingService {
       description: 'Payment disputed',
     });
     if (!result) {
+      await this.plusChargeBack(
+        paymentIntentId,
+        `disputed (${dispute.id}, ${dispute.reason})`,
+        'Plus payment disputed: plan credits taken back'
+      );
       return { ok: true };
     }
     await walletAlert(
@@ -613,19 +745,171 @@ export class WalletBillingService {
     return { ok: true };
   }
 
-  // Turns auto top-up off after a card problem, tells the workspace in the
-  // app, and alerts. Does nothing if it was already off.
-  private async disableAutoTopUp(organizationId: string, reason: string) {
+  // The Plus subscription a payment paid an invoice of (from the invoice's
+  // subscription metadata), or undefined when it is not a Plus payment.
+  private async plusInvoiceOf(paymentIntentId: string) {
+    const payments = await this.stripe.invoicePayments.list({
+      payment: { type: 'payment_intent', payment_intent: paymentIntentId },
+      expand: ['data.invoice'],
+      limit: 1,
+    });
+    const found = payments.data[0]?.invoice;
+    const invoice =
+      found && typeof found !== 'string' && !('deleted' in found && found.deleted)
+        ? (found as Stripe.Invoice)
+        : undefined;
+    const details = invoice?.parent?.subscription_details;
+    const subscriptionId = idOf(details?.subscription);
+    if (
+      !details ||
+      !subscriptionId ||
+      details.metadata?.service !== SERVICE ||
+      details.metadata?.kind !== 'plus' ||
+      !details.metadata.organizationId
+    ) {
+      return undefined;
+    }
+    return {
+      organizationId: details.metadata.organizationId,
+      subscriptionId,
+      customerId: idOf(invoice?.customer),
+    };
+  }
+
+  // A refund or dispute of a Plus payment ends Plus at once: the wallet is
+  // frozen as for a top-up, what is left of the plan credits is taken back,
+  // and the subscription is cancelled in Stripe now, not at the period's
+  // end. Each step runs even when another fails; failures are logged and
+  // alerted, never thrown. Returns whether the payment was a Plus one.
+  private async plusChargeBack(
+    paymentIntentId: string,
+    what: string,
+    description: string
+  ) {
+    let plus: Awaited<ReturnType<WalletBillingService['plusInvoiceOf']>>;
+    try {
+      plus = await this.plusInvoiceOf(paymentIntentId);
+    } catch (err) {
+      await this.chargeBackFailed(
+        `Payment ${paymentIntentId} ${what}: could not tell whether it paid for Plus, so nothing was done. Check it in Stripe`,
+        err
+      );
+      return false;
+    }
+    if (!plus) {
+      return false;
+    }
+    const { organizationId, subscriptionId } = plus;
+    let wallet: Awaited<ReturnType<WalletService['getWallet']>>;
+    try {
+      wallet = await this._wallet.getWallet(organizationId);
+    } catch (err) {
+      await this.chargeBackFailed(
+        `Plus payment ${paymentIntentId} ${what}: org ${organizationId}'s wallet could not be read, so nothing was done. Check it in Stripe`,
+        err
+      );
+      return true;
+    }
+    if (!wallet?.stripeCustomerId || wallet.stripeCustomerId !== plus.customerId) {
+      await walletAlert(
+        `Plus payment ${paymentIntentId} ${what} (subscription ${subscriptionId}, org ${organizationId}) does not match its wallet's Stripe customer. Nothing was done.`
+      );
+      return true;
+    }
+    // A payment of an earlier subscription than the one on record: the
+    // current one and its credits are left alone, for a person to decide.
+    // One not recorded yet (the dispute came before its checkout events),
+    // or after a recorded one that ended, is handled as this payment's: it
+    // is cancelled and the wallet frozen, so its later events record it as
+    // ended and Plus never opens.
+    if (
+      wallet.plusSubscriptionId &&
+      wallet.plusSubscriptionId !== subscriptionId &&
+      PLUS_OPEN_STATUSES.includes(wallet.plusStatus || '')
+    ) {
+      await walletAlert(
+        `Plus payment ${paymentIntentId} ${what} belongs to subscription ${subscriptionId}, not org ${organizationId}'s current ${wallet.plusSubscriptionId}. Nothing was done; check both in Stripe.`
+      );
+      return true;
+    }
+    const done: string[] = [];
+    try {
+      if (await this._wallet.freeze(organizationId)) {
+        done.push('froze its wallet');
+      }
+    } catch (err) {
+      await this.chargeBackFailed(
+        `Plus payment ${paymentIntentId} ${what}: org ${organizationId}'s wallet could not be frozen`,
+        err
+      );
+    }
+    try {
+      const taken = await this._wallet.takeBackPlanCredits(
+        organizationId,
+        subscriptionId,
+        description
+      );
+      if (taken > 0) {
+        done.push(`took back ${formatCredits(taken)} plan credits`);
+      }
+    } catch (err) {
+      await this.chargeBackFailed(
+        `Plus payment ${paymentIntentId} ${what}: org ${organizationId}'s plan credits could not be taken back`,
+        err
+      );
+    }
+    try {
+      const subscription = await this.stripe.subscriptions.retrieve(
+        subscriptionId
+      );
+      if (subscription.status !== 'canceled') {
+        await this.stripe.subscriptions.cancel(subscriptionId);
+        done.push(`cancelled subscription ${subscriptionId}`);
+      }
+    } catch (err) {
+      await this.chargeBackFailed(
+        `Plus payment ${paymentIntentId} ${what}: subscription ${subscriptionId} (org ${organizationId}) could not be cancelled. Cancel it in Stripe`,
+        err
+      );
+    }
+    if (done.length) {
+      await walletAlert(
+        `Plus payment ${paymentIntentId} ${what}: ${done.join(
+          ', '
+        )} for org ${organizationId}.`
+      );
+    }
+    return true;
+  }
+
+  private chargeBackFailed(message: string, err: unknown) {
+    return walletAlert(
+      `${message}: ${err instanceof Error ? err.message : err}`
+    );
+  }
+
+  // Turns auto top-up off by itself (a card problem, or Plus ended), keeps
+  // why for the wallet page, tells the workspace in the app, and alerts.
+  // Does nothing if it was already off.
+  async disableAutoTopUp(
+    organizationId: string,
+    reason: string,
+    offReason: AutoTopUpOffReason
+  ) {
     const wallet = await this._wallet.getWallet(organizationId);
     if (!wallet?.autoTopUp) {
       return;
     }
-    await this._wallet.updateWallet(organizationId, { autoTopUp: false });
+    await this._wallet.updateWallet(organizationId, {
+      autoTopUp: false,
+      autoTopUpOffReason: offReason,
+      autoTopUpOffAt: new Date(),
+    });
     try {
       await this._notifications.inAppNotification(
         organizationId,
         'Automatic top-up turned off',
-        'Automatic top-up is off because your saved card could not be charged. Top up your wallet or update your card, then turn it back on.',
+        AUTO_TOP_UP_OFF_MESSAGES[offReason],
         false,
         false,
         'fail'
@@ -658,7 +942,21 @@ export class WalletBillingService {
     ) {
       return false;
     }
+    // Top-ups need Plus (or pay-as-you-go from before Plus): auto top-up
+    // rests while neither is on, and while a Plus payment is failing (that
+    // card is not charged again here).
+    if (
+      plusPaymentFailed(wallet) ||
+      !(await this._wallet.walletTopUpAllowed(wallet))
+    ) {
+      return false;
+    }
 
+    // The trigger is the whole balance, plan and top-up credits together:
+    // plan credits are spent first, so they count while their period runs.
+    // Periods that ended are expired first, so credits that are gone never
+    // hold a top-up back.
+    await this._wallet.syncPlan(organizationId);
     const balance = await this._wallet.balance(organizationId);
     const threshold = wallet.autoTopUpThreshold || 0;
     if (balance >= threshold && balance >= needed) {
@@ -729,7 +1027,8 @@ export class WalletBillingService {
       if (intent.status === 'requires_action') {
         await this.disableAutoTopUp(
           organizationId,
-          'the card needs the customer to authenticate'
+          'the card needs the customer to authenticate',
+          'card_failed'
         );
         return false;
       }
@@ -742,7 +1041,8 @@ export class WalletBillingService {
       if (isCardError(err)) {
         await this.disableAutoTopUp(
           organizationId,
-          (err as { code?: string }).code || (err as Error).message
+          (err as { code?: string }).code || (err as Error).message,
+          'card_failed'
         );
       } else if (isTransientError(err)) {
         this._logger.error(

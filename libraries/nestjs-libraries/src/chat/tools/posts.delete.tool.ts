@@ -13,15 +13,15 @@ export class PostsDeleteTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'deletePostTool',
-      description: `Delete (unschedule) a post that is on the calendar. Use postsList first to find the post.
-NOT for changing a post. To reword one, swap its media or move it, use editPostTool — it edits in place and keeps everything you do not pass. Deleting and re-creating loses the post's attachments and its history, so only delete when the user wants the post gone.
-Pass either the post "id" or its "group" — both delete the whole group, meaning the post together with its thread items and comments on that channel.
-A queued post is removed from the schedule and will not be published. A post that was already published is removed from the calendar only and stays live on the social network, unless you also pass deleteFromPlatform.
-Set deleteFromPlatform to true to additionally delete the published message on the social network itself. Only some platforms support this (Discord does); the rest report back that they cannot.
-This cannot be undone, so always confirm with the user before calling it — especially with deleteFromPlatform, which destroys the live post and any reactions or replies on it.
+      description: `Deletes (unschedules) a post that is on the calendar, found with postsList.
+Deleting removes the post for good. editPostTool changes a post in place (rewording, swapping media, moving it) and keeps everything not passed; deleting and re-creating loses the post's attachments and its history.
+The post "id" and its "group" both delete the whole group: the post together with its thread items and comments on that channel.
+A queued post is removed from the schedule and will not be published. A post that was already published is removed from the calendar only and stays live on the social network, unless deleteFromPlatform is true.
+deleteFromPlatform: true also deletes the published message on the social network itself, with any reactions or replies on it. Only some platforms support this (Discord does); the rest report back that they cannot.
+A deletion cannot be undone.
 On a workspace that pays for a channel from its wallet, the credits paid for the parts that were not sent yet are given back.
 
-ECHOES: if another post embeds this one's URL with "(post:<id>)", deleting this post breaks it. The reference can never resolve, so that post fails at publish time instead of going out — a silent no-show rather than a visible broken link, and it cascades to anything echoing THAT post. So this tool refuses when it finds posts that reference the one you are deleting, and lists them in "breaksEchoes". Show that list to the user. If they still want it gone, call again with breakEchoes: true and then repair or delete the posts it named.`,
+ECHOES: a post that embeds this one's URL with "(post:<id>)" breaks when this post is deleted. Its reference cannot resolve, so it fails at publish time instead of going out (a silent no-show rather than a visible broken link), and that cascades to anything echoing it. When such posts exist this tool refuses and lists them in "breaksEchoes"; with breakEchoes: true it deletes anyway, and those posts are left to be repaired or deleted.`,
       mcp: {
         annotations: {
           title: 'Delete Scheduled Post',
@@ -52,7 +52,7 @@ ECHOES: if another post embeds this one's URL with "(post:<id>)", deleting this 
           .boolean()
           .optional()
           .describe(
-            'Delete even though other posts reference this one and will fail to publish because of it. Only pass this after showing the user the "breaksEchoes" list from the refusal and getting a clear yes.'
+            'Delete even though other posts reference this one (the "breaksEchoes" list of the refusal) and will fail to publish because of it.'
           ),
       }),
       outputSchema: z.object({

@@ -16,13 +16,13 @@ export class GenerateVideoOptionsTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'generateVideoOptions',
-      description: `All the options to generate videos, some tools might require another call to generateVideoFunction`,
+      description: `Lists all the options to generate videos; some of them take extra information from generateVideoFunction`,
       inputSchema: z.object({
         reasoning: z
           .string()
           .optional()
           .describe(
-            'Optional short reason for why you are listing the video generation options'
+            'Optional short reason for listing the video generation options'
           ),
       }),
       mcp: {

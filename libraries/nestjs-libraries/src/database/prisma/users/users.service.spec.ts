@@ -1,8 +1,8 @@
 import { UsersService } from '@gitroom/nestjs-libraries/database/prisma/users/users.service';
 
-// The onboarding steps against stub services: a channel is required, the
-// agent and the brief can be skipped, and only doing both earns the welcome
-// credits.
+// The onboarding steps against stub services: every step can be skipped,
+// and only connecting the agent and having it fill the brief earns the
+// welcome credits.
 
 const service = ({
   channels = 1,
@@ -71,39 +71,71 @@ describe('UsersService onboarding and welcome credits', () => {
 
   it('a member who is not an admin is never eligible', async () => {
     const { built } = service();
-    expect((await built.onboardingStatus('org1', false, true)).credits.eligible).toBe(
-      false
-    );
+    expect(
+      (await built.onboardingStatus('org1', false, true)).credits.eligible
+    ).toBe(false);
   });
 
   it('a paid plan is never eligible, and cannot claim', async () => {
     const { built, wallet } = service();
-    expect((await built.onboardingStatus('org1', true, false)).credits.eligible).toBe(
-      false
-    );
-    await expect(built.claimWelcomeCredits('org1', true, false)).rejects.toThrow();
+    expect(
+      (await built.onboardingStatus('org1', true, false)).credits.eligible
+    ).toBe(false);
+    await expect(
+      built.claimWelcomeCredits('org1', true, false)
+    ).rejects.toThrow();
     expect(wallet.claimWelcomeCredits).not.toHaveBeenCalled();
   });
 
   it('finishes onboarding with the agent and the brief skipped', async () => {
-    const { built, users, wallet } = service({ agent: false, briefDone: false });
-    await built.completeOnboarding('user1', 'org1', true, {});
+    const { built, users, wallet } = service({
+      agent: false,
+      briefDone: false,
+    });
+    await built.completeOnboarding('user1', {});
     expect(users.completeOnboarding).toHaveBeenCalledWith('user1', {});
     // Finishing gives nothing: the credits come only from the claim.
     expect(wallet.claimWelcomeCredits).not.toHaveBeenCalled();
   });
 
-  it('does not finish onboarding without a channel', async () => {
-    const { built, users } = service({ channels: 0 });
-    await expect(
-      built.completeOnboarding('user1', 'org1', true, {})
-    ).rejects.toThrow('Onboarding is not finished yet');
-    expect(users.completeOnboarding).not.toHaveBeenCalled();
+  it('finishes onboarding with every step skipped, no channel at all', async () => {
+    const { built, users } = service({
+      channels: 0,
+      agent: false,
+      briefDone: false,
+    });
+    await built.completeOnboarding('user1', { attribution: 'x' });
+    expect(users.completeOnboarding).toHaveBeenCalledWith('user1', {
+      attribution: 'x',
+    });
+  });
+
+  it('reports a missing channel without blocking anything', async () => {
+    const { built } = service({ channels: 0 });
+    const status = await built.onboardingStatus('org1', true, true);
+    expect(status.channel).toBe(false);
+    expect(status).not.toHaveProperty('done');
+    // The credits wait on the agent and the brief only.
+    expect(status.credits.eligible).toBe(true);
+  });
+
+  it('skipped steps never earn the credits, with or without a channel', async () => {
+    const { built, wallet } = service({
+      channels: 0,
+      agent: false,
+      briefDone: false,
+    });
+    await expect(built.claimWelcomeCredits('org1', true, true)).rejects.toThrow(
+      'Connect your agent and let it fill in what it knows first'
+    );
+    expect(wallet.claimWelcomeCredits).not.toHaveBeenCalled();
   });
 
   it('refuses the claim when the brief is not done, checked on the server', async () => {
     const { built, wallet } = service({ briefDone: false });
-    await expect(built.claimWelcomeCredits('org1', true, true)).rejects.toThrow();
+    await expect(
+      built.claimWelcomeCredits('org1', true, true)
+    ).rejects.toThrow();
     expect(wallet.claimWelcomeCredits).not.toHaveBeenCalled();
   });
 

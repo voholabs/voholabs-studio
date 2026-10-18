@@ -32,7 +32,15 @@ import { ConnectAgentPanel } from '@gitroom/frontend/components/public-api/publi
 import clsx from 'clsx';
 import { useWalletAccess } from '@gitroom/frontend/components/wallet-locks/wallet.access';
 import { SUPPORT_URL } from '@gitroom/frontend/components/layout/top.menu';
-import { useBriefPrompt } from '@gitroom/frontend/components/agent-brief/brief.prompt';
+import {
+  OnboardingTeach,
+  OnboardingTeachHeading,
+  StepCheckIcon,
+} from '@gitroom/frontend/components/onboarding/onboarding.teach';
+import {
+  OnboardingStatus,
+  useOnboardingStatus,
+} from '@gitroom/frontend/components/onboarding/use.onboarding.status';
 import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
 import {
   POS_SOFT,
@@ -42,47 +50,6 @@ import {
 } from '@gitroom/frontend/components/wallet/wallet.ui';
 
 type OnboardingStepKey = 'channels' | 'agent' | 'brief' | 'start';
-
-interface OnboardingStatus {
-  channel: boolean;
-  agent: boolean;
-  brief: {
-    done: boolean;
-    documents: { key: string; label: string; filled: boolean }[];
-  };
-  // The welcome credits, in hundredths of a credit: what can still be
-  // claimed, whether it was, and whether the agent and the brief are done.
-  // Claimed or skipped is final.
-  credits: {
-    available: number;
-    claimed: boolean;
-    skipped: boolean;
-    eligible: boolean;
-  };
-  done: boolean;
-}
-
-// The steps as the server sees them. Polled while the brief is being filled
-// in or the credits are waiting on it, so its documents tick off as the agent
-// saves them.
-const useOnboardingStatus = (enabled: boolean, poll: boolean) => {
-  const fetch = useFetch();
-  const load = useCallback(
-    async (path: string) =>
-      (await (await fetch(path)).json()) as OnboardingStatus,
-    [fetch]
-  );
-  return useSWR<OnboardingStatus>(enabled ? '/user/onboarding' : null, load, {
-    refreshInterval: (latest) =>
-      poll &&
-      !latest?.credits?.eligible &&
-      (!latest?.brief?.done ||
-        (latest.credits.available > 0 && !latest.credits.claimed))
-        ? 4000
-        : 0,
-    revalidateOnFocus: true,
-  });
-};
 
 // What the browser saved on the first visit (see utm.saver). Storage can be
 // blocked, and finishing matters more than where the visit came from.
@@ -110,15 +77,15 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
   const user = useUser();
   // A paid plan keeps the onboarding it always had: channels only.
   const paidPlan = useWalletAccess() === 'plan';
-  // A new workspace has to connect a channel before it gets in; connecting its
-  // agent and having the agent fill the brief can be skipped, and earn the
-  // welcome credits when done.
+  // A new workspace goes through the steps before it gets in. Each one can be
+  // skipped; connecting its agent and having the agent fill the brief earn
+  // the welcome credits when done.
   const needsOnboarding = !!user?.needsOnboarding;
   // Onboarded before the welcome credits: shown again once, until they are
-  // claimed or turned down. Its channel step is not required.
+  // claimed or turned down.
   const mandatory = needsOnboarding || !!user?.welcomeCreditsPending;
   // Only an admin holds the API key an agent connects with, so an invited
-  // member is asked for a channel only; the agent and the brief are the
+  // member sees the channels step only; the agent and the brief are the
   // admin's (the server applies the same rule).
   const admin = !!user?.publicApi;
   const withBrief = mandatory && admin;
@@ -127,8 +94,10 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
   // ends after the channels as before.
   const hasAgentStep = !paidPlan && admin;
   const [step, setStep] = useState<OnboardingStepKey>('channels');
-  const { data: status } = useOnboardingStatus(
-    mandatory,
+  // Also read when onboarding is opened again by hand, so the steps show
+  // what was really done, never a guess.
+  const { data: status, mutate: refreshStatus } = useOnboardingStatus(
+    mandatory || hasAgentStep,
     step === 'brief' || step === 'start'
   );
   // The last step offers the welcome credits when there are any to claim.
@@ -149,9 +118,8 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
   const toaster = useToaster();
   const fireEvents = useFireEvents();
 
-  // Leaving the last step (or the channels, for a member) ends onboarding. The
-  // server checks the required step (a channel) again before it lets the app
-  // open.
+  // Leaving the last step (or the channels, for a member) ends onboarding,
+  // with or without the steps before it done.
   const finish = useCallback(async () => {
     const res = !needsOnboarding
       ? undefined
@@ -161,10 +129,7 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
         }).catch(() => undefined);
     if (needsOnboarding && !res?.ok) {
       toaster.show(
-        t(
-          'onboarding_not_finished',
-          'Not quite there yet: finish the steps above first.'
-        ),
+        t('onboarding_finish_failed', 'Something went wrong. Try again.'),
         'warning'
       );
       return;
@@ -203,6 +168,12 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
         : 'start'
     );
   }, [mandatory, resumed, status, query, admin]);
+
+  // Each step reads the status again, so a step just done (an agent that
+  // connected, a channel added in another tab) is ticked, not shown skipped.
+  useEffect(() => {
+    refreshStatus();
+  }, [step, refreshStatus]);
 
   // Every step opens at its top, not wherever the last one was scrolled to.
   const top = useRef<HTMLDivElement>(null);
@@ -286,6 +257,7 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
                 onGoTo={setStep}
                 withBrief={withBrief}
                 withCredits={withCredits}
+                status={status}
               />
             )}
             {step === 'channels' ? (
@@ -339,43 +311,36 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
   );
 };
 
-const StepCheckIcon = () => (
-  <svg
-    width="14"
-    height="14"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="3"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M20 6 9 17l-5-5" />
-  </svg>
-);
-
 // "1 Connect channels", "2 Connect your agent", "3 Teach your agent", "4 Claim free credit" (or
-// "Get started" when there are no credits to claim). Steps already
-// passed are done and stay clickable to go back.
-const OnboardingStepper: FC<{
+// "Get started" when there are no credits to claim). Steps already passed
+// stay clickable to go back: ticked when the server says they are done
+// (a channel connected, the agent connected, the brief filled), marked
+// skipped when they are not.
+export const OnboardingStepper: FC<{
   step: OnboardingStepKey;
   onGoTo: (step: OnboardingStepKey) => void;
   withBrief?: boolean;
   withCredits?: boolean;
-}> = ({ step, onGoTo, withBrief, withCredits }) => {
+  status?: OnboardingStatus;
+}> = ({ step, onGoTo, withBrief, withCredits, status }) => {
   const t = useT();
-  const steps: { key: OnboardingStepKey; label: string }[] = [
+  const steps: { key: OnboardingStepKey; label: string; done: boolean }[] = [
     {
       key: 'channels',
       label: t('onboarding_step_channels', 'Connect channels'),
+      done: !!status?.channel,
     },
-    { key: 'agent', label: t('onboarding_step_agent', 'Connect your agent') },
+    {
+      key: 'agent',
+      label: t('onboarding_step_agent', 'Connect your agent'),
+      done: !!status?.agent,
+    },
     ...(withBrief
       ? [
           {
             key: 'brief' as const,
             label: t('onboarding_step_teach', 'Teach your agent'),
+            done: !!status?.brief?.done,
           },
         ]
       : []),
@@ -384,16 +349,22 @@ const OnboardingStepper: FC<{
       label: withCredits
         ? t('onboarding_step_claim_credit', 'Claim free credit')
         : t('onboarding_step_get_started', 'Get started'),
+      done: false,
     },
   ];
   const current = steps.findIndex((s) => s.key === step);
 
-  const circle = (state: 'done' | 'current' | 'upcoming', index: number) => (
+  const circle = (
+    state: 'done' | 'skipped' | 'current' | 'upcoming',
+    index: number
+  ) => (
     <span
       className={clsx(
         'shrink-0 w-[28px] h-[28px] rounded-full flex items-center justify-center text-[13px] font-[700] transition-colors',
         state === 'upcoming'
           ? 'border border-newBorder text-textItemBlur'
+          : state === 'skipped'
+          ? 'border border-dashed border-textItemBlur text-textItemBlur'
           : 'bg-btnPrimary text-white',
         state === 'current' && 'ring-4 ring-tealSoft'
       )}
@@ -420,7 +391,14 @@ const OnboardingStepper: FC<{
     >
       {steps.map((item, index) => {
         const state =
-          index < current ? 'done' : index === current ? 'current' : 'upcoming';
+          index < current
+            ? item.done
+              ? 'done'
+              : 'skipped'
+            : index === current
+            ? 'current'
+            : 'upcoming';
+        const skipped = t('onboarding_step_skipped', 'Skipped');
         return (
           <React.Fragment key={item.key}>
             {index > 0 && (
@@ -432,14 +410,18 @@ const OnboardingStepper: FC<{
                 )}
               />
             )}
-            {state === 'done' ? (
+            {state === 'done' || state === 'skipped' ? (
               <button
                 type="button"
                 onClick={() => onGoTo(item.key)}
+                title={state === 'skipped' ? skipped : undefined}
                 className="flex items-center gap-[8px] rounded-[8px] px-[4px] py-[2px] hover:opacity-80 transition-opacity"
               >
-                {circle('done', index + 1)}
+                {circle(state, index + 1)}
                 {label(item.label, false)}
+                {state === 'skipped' && (
+                  <span className="sr-only">{skipped}</span>
+                )}
               </button>
             ) : (
               <div
@@ -457,13 +439,14 @@ const OnboardingStepper: FC<{
   );
 };
 
-const OnboardingStep1: FC<{
+export const OnboardingStep1: FC<{
   onNext: () => void;
   onSkip: () => void;
   hasNext?: boolean;
   // The look a paid plan always had.
   paidPlan?: boolean;
-  // Onboarding cannot go on without a connected channel.
+  // A new workspace's onboarding, which cannot be closed: the channels can
+  // be skipped like the steps after them.
   required?: boolean;
 }> = ({ onNext, onSkip, hasNext, paidPlan, required }) => {
   const fetch = useFetch();
@@ -603,49 +586,63 @@ const OnboardingStep1: FC<{
               </>
             ) : (
               t(
-                'onboarding_channel_required',
-                'Connect at least one channel to continue'
+                'onboarding_channel_later',
+                'No channel yet? You can add one later from the calendar.'
               )
             )}
           </div>
         )}
-        <button
-          type="button"
-          onClick={onNext}
-          disabled={required && !ready}
-          className={
-            required
-              ? 'group flex items-center justify-center gap-[12px] w-full sm:w-auto bg-btnPrimary hover:brightness-110 text-white font-semibold px-[32px] py-[14px] [@media(max-height:500px)]:py-[10px] rounded-[12px] text-[16px] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:brightness-100'
-              : paidPlan
-              ? 'group flex items-center gap-[12px] bg-gradient-to-r from-[#622aff] to-[#8b5cf6] hover:from-[#7c3aff] hover:to-[#9d6eff] text-white font-semibold px-[32px] py-[14px] rounded-[12px] text-[16px] transition-all shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40'
-              : 'group flex items-center justify-center gap-[12px] w-full sm:w-auto bg-btnPrimary hover:brightness-110 text-white font-semibold px-[32px] py-[14px] rounded-[12px] text-[16px] transition-all'
-          }
-        >
-          {hasNext
-            ? t('onboarding_next_agent', 'Next: connect your agent')
-            : sortedIntegrations.length > 0
-            ? t('onboarding_start', 'Start')
-            : t('onboarding_start_without_channels', 'Start without channels')}
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-[8px] sm:gap-[12px]">
+          {required && hasNext && !ready && (
+            <button
+              type="button"
+              onClick={onNext}
+              className="text-[15px] font-[600] text-textItemBlur hover:text-newTextColor px-[12px] sm:px-[16px] h-[44px]"
+            >
+              {t('onboarding_skip_for_now', 'Skip for now')}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onNext}
+            disabled={required && hasNext && !ready}
             className={
-              paidPlan
-                ? 'group-hover:translate-x-1 transition-transform'
-                : 'group-hover:translate-x-1 rtl:group-hover:-translate-x-1 rtl:-scale-x-100 transition-transform'
+              required
+                ? 'group flex items-center justify-center gap-[12px] w-full sm:w-auto bg-btnPrimary hover:brightness-110 text-white font-semibold px-[32px] py-[14px] [@media(max-height:500px)]:py-[10px] rounded-[12px] text-[16px] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:brightness-100'
+                : paidPlan
+                ? 'group flex items-center gap-[12px] bg-gradient-to-r from-[#622aff] to-[#8b5cf6] hover:from-[#7c3aff] hover:to-[#9d6eff] text-white font-semibold px-[32px] py-[14px] rounded-[12px] text-[16px] transition-all shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40'
+                : 'group flex items-center justify-center gap-[12px] w-full sm:w-auto bg-btnPrimary hover:brightness-110 text-white font-semibold px-[32px] py-[14px] rounded-[12px] text-[16px] transition-all'
             }
           >
-            <path d="M5 12h14" />
-            <path d="m12 5 7 7-7 7" />
-          </svg>
-        </button>
+            {hasNext
+              ? t('onboarding_next_agent', 'Next: connect your agent')
+              : sortedIntegrations.length > 0
+              ? t('onboarding_start', 'Start')
+              : t(
+                  'onboarding_start_without_channels',
+                  'Start without channels'
+                )}
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className={
+                paidPlan
+                  ? 'group-hover:translate-x-1 transition-transform'
+                  : 'group-hover:translate-x-1 rtl:group-hover:-translate-x-1 rtl:-scale-x-100 transition-transform'
+              }
+            >
+              <path d="M5 12h14" />
+              <path d="m12 5 7 7-7 7" />
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -755,6 +752,7 @@ const OnboardingBriefStep: FC<{
   creditsNote?: boolean;
 }> = ({ onBack, onDone, status, withCredits, creditsNote }) => {
   const t = useT();
+  useTrackView('onboarding_step', { step: 'brief' });
   const { data: connection } = useAgentConnection(true);
   const ready = !!status?.agent && !!status?.brief?.done;
   return (
@@ -762,17 +760,7 @@ const OnboardingBriefStep: FC<{
       {creditsNote && !!status && (
         <CreditsNote available={status.credits.available} />
       )}
-      <div className="flex gap-[4px] flex-col text-center">
-        <div className="text-[24px] font-semibold">
-          {t('onboarding_teach_title', 'Teach your agent your business')}
-        </div>
-        <div className="text-[14px] text-textItemBlur">
-          {t(
-            'onboarding_teach_sub',
-            "Your agent learns what you sell, who you're for and how you sound, so every post sounds like you. It does the work; you just confirm. Free, about 5 minutes."
-          )}
-        </div>
-      </div>
+      <OnboardingTeachHeading />
       <OnboardingTeach status={status} connection={connection} />
       {/* Kept in view, so the ticks and Next are seen as the agent works. */}
       <div className="flex flex-wrap items-center justify-between gap-[12px] pt-[16px] border-t border-newBorder sticky bottom-0 z-[1] bg-newBgColorInner pb-[16px] sm:pb-[24px]">
@@ -812,128 +800,6 @@ const OnboardingBriefStep: FC<{
         </div>
       </div>
     </div>
-  );
-};
-
-// The agent is connected: one prompt to paste into it. It runs the
-// interview, answers what it can and asks only for the rest; the documents
-// tick off here as it saves them.
-const OnboardingTeach: FC<{
-  status?: OnboardingStatus;
-  connection: ReturnType<typeof useAgentConnection>['data'];
-}> = ({ status, connection }) => {
-  const t = useT();
-  useTrackView('onboarding_step', { step: 'brief' });
-  // ChatGPT runs plugins in Work only, so its users are told where to paste.
-  const chatgpt =
-    !!connection?.connected &&
-    (connection.clients || [connection.client]).includes('chatgpt');
-  const [copied, setCopied] = useState(false);
-  const documents = status?.brief?.documents || [];
-  const filled = documents.filter((document) => document.filled).length;
-  const prompt = useBriefPrompt();
-
-  const copyPrompt = useCallback(() => {
-    copy(prompt);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }, [prompt]);
-
-  const numbered = (index: number, text: string) => (
-    <div className="flex items-start gap-[10px] text-[14px]">
-      <span className="shrink-0 w-[22px] h-[22px] rounded-full border border-newBorder text-textItemBlur flex items-center justify-center text-[12px] font-[700]">
-        {index}
-      </span>
-      <span className="pt-[1px]">{text}</span>
-    </div>
-  );
-
-  return (
-    <>
-      <div className="flex flex-col gap-[12px]">
-        {numbered(1, t('onboarding_brief_step_copy', 'Copy this prompt'))}
-        <div className="flex flex-col sm:flex-row gap-[12px] sm:items-start bg-newBgColor border border-newBorder rounded-[12px] p-[14px]">
-          <div className="flex-1 text-[13px] leading-[1.5] text-textItemBlur select-all">
-            {prompt}
-          </div>
-          <button
-            type="button"
-            onClick={copyPrompt}
-            className="shrink-0 h-[40px] px-[18px] rounded-[10px] bg-btnPrimary hover:brightness-110 text-white text-[14px] font-[600] transition-all"
-          >
-            {copied
-              ? t('onboarding_brief_copied', 'Copied')
-              : t('onboarding_brief_copy', 'Copy prompt')}
-          </button>
-        </div>
-        {numbered(
-          2,
-          chatgpt
-            ? t(
-                'onboarding_brief_step_paste_chatgpt',
-                'Paste it into ChatGPT, in Work (not Chat)'
-              )
-            : t(
-                'onboarding_brief_step_paste',
-                'Paste it into the agent you just connected'
-              )
-        )}
-        {numbered(
-          3,
-          t(
-            'onboarding_brief_step_answer_files',
-            "Confirm or correct the little it can't find by itself, and send it any brand files you have (logo, brand guide, product photos)"
-          )
-        )}
-      </div>
-
-      <div className="flex flex-col gap-[10px]">
-        <div className="flex items-center justify-between text-[14px] font-[600]">
-          <span>{t('onboarding_teach_progress', 'What your agent knows')}</span>
-          <span className="text-textItemBlur font-[500]">
-            {filled} / {documents.length}
-          </span>
-        </div>
-        <div className="text-[13px] text-textItemBlur">
-          {t(
-            'onboarding_teach_wait',
-            'Your agent will spend a few minutes researching your business. Keep this page open; each item ticks off as it saves.'
-          )}
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-[8px]">
-          {documents.map((document) => (
-            <div
-              key={document.key}
-              className="flex items-center gap-[10px] rounded-[10px] border border-newBorder px-[12px] py-[10px] text-[14px]"
-            >
-              <span
-                className={clsx(
-                  'shrink-0 w-[22px] h-[22px] rounded-full flex items-center justify-center',
-                  document.filled
-                    ? 'bg-btnPrimary text-white'
-                    : 'border border-newBorder'
-                )}
-              >
-                {document.filled && <StepCheckIcon />}
-              </span>
-              <span
-                className={
-                  document.filled ? 'text-newTextColor' : 'text-textItemBlur'
-                }
-              >
-                {document.label}
-              </span>
-            </div>
-          ))}
-        </div>
-        <div className="text-[13px] text-textItemBlur">
-          {t(
-            'onboarding_teach_saved_agent',
-            'Saved as your Brief. Edit it any time from the Brief tab or tell your agent to update it.'
-          )}
-        </div>
-      </div>
-    </>
   );
 };
 

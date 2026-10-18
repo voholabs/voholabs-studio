@@ -39,8 +39,6 @@ export const TONE_SOFT: Record<WalletTone, string> = {
   warm: 'bg-warmSoft',
 };
 
-export const useFeatureTone = (_feature: string): WalletTone => 'warm';
-
 // Providers whose channels charge per use, from the price rows. Their
 // connected channels keep a warm ring wherever channels are listed or
 // picked. Empty for paid plans.

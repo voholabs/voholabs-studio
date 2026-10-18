@@ -16,9 +16,9 @@ import {
   orgFromContext,
 } from '@gitroom/nestjs-libraries/chat/tools/wallet.shared';
 
-// Where the user starts (or reopens) the guided onboarding. It is started in
-// Studio, not from here: it is an interview the user takes part in, it may be
-// charged, and the link it opens is signed for the signed-in user.
+// Studio's Brief page. While the brief is empty it shows the brief interview
+// prompt for the user's own agent (the same as onboarding's teach step); it
+// no longer opens the guided run.
 export const briefOnboardingPageUrl = () =>
   `${process.env.FRONTEND_URL}/brief`;
 
@@ -33,9 +33,9 @@ export class BriefOnboardingStatusTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'briefOnboardingStatus',
-      description: `Whether the guided brief onboarding is available, running, or has run before, and where the user starts it.
-The onboarding is a guided interview that writes the agent brief in one sitting. It runs in Studio, with the user, so this tool cannot start it: the user starts it with the button at "startUrl". "nextRunCharged" says whether starting a new run takes wallet credits ("price"); reopening a run that is still open is free.
-It is the guided alternative to writing the brief by hand with briefSaveTool, for an empty brief or a question about how to set one up.`,
+      description: `Whether the guided brief onboarding is available, running, or has run before.
+The guided onboarding was an interview that wrote the agent brief in one sitting; Studio no longer starts new runs from its pages. "startUrl" is Studio's Brief page, which for an empty brief shows the brief interview prompt the user pastes into their own agent (the interview itself is briefLearnTool) and lists which brief documents are filled. "nextRunCharged" and "price" describe what a run would take from the wallet.
+Writing the brief directly is briefSaveTool.`,
       mcp: {
         annotations: {
           title: 'Brief Onboarding Status',

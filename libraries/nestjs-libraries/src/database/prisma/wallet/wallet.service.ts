@@ -1,6 +1,11 @@
 import { HttpException, Injectable, Logger } from '@nestjs/common';
 import { NotificationService } from '@gitroom/nestjs-libraries/database/prisma/notifications/notification.service';
-import { BillableAction, WalletEntry, WalletEntryType } from '@prisma/client';
+import {
+  BillableAction,
+  Wallet,
+  WalletEntry,
+  WalletEntryType,
+} from '@prisma/client';
 import {
   FreeAllowance,
   InsufficientCreditsError,
@@ -41,7 +46,145 @@ export const BILLING = {
   autoTopUpThreshold: 'auto_topup_threshold',
   autoTopUpOptions: 'auto_topup_options',
   autoTopUpCapOptions: 'auto_topup_cap_options',
+  // Whole welcome credits a workspace can claim once, in onboarding.
+  // Optional: without it none are offered. Never a top-up, so it opens no
+  // paid channel.
+  signupCredits: 'signup_credits',
 } as const;
+
+// The Plus subscription's numbers, all in BillingSetting. Without the prices,
+// the credits or the period, Plus is not offered. Prices are in the smallest
+// unit of the wallet currency (BILLING.currency), credits are whole credits.
+export const PLUS = {
+  monthlyPrice: 'plus_monthly_price',
+  annualPrice: 'plus_annual_price',
+  // Whole credits granted each plan period.
+  credits: 'plus_monthly_credits',
+  // Days in a plan period: credits are released at its start and what is
+  // left of them is gone at its end.
+  periodDays: 'plus_period_days',
+  // The early bird: percent off the first payment, valid for `minutes` from
+  // the welcome credits claim, then once more for `extensionHours`.
+  earlyBirdPercent: 'plus_early_bird_percent',
+  earlyBirdMinutes: 'plus_early_bird_minutes',
+  earlyBirdExtensionHours: 'plus_early_bird_extension_hours',
+  // "on" sends the one email saying the early bird was extended.
+  earlyBirdEmail: 'plus_early_bird_email',
+  // When Plus launched (an ISO date-time). A workspace whose first top-up
+  // came before it stays on pay-as-you-go (WalletService.access). Unset,
+  // every workspace that ever topped up counts as from before Plus.
+  launchAt: 'plus_launch_at',
+} as const;
+
+// Stripe subscription statuses that keep Plus on (until the paid span ends).
+// past_due and unpaid are a renewal that has not been paid, so they do not.
+export const PLUS_ACTIVE_STATUSES = ['active', 'trialing'];
+
+// Statuses of a subscription whose payment failed and that Stripe is still
+// trying to collect: Plus is off, and fixing the card brings it back.
+export const PLUS_UNPAID_STATUSES = ['past_due', 'unpaid', 'incomplete'];
+
+// A subscription that has not ended: a second one is never bought on top.
+export const PLUS_OPEN_STATUSES = [
+  ...PLUS_ACTIVE_STATUSES,
+  ...PLUS_UNPAID_STATUSES,
+];
+
+// Whether the payment of the Plus subscription on record failed (Stripe is
+// still collecting it).
+export const plusPaymentFailed = (
+  wallet: Pick<Wallet, 'plusSubscriptionId' | 'plusStatus'> | null | undefined
+) =>
+  !!wallet?.plusSubscriptionId &&
+  PLUS_UNPAID_STATUSES.includes(wallet.plusStatus || '');
+
+// Whether the paid span the subscription is in now has its invoice paid.
+// Its plan credits are released only then.
+export const plusSpanPaid = (
+  wallet: Pick<Wallet, 'plusPeriodStart' | 'plusPaidPeriodStart'>
+) =>
+  !!wallet.plusPeriodStart &&
+  wallet.plusPaidPeriodStart?.getTime() === wallet.plusPeriodStart.getTime();
+
+const DAY_MS = 86_400_000;
+
+// Whether a wallet has Plus now: a subscription in good standing, inside the
+// span it paid for, and not on hold after a refund or dispute.
+export const plusIsActive = (
+  wallet:
+    | Pick<
+        Wallet,
+        'plusSubscriptionId' | 'plusStatus' | 'plusPeriodEnd' | 'frozenAt'
+      >
+    | null
+    | undefined,
+  now = new Date()
+) =>
+  !!wallet?.plusSubscriptionId &&
+  !wallet.frozenAt &&
+  PLUS_ACTIVE_STATUSES.includes(wallet.plusStatus || '') &&
+  !!wallet.plusPeriodEnd &&
+  wallet.plusPeriodEnd.getTime() > now.getTime();
+
+export interface PlanPeriod {
+  index: number;
+  start: Date;
+  end: Date;
+}
+
+// The plan periods of one paid span (a month, or a year paid upfront): as
+// many whole periods of `periodDays` as fit, at least one, the last one
+// running to the end of the span. A month is one period; a year of 30-day
+// periods is twelve.
+export const planPeriods = (
+  start: Date,
+  end: Date,
+  periodDays: number
+): PlanPeriod[] => {
+  const length = periodDays * DAY_MS;
+  const span = end.getTime() - start.getTime();
+  if (!(length > 0) || span <= 0) {
+    return [];
+  }
+  const count = Math.max(1, Math.floor(span / length));
+  return Array.from({ length: count }, (_, index) => ({
+    index,
+    start: new Date(start.getTime() + index * length),
+    end:
+      index === count - 1
+        ? new Date(end.getTime())
+        : new Date(start.getTime() + (index + 1) * length),
+  }));
+};
+
+// The ledger key of one plan period's credits: at most one grant each.
+export const planGrantKey = (
+  organizationId: string,
+  subscriptionId: string,
+  spanStart: Date,
+  index: number
+) => `plus:${organizationId}:${subscriptionId}:${spanStart.toISOString()}:${index}`;
+
+export const planExpireKey = (grantKey: string) => `plus-expire:${grantKey}`;
+
+// The period a plan grant covers, from its meta.
+export const planGrantPeriod = (entry: Pick<WalletEntry, 'meta'>) => {
+  try {
+    const meta = JSON.parse(entry.meta || '{}');
+    const start = new Date(meta.start);
+    const end = new Date(meta.end);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return undefined;
+    }
+    return {
+      subscriptionId: String(meta.subscriptionId || ''),
+      start,
+      end,
+    };
+  } catch {
+    return undefined;
+  }
+};
 
 const SETTINGS_TTL_MS = 30_000;
 const FORECAST_HOURS = 48;
@@ -96,17 +239,41 @@ const providerLabel = (identifier: string) => {
   return p.length <= 2 ? p.toUpperCase() : p[0].toUpperCase() + p.slice(1);
 };
 
-// Shown when a channel is charged from the wallet and the workspace has not
-// topped up yet.
+// Shown when a channel is charged from the wallet and the workspace has no
+// Plus. Welcome and granted credits do not open it: Plus does.
 export const walletRequiredMessage = (identifier: string) =>
-  `${providerLabel(
+  `Not scheduled: posting to ${providerLabel(
     identifier
-  )} is charged per post from your wallet credits. Top up your wallet to use it.`;
+  )} is included with Plus and paid per post from wallet credits (the free credits don't cover it). Get Plus, then schedule it again.`;
 
 // A request refused because it needs the wallet. The app opens the top-up
 // for `wallet: true` instead of Postiz billing.
 export const walletPaymentRequired = (message: string) =>
   new HttpException({ message, wallet: true, url: '/wallet' }, 402);
+
+// A request refused because it needs Plus. The app opens the Plus page for
+// `plus: true`.
+export const plusRequired = (message: string) =>
+  new HttpException({ message, wallet: true, plus: true, url: '/plus' }, 402);
+
+// Shown when work charged by usage needs Plus.
+export const usageTopUpRequiredMessage = (name: string) =>
+  `${name} is included with Plus and paid from wallet credits (the free credits don't cover it). Get Plus, then try again.`;
+
+// Shown when a top-up is asked for without Plus.
+export const topUpNeedsPlusMessage = () =>
+  'Top-ups are part of Plus. Get Plus to add credits to your wallet.';
+
+// A top-up refused because the workspace has no Plus.
+export class PlusRequiredError extends Error {
+  constructor(message = topUpNeedsPlusMessage()) {
+    super(message);
+  }
+}
+
+// Auto top-up never charges a card while the Plus payment is failing.
+export const autoTopUpPausedMessage = () =>
+  'Automatic top-up is paused while your Plus payment is failing. Update your card to keep Plus, and it starts again.';
 
 export const walletFrozenMessage = () =>
   'Your wallet is on hold after a refund or dispute of a payment. Contact support to sort it out.';
@@ -199,6 +366,15 @@ export const repeatRunOf = (workflowId?: string) => {
   const match = /^post_[^_]+_([A-Za-z0-9]+)$/.exec(workflowId || '');
   return match ? match[1] : undefined;
 };
+
+// The chargeKey of one use of a usage-priced action (an AI image, a
+// voice-over), from the caller's idempotency key, so a retried charge for the
+// same use is charged once.
+export const usageChargeKey = (
+  organizationId: string,
+  actionKey: string,
+  idempotencyKey: string
+) => `usage:${organizationId}:${actionKey}:${idempotencyKey}`;
 
 // Whether a post row already went out (its charge was used up).
 export const postWasSent = (post: {
@@ -431,12 +607,93 @@ export class WalletService {
     ).get(chargeKey);
   }
 
-  // Pay-as-you-go starts with the first successful top-up, and stops while
-  // the wallet is frozen (a top-up was refunded or disputed). Every gate reads
-  // this one predicate.
+  // Whether the paid features are open (pay-as-you-go): with Plus, for a
+  // workspace that topped up before Plus launched, or for one whose Plus
+  // ended until its balance runs out (it keeps what it paid for, nothing
+  // more). Off while the wallet is frozen (a payment was refunded or
+  // disputed). Every gate reads this one predicate.
   async isPayAsYouGo(organizationId: string) {
+    return (await this.access(organizationId)).open;
+  }
+
+  async hasPlus(organizationId: string) {
+    return plusIsActive(await this._wallet.getWallet(organizationId));
+  }
+
+  // When Plus launched (PLUS.launchAt), or undefined when it is unset or not
+  // a date.
+  async plusLaunchAt() {
+    const value = (await this.settings())[PLUS.launchAt];
+    const at = value ? new Date(value) : undefined;
+    return at && !isNaN(at.getTime()) ? at : undefined;
+  }
+
+  // Pay-as-you-go from before Plus: the first top-up came before Plus
+  // launched. Without the launch setting every wallet that topped up counts,
+  // so a missing row never cuts off a workspace that paid.
+  async fromBeforePlus(
+    wallet: Pick<Wallet, 'firstTopUpAt'> | null | undefined
+  ) {
+    if (!wallet?.firstTopUpAt) {
+      return false;
+    }
+    const launchAt = await this.plusLaunchAt();
+    return !launchAt || wallet.firstTopUpAt.getTime() < launchAt.getTime();
+  }
+
+  // Whether a wallet may buy top-ups and use auto top-up: Plus, or
+  // pay-as-you-go from before Plus. Never while it is on hold.
+  async walletTopUpAllowed(
+    wallet:
+      | Pick<
+          Wallet,
+          | 'plusSubscriptionId'
+          | 'plusStatus'
+          | 'plusPeriodEnd'
+          | 'frozenAt'
+          | 'firstTopUpAt'
+        >
+      | null
+      | undefined
+  ) {
+    return (
+      plusIsActive(wallet) ||
+      (!wallet?.frozenAt && (await this.fromBeforePlus(wallet)))
+    );
+  }
+
+  async topUpAllowed(organizationId: string) {
+    return this.walletTopUpAllowed(
+      await this._wallet.getWallet(organizationId)
+    );
+  }
+
+  // What the workspace can do, derived from the wallet, the launch setting
+  // and the ledger every time (nothing is stored):
+  // - plus: Plus is on (plan credits first).
+  // - legacy: topped up before Plus launched, without Plus now: top-ups,
+  //   auto top-up and the paid features stay open as before Plus.
+  // - grandfathered: neither, but topped up (its Plus ended): open until
+  //   the balance runs out, no new top-ups.
+  async access(organizationId: string) {
     const wallet = await this._wallet.getWallet(organizationId);
-    return !!wallet?.firstTopUpAt && !wallet.frozenAt;
+    const frozen = !!wallet?.frozenAt;
+    const plus = plusIsActive(wallet);
+    const legacy = !plus && (await this.fromBeforePlus(wallet));
+    const grandfathered =
+      !plus &&
+      !legacy &&
+      !frozen &&
+      !!wallet?.firstTopUpAt &&
+      (await this.balance(organizationId)) > 0;
+    return {
+      plus,
+      legacy,
+      grandfathered,
+      frozen,
+      open: plus || (legacy && !frozen) || grandfathered,
+      topUpAllowed: plus || (legacy && !frozen),
+    };
   }
 
   async isFrozen(organizationId: string) {
@@ -467,11 +724,9 @@ export class WalletService {
     if (!(await this.billsProvider(identifier))) {
       return new HttpException(planMessage, 402);
     }
-    return walletPaymentRequired(
-      (await this.isFrozen(organizationId))
-        ? walletFrozenMessage()
-        : walletRequiredMessage(identifier)
-    );
+    return (await this.isFrozen(organizationId))
+      ? walletPaymentRequired(walletFrozenMessage())
+      : plusRequired(walletRequiredMessage(identifier));
   }
 
   // Whether the wallet charges for this provider (so its lock says "top up").
@@ -593,6 +848,69 @@ export class WalletService {
     return Math.max(0, free.units - used);
   }
 
+  // A row charged by usage from outside the posting flow (the MCP gateway's
+  // image and voice generation, its data runs): active and per use. A row
+  // open without a top-up is paid by granted credits too (signup credits
+  // included); a row that needs a top-up is quoted and charged only once the
+  // workspace is pay-as-you-go (see quoteUsage's `locked`). Each use is one
+  // ledger unit, so a free allowance on such a row counts uses (these rows
+  // have none).
+  async usageAction(actionKey: string) {
+    const priced = await this.price(actionKey);
+    return priced && priced.action.billing === 'PER_USE'
+      ? priced.action
+      : undefined;
+  }
+
+  // Whether a usage row is closed to this workspace: it needs a top-up and
+  // the workspace has not made its first one (or its wallet is on hold).
+  async usageLocked(organizationId: string, action: BillableAction) {
+    return (
+      action.requiresTopUp && !(await this.isPayAsYouGo(organizationId))
+    );
+  }
+
+  // The price of `units` of a usage row (one image is 1; 350 characters of a
+  // per-1k-characters row is 0.35), rounded up once. `costMicros` is what the
+  // provider reported for this use, in the row's costCurrency: it replaces
+  // the row's cost and keeps the row's markup. A fixed price is never
+  // replaced.
+  async usagePrice(action: BillableAction, units: number, costMicros?: number) {
+    if (action.fixedPrice !== null && action.fixedPrice !== undefined) {
+      return Math.ceil(action.fixedPrice * units);
+    }
+    return this.priceOf({
+      ...action,
+      costMicros:
+        costMicros && costMicros > 0
+          ? Math.ceil(costMicros)
+          : Math.ceil(action.costMicros * units),
+    });
+  }
+
+  // Whether this workspace can pay for `units` of a usage row before the
+  // work is done: the price, the balance, `short` when the balance plus
+  // what auto top-up can still add does not cover it, and `locked` when the
+  // row needs Plus and this workspace has no access. undefined when the
+  // row is not charged by usage.
+  async quoteUsage(organizationId: string, actionKey: string, units: number) {
+    const action = await this.usageAction(actionKey);
+    if (!action) {
+      return undefined;
+    }
+    await this.syncPlan(organizationId);
+    const [price, balance, frozen, locked] = await Promise.all([
+      this.usagePrice(action, units),
+      this.balance(organizationId),
+      this.isFrozen(organizationId),
+      this.usageLocked(organizationId, action),
+    ]);
+    const short =
+      price > balance &&
+      price > balance + (await this.autoTopUpHeadroom(organizationId));
+    return { action, price, balance, frozen, short, locked };
+  }
+
   // Charges an action once per chargeKey (see WalletRepository.spend). Units
   // still in the action's free allowance cost nothing (a fully free charge is
   // a zero "Included free" entry). Throws InsufficientCreditsError when the
@@ -608,19 +926,24 @@ export class WalletService {
     description?: string;
     // Charge even into a negative balance (see WalletRepository.spend).
     allowNegative?: boolean;
+    // The price of one unit worked out for this charge (usagePrice), in
+    // place of the row's.
+    unitPrice?: number;
   }) {
     const priced = await this.price(params.actionKey);
     if (!priced) {
       throw new Error(`No price for ${params.actionKey}`);
     }
+    await this.syncPlan(params.organizationId);
     const quantity = params.quantity ?? 1;
+    const unitPrice = params.unitPrice ?? priced.price;
     return this._wallet.spend({
       organizationId: params.organizationId,
-      amount: priced.price * quantity,
+      amount: unitPrice * quantity,
       type: 'SPEND',
       actionKey: params.actionKey,
       quantity,
-      unitPrice: priced.price,
+      unitPrice,
       description: params.description || priced.action.name,
       chargeKey: params.chargeKey,
       allowNegative: params.allowNegative,
@@ -649,6 +972,7 @@ export class WalletService {
     if (!params.items.length || params.unitsPerItem < 1) {
       return null;
     }
+    await this.syncPlan(params.organizationId);
     return this._wallet.spendItems({
       organizationId: params.organizationId,
       type: 'SPEND',
@@ -682,6 +1006,232 @@ export class WalletService {
       idempotencyKey: `refund:${chargeKey}`,
       reference: charge.reference || undefined,
     });
+  }
+
+  // The live rates every price is worked out with, for the MCP gateway's own
+  // quotes: credits for one unit of the wallet currency and the default
+  // markup. Throws when they are not configured.
+  async rates() {
+    const [currency, creditsPerUnit, defaultMultiplierBp] = await Promise.all([
+      this.currency(),
+      this.numberSetting(BILLING.creditsPerUnit),
+      this.numberSetting(BILLING.defaultMultiplierBp),
+    ]);
+    return {
+      currency,
+      creditsPerUnit,
+      defaultMultiplierBp,
+      defaultMultiplier: defaultMultiplierBp / 10_000,
+    };
+  }
+
+  // Brings the Plus credits in the ledger up to date, lazily: every plan
+  // period that has ended gets what is left of its credits taken back
+  // (PLAN_EXPIRE), then the period running now gets its credits
+  // (PLAN_GRANT) once its span's invoice is paid, once each by key. Plan
+  // credits are spent first, so what is left of a period's grant is the
+  // grant less what was spent from it (see planLeft), never more than the
+  // grant. Runs before every charge and quote, on the wallet
+  // and Plus pages and hourly; safe to run any time. Never throws.
+  async syncPlan(organizationId: string) {
+    try {
+      const wallet = await this._wallet.getWallet(organizationId);
+      if (!wallet?.plusSubscriptionId) {
+        return;
+      }
+      const now = new Date();
+      for (const grant of await this.openPlanGrants(organizationId)) {
+        const end = this.planGrantEnd(wallet, grant, now);
+        if (!end || end.getTime() > now.getTime() || !grant.idempotencyKey) {
+          continue;
+        }
+        const left = await this.planLeft(organizationId, grant, end);
+        await this._wallet.addOnce({
+          organizationId,
+          amount: -left,
+          type: 'PLAN_EXPIRE',
+          description: 'Unused plan credits expired',
+          idempotencyKey: planExpireKey(grant.idempotencyKey),
+          reference: grant.idempotencyKey,
+        });
+      }
+
+      // A span's credits come once its invoice is paid, never while the
+      // renewal is still being collected.
+      const current = this.currentPlanPeriod(wallet, now);
+      if (
+        !current ||
+        !plusSpanPaid(wallet) ||
+        !wallet.plusCredits ||
+        wallet.plusCredits <= 0
+      ) {
+        return;
+      }
+      let grantKey = planGrantKey(
+        organizationId,
+        wallet.plusSubscriptionId,
+        wallet.plusPeriodStart!,
+        current.index
+      );
+      // A grant of this period taken back before its end (written before
+      // its span was paid, then its payment failed): now that the span is
+      // paid, the period is granted once more, under its own key.
+      const expired = await this._wallet.entryByKey(planExpireKey(grantKey));
+      if (expired && expired.createdAt.getTime() < current.end.getTime()) {
+        grantKey = `${grantKey}:paid`;
+      }
+      await this._wallet.addOnce({
+        organizationId,
+        amount: wallet.plusCredits,
+        type: 'PLAN_GRANT',
+        description: 'Plus credits',
+        idempotencyKey: grantKey,
+        reference: wallet.plusSubscriptionId,
+        meta: JSON.stringify({
+          subscriptionId: wallet.plusSubscriptionId,
+          start: current.start.toISOString(),
+          end: current.end.toISOString(),
+          index: current.index,
+        }),
+      });
+    } catch (err) {
+      this._logger.error(
+        `Plan credits for ${organizationId} could not be synced: ${
+          err instanceof Error ? err.message : err
+        }`
+      );
+    }
+  }
+
+  // The plan period running now, while Plus is on.
+  currentPlanPeriod(wallet: Wallet, now = new Date()) {
+    if (
+      !plusIsActive(wallet, now) ||
+      !wallet.plusPeriodStart ||
+      !wallet.plusPeriodEnd ||
+      !wallet.plusPeriodDays
+    ) {
+      return undefined;
+    }
+    return planPeriods(
+      wallet.plusPeriodStart,
+      wallet.plusPeriodEnd,
+      wallet.plusPeriodDays
+    ).find(
+      (p) =>
+        p.start.getTime() <= now.getTime() && now.getTime() < p.end.getTime()
+    );
+  }
+
+  // When a grant's credits end: its period's end, or earlier when its
+  // subscription's paid span was cut short (ended at once), or now when it
+  // is of the span being collected after a failed payment (those credits
+  // were never paid for).
+  private planGrantEnd(wallet: Wallet, grant: WalletEntry, now = new Date()) {
+    const period = planGrantPeriod(grant);
+    if (!period) {
+      return undefined;
+    }
+    if (
+      period.subscriptionId === wallet.plusSubscriptionId &&
+      plusPaymentFailed(wallet) &&
+      !plusSpanPaid(wallet) &&
+      wallet.plusPeriodStart &&
+      period.start.getTime() >= wallet.plusPeriodStart.getTime() &&
+      period.start.getTime() <= now.getTime()
+    ) {
+      return now;
+    }
+    if (
+      period.subscriptionId === wallet.plusSubscriptionId &&
+      wallet.plusPeriodEnd &&
+      wallet.plusPeriodEnd.getTime() < period.end.getTime() &&
+      wallet.plusPeriodEnd.getTime() >= period.start.getTime()
+    ) {
+      return wallet.plusPeriodEnd;
+    }
+    return period.end;
+  }
+
+  // Plan grants whose leftover has not been taken back yet.
+  private async openPlanGrants(organizationId: string) {
+    const grants = await this._wallet.planGrants(organizationId);
+    if (!grants.length) {
+      return [];
+    }
+    const closed = new Set(
+      (
+        await this._wallet.entriesByKeys(
+          grants
+            .filter((g) => g.idempotencyKey)
+            .map((g) => planExpireKey(g.idempotencyKey!))
+        )
+      ).map((e) => e.reference)
+    );
+    return grants.filter((g) => !closed.has(g.idempotencyKey));
+  }
+
+  // What is left of a plan grant that ends at `end`: the grant less what was
+  // spent (net of those spends' own refunds) since the grant was written,
+  // between zero and the grant, so top-up credits are never taken with it.
+  // Spends before it (a late webhook, a backdated start) were paid from
+  // other credits, so they never count against it, nor do refunds of them.
+  // A grant that runs to its period's end counts the spends up to that end;
+  // one cut short (a cancel at once, a payment taken back), or ending before
+  // it was written, counts every spend since it was written, because each
+  // was made while the grant was still open, whenever the cut is dated.
+  private async planLeft(
+    organizationId: string,
+    grant: WalletEntry,
+    end: Date
+  ) {
+    const period = planGrantPeriod(grant);
+    const now = Date.now() + 1;
+    const ranToItsEnd =
+      !!period &&
+      end.getTime() >= period.end.getTime() &&
+      end.getTime() > grant.createdAt.getTime();
+    const to = new Date(ranToItsEnd ? Math.min(end.getTime(), now) : now);
+    const [spent, balance] = await Promise.all([
+      this._wallet.spentBetween(organizationId, grant.createdAt, to),
+      this._wallet.balanceBefore(organizationId, to),
+    ]);
+    return Math.max(0, Math.min(grant.amount - spent, grant.amount, balance));
+  }
+
+  // The balance split in two, for the wallet and Plus pages: plan credits
+  // (this period's, gone at planResetsAt) and the rest (top-ups, welcome and
+  // granted credits, which never expire). Hundredths of a credit.
+  async planCredits(organizationId: string) {
+    await this.syncPlan(organizationId);
+    const [wallet, balance] = await Promise.all([
+      this._wallet.getWallet(organizationId),
+      this.balance(organizationId),
+    ]);
+    const now = new Date();
+    let plan = 0;
+    let planResetsAt: Date | null = null;
+    if (wallet) {
+      for (const grant of await this.openPlanGrants(organizationId)) {
+        const period = planGrantPeriod(grant);
+        const end = this.planGrantEnd(wallet, grant, now);
+        if (!period || !end || end.getTime() <= now.getTime()) {
+          continue;
+        }
+        plan += await this.planLeft(organizationId, grant, end);
+        planResetsAt =
+          !planResetsAt || end.getTime() < planResetsAt.getTime()
+            ? end
+            : planResetsAt;
+      }
+    }
+    plan = Math.max(0, Math.min(plan, balance));
+    return { balance, plan, topUp: balance - plan, planResetsAt };
+  }
+
+  // Every wallet that ever had Plus, for the hourly plan sync.
+  plusWallets() {
+    return this._wallet.plusWallets();
   }
 
   // Records a paid top-up once per Stripe payment, and starts pay-as-you-go.
@@ -825,7 +1375,11 @@ export class WalletService {
       !wallet?.autoTopUp ||
       wallet.frozenAt ||
       !wallet.paymentMethodId ||
-      !wallet.autoTopUpAmount
+      !wallet.autoTopUpAmount ||
+      // Top-ups need Plus (or pay-as-you-go from before Plus), and the card
+      // of a failing Plus payment is not charged again.
+      plusPaymentFailed(wallet) ||
+      !(await this.walletTopUpAllowed(wallet))
     ) {
       return none;
     }
@@ -1036,6 +1590,8 @@ export class WalletService {
   ): Promise<Estimate> {
     const price = items.reduce((sum, item) => sum + item.price, 0);
     const due = price - alreadyPaid;
+    // This period's plan credits count before anything is estimated.
+    await this.syncPlan(organizationId);
     const [balance, room] = await Promise.all([
       this.balance(organizationId),
       this.autoTopUpRoom(organizationId),
@@ -1084,6 +1640,76 @@ export class WalletService {
       });
     }
     return entry;
+  }
+
+  // The welcome credits a workspace can claim (BILLING.signupCredits), and
+  // whether it has claimed them or turned them down: either is final. Read
+  // by the onboarding steps, so nothing is thrown: on a failure there is
+  // nothing to claim.
+  async welcomeCredits(organizationId: string) {
+    try {
+      const value = Number((await this.settings())[BILLING.signupCredits]);
+      const total =
+        Number.isFinite(value) && value > 0 ? Math.round(value * 100) : 0;
+      const [entry, wallet] = await Promise.all([
+        this._wallet.entryByKey(`welcome:${organizationId}`),
+        this._wallet.getWallet(organizationId),
+      ]);
+      const claimed = !!entry;
+      const skipped = !claimed && !!wallet?.welcomeCreditsSkippedAt;
+      return { available: claimed || skipped ? 0 : total, claimed, skipped };
+    } catch (err) {
+      this._logger.error(
+        `Welcome credits for ${organizationId} could not be read: ${
+          err instanceof Error ? err.message : err
+        }`
+      );
+      return { available: 0, claimed: false, skipped: false };
+    }
+  }
+
+  // When the workspace claimed its welcome credits, or null. The early bird
+  // starts then, or at the skip if that came first.
+  async welcomeClaimedAt(organizationId: string) {
+    return (
+      (await this._wallet.entryByKey(`welcome:${organizationId}`))?.createdAt ||
+      null
+    );
+  }
+
+  // Gives the workspace the welcome credits it can still claim, at most once:
+  // the entry's key is the same on every call, so a retry or a second click
+  // gets the first entry back instead of a second grant. Returns what this
+  // call added, in hundredths of a credit.
+  async claimWelcomeCredits(organizationId: string) {
+    const { available } = await this.welcomeCredits(organizationId);
+    if (available <= 0) {
+      return 0;
+    }
+    await this._wallet.ensureWallet(organizationId);
+    const { created } = await this._wallet.addOnce({
+      organizationId,
+      amount: available,
+      type: 'GRANT',
+      description: 'Welcome credits',
+      idempotencyKey: `welcome:${organizationId}`,
+    });
+    return created ? available : 0;
+  }
+
+  // Records that the workspace turned the welcome credits down, so they can
+  // no longer be claimed. Nothing changes once they were claimed. Returns
+  // whether this call recorded it.
+  async skipWelcomeCredits(organizationId: string) {
+    const { claimed, skipped } = await this.welcomeCredits(organizationId);
+    if (claimed || skipped) {
+      return false;
+    }
+    await this._wallet.ensureWallet(organizationId);
+    await this._wallet.updateWallet(organizationId, {
+      welcomeCreditsSkippedAt: new Date(),
+    });
+    return true;
   }
 
   // Superadmin: correct the balance either way; may take it below zero. A
@@ -1228,20 +1854,66 @@ export class WalletService {
           reference: params.paymentIntentId,
         })
       : undefined;
-    const wasFrozen = !!(await this._wallet.getWallet(topUp.organizationId))
+    await this.freeze(topUp.organizationId);
+    return { organizationId: topUp.organizationId, credits: amount, entry };
+  }
+
+  // Puts the wallet on hold after a refund or dispute (auto top-up off too),
+  // and tells the workspace the first time. Returns whether it was not on
+  // hold before.
+  async freeze(organizationId: string) {
+    const wasFrozen = !!(await this._wallet.getWallet(organizationId))
       ?.frozenAt;
-    await this._wallet.updateWallet(topUp.organizationId, {
+    await this._wallet.updateWallet(organizationId, {
       frozenAt: new Date(),
       autoTopUp: false,
     });
     if (!wasFrozen) {
       await this.notify(
-        topUp.organizationId,
+        organizationId,
         'Wallet on hold',
         walletFrozenMessage(),
         'fail'
       );
     }
-    return { organizationId: topUp.organizationId, credits: amount, entry };
+    return !wasFrozen;
+  }
+
+  // A refund or dispute of a Plus payment: what is left now of the
+  // subscription's plan credits not yet expired is taken back, as each
+  // grant's own PLAN_EXPIRE entry, so a repeat (or the period's end later)
+  // takes nothing more. Periods that already ended expire first, as usual.
+  // Returns the credits this call took back.
+  async takeBackPlanCredits(
+    organizationId: string,
+    subscriptionId: string,
+    description: string
+  ) {
+    await this.syncPlan(organizationId);
+    const now = new Date();
+    let taken = 0;
+    for (const grant of await this.openPlanGrants(organizationId)) {
+      const period = planGrantPeriod(grant);
+      if (
+        !period ||
+        period.subscriptionId !== subscriptionId ||
+        !grant.idempotencyKey
+      ) {
+        continue;
+      }
+      const left = await this.planLeft(organizationId, grant, now);
+      const { created } = await this._wallet.addOnce({
+        organizationId,
+        amount: -left,
+        type: 'PLAN_EXPIRE',
+        description,
+        idempotencyKey: planExpireKey(grant.idempotencyKey),
+        reference: grant.idempotencyKey,
+      });
+      if (created) {
+        taken += left;
+      }
+    }
+    return taken;
   }
 }

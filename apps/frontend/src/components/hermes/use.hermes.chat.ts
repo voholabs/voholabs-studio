@@ -45,7 +45,9 @@ const TOOL_LABELS: Record<string, string> = {
   write_file: 'Writing a document',
   edit_file: 'Editing a document',
   search_files: 'Searching the knowledge base',
-  skill_view: 'Loading a skill',
+  skill_view: 'Loading instructions',
+  skills_list: 'Loading instructions',
+  skill_manage: 'Saving instructions',
   web_search: 'Searching the web',
   browser: 'Browsing',
 };

@@ -34,10 +34,24 @@ interface ActiveUsers {
   days: { day: string; users: number }[];
 }
 
+interface ActiveAgents {
+  since: string | null;
+  today: number;
+  weekly: number;
+  monthly: number;
+  days: {
+    day: string;
+    organizations: number;
+    byClient: Record<string, number>;
+  }[];
+  clients: { client: string; monthly: number; allTime: number }[];
+}
+
 interface GrowthResponse {
   generatedAt: string;
   funnel: FunnelRow[];
   activeUsers: ActiveUsers;
+  activeAgents: ActiveAgents;
   organizations: {
     total: number;
     withChannel: number;
@@ -163,9 +177,22 @@ const niceStep = (max: number) => {
 
 // Daily active users as bars, oldest on the left. One series, so no legend:
 // the heading names it. Hovering a bar shows its day and count.
-const DailyActiveChart: FC<{ days: ActiveUsers['days'] }> = ({ days }) => {
+// A bar may be split into colored segments (one per agent); the bar's height
+// is then the sum of its segments.
+type ChartDay = {
+  day: string;
+  users: number;
+  segments?: { key: string; label: string; value: number; color: string }[];
+};
+
+const barTotal = (d: ChartDay) =>
+  d.segments
+    ? d.segments.reduce((sum, segment) => sum + segment.value, 0)
+    : d.users;
+
+const DailyActiveChart: FC<{ days: ChartDay[] }> = ({ days }) => {
   const [hover, setHover] = useState<number | null>(null);
-  const peak = Math.max(0, ...days.map((d) => d.users));
+  const peak = Math.max(0, ...days.map(barTotal));
   const step = niceStep(peak);
   const top = Math.max(step, Math.ceil(peak / step) * step);
   const ticks: number[] = [];
@@ -211,15 +238,35 @@ const DailyActiveChart: FC<{ days: ActiveUsers['days'] }> = ({ days }) => {
                   className="relative flex-1 h-full flex items-end cursor-default"
                   onMouseEnter={() => setHover(i)}
                 >
-                  <div
-                    className={`w-full rounded-t-[4px] bg-btnPrimary transition-opacity ${
-                      hover === null || hover === i ? '' : 'opacity-50'
-                    }`}
-                    style={{
-                      height: `${(d.users / top) * 100}%`,
-                      minHeight: d.users ? '2px' : 0,
-                    }}
-                  />
+                  {d.segments ? (
+                    <div
+                      className={`w-full flex flex-col-reverse rounded-t-[4px] overflow-hidden transition-opacity ${
+                        hover === null || hover === i ? '' : 'opacity-50'
+                      }`}
+                      style={{
+                        height: `${(barTotal(d) / top) * 100}%`,
+                        minHeight: barTotal(d) ? '2px' : 0,
+                      }}
+                    >
+                      {d.segments.map((segment) => (
+                        <div
+                          key={segment.key}
+                          className={segment.color}
+                          style={{ flexGrow: segment.value }}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div
+                      className={`w-full rounded-t-[4px] bg-btnPrimary transition-opacity ${
+                        hover === null || hover === i ? '' : 'opacity-50'
+                      }`}
+                      style={{
+                        height: `${(d.users / top) * 100}%`,
+                        minHeight: d.users ? '2px' : 0,
+                      }}
+                    />
+                  )}
                 </div>
               ))}
             </div>
@@ -228,13 +275,33 @@ const DailyActiveChart: FC<{ days: ActiveUsers['days'] }> = ({ days }) => {
                 className="absolute -top-[8px] z-[1] pointer-events-none bg-newBgColor border border-newTableBorder rounded-[8px] px-[10px] py-[6px] text-[12px] whitespace-nowrap shadow"
                 style={{
                   left: `${((hover! + 0.5) / days.length) * 100}%`,
-                  transform: 'translate(-50%, -100%)',
+                  // Kept inside the chart at either end
+                  transform: `translate(${
+                    hover! < days.length / 6
+                      ? '0'
+                      : hover! > (days.length * 5) / 6
+                      ? '-100%'
+                      : '-50%'
+                  }, -100%)`,
                 }}
               >
                 <div className="opacity-70">{dayLabel(hovered.day)}</div>
                 <div className="font-[600]">
                   {hovered.users.toLocaleString()} active
                 </div>
+                {hovered.segments
+                  ?.filter((segment) => segment.value)
+                  .map((segment) => (
+                    <div
+                      key={segment.key}
+                      className="flex items-center gap-[6px]"
+                    >
+                      <span
+                        className={`w-[8px] h-[8px] rounded-[2px] ${segment.color}`}
+                      />
+                      {segment.label}: {segment.value.toLocaleString()}
+                    </div>
+                  ))}
               </div>
             )}
           </div>
@@ -249,6 +316,102 @@ const DailyActiveChart: FC<{ days: ActiveUsers['days'] }> = ({ days }) => {
           </div>
         </div>
       </div>
+    </div>
+  );
+};
+
+// Readable names for AgentConnection.client
+const AGENT_NAMES: Record<string, string> = {
+  claude: 'Claude',
+  'claude-code': 'Claude Code',
+  chatgpt: 'ChatGPT',
+  codex: 'Codex (incl. ChatGPT Work)',
+  cursor: 'Cursor',
+  windsurf: 'Windsurf',
+  vscode: 'VS Code',
+  cline: 'Cline',
+  gemini: 'Gemini',
+  n8n: 'n8n',
+  hermes: 'Hermes',
+  goose: 'Goose',
+  zed: 'Zed',
+  inspector: 'MCP Inspector',
+  other: 'Other',
+  unknown: 'Unknown',
+};
+const agentName = (client: string) => AGENT_NAMES[client] || client;
+
+// The five most used agents get their own color; the rest share one.
+const AGENT_COLORS = [
+  'bg-btnPrimary',
+  'bg-warm',
+  'bg-pos',
+  'bg-danger',
+  'bg-ai',
+];
+const OTHER_COLOR = 'bg-textItemBlur';
+
+const agentColors = (clients: ActiveAgents['clients']) => {
+  const colors = new Map<string, string>();
+  clients
+    .slice(0, AGENT_COLORS.length)
+    .forEach((c, i) => colors.set(c.client, AGENT_COLORS[i]));
+  return (client: string) => colors.get(client) || OTHER_COLOR;
+};
+
+const agentChartDays = (agents: ActiveAgents) => {
+  const colorOf = agentColors(agents.clients);
+  return agents.days.map((d) => ({
+    day: d.day,
+    users: d.organizations,
+    segments: Object.entries(d.byClient)
+      .sort((a, b) => b[1] - a[1])
+      .map(([client, value]) => ({
+        key: client,
+        label: agentName(client),
+        value,
+        color: colorOf(client),
+      })),
+  }));
+};
+
+const AgentsTable: FC<{ agents: ActiveAgents }> = ({ agents }) => {
+  const colorOf = agentColors(agents.clients);
+  return (
+    <div className="border border-newTableBorder rounded-[8px] overflow-hidden">
+      <div className="grid grid-cols-[1fr_110px_70px_110px] gap-[12px] px-[12px] py-[10px] bg-newBgColorInner text-[12px] uppercase opacity-70 border-b border-newTableBorder">
+        <div>Agent</div>
+        <div className="text-right">Last 30 days</div>
+        <div className="text-right">Share</div>
+        <div className="text-right">Ever</div>
+      </div>
+      {agents.clients.map((c) => (
+        <div
+          key={c.client}
+          className="grid grid-cols-[1fr_110px_70px_110px] gap-[12px] px-[12px] py-[10px] text-[13px] border-b border-newTableBorder last:border-b-0"
+        >
+          <div className="flex items-center gap-[8px] min-w-0">
+            <span
+              className={`shrink-0 w-[10px] h-[10px] rounded-[3px] ${colorOf(
+                c.client
+              )}`}
+            />
+            <span className="truncate">{agentName(c.client)}</span>
+          </div>
+          <div className="text-right font-[600]">
+            {c.monthly.toLocaleString()}
+          </div>
+          <div className="text-right opacity-70">
+            {percent(c.monthly, agents.monthly)}
+          </div>
+          <div className="text-right">{c.allTime.toLocaleString()}</div>
+        </div>
+      ))}
+      {!agents.clients.length && (
+        <div className="px-[12px] py-[10px] text-[13px] opacity-70">
+          No agent has connected yet.
+        </div>
+      )}
     </div>
   );
 };
@@ -366,6 +529,44 @@ export const AdminGrowthComponent: FC = () => {
             />
           </div>
           <DailyActiveChart days={data.activeUsers.days} />
+
+          <div className="flex flex-col gap-[6px] mt-[8px]">
+            <div className="text-[16px] font-[600]">Daily active agents</div>
+            <div className="text-[13px] opacity-70">
+              Workspaces whose AI agent (Claude, ChatGPT, ...) used Studio's
+              tools over the MCP, per day (UTC). Separate from the people above:
+              this is work done through an agent, not by signing in to the app.
+              {data.activeAgents.since
+                ? ` Recorded since ${dayLabel(data.activeAgents.since)}.`
+                : ' Recording starts now, so the chart fills in from today.'}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-[12px]">
+            <SummaryCard label="Today" value={data.activeAgents.today} />
+            <SummaryCard
+              label="Last 7 days"
+              value={data.activeAgents.weekly}
+              hint="Distinct workspaces"
+            />
+            <SummaryCard
+              label="Last 30 days"
+              value={data.activeAgents.monthly}
+              hint="Distinct workspaces"
+            />
+          </div>
+          <DailyActiveChart days={agentChartDays(data.activeAgents)} />
+
+          <div className="flex flex-col gap-[6px] mt-[8px]">
+            <div className="text-[16px] font-[600]">Agents by app</div>
+            <div className="text-[13px] opacity-70">
+              Which agents people use: workspaces that used Studio through each
+              one in the last 30 days, its share of all agent workspaces in that
+              time (a workspace using two agents counts for both), and how many
+              workspaces ever connected it. ChatGPT&apos;s Work mode shows up as
+              Codex.
+            </div>
+          </div>
+          <AgentsTable agents={data.activeAgents} />
 
           <div className="text-[16px] font-[600] mt-[8px]">Organizations</div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-[12px]">

@@ -48,6 +48,12 @@ const build = () => {
     })),
     charge: jest.fn(),
     notifyIfShort: jest.fn(async () => false),
+    // Top-ups need Plus (or pay-as-you-go from before Plus); these
+    // workspaces have it.
+    topUpAllowed: jest.fn(async () => true),
+    walletTopUpAllowed: jest.fn(async () => true),
+    syncPlan: jest.fn(async () => undefined),
+    isFrozen: jest.fn(async () => false),
   } as any;
   const stripe = {
     paymentIntents: {
@@ -222,6 +228,8 @@ describe('WalletBillingService top-up dialog choices', () => {
       autoTopUpAmount: 2500,
       autoTopUpMonthlyCap: 10000,
       autoTopUpThreshold: 25000,
+      autoTopUpOffReason: null,
+      autoTopUpOffAt: null,
     });
   });
 
@@ -243,6 +251,8 @@ describe('WalletBillingService top-up dialog choices', () => {
       // Never below one top-up.
       autoTopUpMonthlyCap: 5000,
       autoTopUpThreshold: 1000,
+      autoTopUpOffReason: null,
+      autoTopUpOffAt: null,
     });
   });
 
@@ -518,5 +528,86 @@ describe('WalletBillingService auto top-up idempotency', () => {
     card.id = 'pm_2';
     await service.autoTopUp('org-1', 225);
     expect(keyOf(stripe, 0)).not.toBe(keyOf(stripe, 1));
+  });
+});
+
+describe('WalletBillingService customer', () => {
+  const env = process.env.WALLET_STRIPE_SECRET_KEY;
+  beforeEach(() => {
+    process.env.WALLET_STRIPE_SECRET_KEY = 'sk_test_stub';
+  });
+  afterAll(() => {
+    process.env.WALLET_STRIPE_SECRET_KEY = env;
+  });
+
+  // A wallet row as the database keeps it: updatedAt moves on every write.
+  const customerBuild = () => {
+    const { service, wallet, stripe } = build();
+    let row: any = {
+      organizationId: 'org-1',
+      stripeCustomerId: null,
+      updatedAt: new Date('2026-10-18T10:00:00Z'),
+    };
+    let tick = 0;
+    wallet.ensureWallet = jest.fn(async () => row);
+    wallet.updateWallet = jest.fn(async (_org: string, data: any) => {
+      tick += 1;
+      row = { ...row, ...data, updatedAt: new Date(row.updatedAt.getTime() + tick) };
+      return row;
+    });
+    let made = 0;
+    (stripe as any).customers = {
+      create: jest.fn(async () => ({ id: `cus_${++made}` })),
+    };
+    const keyOf = (call: number) =>
+      (stripe as any).customers.create.mock.calls[call][1].idempotencyKey;
+    return {
+      service,
+      wallet,
+      stripe: stripe as any,
+      keyOf,
+      clear: () => {
+        // A reset that clears the stored id is a write like any other.
+        row = { ...row, stripeCustomerId: null, updatedAt: new Date(row.updatedAt.getTime() + 1000) };
+      },
+    };
+  };
+
+  it('makes the customer once and keeps it', async () => {
+    const b = customerBuild();
+    expect(await b.service.customerFor('org-1', 'a@example.com')).toBe('cus_1');
+    expect(await b.service.customerFor('org-1', 'a@example.com')).toBe('cus_1');
+    expect(b.stripe.customers.create).toHaveBeenCalledTimes(1);
+    expect(b.wallet.updateWallet).toHaveBeenCalledWith('org-1', {
+      stripeCustomerId: 'cus_1',
+    });
+  });
+
+  it('a retry before the id was kept asks Stripe with the same key', async () => {
+    const b = customerBuild();
+    b.wallet.updateWallet.mockRejectedValueOnce(new Error('db down'));
+    await expect(b.service.customerFor('org-1', 'a@example.com')).rejects.toThrow(
+      'db down'
+    );
+    await b.service.customerFor('org-1', 'a@example.com');
+    expect(b.keyOf(0)).toBe(b.keyOf(1));
+  });
+
+  it('makes a new customer with a new key once the stored id was cleared', async () => {
+    const b = customerBuild();
+    await b.service.customerFor('org-1', 'a@example.com', 'Ann');
+    b.clear();
+    // The early bird asks without a name: other parameters, after the reset.
+    expect(await b.service.customerFor('org-1', 'a@example.com')).toBe('cus_2');
+    expect(b.keyOf(0)).not.toBe(b.keyOf(1));
+  });
+
+  it('other details are a new request, not a refused repeat', async () => {
+    const one = customerBuild();
+    const two = customerBuild();
+    await one.service.customerFor('org-1', 'a@example.com', 'Ann');
+    await two.service.customerFor('org-1', 'a@example.com');
+    expect(one.keyOf(0)).not.toBe(two.keyOf(0));
+    expect(one.keyOf(0).length).toBeLessThanOrEqual(255);
   });
 });

@@ -13,8 +13,8 @@ export class MediaListTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'mediaList',
-      description: `List the images and videos already in the media library, newest first, 18 per page.
-Use it to reuse an existing asset in a post (pass its "path" as the attachment) or to find the id of an asset the user wants deleted.`,
+      description: `Lists the images, videos and audio files (mp3, wav) already in the media library, newest first, 18 per page.
+An image's or video's "path" attaches it to a post (an audio file is refused as an attachment), and each asset's id is what deleting it takes.`,
       mcp: {
         annotations: {
           title: 'List Media',

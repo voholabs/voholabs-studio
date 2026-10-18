@@ -11,13 +11,14 @@ import {
   WalletEstimate,
   WalletPricedAction,
   WalletPriceSection,
+  WalletResearchPrice,
   WalletSummary,
   WalletTransactions,
   WalletUsage,
 } from '@gitroom/frontend/components/wallet/wallet.types';
 
 // Every wallet SWR key starts with this, so one call refreshes them all.
-const WALLET_KEY = 'wallet-summary';
+export const WALLET_KEY = 'wallet-summary';
 const WALLET_PREFIX = 'wallet-';
 
 const useJson = () => {
@@ -96,6 +97,21 @@ export const useWalletPrices = (enabled = true) => {
   const load = useCallback(() => json('/wallet/prices'), [json]);
   return useSWR<WalletPriceSection[]>(
     enabled ? `${WALLET_PREFIX}prices` : null,
+    load,
+    quiet
+  );
+};
+
+// The key ends with "prices" so a wallet refresh leaves it alone, as it
+// does the price list.
+export const useWalletResearchPrices = (enabled = true) => {
+  const json = useJson();
+  const load = useCallback(async () => {
+    const data = await json('/wallet/prices/research');
+    return (data?.groups || []) as WalletResearchPrice[];
+  }, [json]);
+  return useSWR<WalletResearchPrice[]>(
+    enabled ? `${WALLET_PREFIX}research-prices` : null,
     load,
     quiet
   );
@@ -330,6 +346,15 @@ export const useWalletFormat = (currency?: string) => {
       // Hundredths of a credit -> "1,234.50"
       credits: (hundredths: number) =>
         twoDp ? twoDp.format(hundredths / 100) : (hundredths / 100).toFixed(2),
+      // Hundredths of a credit -> "19" when whole, "19.50" otherwise.
+      creditsShort: (hundredths: number) =>
+        hundredths % 100 === 0
+          ? whole
+            ? whole.format(hundredths / 100)
+            : String(hundredths / 100)
+          : twoDp
+          ? twoDp.format(hundredths / 100)
+          : (hundredths / 100).toFixed(2),
       number: (n: number) => (whole ? whole.format(n) : String(n)),
       // 5 -> "5.0" (or "5,0")
       oneDecimal: (n: number) => (oneDp ? oneDp.format(n) : n.toFixed(1)),
@@ -352,8 +377,10 @@ export const useWalletFormat = (currency?: string) => {
       // Smallest currency unit -> "$12.50"
       money: (minor: number) => (money ? money.format(minor / factor) : ''),
       // Smallest currency unit -> "$10" when whole, "$12.50" otherwise
+      // (all the currency's decimals once there are any: never "$17.1").
       moneyShort: (minor: number) =>
-        moneyShort ? moneyShort.format(minor / factor) : '',
+        (minor % factor === 0 ? moneyShort : money)?.format(minor / factor) ||
+        '',
       currencySymbol: () =>
         money?.formatToParts(0).find((p) => p.type === 'currency')?.value || '',
       // Minor units per major unit of the currency (100 for USD).

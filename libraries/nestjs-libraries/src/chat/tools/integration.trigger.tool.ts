@@ -24,8 +24,8 @@ export class IntegrationTriggerTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'triggerTool',
-      description: `Use this to call a provider helper function (a methodName from the integrationSchema callable tools) that fetches provider-specific data needed for settings, like ids or search results.
-      Some helper functions require values provided by the user, like a word to search for. methodName is required [input:callable-tools].
+      description: `Calls a provider helper function (a methodName from the integrationSchema callable tools) that fetches provider-specific data needed for settings, like ids or search results.
+      Some helper functions take values provided by the user, like a word to search for. methodName is required [input:callable-tools].
       If provider auth is expired, this tool may refresh the stored integration token; if refresh fails, it marks the channel as needing reconnect and notifies the organization.`,
       mcp: {
         annotations: {

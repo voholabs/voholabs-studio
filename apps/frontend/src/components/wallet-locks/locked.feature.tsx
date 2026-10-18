@@ -4,7 +4,7 @@ import { FC, ReactNode } from 'react';
 import Link from 'next/link';
 import clsx from 'clsx';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
-import { openTopUp } from '@gitroom/frontend/components/wallet/wallet.bridge';
+import { openPlus } from '@gitroom/frontend/components/wallet/wallet.bridge';
 import {
   BTN_PRIMARY,
   BTN_SIMPLE,
@@ -18,11 +18,10 @@ import {
   CheckIcon,
   GiftIcon,
   LockIcon,
-  PlusIcon,
 } from '@gitroom/frontend/components/wallet-locks/wallet.icons';
 
-// A feature a wallet top-up opens. Locked (before the first top-up) it offers
-// the top-up and the prices; open (`action` set) it shows the same page with
+// A feature Plus opens. Locked (without Plus) it offers Plus and the prices;
+// open (`action` set) it shows the same page with
 // one primary button, for a feature that is open but not set up yet. The
 // accent is the warm one every paid or locked signal uses.
 export const LockedFeature: FC<{
@@ -37,7 +36,7 @@ export const LockedFeature: FC<{
   // A quieter second way in, shown as a text link under the note.
   secondary?: { label: string; onClick: () => void };
   note?: string;
-  // What a top-up gives for free, generated from the price row.
+  // What Plus gives for free, generated from the price row.
   gift?: string;
 }> = ({
   icon,
@@ -141,11 +140,11 @@ export const LockedFeature: FC<{
             <>
               <button
                 type="button"
-                onClick={() => openTopUp()}
+                onClick={() => openPlus()}
                 className={BTN_PRIMARY}
               >
-                <PlusIcon />
-                {cta || t('wallet_top_up', 'Top up')}
+                <LockIcon size={14} />
+                {cta || t('plus_get', 'Get Plus')}
               </button>
               <Link href="/wallet/prices" className={BTN_SIMPLE}>
                 {t('wallet_see_prices', 'See prices')}

@@ -8,7 +8,10 @@ import {
 
 @Injectable()
 export class PostRevisionRepository {
-  constructor(private _postRevision: PrismaRepository<'postRevision'>) {}
+  constructor(
+    private _postRevision: PrismaRepository<'postRevision'>,
+    private _postVersion: PrismaRepository<'postVersion'>
+  ) {}
 
   // The chain a save belongs to is found from the post rows it wrote, because
   // those ids survive an edit. Group is the fallback for the case where every
@@ -19,7 +22,11 @@ export class PostRevisionRepository {
     }
 
     return this._postRevision.model.postRevision.findFirst({
-      where: { organizationId: orgId, postIds: { hasSome: postIds } },
+      where: {
+        organizationId: orgId,
+        postIds: { hasSome: postIds },
+        deletedAt: null,
+      },
       orderBy: { updatedAt: 'desc' },
       select: { chainId: true },
     });
@@ -31,7 +38,7 @@ export class PostRevisionRepository {
     }
 
     return this._postRevision.model.postRevision.findFirst({
-      where: { organizationId: orgId, group },
+      where: { organizationId: orgId, group, deletedAt: null },
       orderBy: { updatedAt: 'desc' },
       select: { chainId: true },
     });
@@ -98,9 +105,30 @@ export class PostRevisionRepository {
     });
   }
 
-  deleteChain(orgId: string, chainId: string) {
-    return this._postRevision.model.postRevision.deleteMany({
+  // The post was deleted: the chain stays, marked, with all its versions.
+  markChainDeleted(orgId: string, chainId: string) {
+    return this._postRevision.model.postRevision.updateMany({
+      where: { organizationId: orgId, chainId, deletedAt: null },
+      data: { deletedAt: new Date() },
+    });
+  }
+
+  latestVersion(chainId: string) {
+    return this._postVersion.model.postVersion.findFirst({
+      where: { chainId },
+      orderBy: { version: 'desc' },
+      select: { version: true, payloadHash: true },
+    });
+  }
+
+  createVersion(data: Prisma.PostVersionUncheckedCreateInput) {
+    return this._postVersion.model.postVersion.create({ data });
+  }
+
+  getVersions(orgId: string, chainId: string) {
+    return this._postVersion.model.postVersion.findMany({
       where: { organizationId: orgId, chainId },
+      orderBy: { version: 'asc' },
     });
   }
 
@@ -116,6 +144,7 @@ export class PostRevisionRepository {
         kind: 'FINAL',
         publishedAt: { not: null },
         changed: true,
+        deletedAt: null,
         ...(options.includeLearned ? {} : { learnedAt: null }),
       },
       orderBy: { publishedAt: 'desc' },

@@ -666,6 +666,121 @@ export class WalletRepository {
     return sum._sum.paidAmount || 0;
   }
 
+  // The Plus credits granted to a workspace, one entry per plan period.
+  planGrants(organizationId: string) {
+    return this._entry.model.walletEntry.findMany({
+      where: { organizationId, type: WalletEntryType.PLAN_GRANT },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  // Credits spent between two dates, as a positive number: the spends made
+  // in that time, less their own refunds made before `to`. A refund always
+  // comes after its spend, so only the refunds in that time are read, and a
+  // refund of a spend made before `from` is not counted.
+  async spentBetween(organizationId: string, from: Date, to: Date) {
+    const where = { organizationId, createdAt: { gte: from, lt: to } };
+    const [spent, refunds] = await Promise.all([
+      this._entry.model.walletEntry.aggregate({
+        where: { ...where, type: WalletEntryType.SPEND },
+        _sum: { amount: true },
+      }),
+      this._entry.model.walletEntry.findMany({
+        where: { ...where, type: WalletEntryType.REFUND },
+        select: { amount: true, idempotencyKey: true },
+      }),
+    ]);
+    const keyed = refunds.filter((r) => r.idempotencyKey?.startsWith('refund:'));
+    const own = keyed.length
+      ? new Set(
+          (
+            await this._entry.model.walletEntry.findMany({
+              where: {
+                ...where,
+                type: WalletEntryType.SPEND,
+                idempotencyKey: {
+                  in: keyed.map((r) => r.idempotencyKey!.slice('refund:'.length)),
+                },
+              },
+              select: { idempotencyKey: true },
+            })
+          ).map((e) => `refund:${e.idempotencyKey}`)
+        )
+      : new Set<string>();
+    const refunded = keyed
+      .filter((r) => own.has(r.idempotencyKey!))
+      .reduce((sum, r) => sum + r.amount, 0);
+    return -((spent._sum.amount || 0) + refunded);
+  }
+
+  // The balance as it stood just before a date.
+  async balanceBefore(organizationId: string, at: Date) {
+    const sum = await this._entry.model.walletEntry.aggregate({
+      where: { organizationId, createdAt: { lt: at } },
+      _sum: { amount: true },
+    });
+    return sum._sum.amount || 0;
+  }
+
+  // Organizations whose wallet ever had Plus.
+  plusWallets() {
+    return this._wallet.model.wallet.findMany({
+      where: { plusSubscriptionId: { not: null } },
+      select: {
+        organizationId: true,
+        plusSubscriptionId: true,
+        plusStatus: true,
+        plusPeriodStart: true,
+        plusPeriodEnd: true,
+        plusPaidPeriodStart: true,
+      },
+    });
+  }
+
+  // The emails of an organization's admins (enabled members only).
+  async adminEmails(organizationId: string) {
+    const org = await this._organization.model.organization.findUnique({
+      where: { id: organizationId },
+      select: {
+        users: {
+          where: { disabled: false, role: { in: ['ADMIN', 'SUPERADMIN'] } },
+          select: { user: { select: { email: true } } },
+        },
+      },
+    });
+    return (org?.users || [])
+      .map((u) => u.user.email)
+      .filter((email): email is string => !!email);
+  }
+
+  // Marks the early-bird email as sent. True only for the first caller, so
+  // it goes out once however often it is retried.
+  async claimEarlyBirdEmail(organizationId: string) {
+    const result = await this._wallet.model.wallet.updateMany({
+      where: { organizationId, plusEarlyBirdEmailAt: null },
+      data: { plusEarlyBirdEmailAt: new Date() },
+    });
+    return result.count > 0;
+  }
+
+  // Keeps the workspace's early-bird code. True only for the first caller:
+  // a workspace has one code, whatever runs at the same time.
+  async setEarlyBirdCode(organizationId: string, id: string, code: string) {
+    const result = await this._wallet.model.wallet.updateMany({
+      where: { organizationId, plusEarlyBirdCodeId: null },
+      data: { plusEarlyBirdCodeId: id, plusEarlyBirdCode: code },
+    });
+    return result.count > 0;
+  }
+
+  // Gives the early-bird email claim back after a send that failed.
+  releaseEarlyBirdEmail(organizationId: string) {
+    return this._wallet.model.wallet.updateMany({
+      where: { organizationId },
+      data: { plusEarlyBirdEmailAt: null },
+    });
+  }
+
   // Adds an entry once, saying whether this call wrote it (false when the
   // idempotency key was already there).
   async addOnce(entry: NewWalletEntry) {

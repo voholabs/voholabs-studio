@@ -20,8 +20,11 @@ const matches = (row: Row, where: Row = {}) =>
       if ('in' in cond) {
         return cond.in.includes(value);
       }
-      if ('gte' in cond) {
-        return value >= cond.gte;
+      if ('gte' in cond || 'lt' in cond) {
+        return (
+          (!('gte' in cond) || value >= cond.gte) &&
+          (!('lt' in cond) || value < cond.lt)
+        );
       }
       return false;
     }
@@ -260,6 +263,32 @@ describe('WalletRepository.spend', () => {
     expect(a.idempotencyKey).toBe('post:a#1');
     expect(b.idempotencyKey).toBe('post:b#1');
     expect(await repository.balance(ORG)).toBe(550);
+  });
+});
+
+describe('WalletRepository.spentBetween', () => {
+  it('counts the spends in the window less their own refunds made in it', async () => {
+    const { repository, db } = setup();
+    await credit(repository, 10000);
+    const before = await spendPost(repository, 100, { chargeKey: 'post:a' });
+    const from = new Date(db.entries[db.entries.length - 1].createdAt.getTime() + 1);
+    const inside = await spendPost(repository, 300, { chargeKey: 'post:b' });
+    const kept = await spendPost(repository, 50, { chargeKey: 'post:c' });
+    const refund = (entry: any) =>
+      repository.add({
+        organizationId: ORG,
+        amount: -entry.amount,
+        type: 'REFUND',
+        description: 'refund',
+        idempotencyKey: `refund:${entry.idempotencyKey}`,
+      });
+    // A refund of the spend made before the window, and one of a spend in it.
+    await refund(before);
+    await refund(inside);
+    const to = new Date(db.entries[db.entries.length - 1].createdAt.getTime() + 1);
+    // A refund after the window is not counted.
+    await refund(kept);
+    expect(await repository.spentBetween(ORG, from, to)).toBe(50);
   });
 });
 

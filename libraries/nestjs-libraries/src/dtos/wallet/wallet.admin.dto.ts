@@ -74,3 +74,9 @@ export class WalletUnfreezeDto {
   @MaxLength(500)
   reason: string;
 }
+
+export class WalletEarlyBirdPreviewDto {
+  @IsString()
+  @IsNotEmpty()
+  organizationId: string;
+}

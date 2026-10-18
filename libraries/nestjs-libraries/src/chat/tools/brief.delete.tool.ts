@@ -2,10 +2,7 @@ import { AgentToolInterface } from '@gitroom/nestjs-libraries/chat/agent.tool.in
 import { createTool } from '@mastra/core/tools';
 import { Injectable } from '@nestjs/common';
 import z from 'zod';
-import {
-  checkAuth,
-  paidOnly,
-} from '@gitroom/nestjs-libraries/chat/auth.context';
+import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
 import { BriefService } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.service';
 import { hasAccess } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 
@@ -17,10 +14,10 @@ export class BriefDeleteTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'briefDeleteTool',
-      description: `Delete a document from the agent brief, with everything written in it. This cannot be undone, so say what you are removing.
-Only user-created documents and your own Experience can be deleted. The Foundation documents and the per-channel documents are part of the product and will be refused; to empty one of those, use briefSaveTool with an empty list of rules instead.
-Retire an Experience document when what is in it turned out to be wrong or no longer applies. A lesson you no longer stand behind is worse than no lesson.
-By default the document's history goes with it. Pass keepHistory: true to keep its revisions and record the removal in them, so briefHistory still shows what was there.`,
+      description: `Deletes a document from the agent brief, with everything written in it. A deletion cannot be undone.
+User-created documents and Experience documents can be deleted. The Foundation documents and the per-channel documents are part of the product and are refused; briefSaveTool with an empty list of rules and replace: true empties one of those.
+This is also how an Experience document whose lessons turned out wrong, or no longer apply, is retired.
+By default the document's history is deleted with it. keepHistory: true keeps its revisions and records the removal in them, so briefHistory still shows what was there.`,
       mcp: {
         annotations: {
           title: 'Delete Agent Brief Document',
@@ -46,10 +43,6 @@ By default the document's history goes with it. Pass keepHistory: true to keep i
       }),
       execute: async (inputData, context) => {
         checkAuth(inputData, context);
-        const blocked = paidOnly(context, 'The agent brief', 'brief');
-        if (blocked) {
-          return { error: blocked };
-        }
         try {
           const organization = JSON.parse(
             (context?.requestContext as any)?.get('organization') as string

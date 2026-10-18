@@ -23,7 +23,6 @@ import {
 // numbers come from the price row.
 const PAGE_ACTION: Record<string, string> = {
   '/media': 'storage.gb',
-  '/brief': 'brief.onboarding',
 };
 
 export const hasTitleExtras = (path: string) => !!PAGE_ACTION[path];
@@ -69,8 +68,11 @@ export const TitleExtras: FC<{ path: string; info?: string }> = ({
   if (!access) {
     return null;
   }
+  // The brief is free, so it explains itself on the free plan too.
   const showInfo =
-    !!info && access !== 'free' && !(access === 'plan' && path === '/brief');
+    !!info &&
+    (access !== 'free' || path === '/brief') &&
+    !(access === 'plan' && path === '/brief');
   const actionKey = access !== 'plan' ? PAGE_ACTION[path] : undefined;
   return (
     <>

@@ -37,6 +37,7 @@ import { WalletRepository } from '@gitroom/nestjs-libraries/database/prisma/wall
 import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 import { WalletPublicService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.public.service';
 import { WalletPublicPricesService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.public.prices.service';
+import { WalletResearchPricesService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.research.prices.service';
 import { WalletStorageService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.storage.service';
 import { WalletPostsService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.posts.service';
 import { WalletHousekeepingService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.housekeeping.service';
@@ -45,6 +46,7 @@ import { BriefOnboardingRepository } from '@gitroom/nestjs-libraries/database/pr
 import { SkillsRepository } from '@gitroom/nestjs-libraries/database/prisma/skills/skills.repository';
 import { SkillsService } from '@gitroom/nestjs-libraries/database/prisma/skills/skills.service';
 import { WalletBillingService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.billing.service';
+import { WalletPlusService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.plus.service';
 import { BriefRepository } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.repository';
 import { BriefService } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.service';
 import { BriefRevisionRepository } from '@gitroom/nestjs-libraries/database/prisma/brief/brief-revision.repository';
@@ -111,7 +113,9 @@ import { MediaMeterService } from '@gitroom/nestjs-libraries/database/prisma/med
     WalletService,
     WalletPublicService,
     WalletPublicPricesService,
+    WalletResearchPricesService,
     WalletBillingService,
+    WalletPlusService,
     WalletStorageService,
     WalletPostsService,
     WalletHousekeepingService,

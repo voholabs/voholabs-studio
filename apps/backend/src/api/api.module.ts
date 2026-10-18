@@ -4,6 +4,8 @@ import { AuthService } from '@gitroom/backend/services/auth/auth.service';
 import { UsersController } from '@gitroom/backend/api/routes/users.controller';
 import { AuthMiddleware } from '@gitroom/backend/services/auth/auth.middleware';
 import { SkillsController } from '@gitroom/backend/api/routes/skills.controller';
+import { FlowsController } from '@gitroom/backend/api/routes/flows.controller';
+import { FlowsService } from '@gitroom/nestjs-libraries/flows/flows.service';
 import {
   WalletController,
   WalletWebhookController,
@@ -35,6 +37,7 @@ import { CodesService } from '@gitroom/nestjs-libraries/services/codes.service';
 import { CopilotController } from '@gitroom/backend/api/routes/copilot.controller';
 import { PublicController } from '@gitroom/backend/api/routes/public.controller';
 import { PublicPricesController } from '@gitroom/backend/api/routes/public.prices.controller';
+import { PublicFlowsController } from '@gitroom/backend/api/routes/public.flows.controller';
 import { RootController } from '@gitroom/backend/api/routes/root.controller';
 import { HealthController } from '@gitroom/backend/api/routes/health.controller';
 import { TrackService } from '@gitroom/nestjs-libraries/track/track.service';
@@ -99,6 +102,7 @@ const authenticatedController = [
   MediaMeterController,
   WalletController,
   SkillsController,
+  FlowsController,
 ];
 @Module({
   imports: [UploadModule],
@@ -122,6 +126,9 @@ const authenticatedController = [
         PublicController,
         // The public price list: read-only, nothing about any workspace.
         PublicPricesController,
+        // The flow catalog for the same page: the gateway's marketing fields
+        // only (FlowSummary), the same for everyone.
+        PublicFlowsController,
         // Guards itself with PROVISION_SECRET, so it stays out of
         // authenticatedController: the caller is a server, not a signed-in user.
         ProvisionController,
@@ -137,6 +144,7 @@ const authenticatedController = [
         ...authenticatedController,
       ],
   providers: [
+    FlowsService,
     AuthService,
     StripeService,
     PaymentService,

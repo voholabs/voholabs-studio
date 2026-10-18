@@ -35,16 +35,15 @@ export class ClippingTool implements AgentToolInterface {
           },
         },
       },
-      description: `Turn a long YouTube video into short vertical clips with burned-in captions.
+      description: `Turns a long YouTube video into short vertical clips with burned-in captions.
                     The best parts of the video are picked automatically, every clip is saved to the media library,
                     and when channels are passed a draft post is created for every clip on every channel (nothing is scheduled or published).
-                    Before calling this tool, always ask the user how the horizontal video should fill the vertical clip, and wait for the answer:
+                    "fit" is the user's own choice of how the horizontal video fills the vertical clip:
                     "blur" keeps the whole picture over a blurred copy of itself, "crop" fills the clip with the middle of the picture and cuts the sides away.
-                    Never pick one for the user, unless they already said which one they want in this conversation.
                     It uses the clipping minutes of the subscription: one minute for every minute of the source video.
-                    Clipping takes several minutes, so this only starts it and returns a clippingId: tell the user it is running.
-                    Some apps show a widget with the progress and report the finished clips in the conversation by themselves.
-                    Whenever the user asks how it is going, or when no such report arrived, call 'clippingStatusTool' with the clippingId to get the clips.
+                    Clipping takes several minutes, so this starts it and returns a clippingId.
+                    Some apps show a widget with the progress that reports the finished clips in the conversation by itself.
+                    'clippingStatusTool' returns the progress and the clips for a clippingId.
       `,
       inputSchema: z.object({
         url: z.string().url().describe('URL of the YouTube video'),
@@ -65,7 +64,7 @@ export class ClippingTool implements AgentToolInterface {
         fit: z
           .enum(['crop', 'blur'])
           .describe(
-            'How the horizontal video fills the vertical clip, as answered by the user: ask them before calling this tool and never guess it. "blur" keeps the whole picture over a blurred copy of itself and is always safe. "crop" fills the clip with the middle of the picture and cuts the sides away: there is no face tracking, so a speaker who is not in the centre is cut out of the clip. When asking, tell the user that with "crop" anything outside the centre of the picture will be lost.'
+            'How the horizontal video fills the vertical clip, as chosen by the user. "blur" keeps the whole picture over a blurred copy of itself and suits any video. "crop" fills the clip with the middle of the picture and cuts the sides away: there is no face tracking, so anything outside the centre of the picture, such as a speaker standing to one side, is lost.'
           ),
       }),
       outputSchema: z.object({

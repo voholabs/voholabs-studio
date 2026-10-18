@@ -95,23 +95,6 @@ export const PlusIcon: FC<{ size?: number }> = ({ size = 16 }) => (
   </svg>
 );
 
-export const SkillsIcon: FC<{ size?: number }> = ({ size = 22 }) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.6"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    {/* A bolt: a routine that runs for you. Same stroke as the Brief icon. */}
-    <path d="M13.2 2.5 5 13.1c-.36.47-.03 1.15.56 1.15H11.5l-1 7.25 8.2-10.6c.36-.47.03-1.15-.56-1.15H12.2l1-7.25Z" />
-  </svg>
-);
-
 export const BriefMenuIcon: FC<{ size?: number }> = ({ size = 22 }) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"

@@ -41,12 +41,18 @@ import {
   Sections,
 } from '@gitroom/backend/services/auth/permissions/permission.exception.class';
 import {
+  AccessOrganization,
   hasAccess,
   isActiveSubscription,
   trialEndsAt,
 } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 import { AgentConnectionService } from '@gitroom/nestjs-libraries/database/prisma/agent-connections/agent-connection.service';
+
+// The organization from the request carries the user's own membership.
+const isOrgAdmin = (organization?: Organization) =>
+  // @ts-ignore
+  ['SUPERADMIN', 'ADMIN'].includes(organization?.users?.[0]?.role);
 
 @ApiTags('User')
 @Controller('/user')
@@ -171,15 +177,30 @@ export class UsersController {
       // renewal, so counting it down would tell a customer who is not going
       // anywhere that their access is about to run out.
       trialEndsAt: trialEndsAt(org),
-      // Set by the first wallet top-up; it unlocks X, the brief and skills
-      // without changing the plan above.
+      // Plus, pay-as-you-go from before Plus, or a top-up with credit left
+      // opens X, the brief, skills and research data without changing the
+      // plan above.
       // A paid plan never uses the wallet, so its wallet is not read.
-      payAsYouGo: hasAccess(org)
-        ? false
-        : await this._walletService.isPayAsYouGo(organization.id),
-      // The app is replaced by the onboarding form until this is false.
+      ...(hasAccess(org)
+        ? { payAsYouGo: false, plus: false }
+        : await this._walletService
+            .access(organization.id)
+            .then((a) => ({ payAsYouGo: a.open, plus: a.plus }))),
+      // The app is held on the onboarding steps until this is false.
       // @ts-ignore
       needsOnboarding: !!user.needsOnboarding,
+      // Onboarded before the welcome credits existed: the onboarding opens
+      // once more until they are claimed or turned down. Free-plan admins
+      // only; never while impersonating.
+      welcomeCreditsPending:
+        !impersonate &&
+        !user.isSuperAdmin &&
+        !!user.onboardedAt &&
+        isOrgAdmin(organization) &&
+        // The agent step needs the key, as the frontend's admin check does.
+        !!organization.apiKey &&
+        !hasAccess(org) &&
+        (await this._userService.welcomeCreditsPending(organization.id)),
       // The app is replaced by a one-screen agreement until this is false.
       needsTerms: !impersonate && needsTerms(user),
       // @ts-ignore
@@ -195,17 +216,8 @@ export class UsersController {
         : organization?.isTrailing,
       allowTrial: organization?.allowTrial,
       streakSince: organization?.streakSince || null,
-      publicApi:
-        // The key opens the API and the MCP, neither of which knows about
-        // onboarding, so it stays hidden until the form is done.
-        // @ts-ignore
-        !user.needsOnboarding &&
-        // @ts-ignore
-        (organization?.users[0]?.role === 'SUPERADMIN' ||
-          // @ts-ignore
-          organization?.users[0]?.role === 'ADMIN')
-          ? organization?.apiKey
-          : '',
+      // Onboarding itself connects the agent with this key.
+      publicApi: isOrgAdmin(organization) ? organization?.apiKey : '',
     };
   }
 
@@ -306,12 +318,61 @@ export class UsersController {
     return this._userService.changePersonal(user.id, body);
   }
 
+  // Where onboarding stands: what the onboarding steps poll.
+  @Get('/onboarding')
+  onboardingStatus(@GetOrgFromRequest() organization: Organization) {
+    return this._userService.onboardingStatus(
+      organization.id,
+      isOrgAdmin(organization),
+      !hasAccess(organization as AccessOrganization)
+    );
+  }
+
   @Post('/onboarding')
   async completeOnboarding(
     @GetUserFromRequest() user: User,
+    @GetOrgFromRequest() organization: Organization,
     @Body() body: OnboardingDto
   ) {
-    await this._userService.completeOnboarding(user.id, body);
+    await this._userService.completeOnboarding(
+      user.id,
+      organization.id,
+      isOrgAdmin(organization),
+      body
+    );
+    return { success: true };
+  }
+
+  // The welcome credits, once the agent is connected and knows the brief.
+  // Never while impersonating: the decision is the person's own.
+  @Post('/onboarding/credits')
+  async claimWelcomeCredits(
+    @GetOrgFromRequest() organization: Organization,
+    @Req() req: Request
+  ) {
+    if (req.cookies.impersonate || req.headers.impersonate) {
+      return { credits: 0 };
+    }
+    return this._userService.claimWelcomeCredits(
+      organization.id,
+      isOrgAdmin(organization),
+      !hasAccess(organization as AccessOrganization)
+    );
+  }
+
+  // Turning the welcome credits down. Final, so never while impersonating.
+  @Post('/onboarding/credits/skip')
+  async skipWelcomeCredits(
+    @GetOrgFromRequest() organization: Organization,
+    @Req() req: Request
+  ) {
+    if (req.cookies.impersonate || req.headers.impersonate) {
+      return { success: true };
+    }
+    await this._userService.skipWelcomeCredits(
+      organization.id,
+      isOrgAdmin(organization)
+    );
     return { success: true };
   }
 

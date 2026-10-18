@@ -8,9 +8,11 @@ import { IntegrationService } from '@gitroom/nestjs-libraries/database/prisma/in
 import { SaveBriefDocumentDto } from '@gitroom/nestjs-libraries/dtos/brief/brief.dto';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 import {
+  BRIEF_ONBOARDING_DOCUMENTS,
   BRIEF_REGISTRY,
   BRIEF_REGISTRY_VERSION,
   isAgentManaged,
+  isDocumentEmpty,
   BRIEF_ASSETS_MAX,
   BRIEF_USER_DOCUMENTS_MAX,
   channelDocumentKey,
@@ -24,13 +26,15 @@ import {
   BriefDocumentContent,
 } from '@gitroom/nestjs-libraries/agent-brief/brief.types';
 import { BriefRevisionService } from '@gitroom/nestjs-libraries/database/prisma/brief/brief-revision.service';
+import { IntegrationManager } from '@gitroom/nestjs-libraries/integrations/integration.manager';
 
 @Injectable()
 export class BriefService {
   constructor(
     private _briefRepository: BriefRepository,
     private _integrationService: IntegrationService,
-    private _briefRevisionService: BriefRevisionService
+    private _briefRevisionService: BriefRevisionService,
+    private _integrationManager: IntegrationManager
   ) {}
 
   // Every write goes through here so a document's history is recoverable and
@@ -170,6 +174,42 @@ export class BriefService {
       content,
       updatedAt: saved.updatedAt?.toISOString(),
     };
+  }
+
+  // The headings a stored document holds that a new list of rules leaves out,
+  // matched trimmed and case-insensitively. An unknown document has none, so
+  // saveDocument is the one to explain why it is not a document.
+  async missingHeadings(
+    orgId: string,
+    category: string,
+    key: string,
+    headings: string[]
+  ) {
+    if (!resolveDocumentDef(category, key)) {
+      return [];
+    }
+
+    const storageKey = await this.toStorageKey(orgId, category, key);
+    const existing = await this._briefRepository.getDocument(
+      orgId,
+      category,
+      storageKey
+    );
+    if (!existing) {
+      return [];
+    }
+
+    const normalise = (heading?: string) =>
+      (heading || '').trim().toLowerCase();
+    const sent = new Set(headings.map(normalise));
+
+    return Array.from(
+      new Set(
+        this.parseContent(existing.content)
+          .blocks.map((block) => (block.heading || '').trim())
+          .filter((heading) => heading && !sent.has(normalise(heading)))
+      )
+    );
   }
 
   async deleteDocument(
@@ -386,6 +426,63 @@ export class BriefService {
     }
 
     return { removed, notFound, assets: kept.length };
+  }
+
+  // Which onboarding documents are filled in yet: the Foundation's core
+  // documents, then one per connected channel (how that account is used).
+  // Onboarding ends once all of them are, and the onboarding screen and the
+  // briefStatus tool both read this.
+  async onboardingStatus(orgId: string) {
+    const [{ documents }, integrations] = await Promise.all([
+      this.getDocuments(orgId),
+      this._integrationService.getIntegrationsList(orgId),
+    ]);
+    const stored = (category: string, key: string) =>
+      documents.find(
+        (document) => document.category === category && document.key === key
+      )?.content;
+    const filled = (category: string, key: string) =>
+      !isDocumentEmpty(stored(category, key));
+    const foundation = BRIEF_ONBOARDING_DOCUMENTS.map((key) => {
+      const definition = resolveDocumentDef('foundation', key);
+      return {
+        category: 'foundation',
+        key,
+        label: definition?.label || key,
+        description: definition?.description || '',
+        filled: filled('foundation', key),
+        files: stored('foundation', key)?.assets?.length || 0,
+      };
+    });
+    const channels = integrations
+      .filter(
+        (integration) => !integration.disabled && !integration.inBetweenSteps
+      )
+      .map((integration) => {
+        // "X preferences (voholabs)": the platform, then the account.
+        const platform = (
+          this._integrationManager?.getSocialIntegration(
+            integration.providerIdentifier
+          )?.name || integration.providerIdentifier
+        )
+          .split('\n')[0]
+          .trim();
+        const account = integration.profile || integration.name;
+        return {
+          category: 'channels',
+          // Channel documents are saved under the integration id.
+          key: integration.id,
+          label: `${platform} preferences (${account})`,
+          description: `How the ${platform} account "${account}" is used: what to post there, how often, in what form and tone.`,
+          filled: filled('channels', integration.id),
+          files: stored('channels', integration.id)?.assets?.length || 0,
+        };
+      });
+    const required = [...foundation, ...channels];
+    return {
+      done: required.every((document) => document.filled),
+      documents: required,
+    };
   }
 
   // Everything the agent knows about the business, as one structure. Nothing

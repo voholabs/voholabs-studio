@@ -23,7 +23,12 @@ const USER = { email: 'a@b.com', name: 'Ann' };
 const PRICE = 100;
 
 const build = (
-  opts: { pays?: boolean; free?: number | null; balance?: number } = {}
+  opts: {
+    pays?: boolean;
+    free?: number | null;
+    balance?: number;
+    unlocked?: boolean;
+  } = {}
 ) => {
   const rows: any[] = [];
   let next = 1;
@@ -80,6 +85,7 @@ const build = (
   const pays = { value: opts.pays ?? true };
   const wallet = {
     paysFromWallet: jest.fn(async () => pays.value),
+    unlocks: jest.fn(async () => opts.unlocked ?? true),
     freeUnitsRemaining: jest.fn(async () => ledger.free),
     price: jest.fn(async () => ({ price: PRICE, action: {} })),
     balance: jest.fn(async () => ledger.balance),
@@ -214,6 +220,15 @@ describe('BriefOnboardingService', () => {
     expect(rows[0].status).toBe('FAILED');
     expect(ledger.balance).toBe(50);
     expect(ledger.charges.size).toBe(0);
+  });
+
+  it('refuses the run to a wallet workspace whose top-up has not opened the brief', async () => {
+    const { service, rows, billing } = build({ free: 1, unlocked: false });
+    await expect(service.start(ORG, USER)).rejects.toMatchObject({
+      status: 402,
+    });
+    expect(rows).toHaveLength(0);
+    expect(billing.charge).not.toHaveBeenCalled();
   });
 
   it('makes the first run free and charges it when it opens', async () => {

@@ -62,8 +62,6 @@ import {
   CONNECT_STATE_TTL_SECONDS,
   serializeConnectState,
 } from '@gitroom/nestjs-libraries/integrations/connect.state';
-import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
-import { paidOnlyChannelMessage } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 import { AdminStatsService } from '@gitroom/nestjs-libraries/database/prisma/admin-stats/admin-stats.service';
 import { OrganizationService } from '@gitroom/nestjs-libraries/database/prisma/organizations/organization.service';
 import { GetOrgActivityDto } from '@gitroom/nestjs-libraries/dtos/analytics/get.org.activity.dto';
@@ -82,7 +80,6 @@ export class PublicIntegrationsController {
     private _notificationService: NotificationService,
     private _integrationManager: IntegrationManager,
     private _refreshIntegrationService: RefreshIntegrationService,
-    private _walletService: WalletService,
     private _usersService: UsersService,
     private _adminStatsService: AdminStatsService,
     private _organizationService: OrganizationService,
@@ -417,22 +414,8 @@ export class PublicIntegrationsController {
       throw new HttpException({ msg: 'Integration not allowed' }, 400);
     }
 
-    if (!(await this._integrationService.canUseProvider(org.id, integration))) {
-      const locked = await this._walletService.providerLocked(
-        org.id,
-        integration,
-        paidOnlyChannelMessage()
-      );
-      const body = locked.getResponse();
-      // `msg` is what this API has always returned; the wallet fields ride
-      // along when a top-up opens the channel.
-      throw new HttpException(
-        typeof body === 'string'
-          ? { msg: body }
-          : { msg: locked.message, ...(body as object) },
-        402
-      );
-    }
+    // Connecting is free on every plan, X included; posting to X is what the
+    // wallet charges for.
 
     // A provider migrated via MIGRATE_PROVIDERS reconnects through its target
     // provider's OAuth: the callback lands on the target and the channel is

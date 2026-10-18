@@ -19,15 +19,15 @@ export class WalletTransactionsTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'walletTransactions',
-      description: `List the workspace's wallet credit transactions (top-ups, charges, refunds, grants, adjustments), newest first. Paginated: if next_cursor is not null, pass it as cursor to get the next page.
-Credits are signed: positive adds to the balance, negative spends. For the current balance call walletBalance.`,
+      description: `Lists the workspace's wallet credit transactions (top-ups, charges, refunds, grants, adjustments), newest first. Paginated: a next_cursor that is not null, passed as cursor, returns the next page.
+Credits are signed: positive adds to the balance, negative spends. walletBalance returns the current balance.`,
       inputSchema: z.object({
         cursor: z
           .number()
           .int()
           .min(0)
           .optional()
-          .describe('Pass next_cursor from the previous response to fetch the next page'),
+          .describe('next_cursor from the previous response, for the next page'),
         size: z
           .number()
           .int()

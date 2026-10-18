@@ -29,11 +29,11 @@ export class MediaPreviewTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'mediaPreview',
-      description: `Get loadable references to media that is in the media library or attached to a post — images AND video alike.
-Pass the "path" of each attachment from postsList (or media ids from mediaList) and each one comes back as an MCP resource link carrying the asset's URL, name and type, in the order you asked for, so a carousel keeps its slide order.
-This call only gets you a URL — it is not the same as showing the user the asset, and stopping here (e.g. printing the name or the link as text) leaves the user with nothing to look at. You still have to actually display it: download the bytes from the URL yourself, then show or attach the downloaded image/video in your response using whatever mechanism your client renders images with. A raw URL dropped into a markdown image tag frequently fails to load for the user (many clients, ChatGPT included, do not fetch and inline an arbitrary external URL on their own) — download first, then show what you downloaded, never the bare link.
-Nothing is returned inline and nothing is re-encoded: you get the real asset at full quality, whatever its size, and video works the same way as an image. Use "kind" to tell them apart before loading — do not try to look at a video as a picture.
-If loading a URL is refused with a 403 or a blocked network, that is the sandbox domain allowlist, not a missing file: tell the user to add that host in Settings → Capabilities. Never report an asset as unavailable when you were simply not allowed to fetch it.
+      description: `Returns loadable references to media that is in the media library or attached to a post — images and video alike.
+It takes the "path" of each attachment from postsList (or media ids from mediaList) and returns each one as an MCP resource link carrying the asset's URL, name and type, in the order asked for, so a carousel keeps its slide order.
+The result is a URL, not the asset shown to the user: the name or the link printed as text leaves the user with nothing to look at. The asset becomes visible once its bytes are downloaded from the URL and shown or attached in the response. A raw URL in a markdown image tag frequently fails to load for the user, because many clients, ChatGPT included, leave an arbitrary external URL unfetched.
+Nothing is returned inline and nothing is re-encoded: the URL serves the real asset at full quality, whatever its size, and video works the same way as an image. "kind" tells an image from a video or an audio file before anything is loaded.
+A 403 or a blocked network when loading a URL comes from the sandbox domain allowlist, not a missing file; the host is added in Settings → Capabilities. An asset that could not be fetched for that reason still exists.
 It only reads: nothing is uploaded, changed or deleted.`,
       mcp: {
         annotations: {
@@ -49,13 +49,13 @@ It only reads: nothing is uploaded, changed or deleted.`,
           .array(z.string())
           .optional()
           .describe(
-            'Media paths, in the order you want them back. This is the usual way in: it is the same "path" postsList returns for each attachment and mediaList returns for each asset.'
+            'Media paths, in the order they come back. This is the usual input: it is the same "path" postsList returns for each attachment and mediaList returns for each asset.'
           ),
         ids: z
           .array(z.string())
           .optional()
           .describe(
-            'Media library ids, as an alternative to paths. Note these are mediaList ids — a post attachment does not carry one, so use "paths" for anything read off a post.'
+            'Media library ids, as an alternative to paths. These are mediaList ids — a post attachment carries none, so anything read off a post is looked up by "paths".'
           ),
       }),
       // Passthrough is load-bearing: the tool returns `{ structuredContent,
@@ -70,18 +70,18 @@ It only reads: nothing is uploaded, changed or deleted.`,
                 url: z
                   .string()
                   .nullable()
-                  .describe('Load this to get the asset itself, at full quality'),
+                  .describe('Serves the asset itself, at full quality'),
                 mediaId: z.string().nullable(),
                 name: z.string().nullable(),
                 mimeType: z
                   .string()
                   .nullable()
                   .describe(
-                    'Best-effort type from the file extension. The authoritative type is the Content-Type of the response when you load the URL.'
+                    'Best-effort type from the file extension. The authoritative type is the Content-Type of the response when the URL is loaded.'
                   ),
                 kind: z
                   .string()
-                  .describe('"image", "video" or "unknown" — check before loading'),
+                  .describe('"image", "video", "audio" or "unknown", known before loading'),
                 error: z.string().optional(),
               })
             )

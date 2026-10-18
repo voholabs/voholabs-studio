@@ -1428,10 +1428,10 @@ export class PostsService {
       } catch (err) {}
     }
 
-    // A deleted post leaves no history behind.
+    // The post is soft-deleted, and so is its history: every version stays.
     if (chainId) {
       try {
-        await this._postRevisionService.deleteChain(orgId, chainId);
+        await this._postRevisionService.markChainDeleted(orgId, chainId);
       } catch (err) {}
     }
 
@@ -2168,6 +2168,16 @@ export class PostsService {
         throw err;
       }
     }
+
+    // Moving a post is a change worth a version too. Never fails the move.
+    try {
+      await this._postRevisionService.captureReschedule(
+        orgId,
+        id,
+        getPostById.group,
+        date
+      );
+    } catch (err) {}
 
     if (action === 'schedule') {
       try {

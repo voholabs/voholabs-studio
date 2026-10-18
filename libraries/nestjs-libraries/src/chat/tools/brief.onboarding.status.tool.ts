@@ -34,8 +34,8 @@ export class BriefOnboardingStatusTool implements AgentToolInterface {
     return createTool({
       id: 'briefOnboardingStatus',
       description: `Whether the guided brief onboarding is available, running, or has run before, and where the user starts it.
-The onboarding is a guided interview that writes the agent brief in one sitting. It runs in Studio, with the user, so this tool cannot start it: give the user "startUrl" and tell them to press the button there. "nextRunCharged" says whether starting a new run takes wallet credits ("price"); reopening a run that is still open is free.
-Use it when the brief is empty or the user asks how to set it up, before offering to write the brief by hand with briefSaveTool.`,
+The onboarding is a guided interview that writes the agent brief in one sitting. It runs in Studio, with the user, so this tool cannot start it: the user starts it with the button at "startUrl". "nextRunCharged" says whether starting a new run takes wallet credits ("price"); reopening a run that is still open is free.
+It is the guided alternative to writing the brief by hand with briefSaveTool, for an empty brief or a question about how to set one up.`,
       mcp: {
         annotations: {
           title: 'Brief Onboarding Status',

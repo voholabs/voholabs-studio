@@ -27,12 +27,12 @@ export class PostsReplaceAssetTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'replacePostAsset',
-      description: `Swap exactly ONE image or video on a post — or on one of its thread items — for another, and leave everything else untouched: every other attachment, every thread item, all text, the schedule.
-This is the tool for "change the image on my post". Do NOT do that through editPostTool: its "attachments" field replaces the post's entire media list (passing only the new file silently drops the other media), and its "comments" field makes you resend every thread item. This tool cannot lose anything it was not asked to replace.
-The swap only happens with the user's approval. Before calling this tool: show the user the proposed replacement — call mediaPreview for its media-library path, then download and actually display the picture yourself, not just its link or name — and get their explicit yes. Only then call this. Replacing is not reversible from here: this tool has no undo, and the asset it removed comes back only if its path still exists in the media library and you run a second swap the other way. A call the user has not seen and approved is a call made too early.
-Find the target with postsList: pass the post's "id", the attachment's exact "path" as "currentPath", and the replacement as "newPath". The replacement must be a media-library path — anything produced elsewhere (an AI generator's result URL, a pasted link) goes through uploadFromUrlTool first, and the "path" it returns is what you pass here.
-For an asset on a thread item, add "commentIndex" (zero-based position in the "comments" list). If "currentPath" is not on the target, nothing is changed and the error names the paths that are there, so you can correct and retry.
-The output reports the post as it now stands, same shape as editPostTool, so you can confirm the swap. Schedule behaviour is also editPostTool's: a queued post stays queued and its publishing job is rebuilt, a draft stays a draft, and a post that has already published only has its calendar entry corrected ("livePostUnchanged" — the message live on the social network is not touched).`,
+      description: `Swaps exactly ONE image or video on a post, or on one of its thread items, for another, and leaves everything else untouched: every other attachment, every thread item, all text, the schedule.
+It handles "change the image on my post" without editPostTool's side effects: editPostTool's "attachments" field replaces the post's entire media list (a list with only the new file drops the other media), and its "comments" field resends every thread item. This tool changes nothing it was not asked to replace.
+A swap has no undo here: the removed asset comes back only through a second swap the other way, and only while its path still exists in the media library. The replacement is the user's call; mediaPreview shows a media-library file, so the user can see the picture itself, not just its link or name, before approving it.
+The target comes from postsList: the post's "id", the attachment's exact "path" as "currentPath", and the replacement as "newPath". The replacement is a media-library path; anything produced elsewhere (an AI generator's result URL, a pasted link) becomes one through uploadFromUrlTool, whose returned "path" goes here.
+For an asset on a thread item, "commentIndex" is its zero-based position in the "comments" list. If "currentPath" is not on the target, nothing is changed and the error names the paths that are there.
+The output reports the post as it now stands, same shape as editPostTool, so the swap can be checked. Schedule behaviour is also editPostTool's: a queued post stays queued and its publishing job is rebuilt, a draft stays a draft, and a post that has already published only has its calendar entry corrected ("livePostUnchanged" — the message live on the social network is not touched).`,
       mcp: {
         annotations: {
           title: 'Replace One Post Asset',
@@ -48,12 +48,12 @@ The output reports the post as it now stands, same shape as editPostTool, so you
         id: z
           .string()
           .describe(
-            'The id of the post (from postsList). Always the post id, even when the asset lives on a thread item — point at the item with commentIndex.'
+            'The id of the post (from postsList), also when the asset lives on a thread item, which commentIndex points at.'
           ),
         currentPath: z
           .string()
           .describe(
-            'The exact "path" of the attachment to replace, as postsList or editPostTool returned it. If the same path appears more than once on the target, add assetIndex to say which occurrence.'
+            'The exact "path" of the attachment to replace, as postsList or editPostTool returned it. If the same path appears more than once on the target, assetIndex says which occurrence.'
           ),
         assetIndex: z
           .number()
@@ -61,10 +61,10 @@ The output reports the post as it now stands, same shape as editPostTool, so you
           .min(0)
           .optional()
           .describe(
-            'Zero-based position of the attachment on the target. Only needed when currentPath appears there more than once; when passed, the attachment at this position must actually have currentPath, so a stale index fails instead of replacing the wrong asset.'
+            'Zero-based position of the attachment on the target. Only needed when currentPath appears there more than once; when passed, the attachment at this position is checked against currentPath, so a stale index fails instead of replacing the wrong asset.'
           ),
         newPath: attachmentUrl.describe(
-          'The media-library path of the replacement (from mediaList, uploadMediaTool or uploadFromUrlTool). An external URL passed here is automatically copied into the media library before the swap, so the post never stores a link that can expire — the output shows the hosted path it became.'
+          'The media-library path of the replacement (from mediaList, uploadMediaTool or uploadFromUrlTool). An external URL passed here is automatically copied into the media library before the swap, so the post keeps a link that lasts — the output shows the hosted path it became.'
         ),
         commentIndex: z
           .number()
@@ -72,7 +72,7 @@ The output reports the post as it now stands, same shape as editPostTool, so you
           .min(0)
           .optional()
           .describe(
-            'Zero-based index of the thread item / comment to change, in the order postsList and editPostTool return them. Omit to change the post itself.'
+            'Zero-based index of the thread item / comment to change, in the order postsList and editPostTool return them. Left out, the post itself is changed.'
           ),
       }),
       outputSchema: z.object({
@@ -82,7 +82,7 @@ The output reports the post as it now stands, same shape as editPostTool, so you
           .nullable()
           .optional()
           .describe(
-            'The group id after the edit — editing gives the post a new group, so use this one from now on'
+            'The group id after the edit — editing gives the post a new group, and this is the one it has from now on'
           ),
         state: z.string().optional(),
         publishDate: z.string().optional(),

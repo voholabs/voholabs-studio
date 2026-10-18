@@ -1,5 +1,6 @@
 import DOMPurify from 'isomorphic-dompurify';
 import { parseFragment } from 'parse5';
+import { isAudioPath } from '@gitroom/helpers/utils/valid.url.path';
 
 const ALLOWED_TAGS = [
   'p',
@@ -41,11 +42,13 @@ const ALLOWED_ATTR = [
 const ALLOWED_URI_REGEXP = /^(?:https?:|mailto:|\/|#)/i;
 
 // <img> keeps data: URIs whatever ALLOWED_URI_REGEXP says, so a picture
-// that doesn't point to a real file is dropped
+// that doesn't point to a real file is dropped, and so is one pointing at an
+// audio file (the media library keeps those for download, never for a post)
 DOMPurify.addHook('uponSanitizeElement', (node, data) => {
+  const src = (node as Element).getAttribute?.('src') || '';
   if (
     data.tagName === 'img' &&
-    !/^https?:\/\//i.test((node as Element).getAttribute('src') || '')
+    (!/^https?:\/\//i.test(src) || isAudioPath(src))
   ) {
     node.parentNode?.removeChild(node);
   }

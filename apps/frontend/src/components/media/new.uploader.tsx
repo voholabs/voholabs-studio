@@ -22,7 +22,7 @@ import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import { useLaunchStore } from '@gitroom/frontend/components/new-launch/store';
 import { uniqBy } from 'lodash';
-import { openTopUp } from '@gitroom/frontend/components/wallet/wallet.bridge';
+import { openWalletRefusal } from '@gitroom/frontend/components/wallet/wallet.bridge';
 import { useWalletAccess } from '@gitroom/frontend/components/wallet-locks/wallet.access';
 
 // The JSON body of a refused upload: on the error for the multipart
@@ -272,7 +272,7 @@ export function useUppyUploader(props: {
       }
       const body = refusedBody(error, request);
       if (body?.wallet) {
-        openTopUp(body.message);
+        openWalletRefusal(body);
         return;
       }
       toast.show(

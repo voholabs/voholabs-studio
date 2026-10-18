@@ -95,10 +95,31 @@ export interface GrowthActiveUsers {
   days: { day: string; users: number }[];
 }
 
+// Organizations whose AI agent used the MCP, per UTC day. Recorded from the
+// day it shipped, so `since` is the first day with data.
+export interface GrowthActiveAgents {
+  since: string | null;
+  today: number;
+  // Distinct organizations over the last 7 and 30 days, today included.
+  weekly: number;
+  monthly: number;
+  // organizations is distinct workspaces; byClient counts each agent, so a
+  // workspace using two agents that day is in both.
+  days: {
+    day: string;
+    organizations: number;
+    byClient: Record<string, number>;
+  }[];
+  // Which agents people use: workspaces per agent over the last 30 days, and
+  // ever connected.
+  clients: { client: string; monthly: number; allTime: number }[];
+}
+
 export interface GrowthResponse {
   generatedAt: string;
   funnel: GrowthFunnelRow[];
   activeUsers: GrowthActiveUsers;
+  activeAgents: GrowthActiveAgents;
   organizations: {
     total: number;
     withChannel: number;
@@ -140,7 +161,9 @@ export class AdminStatsRepository {
     private _integration: PrismaRepository<'integration'>,
     private _errors: PrismaRepository<'errors'>,
     private _oauthApp: PrismaRepository<'oAuthApp'>,
-    private _oauthAuth: PrismaRepository<'oAuthAuthorization'>
+    private _oauthAuth: PrismaRepository<'oAuthAuthorization'>,
+    private _agentActivity: PrismaRepository<'agentActivityDay'>,
+    private _agentConnection: PrismaRepository<'agentConnection'>
   ) {}
 
   private async errorStats(params: StatsParams) {
@@ -765,20 +788,115 @@ export class AdminStatsRepository {
     };
   }
 
+  private async growthActiveAgents(
+    now: Date,
+    days = 30
+  ): Promise<GrowthActiveAgents> {
+    const db = this._agentActivity.model.agentActivityDay;
+    const day = (offset: number) =>
+      new Date(now.getTime() - offset * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 10);
+    const today = day(0);
+    const first = new Date(day(days - 1));
+    const weekStart = new Date(day(6));
+
+    const [rows, earliest, connections] = await Promise.all([
+      db.findMany({
+        where: { day: { gte: first } },
+        select: { organizationId: true, client: true, day: true },
+      }),
+      db.findFirst({ orderBy: { day: 'asc' }, select: { day: true } }),
+      this._agentConnection.model.agentConnection.groupBy({
+        by: ['client', 'organizationId'],
+      }),
+    ]);
+
+    // Distinct workspaces per day, and per agent per day
+    const perDay = new Map<
+      string,
+      { organizations: Set<string>; byClient: Record<string, number> }
+    >();
+    const weekly = new Set<string>();
+    const monthly = new Set<string>();
+    const monthlyByClient = new Map<string, Set<string>>();
+    for (const row of rows) {
+      const key = row.day.toISOString().slice(0, 10);
+      const entry = perDay.get(key) || {
+        organizations: new Set<string>(),
+        byClient: {},
+      };
+      entry.organizations.add(row.organizationId);
+      entry.byClient[row.client] = (entry.byClient[row.client] || 0) + 1;
+      perDay.set(key, entry);
+      monthly.add(row.organizationId);
+      if (row.day >= weekStart) {
+        weekly.add(row.organizationId);
+      }
+      const clientOrgs = monthlyByClient.get(row.client) || new Set<string>();
+      clientOrgs.add(row.organizationId);
+      monthlyByClient.set(row.client, clientOrgs);
+    }
+
+    const allTime = new Map<string, number>();
+    for (const connection of connections) {
+      allTime.set(
+        connection.client,
+        (allTime.get(connection.client) || 0) + 1
+      );
+    }
+
+    const list = Array.from({ length: days }, (_, i) => {
+      const d = day(days - 1 - i);
+      const entry = perDay.get(d);
+      return {
+        day: d,
+        organizations: entry?.organizations.size || 0,
+        byClient: entry?.byClient || {},
+      };
+    });
+    const clients = Array.from(
+      new Set([...monthlyByClient.keys(), ...allTime.keys()])
+    )
+      .map((client) => ({
+        client,
+        monthly: monthlyByClient.get(client)?.size || 0,
+        allTime: allTime.get(client) || 0,
+      }))
+      .sort(
+        (a, b) =>
+          b.monthly - a.monthly ||
+          b.allTime - a.allTime ||
+          a.client.localeCompare(b.client)
+      );
+
+    return {
+      since: earliest ? earliest.day.toISOString().slice(0, 10) : null,
+      today: perDay.get(today)?.organizations.size || 0,
+      weekly: weekly.size,
+      monthly: monthly.size,
+      days: list,
+      clients,
+    };
+  }
+
   async getGrowth(): Promise<GrowthResponse> {
     const now = new Date();
     const starts = windowStarts(now);
-    const [funnel, activeUsers, organizations, channels] = await Promise.all([
-      this.growthFunnel(starts),
-      this.growthActiveUsers(now),
-      this.growthOrganizations(starts),
-      this.growthChannels(starts),
-    ]);
+    const [funnel, activeUsers, activeAgents, organizations, channels] =
+      await Promise.all([
+        this.growthFunnel(starts),
+        this.growthActiveUsers(now),
+        this.growthActiveAgents(now),
+        this.growthOrganizations(starts),
+        this.growthChannels(starts),
+      ]);
 
     return {
       generatedAt: now.toISOString(),
       funnel,
       activeUsers,
+      activeAgents,
       organizations,
       channels,
     };

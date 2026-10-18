@@ -23,9 +23,9 @@ export class SanityWriteTool implements AgentToolInterface {
         ...SANITY_MCP_WRITE_TOOLS,
       ].join(', ')}).
       Calls the Sanity MCP server, see ${SANITY_MCP_DOCS_URL}. create_documents and patch_documents work on drafts; publish_documents publishes now.
-      Scheduling is Studio's job - use findSlotTool and integrationSchedulePostTool for anything with a time on it. Reads go through sanityRead.
-      Pass the tool name exactly as sanityMcpList reported it and an arguments object matching the inputSchema it reported.
-      Omit the Sanity project id and dataset - Studio fills those in from the connected channel.`,
+      Anything with a time on it is scheduled by findSlotTool and integrationSchedulePostTool, and reads go through sanityRead.
+      "name" is the tool name exactly as sanityMcpList reported it and "arguments" matches the inputSchema it reported.
+      Studio fills in the Sanity project id and dataset from the connected channel.`,
       mcp: {
         annotations: {
           title: 'Write Sanity Content',
@@ -45,7 +45,7 @@ export class SanityWriteTool implements AgentToolInterface {
           .record(z.string(), z.any())
           .optional()
           .describe(
-            'Arguments for the tool, matching the inputSchema from sanityMcpList. Leave out `resource` and `releaseId`.'
+            'Arguments for the tool, matching the inputSchema from sanityMcpList. Studio sets `resource` itself, and `releaseId` is refused.'
           ),
       }),
       outputSchema: z.object({

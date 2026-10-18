@@ -27,8 +27,6 @@ import {
 import { RefreshIntegrationService } from '@gitroom/nestjs-libraries/integrations/refresh.integration.service';
 import { OrganizationService } from '@gitroom/nestjs-libraries/database/prisma/organizations/organization.service';
 import { IntegrationPictureService } from '@gitroom/nestjs-libraries/integrations/integration.picture.service';
-import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
-import { paidOnlyChannelMessage } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 import { UsersService } from '@gitroom/nestjs-libraries/database/prisma/users/users.service';
 import {
   canFinishConnect,
@@ -49,7 +47,6 @@ export class NoAuthIntegrationsController {
     private _refreshIntegrationService: RefreshIntegrationService,
     private _organizationService: OrganizationService,
     private _integrationPictureService: IntegrationPictureService,
-    private _walletService: WalletService,
     private _usersService: UsersService
   ) {}
 
@@ -157,28 +154,8 @@ export class NoAuthIntegrationsController {
     const organization = stateRecord.orgId;
     const org = await this._organizationService.getOrgById(organization);
 
-    // X is unavailable on the free plan, however the connection
-    // was started (app, public API, CLI).
-    if (
-      !(await this._integrationService.canUseProvider(
-        organization,
-        integration
-      ))
-    ) {
-      throw await this._walletService.providerLocked(
-        organization,
-        integration,
-        paidOnlyChannelMessage()
-      );
-    }
-
-    // A workspace paying for X from its wallet pays for the account lookup
-    // made while connecting.
-    const connectCharge = await this._integrationService.chargeConnectLookup(
-      organization,
-      integration,
-      body.state
-    );
+    // Connecting is free on every plan, X included, however the connection
+    // was started (app, public API, CLI); posting to X is what needs Plus.
 
     if (!integrationProvider.customFields) {
       await ioRedis.del(`login:${body.state}`);
@@ -291,13 +268,6 @@ export class NoAuthIntegrationsController {
         });
       }
     });
-
-    if ((error || !id) && connectCharge) {
-      await this._integrationService.refundApiUse(
-        connectCharge,
-        'Refund: the channel was not connected'
-      );
-    }
 
     if (error) {
       throw new NotEnoughScopes(error);

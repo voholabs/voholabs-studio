@@ -9,7 +9,9 @@ export type WalletEntryType =
   | 'SPEND'
   | 'REFUND'
   | 'GRANT'
-  | 'ADJUST';
+  | 'ADJUST'
+  | 'PLAN_GRANT'
+  | 'PLAN_EXPIRE';
 
 interface WalletForecastItem {
   actionKey: string;
@@ -20,7 +22,21 @@ interface WalletForecastItem {
 
 export interface WalletSummary {
   balance: number;
+  // Paid features are open: Plus, pay-as-you-go from before Plus, or a
+  // top-up with credit left.
   payAsYouGo: boolean;
+  plus?: boolean;
+  // Topped up before Plus launched: stays on pay-as-you-go, top-ups and
+  // auto top-up included, and Plus is an option.
+  legacy?: boolean;
+  // The Plus payment failed and Stripe is still collecting it.
+  plusPaymentFailed?: boolean;
+  // Top-ups (and auto top-up) are open: Plus, or pay-as-you-go from before
+  // Plus.
+  topUpAllowed?: boolean;
+  // The balance split: plan credits (reset every period, used first) and
+  // top-up credits (never expire). Hundredths of a credit.
+  credits?: { plan: number; topUp: number; planResetsAt: string | null };
   frozen?: boolean;
   currency: string;
   paymentsEnabled: boolean;
@@ -42,6 +58,9 @@ export interface WalletSummary {
     amount: number | null;
     monthlyCap: number | null;
     usedThisMonth: number;
+    // Why it last turned itself off, and when.
+    offReason?: 'card_failed' | 'plus_ended' | string | null;
+    offAt?: string | null;
   };
   forecast?: {
     windowHours: number;
@@ -96,6 +115,18 @@ export interface WalletPricedAction {
 export interface WalletPriceSection {
   key: string;
   actions: WalletPricedAction[];
+}
+
+// GET /wallet/prices/research (and `research` on GET /public/prices): one
+// group of research data, with what its cheapest and its dearest typical run
+// cost, in hundredths of a credit.
+export interface WalletResearchPrice {
+  id: string;
+  title: string;
+  summary: string;
+  runs: number;
+  low: number;
+  high: number;
 }
 
 export interface SupportedChannel {

@@ -95,9 +95,6 @@ export const apiNeedsCreditsMessage = (identifier: string) => {
 export const analyticsNeedsCreditsMessage = (scope: 'channel' | 'post') =>
   `Not enough credits in your wallet to load this ${scope}'s analytics. Top up to see them.`;
 
-const notEnoughCreditsToConnectMessage = () =>
-  'Not enough credits in your wallet to connect this channel. Top up, then connect it again.';
-
 @Injectable()
 export class IntegrationService {
   private storage = UploadFactory.createStorage();
@@ -1035,37 +1032,6 @@ export class IntegrationService {
       await this.refundApiUse(charge, 'Refund: no account was found');
     }
     return result;
-  }
-
-  // The account lookup made when a wallet workspace connects a channel on a
-  // paid API, charged once per connection attempt. Throws a 402 the app turns
-  // into the top-up flow when the wallet cannot pay. Returns the charge to
-  // refund if the connection fails, or undefined when nothing was charged.
-  async chargeConnectLookup(
-    orgId: string,
-    identifier: string,
-    state: string
-  ): Promise<string | undefined> {
-    if (!(await this.paysFromWallet(orgId, identifier))) {
-      return undefined;
-    }
-    const charge = await this.chargeApiUse({
-      orgId,
-      identifier,
-      action: 'user_lookup',
-      chargeKey: `${providerKey(identifier)}lookup:connect:${orgId}:${state}`,
-    });
-    if (!charge) {
-      throw new HttpException(
-        {
-          message: notEnoughCreditsToConnectMessage(),
-          wallet: true,
-          url: '/wallet',
-        },
-        HttpStatus.PAYMENT_REQUIRED
-      );
-    }
-    return charge;
   }
 
   // Why a provider the free plan locks is refused. With the workspace given,

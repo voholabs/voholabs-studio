@@ -3,6 +3,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -25,6 +26,14 @@ export class WalletCheckoutDto {
 
   // Turn automatic top-up on with the saved card once this payment is in
   // (needs saveCard). Uses the auto top-up defaults from the settings.
+  @IsBoolean()
+  @IsOptional()
+  autoTopUp?: boolean;
+}
+
+export class WalletCardDto {
+  // Turn automatic top-up on once the card is saved. Uses the auto top-up
+  // defaults from the settings.
   @IsBoolean()
   @IsOptional()
   autoTopUp?: boolean;
@@ -81,4 +90,9 @@ export class WalletEstimateDto {
   @Max(3650)
   @IsOptional()
   inter?: number;
+}
+
+export class WalletPlusCheckoutDto {
+  @IsIn(['month', 'year'])
+  interval: 'month' | 'year';
 }

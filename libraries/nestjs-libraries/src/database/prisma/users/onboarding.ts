@@ -4,8 +4,9 @@ import {
 } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 
 /**
- * Mandatory onboarding: a new account answers a few questions before it gets
- * to use the product, which is what the free plan is traded for.
+ * Mandatory onboarding: a new account connects a channel before it gets to
+ * use the product. Connecting its agent and having the agent fill its brief
+ * come next; they can be skipped, and doing them earns the welcome credits.
  *
  * Nobody with the paid features is ever asked, and that is decided by
  * `hasAccess` and nothing narrower. It has to be the same test that grants the
@@ -30,11 +31,3 @@ export const needsOnboarding = (
     hasAccess(organization)
   );
 };
-
-// What an account that still has to onboard may call: reading itself,
-// submitting the form, and leaving.
-export const onboardingOpenPaths = [
-  '/user/self',
-  '/user/onboarding',
-  '/user/logout',
-];

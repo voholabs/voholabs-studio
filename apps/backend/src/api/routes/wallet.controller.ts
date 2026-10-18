@@ -16,7 +16,11 @@ import dayjs from 'dayjs';
 import { GetOrgFromRequest } from '@gitroom/nestjs-libraries/user/org.from.request';
 import { GetUserFromRequest } from '@gitroom/nestjs-libraries/user/user.from.request';
 import {
+  PlusRequiredError,
   WalletService,
+  autoTopUpPausedMessage,
+  plusPaymentFailed,
+  plusRequired,
   receiptUrlOf,
   walletFrozenMessage,
 } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
@@ -25,10 +29,18 @@ import {
   WalletPaymentMismatchError,
   walletPaymentsEnabled,
 } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.billing.service';
+import { WalletResearchPricesService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.research.prices.service';
+import {
+  PlusExistsError,
+  PlusUnavailableError,
+  WalletPlusService,
+} from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.plus.service';
 import {
   WalletAutoTopUpDto,
+  WalletCardDto,
   WalletCheckoutDto,
   WalletEstimateDto,
+  WalletPlusCheckoutDto,
 } from '@gitroom/nestjs-libraries/dtos/wallet/wallet.dto';
 import { hasAccess } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/trial';
 
@@ -51,6 +63,13 @@ const assertNoPlan = (org: Organization) => {
 
 const ENTRY_TYPES = Object.values(WalletEntryType) as string[];
 
+// A refusal from the wallet's Stripe services as the HTTP answer: no Plus
+// (402 to the Plus page), or a message to show (400).
+const paymentRefusal = (err: unknown) =>
+  err instanceof PlusRequiredError
+    ? plusRequired(err.message)
+    : new HttpException((err as Error).message, 400);
+
 // "TOPUP,AUTO_TOPUP" -> the entry types to list; unknown names are ignored.
 const entryTypes = (value?: string) =>
   (value || '')
@@ -63,15 +82,17 @@ const entryTypes = (value?: string) =>
 export class WalletController {
   constructor(
     private _wallet: WalletService,
-    private _billing: WalletBillingService
+    private _billing: WalletBillingService,
+    private _research: WalletResearchPricesService,
+    private _plus: WalletPlusService
   ) {}
 
   @Get('/')
   async summary(@GetOrgFromRequest() org: Organization) {
-    const [wallet, balance, rules, spentAuto, currency, forecast] =
+    const credits = await this._wallet.planCredits(org.id);
+    const [wallet, rules, spentAuto, currency, forecast, access] =
       await Promise.all([
         this._wallet.getWallet(org.id),
-        this._wallet.balance(org.id),
         this._wallet.topUpRules().catch(() => undefined),
         this._wallet.autoTopUpSpentSince(
           org.id,
@@ -79,12 +100,29 @@ export class WalletController {
         ),
         this._wallet.currency().catch(() => null),
         this._wallet.forecast(org.id),
+        this._wallet.access(org.id),
       ]);
     // The daily short-forecast notice, sent at most once per UTC day.
     this._wallet.notifyIfShort(org.id, forecast).catch(() => undefined);
     return {
-      balance,
-      payAsYouGo: !!wallet?.firstTopUpAt && !wallet.frozenAt,
+      balance: credits.balance,
+      // The paid features are open: Plus, pay-as-you-go from before Plus, or
+      // a top-up with credit left (see WalletService.access).
+      payAsYouGo: access.open,
+      plus: access.plus,
+      // Topped up before Plus launched: stays on pay-as-you-go, top-ups
+      // included.
+      legacy: access.legacy,
+      // The Plus payment failed and Stripe is still collecting it: the card
+      // needs updating (POST /wallet/plus/billing).
+      plusPaymentFailed: plusPaymentFailed(wallet),
+      topUpAllowed: access.topUpAllowed,
+      // Plan credits (gone at planResetsAt) and the rest, which never expire.
+      credits: {
+        plan: credits.plan,
+        topUp: credits.topUp,
+        planResetsAt: credits.planResetsAt,
+      },
       frozen: !!wallet?.frozenAt,
       currency: wallet?.currency || currency,
       paymentsEnabled: walletPaymentsEnabled(),
@@ -102,6 +140,9 @@ export class WalletController {
         amount: wallet?.autoTopUpAmount ?? null,
         monthlyCap: wallet?.autoTopUpMonthlyCap ?? null,
         usedThisMonth: spentAuto,
+        // Why it turned itself off ("card_failed", "plus_ended"), and when.
+        offReason: wallet?.autoTopUpOffReason ?? null,
+        offAt: wallet?.autoTopUpOffAt ?? null,
       },
       forecast,
     };
@@ -184,6 +225,13 @@ export class WalletController {
     return this._wallet.priceSections(provider);
   }
 
+  // What each kind of research data typically costs per run (see
+  // WalletResearchPricesService).
+  @Get('/prices/research')
+  researchPrices() {
+    return this._research.prices();
+  }
+
   @Post('/checkout')
   async checkout(
     @GetOrgFromRequest() org: OrgWithRole,
@@ -206,7 +254,7 @@ export class WalletController {
         returnUrl: `${process.env.FRONTEND_URL}/wallet`,
       });
     } catch (err) {
-      throw new HttpException((err as Error).message, 400);
+      throw paymentRefusal(err);
     }
   }
 
@@ -217,7 +265,8 @@ export class WalletController {
   @Post('/card')
   async card(
     @GetOrgFromRequest() org: OrgWithRole,
-    @GetUserFromRequest() user: User
+    @GetUserFromRequest() user: User,
+    @Body() body?: WalletCardDto
   ) {
     assertAdmin(org);
     assertNoPlan(org);
@@ -229,10 +278,11 @@ export class WalletController {
         organizationId: org.id,
         email: user.email,
         name: org.name,
+        autoTopUp: !!body?.autoTopUp,
         returnUrl: `${process.env.FRONTEND_URL}/wallet`,
       });
     } catch (err) {
-      throw new HttpException((err as Error).message, 400);
+      throw paymentRefusal(err);
     }
   }
 
@@ -285,6 +335,12 @@ export class WalletController {
       if (wallet.frozenAt) {
         throw new HttpException(walletFrozenMessage(), 400);
       }
+      if (plusPaymentFailed(wallet)) {
+        throw new HttpException(autoTopUpPausedMessage(), 400);
+      }
+      if (!(await this._wallet.walletTopUpAllowed(wallet))) {
+        throw paymentRefusal(new PlusRequiredError());
+      }
       const rules = await this._wallet.topUpRules();
       if (!wallet.paymentMethodId) {
         throw new HttpException('Save a card with a top-up first', 400);
@@ -312,8 +368,117 @@ export class WalletController {
       autoTopUpThreshold: body.threshold ?? wallet.autoTopUpThreshold,
       autoTopUpAmount: body.amount ?? wallet.autoTopUpAmount,
       autoTopUpMonthlyCap: body.monthlyCap ?? wallet.autoTopUpMonthlyCap,
+      ...(body.enabled
+        ? { autoTopUpOffReason: null, autoTopUpOffAt: null }
+        : {}),
     });
     return this.summary(org);
+  }
+
+  // Plus: what it costs and gives, the early bird valid now, the
+  // subscription and the plan credits.
+  @Get('/plus')
+  plus(@GetOrgFromRequest() org: Organization) {
+    return this._plus.plan(org.id);
+  }
+
+  // Stripe Checkout for Plus, monthly or yearly. Stripe returns to
+  // /plus?plus=success&session_id=... or /plus?plus=cancelled.
+  @Post('/plus/checkout')
+  async plusCheckout(
+    @GetOrgFromRequest() org: OrgWithRole,
+    @GetUserFromRequest() user: User,
+    @Body() body: WalletPlusCheckoutDto
+  ) {
+    assertAdmin(org);
+    assertNoPlan(org);
+    try {
+      return await this._plus.createCheckout({
+        organizationId: org.id,
+        email: user.email,
+        name: org.name,
+        interval: body.interval,
+        returnUrl: `${process.env.FRONTEND_URL}/plus`,
+      });
+    } catch (err) {
+      // A subscription that has not ended (on, or a failed payment being
+      // collected) is a conflict. Otherwise, like a top-up checkout: a
+      // refusal (no offer, frozen, a currency change) or a Stripe error is a
+      // message to show.
+      throw new HttpException(
+        (err as Error).message,
+        err instanceof PlusExistsError ? 409 : 400
+      );
+    }
+  }
+
+  // The Stripe billing portal, to update the card that pays for Plus (after
+  // a failed payment). Stripe returns to /plus.
+  @Post('/plus/billing')
+  async plusBilling(@GetOrgFromRequest() org: OrgWithRole) {
+    assertAdmin(org);
+    if (!walletPaymentsEnabled()) {
+      throw new HttpException('Plus is not available yet', 503);
+    }
+    try {
+      return await this._plus.billingPortal(org.id);
+    } catch (err) {
+      throw new HttpException((err as Error).message, 400);
+    }
+  }
+
+  // The browser is back from the Plus checkout: record the subscription
+  // now (the webhook may not have arrived yet).
+  @Get('/plus/checkout/:sessionId')
+  async plusCheckoutReturn(
+    @GetOrgFromRequest() org: Organization,
+    @Param('sessionId') sessionId: string
+  ) {
+    if (!walletPaymentsEnabled()) {
+      throw new HttpException('Plus is not available yet', 503);
+    }
+    if (!/^cs_[A-Za-z0-9_]+$/.test(sessionId || '')) {
+      throw new HttpException('Unknown checkout session', 404);
+    }
+    let found: boolean;
+    try {
+      found = await this._plus.confirmCheckout(org.id, sessionId);
+    } catch (err) {
+      if ((err as { type?: string })?.type === 'StripeInvalidRequestError') {
+        throw new HttpException('Unknown checkout session', 404);
+      }
+      throw err;
+    }
+    if (!found) {
+      throw new HttpException('Unknown checkout session', 404);
+    }
+    return this._plus.plan(org.id);
+  }
+
+  // Plus ends at the end of the paid span; credits and access stay until
+  // then.
+  @Post('/plus/cancel')
+  plusCancel(@GetOrgFromRequest() org: OrgWithRole) {
+    return this.setPlusCancelled(org, true);
+  }
+
+  // Keeps Plus going after a cancel, before it ends.
+  @Post('/plus/resume')
+  plusResume(@GetOrgFromRequest() org: OrgWithRole) {
+    return this.setPlusCancelled(org, false);
+  }
+
+  private async setPlusCancelled(org: OrgWithRole, cancelled: boolean) {
+    assertAdmin(org);
+    try {
+      await this._plus.setCancelled(org.id, cancelled);
+    } catch (err) {
+      if (err instanceof PlusUnavailableError) {
+        throw new HttpException(err.message, 400);
+      }
+      throw err;
+    }
+    return this._plus.plan(org.id);
   }
 }
 
@@ -322,7 +487,10 @@ export class WalletController {
 @ApiTags('Wallet')
 @Controller('/wallet-webhook')
 export class WalletWebhookController {
-  constructor(private _billing: WalletBillingService) {}
+  constructor(
+    private _billing: WalletBillingService,
+    private _plus: WalletPlusService
+  ) {}
 
   @Post('/')
   async webhook(@Req() req: RawBodyRequest<Request>) {
@@ -338,7 +506,11 @@ export class WalletWebhookController {
       throw new HttpException('Invalid signature', 400);
     }
     try {
-      return await this._billing.handleEvent(event);
+      // Plus events first (they never throw); everything else is a top-up.
+      return (
+        (await this._plus.handleEvent(event)) ||
+        (await this._billing.handleEvent(event))
+      );
     } catch (err) {
       // Non-2xx so Stripe retries and flags the endpoint; already alerted.
       if (err instanceof WalletPaymentMismatchError) {

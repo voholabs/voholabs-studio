@@ -23,7 +23,7 @@ import {
 // simply charged when it publishes, as before.
 
 export const notEnoughCreditsToScheduleMessage = () =>
-  'Not enough credits in your wallet to schedule this. Top up (or turn on automatic top-up), then schedule it again.';
+  'Not scheduled: there are not enough credits in your wallet for this post. Top up (or turn on automatic top-up), then schedule it again.';
 
 export const REFUND_REASONS = {
   deleted: 'Refund: the post was deleted',
@@ -140,6 +140,8 @@ export class WalletPostsService {
     reason: string,
     topUp = true
   ) {
+    // This period's plan credits are in before anything is charged.
+    await this._wallet.syncPlan(organizationId);
     if (!topUp) {
       return this._repository.settleCharges(organizationId, items, reason);
     }

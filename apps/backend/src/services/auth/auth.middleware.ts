@@ -19,10 +19,7 @@ import {
   clearAuthCookie,
   setAuthCookie,
 } from '@gitroom/backend/services/auth/auth.cookie';
-import {
-  needsOnboarding,
-  onboardingOpenPaths,
-} from '@gitroom/nestjs-libraries/database/prisma/users/onboarding';
+import { needsOnboarding } from '@gitroom/nestjs-libraries/database/prisma/users/onboarding';
 import {
   AuthorizationActions,
   Sections,
@@ -180,20 +177,11 @@ export class AuthMiddleware implements NestMiddleware {
     }
 
     // An expired trial is the free plan, not a lockout, so nothing is blocked
-    // here for its subscription. What does block the whole app is onboarding
-    // that was never finished: the frontend shows the form instead of the app,
-    // and this is what makes skipping it pointless.
+    // here for its subscription. Unfinished onboarding is not blocked here
+    // either: its steps connect channels and an agent and fill the brief, which
+    // all need the API, so the frontend holds the app on those steps instead
+    // (only the channel cannot be skipped).
     const path = req.originalUrl.split('?')[0];
-    if (
-      // @ts-ignore
-      req.user?.needsOnboarding &&
-      !onboardingOpenPaths.some((open) => path.endsWith(open))
-    ) {
-      throw new SubscriptionException({
-        section: Sections.ONBOARDING,
-        action: AuthorizationActions.Read,
-      });
-    }
 
     // A signed-in session that has not agreed to the current Terms can read
     // itself, agree, or leave. An admin impersonating somebody returned further

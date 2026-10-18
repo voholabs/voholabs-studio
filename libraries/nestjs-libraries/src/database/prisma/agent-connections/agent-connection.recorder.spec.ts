@@ -27,6 +27,40 @@ const init = (name: string) => ({
 });
 
 describe('AgentConnectionRecorder', () => {
+  it('writes the first tool call of the day at once, even right after initialize', async () => {
+    const { recorder, write, advance } = setup();
+    const seen = (body: unknown) =>
+      recorder.seen({
+        organizationId: 'org1',
+        authMethod: 'OAUTH',
+        userAgent: 'openai-mcp/1.0',
+        body,
+      });
+    seen(init('openai-mcp'));
+    await flush();
+    advance(1000);
+    seen({
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/call',
+      params: { name: 'integrationList' },
+    });
+    await flush();
+    expect(write).toHaveBeenCalledTimes(2);
+    expect(write.mock.calls[1][0]).toMatchObject({ toolName: 'integrationList' });
+
+    // A second tool call the same day waits for the throttle again
+    advance(1000);
+    seen({
+      jsonrpc: '2.0',
+      id: 3,
+      method: 'tools/call',
+      params: { name: 'postsList' },
+    });
+    await flush();
+    expect(write).toHaveBeenCalledTimes(2);
+  });
+
   it('records the first request at once', async () => {
     const { recorder, write, afterWrite } = setup(
       jest.fn().mockResolvedValue({ first: true })
@@ -61,25 +95,28 @@ describe('AgentConnectionRecorder', () => {
         body,
       });
     seen();
+    // The first tool call of the day is written at once
     seen({ method: 'tools/call', params: { name: 'postsList' } });
+    seen({ method: 'tools/call', params: { name: 'mediaList' } });
     seen();
     await flush();
-    expect(write).toHaveBeenCalledTimes(1);
+    expect(write).toHaveBeenCalledTimes(2);
+    expect(write.mock.calls[1][0]).toMatchObject({ toolName: 'postsList' });
 
     advance(4 * 60 * 1000);
     seen();
     await flush();
-    expect(write).toHaveBeenCalledTimes(1);
+    expect(write).toHaveBeenCalledTimes(2);
 
     advance(60 * 1000);
     seen();
     await flush();
-    expect(write).toHaveBeenCalledTimes(2);
-    expect(write.mock.calls[1][0]).toMatchObject({
+    expect(write).toHaveBeenCalledTimes(3);
+    expect(write.mock.calls[2][0]).toMatchObject({
       client: 'claude',
       authMethod: 'OAUTH',
       requests: 4,
-      toolName: 'postsList',
+      toolName: 'mediaList',
     });
   });
 

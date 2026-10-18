@@ -82,7 +82,7 @@ describe('briefOnboardingStatus', () => {
   it('refuses a free workspace that has not opened the brief', async () => {
     const { tool, onboarding } = make({});
     const result = await tool.execute({}, context(FREE));
-    expect(result.error).toMatch(/first wallet top-up/);
+    expect(result.error).toMatch(/included with Plus/);
     expect(onboarding.status).not.toHaveBeenCalled();
   });
 

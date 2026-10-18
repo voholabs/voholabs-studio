@@ -3,7 +3,10 @@
 import React, { FC, ReactNode, useMemo, useState } from 'react';
 import clsx from 'clsx';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
-import { useWalletFormat } from '@gitroom/frontend/components/wallet/wallet.hooks';
+import {
+  WalletFormat,
+  useWalletFormat,
+} from '@gitroom/frontend/components/wallet/wallet.hooks';
 import { ENABLED_PROVIDERS } from '@gitroom/frontend/components/launches/enabled.providers';
 import {
   actionDescription,
@@ -14,23 +17,27 @@ import {
   tModel,
   tMonthly,
   tPrice,
+  tPriceRange,
 } from '@gitroom/frontend/components/wallet/wallet.text';
 import {
   SupportedChannel,
   WalletPriceSection,
   WalletPricedAction,
+  WalletResearchPrice,
 } from '@gitroom/frontend/components/wallet/wallet.types';
+import { LockIcon } from '@gitroom/frontend/components/wallet-locks/wallet.icons';
 import {
   CARD,
   CoinsIcon,
   InfoTip,
   PILL,
-  POS_BG,
-  POS_SOFT,
+  PILL_TEAL,
   POS_TEXT,
   ProviderLogo,
   SCROLL,
   sectionIcon,
+  TEAL_BG,
+  TEAL_TEXT,
 } from '@gitroom/frontend/components/wallet/wallet.ui';
 
 // The price list, generated only from the price rows (GET /wallet/prices, or
@@ -40,6 +47,20 @@ import {
 // The section that lists channels also gets a computed row for every
 // supported channel without a priced action: those are free.
 const CHANNELS_SECTION = 'channels';
+
+// Skills are now Flows: their prices show in the Flows card that follows the
+// price list (components/pricing/flows.pricing.tsx), so the skills section
+// from the price rows is not rendered here, nor listed as a top-up unlock.
+// The brief is written by the user's agent during onboarding, for free; a
+// guided re-run states its own price where it is started (the Brief page).
+export const HIDDEN_SECTIONS = ['skills', 'brief'];
+
+// The price row research data is charged by (one unit is one dollar of
+// source cost). On the list it stands for one row per group of research data
+// (GET /wallet/prices/research), each with what a typical run costs.
+export const RESEARCH_ACTION = 'data.run';
+
+const raw = { interpolation: { escapeValue: false } };
 
 export interface Row {
   key: string;
@@ -51,11 +72,13 @@ export interface Row {
   allowance: string;
   price: string;
   info: string | null;
+  // Included with Plus: welcome credits do not pay for it.
+  locked?: boolean;
 }
 
 const Pill: FC<{ free: boolean; label: string }> = ({ free, label }) =>
   free ? (
-    <span className={clsx(PILL, POS_SOFT, POS_TEXT)}>{label}</span>
+    <span className={PILL_TEAL}>{label}</span>
   ) : (
     <span className={clsx(PILL, 'gap-[5px] bg-warmSoft text-warm')}>
       <CoinsIcon size={11} /> {label}
@@ -192,6 +215,51 @@ export const freeChannelsRow = (
   };
 };
 
+// The research row as one row per group of research data, with the range a
+// typical run costs. With an empty list (no gateway), the row itself, priced
+// per currency unit of source cost. While the list is still loading
+// (undefined), nothing, so the row does not flash before it splits.
+const researchRows = (
+  t: ReturnType<typeof useT>,
+  f: WalletFormat,
+  a: WalletPricedAction,
+  base: Row,
+  research: WalletResearchPrice[] | undefined
+): Row[] => {
+  if (!research) {
+    return [];
+  }
+  if (!research.length) {
+    return [
+      {
+        ...base,
+        model: t('wallet_model_source_cost', 'at source cost'),
+        price: t(
+          'wallet_price_per_source_cost',
+          '{{credits}} credits per {{money}} of source cost',
+          { credits: f.credits(a.price), money: f.moneyShort(f.factor), ...raw }
+        ),
+      },
+    ];
+  }
+  const info = t(
+    'wallet_research_info',
+    'What a typical run of this data costs: the source cost × markup, in credits. A run is charged what it actually cost, and nothing when nothing is found.'
+  );
+  return research.map((g) => {
+    const key = `wallet_research_group_${g.id.replace(/[^a-z0-9]+/g, '_')}`;
+    return {
+      ...base,
+      key: `${base.key}-${g.id}`,
+      name: t(key, g.title, raw),
+      description: g.summary ? t(`${key}_description`, g.summary, raw) : '',
+      model: t('wallet_model_per_run', 'per run'),
+      price: tPriceRange(t, f, g.low, g.high),
+      info,
+    };
+  });
+};
+
 export const PriceTable: FC<{ rows: Row[] }> = ({ rows }) => {
   const t = useT();
   return (
@@ -234,6 +302,12 @@ export const PriceTable: FC<{ rows: Row[] }> = ({ rows }) => {
                         {r.description}
                       </div>
                     )}
+                    {!!r.locked && (
+                      <div className="text-[12px] font-[600] text-warm flex items-center gap-[5px]">
+                        <LockIcon size={10} />
+                        {t('plus_included', 'Included with Plus')}
+                      </div>
+                    )}
                   </div>
                 </div>
               </td>
@@ -252,7 +326,7 @@ export const PriceTable: FC<{ rows: Row[] }> = ({ rows }) => {
                 <span
                   className={clsx(
                     'font-[600] whitespace-nowrap',
-                    r.free ? POS_TEXT : 'tabular-nums'
+                    r.free ? TEAL_TEXT : 'tabular-nums'
                   )}
                 >
                   {r.price}
@@ -272,40 +346,59 @@ export const PriceList: FC<{
   sections: WalletPriceSection[];
   channels?: SupportedChannel[];
   currency?: string;
-}> = ({ sections, channels, currency }) => {
+  // The groups of research data the research row stands for.
+  research?: WalletResearchPrice[];
+  // The workspace has what Plus opens without Plus (pay-as-you-go from
+  // before Plus): no "Included with Plus" tag.
+  open?: boolean;
+}> = ({ sections, channels, currency, research, open }) => {
   const t = useT();
   const f = useWalletFormat(currency);
 
   const rendered = useMemo(
     () =>
-      sections.map((section) => {
-        const rows: Row[] = section.actions.map((a: WalletPricedAction) => ({
-          key: a.key,
-          icon: a.provider ? (
-            <RowIcon
-              provider={a.provider}
-              section={section.key}
-              channel={
-                ENABLED_PROVIDERS.includes(a.provider) ||
-                !!channels?.some((c) => c.identifier === a.provider)
-              }
-            />
-          ) : null,
-          name: actionName(t, a),
-          description: actionDescription(t, a),
-          model: tModel(t, a),
-          free: a.billing === 'UNLOCK',
-          allowance: tAllowance(t, a),
-          price: tPrice(t, f, a),
-          info: a.billing === 'MONTHLY' ? tMonthly(t, f, a) : null,
-        }));
-        if (section.key === CHANNELS_SECTION && channels) {
-          const free = freeChannelsRow(t, f.locale, section, channels);
-          if (free) rows.unshift(free);
-        }
-        return { key: section.key, label: sectionLabel(t, section.key), rows };
-      }),
-    [sections, channels, t, f]
+      sections
+        .filter((section) => !HIDDEN_SECTIONS.includes(section.key))
+        .map((section) => {
+          const rows: Row[] = section.actions.flatMap(
+            (a: WalletPricedAction) => {
+              const row: Row = {
+                key: a.key,
+                icon: a.provider ? (
+                  <RowIcon
+                    provider={a.provider}
+                    section={section.key}
+                    channel={
+                      ENABLED_PROVIDERS.includes(a.provider) ||
+                      !!channels?.some((c) => c.identifier === a.provider)
+                    }
+                  />
+                ) : null,
+                name: actionName(t, a),
+                description: actionDescription(t, a),
+                model: tModel(t, a),
+                free: a.billing === 'UNLOCK',
+                allowance: tAllowance(t, a),
+                price: tPrice(t, f, a),
+                info: a.billing === 'MONTHLY' ? tMonthly(t, f, a) : null,
+                locked: a.requiresTopUp && !open,
+              };
+              return a.key === RESEARCH_ACTION
+                ? researchRows(t, f, a, row, research)
+                : [row];
+            }
+          );
+          if (section.key === CHANNELS_SECTION && channels) {
+            const free = freeChannelsRow(t, f.locale, section, channels);
+            if (free) rows.unshift(free);
+          }
+          return {
+            key: section.key,
+            label: sectionLabel(t, section.key),
+            rows,
+          };
+        }),
+    [sections, channels, research, open, t, f]
   );
 
   return (
@@ -332,7 +425,7 @@ export const PriceList: FC<{
         <span className="flex-1" />
         <span className="flex items-center gap-[14px] text-[12px] text-textItemBlur">
           <span className="flex items-center gap-[6px]">
-            <span className={clsx('w-[8px] h-[8px] rounded-full', POS_BG)} />
+            <span className={clsx('w-[8px] h-[8px] rounded-full', TEAL_BG)} />
             {t('wallet_legend_free', 'Free')}
           </span>
           <span className="flex items-center gap-[6px]">

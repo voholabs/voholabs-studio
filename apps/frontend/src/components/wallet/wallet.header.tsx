@@ -16,6 +16,9 @@ import { openTopUp } from '@gitroom/frontend/components/wallet/wallet.events';
 import { WalletHost } from '@gitroom/frontend/components/wallet/wallet.host';
 import { txName } from '@gitroom/frontend/components/wallet/wallet.text';
 import { WalletSummary } from '@gitroom/frontend/components/wallet/wallet.types';
+import { rateLine } from '@gitroom/frontend/components/wallet/wallet.text';
+import { LockIcon } from '@gitroom/frontend/components/wallet-locks/wallet.icons';
+import { PILL_PLUS } from '@gitroom/frontend/components/plus/plus.offer';
 import {
   ArrowIcon,
   BTN_PRIMARY,
@@ -42,18 +45,6 @@ export const lowThreshold = (w: WalletSummary) =>
 
 export const isLow = (w: WalletSummary) =>
   w.payAsYouGo && w.balance < lowThreshold(w);
-
-export const rateLine = (
-  t: ReturnType<typeof useT>,
-  f: WalletFormat,
-  w: WalletSummary
-) =>
-  w.topUp
-    ? t('wallet_rate_line', '{{money}} = {{credits}} credits', {
-        money: f.moneyShort(f.factor),
-        credits: f.credits(f.creditsFor(f.factor, w.topUp.creditsPerUnit)),
-      })
-    : '';
 
 // Red notice when scheduled usage in the forecast window needs more credits
 // than the wallet has and auto top-up cannot cover it.
@@ -177,7 +168,8 @@ const PopoverLink: FC<{ href: string; label: string; onClick: () => void }> = ({
 );
 
 // The popover's Top up. Until top-ups are switched on it stays visible but
-// disabled, with a short note instead of the rate.
+// disabled, with a short note instead of the rate. Top-ups need Plus: without
+// it the button says Get Plus (WalletHost opens the Plus dialog).
 const TopUpButton: FC<{
   wallet: WalletSummary;
   onClick: () => void;
@@ -186,9 +178,10 @@ const TopUpButton: FC<{
   const t = useT();
   const f = useWalletFormat(wallet.currency);
   const off = !wallet.paymentsEnabled;
+  const needsPlus = wallet.topUpAllowed === false;
   const note = off
     ? t('wallet_topup_not_available', 'Top-ups are not available yet.')
-    : rate
+    : rate && !needsPlus
     ? rateLine(t, f, wallet)
     : '';
   return (
@@ -199,7 +192,15 @@ const TopUpButton: FC<{
         disabled={off}
         className={clsx(BTN_PRIMARY, 'w-full')}
       >
-        <PlusIcon /> {t('wallet_top_up', 'Top up')}
+        {needsPlus ? (
+          <>
+            <LockIcon size={14} /> {t('plus_get', 'Get Plus')}
+          </>
+        ) : (
+          <>
+            <PlusIcon /> {t('wallet_top_up', 'Top up')}
+          </>
+        )}
       </button>
       {!!note && (
         <div className="text-[12px] text-textItemBlur text-center -mt-[6px]">
@@ -240,8 +241,8 @@ const WalletPopover: FC<{ wallet: WalletSummary; close: () => void }> = ({
             </span>
           </div>
           <div className="flex items-baseline gap-[8px]">
-            <span className="text-[40px] font-[600] leading-none tabular-nums text-textItemBlur">
-              <Num>{f.credits(wallet.frozen ? wallet.balance : 0)}</Num>
+            <span className="text-[40px] font-[600] leading-none tabular-nums">
+              <Num>{f.credits(wallet.balance)}</Num>
             </span>
             <span className="text-[14px] text-textItemBlur">
               {t('wallet_credits', 'credits')}
@@ -273,7 +274,11 @@ const WalletPopover: FC<{ wallet: WalletSummary; close: () => void }> = ({
           <div className="text-[13px] text-textItemBlur">
             {t('wallet_balance', 'Wallet balance')}
           </div>
-          <span className={PILL_TEAL}>{t('wallet_payg', 'Pay-as-you-go')}</span>
+          {wallet.plus ? (
+            <span className={PILL_PLUS}>{t('plus_name', 'Plus')}</span>
+          ) : (
+            <span className={PILL_TEAL}>{t('wallet_payg', 'Pay-as-you-go')}</span>
+          )}
         </div>
         <div>
           <div className="flex items-baseline gap-[8px]">
@@ -367,11 +372,11 @@ export const WalletHeader: FC = () => {
   }
 
   const low = isLow(wallet) || wallet.balance < 0;
-  const label = wallet.payAsYouGo
+  const label = wallet.payAsYouGo || wallet.balance > 0
     ? t('wallet_aria_balance', 'Wallet, balance {{credits}} credits', {
         credits: f.credits(wallet.balance),
       })
-    : t('wallet_aria_free', 'Wallet, free plan. Top up to unlock more.');
+    : t('plus_wallet_aria_free', 'Wallet, free plan. Get Plus to unlock more.');
 
   return (
     <>
@@ -394,7 +399,7 @@ export const WalletHeader: FC = () => {
               <span className="absolute -top-[2px] -end-[3px] w-[8px] h-[8px] rounded-full bg-warm border-[2px] border-newBgColorInner" />
             )}
           </span>
-          {wallet.payAsYouGo ? (
+          {wallet.payAsYouGo || wallet.balance > 0 ? (
             <span
               className={clsx(
                 'text-[14px] font-[600] tabular-nums',
@@ -405,7 +410,9 @@ export const WalletHeader: FC = () => {
             </span>
           ) : (
             <span className="text-[13px] font-[600] whitespace-nowrap mobile:hidden">
-              {t('wallet_top_up', 'Top up')}
+              {wallet.topUpAllowed === false
+                ? t('plus_get', 'Get Plus')
+                : t('wallet_top_up', 'Top up')}
             </span>
           )}
         </button>

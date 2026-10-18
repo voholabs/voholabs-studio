@@ -25,6 +25,7 @@ import {
   TEAL_SOFT,
   WalletIcon,
 } from '@gitroom/frontend/components/wallet/wallet.ui';
+import { rateLine } from '@gitroom/frontend/components/wallet/wallet.text';
 
 // What the browser remembers across the Stripe redirect, to tell a first
 // top-up from a later one when the user comes back.
@@ -270,6 +271,8 @@ export const TopUpModal: FC<{ context?: string }> = ({ context }) => {
         <div className="flex-1 min-w-0">
           <div className="text-[13px] text-textItemBlur">
             {t('wallet_you_get', 'You get')}
+            <span className="mx-[6px] text-newSep">|</span>
+            <span className="tabular-nums">{rateLine(t, f, wallet)}</span>
           </div>
           <div className="text-[24px] font-[600] tabular-nums">
             {t('wallet_equals_credits', '= {{credits}} credits', {

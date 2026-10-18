@@ -2,10 +2,7 @@ import { AgentToolInterface } from '@gitroom/nestjs-libraries/chat/agent.tool.in
 import { createTool } from '@mastra/core/tools';
 import { Injectable } from '@nestjs/common';
 import z from 'zod';
-import {
-  checkAuth,
-  paidOnly,
-} from '@gitroom/nestjs-libraries/chat/auth.context';
+import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
 import { BriefRevisionService } from '@gitroom/nestjs-libraries/database/prisma/brief/brief-revision.service';
 
 @Injectable()
@@ -16,10 +13,10 @@ export class BriefHistoryTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'briefHistory',
-      description: `See what has changed in the agent brief since it was last marked as reviewed. Who made a change is not recorded, so this includes notes you wrote yourself — read a document before drawing a lesson from it, or you will be learning from your own writing.
-What matters is a rule that came back different from how you left it: that is somebody telling you the rule was wrong, and their version is the one to keep. Never restore what they removed.
+      description: `Lists what has changed in the agent brief since it was last marked as reviewed. Who made a change is not recorded, so the list also holds notes the agent wrote itself; a document's content shows whose writing a change is.
+A rule that came back different from how the agent left it is a correction by somebody else, and their version is the current one, including what they removed.
 Returns one entry per document, with the rules added, removed or rewritten. Removed words are marked [-like this-] and added words {+like this+}.
-Work out what the change implies beyond the document it happened in, write that down with briefLearnTool, then call markLearned with kind "brief" and the ids returned here, so the same edit is not reviewed again.`,
+briefLearnTool records what a change implies beyond the document it happened in. markLearned with kind "brief" and the ids returned here marks those edits as reviewed, so they are not returned again.`,
       mcp: {
         annotations: {
           title: 'Review Brief Edits',
@@ -70,10 +67,6 @@ Work out what the change implies beyond the document it happened in, write that 
       }),
       execute: async (inputData, context) => {
         checkAuth(inputData, context);
-        const blocked = paidOnly(context, 'The agent brief', 'brief');
-        if (blocked) {
-          return { error: blocked };
-        }
         try {
           const organizationId = JSON.parse(
             (context?.requestContext as any)?.get('organization') as string

@@ -2,10 +2,7 @@ import { AgentToolInterface } from '@gitroom/nestjs-libraries/chat/agent.tool.in
 import { createTool } from '@mastra/core/tools';
 import { Injectable } from '@nestjs/common';
 import z from 'zod';
-import {
-  checkAuth,
-  paidOnly,
-} from '@gitroom/nestjs-libraries/chat/auth.context';
+import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
 import { BriefService } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.service';
 
 @Injectable()
@@ -16,9 +13,9 @@ export class BriefAssetTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'briefAssetTool',
-      description: `Register a brand file — a logo, a product shot, a video — in Branding & assets, so it is on hand the next time something is made for this brand.
-Get the file into the media library first (uploadFromUrlTool, uploadMediaTool or createUploadLinkTool) and pass the "path" it returns as the url. Files uploaded that way already live in the account's own storage.
-Always write a note saying when to reach for this file and when not to — a logo on a dark background, a shot that is only for launches, a video that must never be cropped. A file with no note is nearly useless later.`,
+      description: `Registers a brand file (a logo, a product shot, a video) in Branding & assets, so it is on hand the next time something is made for this brand, or removes registered files.
+The url is a media-library "path" (as returned by uploadFromUrlTool, uploadMediaTool or createUploadLinkTool), which lives in the account's own storage, or a URL the file already lives at.
+A file's note is what tells later work when it fits and when it does not: a logo for dark backgrounds, a shot only for launches, a video that is not to be cropped.`,
       mcp: {
         annotations: {
           title: 'Register Brand Asset',
@@ -38,12 +35,12 @@ Always write a note saying when to reach for this file and when not to — a log
         name: z
           .string()
           .optional()
-          .describe('What this file is called. Required to add.'),
+          .describe('What this file is called. Needed to add.'),
         url: z
           .string()
           .optional()
           .describe(
-            'The media library path, or a URL the file already lives at. Required to add.'
+            'The media library path, or a URL the file already lives at. Needed to add.'
           ),
         mime: z
           .string()
@@ -52,7 +49,7 @@ Always write a note saying when to reach for this file and when not to — a log
         note: z
           .string()
           .optional()
-          .describe('When to use this file, and when not to. Required to add.'),
+          .describe('When this file fits, and when it does not. Needed to add.'),
         assetIds: z
           .array(z.string())
           .optional()
@@ -72,10 +69,6 @@ Always write a note saying when to reach for this file and when not to — a log
       }),
       execute: async (inputData, context) => {
         checkAuth(inputData, context);
-        const blocked = paidOnly(context, 'The agent brief', 'brief');
-        if (blocked) {
-          return { error: blocked };
-        }
         try {
           const organizationId = JSON.parse(
             (context?.requestContext as any)?.get('organization') as string

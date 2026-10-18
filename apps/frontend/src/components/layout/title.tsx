@@ -18,7 +18,9 @@ export const Title = () => {
     return menuItems.find((item) => path.indexOf(item.path) > -1);
   }, [path]);
   // Wallet pages are reached from the wallet in the top bar, not the menu.
-  const walletTitle = path.startsWith('/wallet/prices')
+  const walletTitle = path.startsWith('/plus')
+    ? t('plus_name', 'Plus')
+    : path.startsWith('/wallet/prices')
     ? t('wallet_prices_title', 'Prices')
     : path.startsWith('/wallet')
     ? t('wallet_billing_title', 'Billing')

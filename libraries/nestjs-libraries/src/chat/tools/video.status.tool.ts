@@ -22,8 +22,8 @@ export class VideoStatusTool implements AgentToolInterface {
           openWorldHint: false,
         },
       },
-      description: `Check the status of a video generation started with 'generateVideoTool', using the jobId it returned.
-                    Generating a video takes a few minutes: while the status is "pending", wait about 30 seconds and call again.
+      description: `Returns the status of a video generation started with 'generateVideoTool', using the jobId it returned.
+                    Generating a video takes a few minutes; the status stays "pending" until it is done, and it changes about every 30 seconds at most.
                     When the status is "completed" the result contains the hosted video url, which can be used as a post attachment.
                     When the status is "failed" the result contains the error message.
       `,

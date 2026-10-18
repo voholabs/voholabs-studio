@@ -21,6 +21,8 @@ import { MediaService } from '@gitroom/nestjs-libraries/database/prisma/media/me
 import { storeBufferAsMedia } from '@gitroom/nestjs-libraries/chat/tools/media.upload.helper';
 import { walletPaymentRequired } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 import { pricing } from '@gitroom/nestjs-libraries/database/prisma/subscriptions/pricing';
+import { getMaxSize } from '@gitroom/nestjs-libraries/upload/custom.upload.validation';
+import { AUDIO_ATTACHMENT_ERROR } from '@gitroom/helpers/utils/valid.url.path';
 
 // MediaService.assertStorage with stub services: which organizations pay for
 // storage from the wallet, and that a refused upload is never stored.
@@ -146,5 +148,96 @@ describe('storeBufferAsMedia when the wallet cannot pay', () => {
     expect(result.error).toContain('/wallet');
     expect(storage.uploadFile).not.toHaveBeenCalled();
     expect(repository.saveFile).not.toHaveBeenCalled();
+  });
+});
+
+describe('storeBufferAsMedia with an mp3', () => {
+  // An ID3 header and one MPEG audio frame header: sniffed as audio/mpeg.
+  const MP3 = Buffer.concat([
+    Buffer.from('ID3'),
+    Buffer.from([3, 0, 0, 0, 0, 0, 0]),
+    Buffer.from([0xff, 0xfb, 0x90, 0x64]),
+    Buffer.alloc(400),
+  ]);
+  const storage = () =>
+    ({
+      uploadFile: jest.fn(async (file: any) => ({
+        originalname: file.originalname,
+        path: `/uploads/${file.originalname}`,
+      })),
+    } as any);
+
+  it('stores it as audio and has the wallet pay for it like any upload', async () => {
+    const { service, repository, walletStorage } = build({
+      subscription: FREE_PLAN,
+      liftsCap: true,
+    });
+    const uploads = storage();
+    const result = await storeBufferAsMedia({
+      storage: uploads,
+      mediaService: service,
+      organizationId: 'org-1',
+      buffer: MP3,
+      fileName: 'voice-over.mp3',
+    });
+    expect(result.error).toBeUndefined();
+    expect(uploads.uploadFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mimetype: 'audio/mpeg',
+        originalname: 'voice-over.mp3',
+      })
+    );
+    expect(walletStorage.payForUpload).toHaveBeenCalledWith(
+      'org-1',
+      MP3.length,
+      {}
+    );
+    expect(repository.saveFile).toHaveBeenCalledWith(
+      'org-1',
+      'voice-over.mp3',
+      '/uploads/voice-over.mp3',
+      undefined,
+      MP3.length,
+      'audio'
+    );
+  });
+
+  it('is held to the free plan storage cap', async () => {
+    const { service, repository } = build({
+      subscription: FREE_PLAN,
+      used: pricing.FREE.storage_mb * MB,
+    });
+    const uploads = storage();
+    const result = await storeBufferAsMedia({
+      storage: uploads,
+      mediaService: service,
+      organizationId: 'org-1',
+      buffer: MP3,
+    });
+    expect(result.error).toContain('media library is full');
+    expect(uploads.uploadFile).not.toHaveBeenCalled();
+    expect(repository.saveFile).not.toHaveBeenCalled();
+  });
+
+  it('is refused, and not stored, when it is about to become a post attachment', async () => {
+    const { service, repository, walletStorage } = build({
+      subscription: PAID_PLAN,
+    });
+    const uploads = storage();
+    const result = await storeBufferAsMedia({
+      storage: uploads,
+      mediaService: service,
+      organizationId: 'org-1',
+      buffer: MP3,
+      postAttachment: true,
+    });
+    expect(result.error).toBe(AUDIO_ATTACHMENT_ERROR);
+    expect(uploads.uploadFile).not.toHaveBeenCalled();
+    expect(walletStorage.payForUpload).not.toHaveBeenCalled();
+    expect(repository.saveFile).not.toHaveBeenCalled();
+  });
+
+  it('has a 50 MB size cap', () => {
+    expect(getMaxSize('audio/mpeg')).toBe(50 * MB);
   });
 });

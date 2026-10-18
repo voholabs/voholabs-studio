@@ -23,6 +23,7 @@ import { PostsListTool } from '@gitroom/nestjs-libraries/chat/tools/posts.list.t
 import { PostsStatusTool } from '@gitroom/nestjs-libraries/chat/tools/posts.status.tool';
 import { AnalyticsChannelTool } from '@gitroom/nestjs-libraries/chat/tools/analytics.channel.tool';
 import { BriefAssetTool } from '@gitroom/nestjs-libraries/chat/tools/brief.asset.tool';
+import { AccountInfoTool } from '@gitroom/nestjs-libraries/chat/tools/account.info.tool';
 
 const PAID = {
   id: 'org-1',
@@ -214,5 +215,71 @@ describe('channelAnalyticsTool', () => {
       true
     );
     expect(result).toHaveProperty('note');
+  });
+});
+
+describe('accountInfo', () => {
+  const ORG = { ...FREE, name: 'Team' };
+  const make = (plus: boolean, fail = false, legacy = false) => {
+    const wallet = {
+      planCredits: jest.fn(async () => {
+        if (fail) throw new Error('db down');
+        return { balance: 41730, plan: 40000, topUp: 1730, planResetsAt: null };
+      }),
+      access: jest.fn(async () => ({ plus, legacy })),
+    };
+    return { wallet, tool: new AccountInfoTool(wallet as any).run() as any };
+  };
+
+  it('says a paid plan does not meter credits, without reading the wallet', async () => {
+    const { tool, wallet } = make(false);
+    const result = await tool.execute({}, context({ ...PAID, name: 'Team' }));
+    expect(result).toMatchObject({
+      id: 'org-1',
+      name: 'Team',
+      plan: 'paid',
+      creditsMetered: false,
+      credits: 'Not metered on this plan',
+    });
+    expect(result).not.toHaveProperty('balance');
+    expect(wallet.planCredits).not.toHaveBeenCalled();
+  });
+
+  it('gives Plus its balance, split into plan and top-up credits', async () => {
+    const { tool } = make(true);
+    expect(await tool.execute({}, context(ORG))).toMatchObject({
+      plan: 'plus',
+      creditsMetered: true,
+      credits: '417.30 credits (400.00 Plus plan credits, 17.30 top-up credits)',
+      balance: 417.3,
+      planCredits: 400,
+      topUpCredits: 17.3,
+    });
+  });
+
+  it('gives the free plan its balance', async () => {
+    const { tool } = make(false);
+    expect(await tool.execute({}, context(ORG))).toMatchObject({
+      plan: 'free',
+      creditsMetered: true,
+      credits: '417.30 credits',
+      balance: 417.3,
+    });
+  });
+
+  it('names pay-as-you-go from before Plus', async () => {
+    const { tool } = make(false, false, true);
+    expect(await tool.execute({}, context(ORG))).toMatchObject({
+      plan: 'payg',
+      creditsMetered: true,
+    });
+  });
+
+  it('still names the account when the wallet cannot be read', async () => {
+    const { tool } = make(true, true);
+    const result = await tool.execute({}, context(ORG));
+    expect(result).toMatchObject({ id: 'org-1', name: 'Team', creditsMetered: true });
+    expect(result).not.toHaveProperty('plan');
+    expect(result).not.toHaveProperty('error');
   });
 });

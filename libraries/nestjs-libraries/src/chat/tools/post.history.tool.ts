@@ -19,10 +19,10 @@ export class PostHistoryTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'postHistory',
-      description: `Compare the post as it was first drafted with the post that actually went out. Every difference is a change somebody made during review, and that is the only way to find out what this brand wants that you did not already know.
-By default it returns the posts still waiting to be reviewed: ones that published, whose text or media differ from the original draft, and that have not been learned from yet. Posts that went out untouched never appear — there is nothing to compare. Nothing else in the product reads this; it exists for you.
-Read each diff and ask what would have to be true for the draft to have come out the way it finally went. Removed words are marked [-like this-] and added words {+like this+}; media and per-channel settings are listed separately.
-When a change teaches something that would apply again, write it down with briefLearnTool. Then call markLearned for those chainIds with outcome RECORDED, or NO_SIGNAL when the edits were only typos, formatting or one-off details worth nothing next time. Either way the chain leaves the queue, so nothing is reviewed twice.`,
+      description: `Compares the post as it was first drafted with the post that actually went out. Every difference is a change somebody made during review, which shows what this brand wants beyond what the draft already had.
+By default it returns the posts still waiting to be reviewed: ones that published, whose text or media differ from the original draft, and that have not been learned from yet. Posts that went out untouched are left out, as there is nothing to compare. Nothing else in the product reads this; it exists for the agent.
+Each diff shows how the draft turned into what finally went out. Removed words are marked [-like this-] and added words {+like this+}; media and per-channel settings are listed separately.
+briefLearnTool records a lesson that would apply again. markLearned takes the chainIds with outcome RECORDED, or NO_SIGNAL for edits that were only typos, formatting or one-off details; either way the chain leaves the queue, so nothing is reviewed twice.`,
       mcp: {
         annotations: {
           title: 'Review How Posts Were Edited',
@@ -37,7 +37,7 @@ When a change teaches something that would apply again, write it down with brief
           .string()
           .optional()
           .describe(
-            'Look at one specific post history instead of the review queue'
+            'One specific post history, in place of the review queue'
           ),
         limit: z
           .number()

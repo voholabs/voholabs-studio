@@ -4,6 +4,8 @@ const repo = () => ({
   record: jest.fn(),
   getOrganizationStamps: jest.fn(),
   latestConnection: jest.fn(),
+  connectedClients: jest.fn(async () => []),
+  latestSignIn: jest.fn(async (): Promise<any> => null),
   countConnectedOrganizations: jest.fn(async (since?: Date) => {
     if (!since) return 40;
     const days = Math.round(
@@ -61,6 +63,29 @@ describe('AgentConnectionService', () => {
     expect(await service.status('org1')).toEqual({ connected: false });
   });
 
+  it('counts a finished sign-in before the first MCP call', async () => {
+    const r = repo();
+    r.getOrganizationStamps.mockResolvedValue({
+      agentFirstConnectedAt: null,
+      agentLastSeenAt: null,
+    });
+    r.latestConnection.mockResolvedValue(null);
+    const at = new Date('2026-10-17T08:07:45Z');
+    r.latestSignIn.mockResolvedValue({
+      updatedAt: at,
+      oauthApp: { name: 'ChatGPT' },
+    });
+    const service = new AgentConnectionService(r as any);
+    expect(await service.status('org1')).toEqual({
+      connected: true,
+      client: 'chatgpt',
+      clients: ['chatgpt'],
+      authMethod: 'OAUTH',
+      firstConnectedAt: at,
+      lastSeenAt: null,
+    });
+  });
+
   it('reports the latest client once connected', async () => {
     const r = repo();
     const at = new Date('2026-10-05T10:00:00Z');
@@ -73,10 +98,13 @@ describe('AgentConnectionService', () => {
       authMethod: 'API_KEY',
       lastSeenAt: at,
     });
+    // ChatGPT's Work mode calls tools as Codex, so both are reported.
+    r.connectedClients.mockResolvedValue(['chatgpt', 'claude']);
     const service = new AgentConnectionService(r as any);
     expect(await service.status('org1')).toEqual({
       connected: true,
       client: 'claude',
+      clients: ['chatgpt', 'claude'],
       authMethod: 'API_KEY',
       firstConnectedAt: at,
       lastSeenAt: at,

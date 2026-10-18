@@ -20,8 +20,8 @@ export class UploadChatFileTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'uploadChatFileTool',
-      description: `Add an image or video the user attached to this chat to the media library. In ChatGPT, use this whenever the user attaches a file and wants it in Studio or on a post: pass the attachment as "file".
-Returns the hosted media { id, path } to use as an attachment, or { error }. If it fails or the file is not available, call uploadWidgetTool so the user can pick the file in the upload box.`,
+      description: `Adds an image, video or audio file (mp3, wav) the user attached to this chat to the media library, for use in Studio or (images and videos) on a post; "file" is the attachment.
+Returns the hosted media { id, path } to use as an attachment, or { error }. When an image or video is not available, uploadWidgetTool shows an upload box where the user can pick it (the upload box takes no audio).`,
       mcp: {
         annotations: {
           title: 'Upload File From Chat',

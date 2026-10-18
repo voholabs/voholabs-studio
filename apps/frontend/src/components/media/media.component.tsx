@@ -14,7 +14,10 @@ import React, {
 import { Button } from '@gitroom/react/form/button';
 import useSWR from 'swr';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
-import { hasExtension } from '@gitroom/helpers/utils/has.extension';
+import {
+  hasExtension,
+  isAudioFile,
+} from '@gitroom/helpers/utils/has.extension';
 import { Media } from '@prisma/client';
 import { useMediaDirectory } from '@gitroom/react/helpers/use.media.directory';
 import { useSettings } from '@gitroom/frontend/components/launches/helpers/use.values';
@@ -49,6 +52,7 @@ import {
   VerticalDividerIcon,
   NoMediaIcon,
   TrashIcon,
+  AudioIcon,
 } from '@gitroom/frontend/components/ui/icons';
 import { useLaunchStore } from '@gitroom/frontend/components/new-launch/store';
 import { useShallow } from 'zustand/react/shallow';
@@ -282,6 +286,17 @@ export const MediaBox: FC<{
       if (standalone) {
         return;
       }
+      // audio stays in the library as a file to download, it is never attached
+      if (isAudioFile(media.path)) {
+        toaster.show(
+          t(
+            'audio_cannot_be_attached',
+            'Audio files (.mp3, .wav) cannot be attached to a post. They stay in the media library as files to download.'
+          ),
+          'warning'
+        );
+        return;
+      }
       const exists = selected.find((p: any) => p.id === media.id);
       if (exists) {
         setSelected(selected.filter((f: any) => f.id !== media.id));
@@ -289,7 +304,7 @@ export const MediaBox: FC<{
       }
       setSelected([...selected, media]);
     },
-    [selected]
+    [selected, toaster, t]
   );
 
   const addMedia = useCallback(async () => {
@@ -377,7 +392,20 @@ export const MediaBox: FC<{
         top: 10,
         children: (
           <div className="w-full h-full p-[50px]">
-            {hasExtension(media.path, 'mp4') ? (
+            {isAudioFile(media.path) ? (
+              <div className="flex flex-col items-center justify-center gap-[16px]">
+                <AudioIcon size={48} className="text-textItemBlur" />
+                <div className="text-[14px] break-all text-center">
+                  {media.originalName || media.name}
+                </div>
+                <audio
+                  controls={true}
+                  autoPlay={true}
+                  className="w-full max-w-[480px]"
+                  src={mediaDirectory.set(media.path)}
+                />
+              </div>
+            ) : hasExtension(media.path, 'mp4') ? (
               <VideoFrame
                 autoplay={true}
                 url={mediaDirectory.set(media.path)}
@@ -607,7 +635,10 @@ export const MediaBox: FC<{
                 if (type === 'video') {
                   return hasExtension(f.path, 'mp4');
                 } else if (type === 'image') {
-                  return !hasExtension(f.path, 'mp4');
+                  return (
+                    !hasExtension(f.path, 'mp4') &&
+                    !isAudioFile(f.path)
+                  );
                 }
                 return true;
               })
@@ -673,7 +704,16 @@ export const MediaBox: FC<{
                           </svg>
                         </div>
                       </div>
-                      {hasExtension(media.path, 'mp4') ? (
+                      {isAudioFile(media.path) ? (
+                        <div className="w-full h-full flex flex-col items-center justify-center gap-[8px] p-[8px] bg-newBgColor text-textItemBlur">
+                          <AudioIcon size={32} />
+                          {!media.originalName && (
+                            <div className="w-full truncate text-center text-[12px]">
+                              {media.name}
+                            </div>
+                          )}
+                        </div>
+                      ) : hasExtension(media.path, 'mp4') ? (
                         <VideoFrame url={mediaDirectory.set(media.path)} />
                       ) : (
                         <img

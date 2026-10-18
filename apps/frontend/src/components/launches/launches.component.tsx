@@ -20,8 +20,11 @@ import { Integration } from '@prisma/client';
 import ImageWithFallback from '@gitroom/react/helpers/image.with.fallback';
 import {
   PER_USE_RING,
+  TONE_TEXT,
   usePerUseProviders,
+  useTopUpProviders,
 } from '@gitroom/frontend/components/wallet-locks/wallet.access';
+import { LockIcon } from '@gitroom/frontend/components/wallet-locks/wallet.icons';
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import { useFireEvents } from '@gitroom/helpers/utils/use.fire.events';
 import { Calendar } from './calendar';
@@ -348,6 +351,7 @@ export const MenuComponent: FC<
   const user = useUser();
   const t = useT();
   const perUse = usePerUseProviders();
+  const topUpLocked = useTopUpProviders();
   const [collected, drag, dragPreview] = useDrag(() => ({
     type: 'menu',
     item: {
@@ -412,6 +416,21 @@ export const MenuComponent: FC<
           width={36}
           height={36}
         />
+        {topUpLocked.has(integration.identifier) && (
+          <span
+            data-tooltip-id="tooltip"
+            data-tooltip-content={t(
+              'plus_channel_posting_tip',
+              'Posting to this channel is included with Plus.'
+            )}
+            className={clsx(
+              'absolute z-10 -top-[4px] -end-[5px] w-[18px] h-[18px] rounded-full bg-newBgColorInner border border-warmRing flex items-center justify-center',
+              TONE_TEXT.warm
+            )}
+          >
+            <LockIcon size={9} />
+          </span>
+        )}
         {integration.identifier === 'youtube' ? (
           <img
             src="/icons/platforms/youtube.svg"

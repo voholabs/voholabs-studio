@@ -15,6 +15,8 @@ import {
   walletErrorKind,
   walletErrorText,
   walletForecast,
+  walletRefusal,
+  walletRefusalLock,
   walletWarning,
 } from '@gitroom/nestjs-libraries/chat/tools/wallet.shared';
 import {
@@ -23,7 +25,10 @@ import {
 } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.x';
 import {
   notEnoughCreditsMessage,
+  plusRequired,
   walletFrozenMessage,
+  walletPaymentRequired,
+  walletRequiredMessage,
   WalletService,
 } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 
@@ -217,7 +222,7 @@ describe('credit and price text', () => {
       freeAllowance(
         action({ freeUnits: 1, freePeriod: 'ONCE', requiresTopUp: true })
       )
-    ).toBe('First time free, unlocks after first top up');
+    ).toBe('First time free, with Plus');
     expect(
       freeAllowance(action({ freeUnits: 2, freePeriod: 'MONTH', unit: 'gb' }))
     ).toBe('2 GB free each month');
@@ -244,5 +249,32 @@ describe('walletErrorText', () => {
     const other = failure('Rate limited');
     expect(walletErrorText(other, null)).toBe(other);
     expect(walletErrorText(null, null)).toBeNull();
+  });
+});
+
+describe('walletRefusal', () => {
+  beforeEach(() => {
+    process.env.FRONTEND_URL = 'https://studio.test';
+  });
+
+  it('points a refusal that needs Plus at the Plus page, with the lock', () => {
+    const err = plusRequired(walletRequiredMessage('x'));
+    expect(walletRefusal(err)).toBe(
+      `${walletRequiredMessage('x')} Get Plus: https://studio.test/plus`
+    );
+    expect(walletRefusalLock(err)).toEqual({
+      locked: true,
+      reason: 'plus',
+      upgradeUrl: 'https://studio.test/plus',
+    });
+  });
+
+  it('keeps the top-up link for credits that ran short', () => {
+    const err = walletPaymentRequired(notEnoughCreditsMessage());
+    expect(walletRefusal(err)).toBe(
+      `${notEnoughCreditsMessage()} Top up: https://studio.test/wallet`
+    );
+    expect(walletRefusalLock(err)).toEqual({});
+    expect(walletRefusal(new Error('other'))).toBeUndefined();
   });
 });

@@ -22,9 +22,9 @@ export class SanityReadTool implements AgentToolInterface {
       description: `Reads from this workspace's connected Sanity CMS project by running one of Sanity's read-only MCP tools (${[
         ...SANITY_MCP_READ_TOOLS,
       ].join(', ')}).
-      Calls the Sanity MCP server, see ${SANITY_MCP_DOCS_URL}. Nothing here changes a document; use sanityWrite to create, edit or publish.
-      Pass the tool name exactly as sanityMcpList reported it and an arguments object matching the inputSchema it reported.
-      Omit the Sanity project id and dataset - Studio fills those in from the connected channel.`,
+      Calls the Sanity MCP server, see ${SANITY_MCP_DOCS_URL}. Nothing here changes a document; sanityWrite creates, edits and publishes.
+      It takes the tool name exactly as sanityMcpList reported it and an arguments object matching the inputSchema it reported.
+      The Sanity project id and dataset come from the connected channel; Studio fills those in.`,
       mcp: {
         annotations: {
           title: 'Read Sanity Content',
@@ -44,7 +44,7 @@ export class SanityReadTool implements AgentToolInterface {
           .record(z.string(), z.any())
           .optional()
           .describe(
-            'Arguments for the tool, matching the inputSchema from sanityMcpList. Leave out `resource`.'
+            'Arguments for the tool, matching the inputSchema from sanityMcpList. `resource` is filled in by Studio.'
           ),
       }),
       outputSchema: z.object({

@@ -16,6 +16,7 @@ export const POS_BG = 'bg-pos';
 export const POS_SOFT = 'bg-posSoft';
 export const TEAL_TEXT = 'text-tealText';
 export const TEAL_SOFT = 'bg-tealSoft';
+export const TEAL_BG = 'bg-tealText';
 export const DANGER_TEXT = 'text-danger';
 export const DANGER_SOFT = 'bg-dangerSoft';
 export const PILL =
@@ -382,6 +383,7 @@ const SECTION_ICONS: Record<string, ReactNode> = {
   storage: STORAGE_ICON,
   brief: BRIEF_ICON,
   skills: SKILLS_ICON,
+  flows: SKILLS_ICON,
 };
 export const sectionIcon = (key: string | null | undefined) =>
   (key && SECTION_ICONS[key]) || GENERIC_ICON;

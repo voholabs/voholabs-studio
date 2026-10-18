@@ -1,12 +1,14 @@
 'use client';
 
-import React, { FC, useMemo } from 'react';
+import React, { FC, useMemo, useState } from 'react';
 import Link from 'next/link';
 import clsx from 'clsx';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { useWalletFormat } from '@gitroom/frontend/components/wallet/wallet.hooks';
 import { ENABLED_PROVIDERS } from '@gitroom/frontend/components/launches/enabled.providers';
 import { PriceList } from '@gitroom/frontend/components/wallet/wallet.price.list';
+import { FlowsPricing } from '@gitroom/frontend/components/pricing/flows.pricing';
+import { Flow } from '@gitroom/frontend/components/flows/flows.hooks';
 import {
   BTN_PRIMARY,
   CoinsIcon,
@@ -14,10 +16,17 @@ import {
 import {
   SupportedChannel,
   WalletPriceSection,
+  WalletResearchPrice,
 } from '@gitroom/frontend/components/wallet/wallet.types';
 import { LogoTextComponent } from '@gitroom/frontend/components/ui/logo-text.component';
 import ModeComponent from '@gitroom/frontend/components/layout/mode.component';
 import { ToolTip } from '@gitroom/frontend/components/layout/top.tip';
+import { PlusOfferCard } from '@gitroom/frontend/components/plus/plus.offer';
+import { clockOffset } from '@gitroom/frontend/components/plus/plus.countdown';
+import {
+  PlusEarlyBird,
+  PlusOffer,
+} from '@gitroom/frontend/components/plus/plus.types';
 
 // GET /public/prices
 export interface PublicPrices {
@@ -26,6 +35,18 @@ export interface PublicPrices {
   topUp: { minAmount: number; options: number[] } | null;
   sections: WalletPriceSection[];
   channels: SupportedChannel[];
+  // What each kind of research data typically costs per run.
+  research?: WalletResearchPrice[];
+  // The Plus offer; null when Plus is not offered.
+  plus?: PlusOffer | null;
+}
+
+// For a signed-in workspace: its early bird (GET /wallet/plus, read by the
+// page on the server) and the server's time when it was read.
+export interface PublicEarlyBird {
+  earlyBird: PlusEarlyBird | null;
+  serverNow: string;
+  plus: boolean;
 }
 
 const raw = { interpolation: { escapeValue: false } };
@@ -34,10 +55,16 @@ const raw = { interpolation: { escapeValue: false } };
 // with the rate and top-up rules, for visitors who are not signed in.
 export const PublicPricing: FC<{
   prices: PublicPrices | null;
+  // GET /public/flows
+  flows: Flow[];
   signedIn: boolean;
-}> = ({ prices, signedIn }) => {
+  earlyBird?: PublicEarlyBird | null;
+}> = ({ prices, flows, signedIn, earlyBird }) => {
   const t = useT();
   const f = useWalletFormat(prices?.currency || undefined);
+  const [offset] = useState(() => clockOffset(earlyBird?.serverNow));
+  // Past its end the card shows the list price; reloading reads it again.
+  const [expired, setExpired] = useState(false);
 
   const channels = useMemo(
     () =>
@@ -99,18 +126,32 @@ export const PublicPricing: FC<{
           <div className="flex flex-wrap items-center gap-[12px] pt-[8px]">
             {cta}
             {!!rate && (
-              <span className="inline-flex items-center gap-[8px] h-[44px] px-[14px] rounded-[8px] bg-warmSoft text-warm text-[15px] font-[600] tabular-nums">
+              <span className="inline-flex items-center gap-[8px] h-[44px] px-[14px] rounded-[8px] bg-tealSoft text-tealText text-[15px] font-[600] tabular-nums">
                 <CoinsIcon size={14} /> {rate}
               </span>
             )}
           </div>
         </div>
 
+        {!!prices?.plus && !earlyBird?.plus && (
+          <section className="w-full max-w-[880px] self-center py-[12px]">
+            <PlusOfferCard
+              offer={prices.plus}
+              earlyBird={expired ? null : earlyBird?.earlyBird || null}
+              offsetMs={offset}
+              onExpire={() => setExpired(true)}
+              subscribeHref={signedIn ? '/plus' : '/auth'}
+              hero={true}
+            />
+          </section>
+        )}
+
         {prices?.sections.length ? (
           <PriceList
             sections={prices.sections}
             channels={channels}
             currency={prices.currency || undefined}
+            research={prices.research || []}
           />
         ) : (
           <div className="rounded-[12px] border border-newTableBorder p-[40px] text-center text-textItemBlur text-[14px]">
@@ -121,10 +162,12 @@ export const PublicPricing: FC<{
           </div>
         )}
 
+        <FlowsPricing flows={flows} signedIn={signedIn} />
+
         <div className="mt-[20px] rounded-[12px] border border-newTableBorder bg-newBgColorInner p-[24px] flex flex-col sm:flex-row sm:items-center gap-[16px]">
           <div className="flex-1 flex flex-col gap-[4px]">
             <h2 className="text-[20px] font-[600]">
-              {t('pricing_cta_title', 'Start free, top up when you need to')}
+              {t('pricing_cta_title_plus', 'Start free, get Plus when you need more')}
             </h2>
             <p className="text-[14px] text-textItemBlur">
               {t(

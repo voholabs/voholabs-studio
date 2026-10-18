@@ -41,10 +41,10 @@ import {
   CoinsIcon,
   LockIcon,
 } from '@gitroom/frontend/components/wallet-locks/wallet.icons';
-import { openTopUp } from '@gitroom/frontend/components/wallet/wallet.bridge';
+import { openPlus } from '@gitroom/frontend/components/wallet/wallet.bridge';
 
 // How a plug shows to a workspace that pays for its provider from the
-// wallet: locked until the first top-up, unavailable when one of its paid
+// wallet: locked until Plus, unavailable when one of its paid
 // calls has no price, metered otherwise. Undefined for everyone else.
 interface PlugWallet {
   mode: 'locked' | 'unavailable' | 'metered';
@@ -224,7 +224,7 @@ export const PlugItem: FC<{
     <div
       onClick={() => {
         if (wallet?.mode === 'locked') {
-          openTopUp(wallet.tip);
+          openPlus(wallet.tip);
           return;
         }
         if (wallet?.mode === 'unavailable') {
@@ -307,8 +307,8 @@ export const Plug = () => {
         return {
           mode: 'locked',
           tip: t(
-            'wallet_plug_top_up',
-            '{{channel}} plugs are pay per use. Top up to set them up.',
+            'plus_plug_locked',
+            '{{channel}} plugs are included with Plus. Get Plus to set them up.',
             { channel: plug.name }
           ),
         };

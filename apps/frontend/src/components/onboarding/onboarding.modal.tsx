@@ -1,9 +1,27 @@
 'use client';
 
-import { useTrackView } from '@gitroom/helpers/utils/use.fire.events';
-import React, { FC, useCallback, useMemo, useState } from 'react';
+import { useRefreshWallet } from '@gitroom/frontend/components/wallet/wallet.hooks';
+import { usePlusPlan } from '@gitroom/frontend/components/plus/plus.hooks';
+import { EarlyBirdOfferBox } from '@gitroom/frontend/components/plus/plus.offer';
+import {
+  useFireEvents,
+  useTrackView,
+} from '@gitroom/helpers/utils/use.fire.events';
+import React, {
+  FC,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
-import useSWR from 'swr';
+import useSWR, { useSWRConfig } from 'swr';
+import copy from 'copy-to-clipboard';
+import { useSearchParams } from 'next/navigation';
+import { useToaster } from '@gitroom/react/toaster/toaster';
+import { stripSensitiveParams } from '@gitroom/helpers/utils/utm.saver';
+import { useAgentConnection } from '@gitroom/frontend/components/public-api/agent.connection.status';
 import { orderBy } from 'lodash';
 import SafeImage from '@gitroom/react/helpers/safe.image';
 import { AddProviderComponent } from '@gitroom/frontend/components/launches/add.provider.component';
@@ -13,9 +31,74 @@ import { useUser } from '@gitroom/frontend/components/layout/user.context';
 import { ConnectAgentPanel } from '@gitroom/frontend/components/public-api/public.component';
 import clsx from 'clsx';
 import { useWalletAccess } from '@gitroom/frontend/components/wallet-locks/wallet.access';
-import { TutorialVideo } from '@gitroom/frontend/components/onboarding/tutorial.video';
+import { SUPPORT_URL } from '@gitroom/frontend/components/layout/top.menu';
+import { useBriefPrompt } from '@gitroom/frontend/components/agent-brief/brief.prompt';
+import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
+import {
+  POS_SOFT,
+  POS_TEXT,
+  TEAL_SOFT,
+  TEAL_TEXT,
+} from '@gitroom/frontend/components/wallet/wallet.ui';
 
-type OnboardingStepKey = 'channels' | 'agent' | 'tutorial';
+type OnboardingStepKey = 'channels' | 'agent' | 'brief' | 'start';
+
+interface OnboardingStatus {
+  channel: boolean;
+  agent: boolean;
+  brief: {
+    done: boolean;
+    documents: { key: string; label: string; filled: boolean }[];
+  };
+  // The welcome credits, in hundredths of a credit: what can still be
+  // claimed, whether it was, and whether the agent and the brief are done.
+  // Claimed or skipped is final.
+  credits: {
+    available: number;
+    claimed: boolean;
+    skipped: boolean;
+    eligible: boolean;
+  };
+  done: boolean;
+}
+
+// The steps as the server sees them. Polled while the brief is being filled
+// in or the credits are waiting on it, so its documents tick off as the agent
+// saves them.
+const useOnboardingStatus = (enabled: boolean, poll: boolean) => {
+  const fetch = useFetch();
+  const load = useCallback(
+    async (path: string) =>
+      (await (await fetch(path)).json()) as OnboardingStatus,
+    [fetch]
+  );
+  return useSWR<OnboardingStatus>(enabled ? '/user/onboarding' : null, load, {
+    refreshInterval: (latest) =>
+      poll &&
+      !latest?.credits?.eligible &&
+      (!latest?.brief?.done ||
+        (latest.credits.available > 0 && !latest.credits.claimed))
+        ? 4000
+        : 0,
+    revalidateOnFocus: true,
+  });
+};
+
+// What the browser saved on the first visit (see utm.saver). Storage can be
+// blocked, and finishing matters more than where the visit came from.
+const readAttribution = () => {
+  try {
+    return JSON.stringify({
+      utm: JSON.parse(localStorage.getItem('utm') || '""') || '',
+      landingUrl: stripSensitiveParams(
+        localStorage.getItem('landingUrl') || ''
+      ),
+      referrer: stripSensitiveParams(localStorage.getItem('referrer') || ''),
+    }).slice(0, 2000);
+  } catch (err) {
+    return '';
+  }
+};
 
 interface OnboardingModalProps {
   onClose: () => void;
@@ -27,43 +110,164 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
   const user = useUser();
   // A paid plan keeps the onboarding it always had: channels only.
   const paidPlan = useWalletAccess() === 'plan';
-  // After the channels: connect an agent over MCP, then watch the tutorial.
+  // A new workspace has to connect a channel before it gets in; connecting its
+  // agent and having the agent fill the brief can be skipped, and earn the
+  // welcome credits when done.
+  const needsOnboarding = !!user?.needsOnboarding;
+  // Onboarded before the welcome credits: shown again once, until they are
+  // claimed or turned down. Its channel step is not required.
+  const mandatory = needsOnboarding || !!user?.welcomeCreditsPending;
+  // Only an admin holds the API key an agent connects with, so an invited
+  // member is asked for a channel only; the agent and the brief are the
+  // admin's (the server applies the same rule).
+  const admin = !!user?.publicApi;
+  const withBrief = mandatory && admin;
+  // After the channels: connect an agent over MCP, then the prompts to start with.
   // The agent step needs the workspace's API key, so without one onboarding
   // ends after the channels as before.
-  const hasAgentStep = !paidPlan && !!user?.publicApi;
+  const hasAgentStep = !paidPlan && admin;
   const [step, setStep] = useState<OnboardingStepKey>('channels');
+  const { data: status } = useOnboardingStatus(
+    mandatory,
+    step === 'brief' || step === 'start'
+  );
+  // The last step offers the welcome credits when there are any to claim.
+  const withCredits =
+    withBrief &&
+    !!status &&
+    (status.credits.available > 0 || status.credits.claimed);
+  // Set when the person chose to go back for the credits: steps 2 and 3 then
+  // say what earns them.
+  const [forCredits, setForCredits] = useState(false);
+  const backForCredits = useCallback(() => {
+    setForCredits(true);
+    setStep('agent');
+  }, []);
+  const query = useSearchParams();
+  const { mutate } = useSWRConfig();
+  const fetch = useFetch();
+  const toaster = useToaster();
+  const fireEvents = useFireEvents();
+
+  // Leaving the last step (or the channels, for a member) ends onboarding. The
+  // server checks the required step (a channel) again before it lets the app
+  // open.
+  const finish = useCallback(async () => {
+    const res = !needsOnboarding
+      ? undefined
+      : await fetch('/user/onboarding', {
+          method: 'POST',
+          body: JSON.stringify({ attribution: readAttribution() }),
+        }).catch(() => undefined);
+    if (needsOnboarding && !res?.ok) {
+      toaster.show(
+        t(
+          'onboarding_not_finished',
+          'Not quite there yet: finish the steps above first.'
+        ),
+        'warning'
+      );
+      return;
+    }
+    if (needsOnboarding) {
+      fireEvents(
+        'onboarding_step',
+        { step: 'onboarding_done' },
+        {
+          send_instantly: true,
+        }
+      );
+    }
+    await mutate('/user/self');
+    onClose();
+  }, [needsOnboarding, fetch, toaster, t, fireEvents, mutate, onClose]);
+
+  // Coming back to an unfinished onboarding opens it on the first open step.
+  // Returning from connecting a channel stays on the channels.
+  const [resumed, setResumed] = useState(false);
+  useEffect(() => {
+    if (!mandatory || resumed || !status) {
+      return;
+    }
+    setResumed(true);
+    if (query.get('added')) {
+      return;
+    }
+    setStep(
+      !status.channel || !admin
+        ? 'channels'
+        : !status.agent
+        ? 'agent'
+        : !status.brief.done
+        ? 'brief'
+        : 'start'
+    );
+  }, [mandatory, resumed, status, query, admin]);
+
+  // Every step opens at its top, not wherever the last one was scrolled to.
+  const top = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    top.current?.scrollIntoView({ block: 'start' });
+  }, [step]);
 
   return (
     <div
+      ref={top}
       className={clsx(
         'w-full min-h-full flex-1 flex relative',
         paidPlan ? 'p-[40px]' : 'p-[8px] sm:p-[40px]'
       )}
     >
-      <style>
-        {`#support-discord {display: none}`}
-      </style>
+      <style>{`#support-discord {display: none}`}</style>
       <div className="flex flex-1 min-w-0 bg-newBgColorInner rounded-[20px] flex-col relative">
-        <button
-          className="outline-none absolute end-[20px] top-[20px] mantine-UnstyledButton-root mantine-ActionIcon-root hover:bg-tableBorder cursor-pointer mantine-Modal-close mantine-1dcetaa"
-          type="button"
-          onClick={modals.closeAll}
-        >
-          <svg
-            viewBox="0 0 15 15"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
+        {/* The onboarding cannot be left, so help is always in reach. */}
+        {mandatory && (
+          <a
+            href={SUPPORT_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="absolute end-[16px] top-[16px] sm:end-[20px] sm:top-[20px] z-[2] flex items-center gap-[6px] h-[32px] px-[12px] rounded-[8px] border border-newBorder text-[13px] font-[600] text-textItemBlur hover:text-newTextColor transition-colors"
           >
-            <path
-              d="M11.7816 4.03157C12.0062 3.80702 12.0062 3.44295 11.7816 3.2184C11.5571 2.99385 11.193 2.99385 10.9685 3.2184L7.50005 6.68682L4.03164 3.2184C3.80708 2.99385 3.44301 2.99385 3.21846 3.2184C2.99391 3.44295 2.99391 3.80702 3.21846 4.03157L6.68688 7.49999L3.21846 10.9684C2.99391 11.193 2.99391 11.557 3.21846 11.7816C3.44301 12.0061 3.80708 12.0061 4.03164 11.7816L7.50005 8.31316L10.9685 11.7816C11.193 12.0061 11.5571 12.0061 11.7816 11.7816C12.0062 11.557 12.0062 11.193 11.7816 10.9684L8.31322 7.49999L11.7816 4.03157Z"
-              fill="currentColor"
-              fillRule="evenodd"
-              clipRule="evenodd"
-            ></path>
-          </svg>
-        </button>
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3" />
+              <path d="M12 17h.01" />
+            </svg>
+            {t('onboarding_need_help', 'Need help?')}
+          </a>
+        )}
+        {!mandatory && (
+          <button
+            className="outline-none absolute end-[20px] top-[20px] mantine-UnstyledButton-root mantine-ActionIcon-root hover:bg-tableBorder cursor-pointer mantine-Modal-close mantine-1dcetaa"
+            type="button"
+            onClick={modals.closeAll}
+          >
+            <svg
+              viewBox="0 0 15 15"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+            >
+              <path
+                d="M11.7816 4.03157C12.0062 3.80702 12.0062 3.44295 11.7816 3.2184C11.5571 2.99385 11.193 2.99385 10.9685 3.2184L7.50005 6.68682L4.03164 3.2184C3.80708 2.99385 3.44301 2.99385 3.21846 3.2184C2.99391 3.44295 2.99391 3.80702 3.21846 4.03157L6.68688 7.49999L3.21846 10.9684C2.99391 11.193 2.99391 11.557 3.21846 11.7816C3.44301 12.0061 3.80708 12.0061 4.03164 11.7816L7.50005 8.31316L10.9685 11.7816C11.193 12.0061 11.5571 12.0061 11.7816 11.7816C12.0062 11.557 12.0062 11.193 11.7816 10.9684L8.31322 7.49999L11.7816 4.03157Z"
+                fill="currentColor"
+                fillRule="evenodd"
+                clipRule="evenodd"
+              ></path>
+            </svg>
+          </button>
+        )}
         <div
           className={clsx(
             'flex-1 flex min-w-0',
@@ -77,24 +281,55 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
             )}
           >
             {hasAgentStep && (
-              <OnboardingStepper step={step} onGoTo={setStep} />
+              <OnboardingStepper
+                step={step}
+                onGoTo={setStep}
+                withBrief={withBrief}
+                withCredits={withCredits}
+              />
             )}
             {step === 'channels' ? (
               <OnboardingStep1
-                onNext={hasAgentStep ? () => setStep('agent') : onClose}
+                onNext={
+                  hasAgentStep
+                    ? () => setStep('agent')
+                    : mandatory
+                    ? finish
+                    : onClose
+                }
                 onSkip={onClose}
                 hasNext={hasAgentStep}
                 paidPlan={paidPlan}
+                required={needsOnboarding}
               />
             ) : step === 'agent' ? (
               <OnboardingAgentStep
                 onBack={() => setStep('channels')}
-                onDone={() => setStep('tutorial')}
+                onDone={() => setStep(withBrief ? 'brief' : 'start')}
+                required={withBrief}
+                creditsNote={
+                  forCredits && withCredits ? status?.credits : undefined
+                }
+              />
+            ) : step === 'brief' ? (
+              <OnboardingBriefStep
+                onBack={() => setStep('agent')}
+                onDone={() => setStep('start')}
+                status={status}
+                withCredits={withCredits}
+                creditsNote={forCredits && withCredits}
+              />
+            ) : withBrief && !status ? null : withCredits && status ? (
+              <OnboardingClaimStep
+                status={status}
+                onBack={() => setStep('brief')}
+                onBackForCredits={backForCredits}
+                onDone={finish}
               />
             ) : (
-              <OnboardingTutorialStep
-                onBack={() => setStep('agent')}
-                onDone={onClose}
+              <OnboardingGetStartedStep
+                onBack={() => setStep(withBrief ? 'brief' : 'agent')}
+                onDone={mandatory ? finish : onClose}
               />
             )}
           </div>
@@ -120,12 +355,15 @@ const StepCheckIcon = () => (
   </svg>
 );
 
-// "1 Connect channels", "2 Connect your agent", "3 Tutorial". Steps already
+// "1 Connect channels", "2 Connect your agent", "3 Teach your agent", "4 Claim free credit" (or
+// "Get started" when there are no credits to claim). Steps already
 // passed are done and stay clickable to go back.
 const OnboardingStepper: FC<{
   step: OnboardingStepKey;
   onGoTo: (step: OnboardingStepKey) => void;
-}> = ({ step, onGoTo }) => {
+  withBrief?: boolean;
+  withCredits?: boolean;
+}> = ({ step, onGoTo, withBrief, withCredits }) => {
   const t = useT();
   const steps: { key: OnboardingStepKey; label: string }[] = [
     {
@@ -133,7 +371,20 @@ const OnboardingStepper: FC<{
       label: t('onboarding_step_channels', 'Connect channels'),
     },
     { key: 'agent', label: t('onboarding_step_agent', 'Connect your agent') },
-    { key: 'tutorial', label: t('onboarding_step_tutorial', 'Tutorial') },
+    ...(withBrief
+      ? [
+          {
+            key: 'brief' as const,
+            label: t('onboarding_step_teach', 'Teach your agent'),
+          },
+        ]
+      : []),
+    {
+      key: 'start',
+      label: withCredits
+        ? t('onboarding_step_claim_credit', 'Claim free credit')
+        : t('onboarding_step_get_started', 'Get started'),
+    },
   ];
   const current = steps.findIndex((s) => s.key === step);
 
@@ -212,9 +463,22 @@ const OnboardingStep1: FC<{
   hasNext?: boolean;
   // The look a paid plan always had.
   paidPlan?: boolean;
-}> = ({ onNext, onSkip, hasNext, paidPlan }) => {
+  // Onboarding cannot go on without a connected channel.
+  required?: boolean;
+}> = ({ onNext, onSkip, hasNext, paidPlan, required }) => {
   const fetch = useFetch();
   const t = useT();
+  const { mutate } = useSWRConfig();
+  // Coming back from another tab (a channel's sign-in, or the Plus page)
+  // re-reads the user, so what changed there shows here straight away.
+  useEffect(() => {
+    if (!required) {
+      return;
+    }
+    const refresh = () => mutate('/user/self');
+    window.addEventListener('focus', refresh);
+    return () => window.removeEventListener('focus', refresh);
+  }, [required, mutate]);
   useTrackView('onboarding_step', { step: 'connect_channel' });
 
   const getIntegrations = useCallback(async () => {
@@ -227,7 +491,9 @@ const OnboardingStep1: FC<{
   }, []);
 
   const { data: integrations } = useSWR('/integrations/list', load, {
-    revalidateOnFocus: false,
+    // Required: the list follows a channel connected in another tab.
+    refreshInterval: required ? 4000 : 0,
+    revalidateOnFocus: !!required,
     revalidateOnReconnect: false,
     revalidateIfStale: false,
     revalidateOnMount: true,
@@ -245,6 +511,7 @@ const OnboardingStep1: FC<{
   }, [integrations]);
 
   const { data } = useSWR('get-all-integrations-onboarding', getIntegrations);
+  const ready = sortedIntegrations.length > 0;
 
   return (
     <div className="flex flex-col gap-[24px]">
@@ -311,13 +578,45 @@ const OnboardingStep1: FC<{
         )}
       </div>
 
-      {/* Action buttons */}
-      <div className="flex justify-end pt-[24px] mt-[8px]">
+      {/* Action buttons, kept in view while the channel list scrolls */}
+      <div
+        className={clsx(
+          'flex pt-[24px] mt-[8px]',
+          required
+            ? 'sticky bottom-0 z-[1] -mx-[16px] sm:-mx-[40px] -mb-[16px] sm:-mb-[40px] px-[16px] sm:px-[40px] pb-[16px] sm:pb-[24px] [@media(max-height:500px)]:py-[10px] bg-newBgColorInner border-t border-newBorder flex-col sm:flex-row items-stretch sm:items-center justify-between gap-[12px] rounded-b-[20px]'
+            : 'justify-end'
+        )}
+      >
+        {required && (
+          <div
+            className={clsx(
+              'text-[14px] flex items-center gap-[8px]',
+              ready ? 'text-newTextColor' : 'text-textItemBlur'
+            )}
+          >
+            {ready ? (
+              <>
+                <span className="w-[20px] h-[20px] rounded-full bg-btnPrimary text-white flex items-center justify-center">
+                  <StepCheckIcon />
+                </span>
+                {t('onboarding_channel_ready', 'Channel connected')}
+              </>
+            ) : (
+              t(
+                'onboarding_channel_required',
+                'Connect at least one channel to continue'
+              )
+            )}
+          </div>
+        )}
         <button
           type="button"
           onClick={onNext}
+          disabled={required && !ready}
           className={
-            paidPlan
+            required
+              ? 'group flex items-center justify-center gap-[12px] w-full sm:w-auto bg-btnPrimary hover:brightness-110 text-white font-semibold px-[32px] py-[14px] [@media(max-height:500px)]:py-[10px] rounded-[12px] text-[16px] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:brightness-100'
+              : paidPlan
               ? 'group flex items-center gap-[12px] bg-gradient-to-r from-[#622aff] to-[#8b5cf6] hover:from-[#7c3aff] hover:to-[#9d6eff] text-white font-semibold px-[32px] py-[14px] rounded-[12px] text-[16px] transition-all shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40'
               : 'group flex items-center justify-center gap-[12px] w-full sm:w-auto bg-btnPrimary hover:brightness-110 text-white font-semibold px-[32px] py-[14px] rounded-[12px] text-[16px] transition-all'
           }
@@ -352,49 +651,73 @@ const OnboardingStep1: FC<{
   );
 };
 
-// Second step: connect Claude, ChatGPT, a coding agent or the API. The panel
-// is the one in Settings (plus an API tab), so both stay the same. Skippable.
-const OnboardingAgentStep: FC<{ onBack: () => void; onDone: () => void }> = ({
-  onBack,
-  onDone,
-}) => {
+// What earns the welcome credits, shown on steps 2 and 3 to someone who went
+// back for them.
+const CreditsNote: FC<{ available: number }> = ({ available }) => {
+  const t = useT();
+  return (
+    <div
+      className={clsx(
+        'rounded-[12px] px-[16px] py-[12px] text-[14px] font-[500]',
+        TEAL_SOFT,
+        TEAL_TEXT
+      )}
+    >
+      {t(
+        'onboarding_credits_note',
+        'To get your {{credits}} free credits, connect your agent and let it fill in everything under What your agent knows.',
+        { credits: available / 100 }
+      )}
+    </div>
+  );
+};
+
+// Second step: connect the agent. The panel asks which agent first, then shows
+// that agent's steps only. During a new workspace's onboarding the person says
+// when they have done them. It can be skipped; only the welcome credits wait
+// on it.
+const OnboardingAgentStep: FC<{
+  onBack: () => void;
+  onDone: () => void;
+  required?: boolean;
+  creditsNote?: OnboardingStatus['credits'];
+}> = ({ onBack, onDone, required, creditsNote }) => {
   const t = useT();
   useTrackView('onboarding_step', { step: 'connect_agent' });
   return (
     <div className="flex flex-col gap-[24px] w-full max-w-[760px] mx-auto">
+      {!!creditsNote && <CreditsNote available={creditsNote.available} />}
       <div className="flex gap-[4px] flex-col text-center">
         <div className="text-[24px] font-semibold">
           {t('onboarding_connect_agent', 'Connect your agent')}
         </div>
         <div className="text-[14px] text-textItemBlur">
-          {t(
-            'onboarding_connect_agent_sub_short',
-            'Let Claude, ChatGPT or your coding agent write and schedule posts for you. You can also do this later in Settings.'
-          )}
+          {required
+            ? t(
+                'onboarding_connect_agent_sub_pick',
+                'Your agent writes and schedules your posts. Pick the one you use.'
+              )
+            : t(
+                'onboarding_connect_agent_sub_short',
+                'Let Claude, ChatGPT or your coding agent write and schedule posts for you. You can also do this later in Settings.'
+              )}
         </div>
       </div>
-      <ConnectAgentPanel bare={true} />
-      <div className="flex flex-wrap items-center justify-between gap-[12px] pt-[16px] border-t border-newBorder">
+      <ConnectAgentPanel bare={true} mcpOnly={required} pickFirst={true} />
+      {/* Required: kept in view below the long panel. */}
+      <div
+        className={clsx(
+          'flex flex-wrap items-center justify-between gap-[12px] pt-[16px] border-t border-newBorder',
+          required &&
+            'sticky bottom-0 z-[1] bg-newBgColorInner pb-[16px] sm:pb-[24px]'
+        )}
+      >
         <button
           type="button"
           onClick={onBack}
           className="flex items-center gap-[6px] text-[15px] font-[600] text-textItemBlur hover:text-newTextColor px-[8px] h-[44px]"
         >
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="rtl:-scale-x-100"
-            aria-hidden="true"
-          >
-            <path d="M19 12H5" />
-            <path d="m12 19-7-7 7-7" />
-          </svg>
+          <BackArrowIcon />
           {t('onboarding_back', 'Back')}
         </button>
         <div className="flex items-center gap-[8px] sm:gap-[12px] ms-auto">
@@ -408,13 +731,209 @@ const OnboardingAgentStep: FC<{ onBack: () => void; onDone: () => void }> = ({
           <button
             type="button"
             onClick={onDone}
-            className="flex items-center bg-btnPrimary hover:brightness-110 text-white font-semibold px-[28px] sm:px-[32px] h-[48px] rounded-[12px] text-[16px] transition-all"
+            className="flex items-center bg-btnPrimary hover:brightness-110 text-white font-semibold px-[28px] sm:px-[32px] h-[48px] rounded-[12px] text-[16px] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:brightness-100"
           >
-            {t('onboarding_next_tutorial', 'Next: tutorial')}
+            {required
+              ? t('onboarding_did_those', 'I did those')
+              : t('onboarding_next_get_started', 'Next: get started')}
           </button>
         </div>
       </div>
     </div>
+  );
+};
+
+// Third step: the connected agent fills in the brief. The person pastes one
+// prompt into it; Next waits until the agent has saved every document, and
+// Skip moves on without it (the welcome credits wait on it). Back returns to
+// the connect steps.
+const OnboardingBriefStep: FC<{
+  onBack: () => void;
+  onDone: () => void;
+  status?: OnboardingStatus;
+  withCredits?: boolean;
+  creditsNote?: boolean;
+}> = ({ onBack, onDone, status, withCredits, creditsNote }) => {
+  const t = useT();
+  const { data: connection } = useAgentConnection(true);
+  const ready = !!status?.agent && !!status?.brief?.done;
+  return (
+    <div className="flex flex-col gap-[24px] w-full max-w-[760px] mx-auto">
+      {creditsNote && !!status && (
+        <CreditsNote available={status.credits.available} />
+      )}
+      <div className="flex gap-[4px] flex-col text-center">
+        <div className="text-[24px] font-semibold">
+          {t('onboarding_teach_title', 'Teach your agent your business')}
+        </div>
+        <div className="text-[14px] text-textItemBlur">
+          {t(
+            'onboarding_teach_sub',
+            "Your agent learns what you sell, who you're for and how you sound, so every post sounds like you. It does the work; you just confirm. Free, about 5 minutes."
+          )}
+        </div>
+      </div>
+      <OnboardingTeach status={status} connection={connection} />
+      {/* Kept in view, so the ticks and Next are seen as the agent works. */}
+      <div className="flex flex-wrap items-center justify-between gap-[12px] pt-[16px] border-t border-newBorder sticky bottom-0 z-[1] bg-newBgColorInner pb-[16px] sm:pb-[24px]">
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex items-center gap-[6px] text-[15px] font-[600] text-textItemBlur hover:text-newTextColor px-[8px] h-[44px]"
+        >
+          <BackArrowIcon />
+          {t('onboarding_back', 'Back')}
+        </button>
+        <div className="flex items-center gap-[8px] sm:gap-[12px] ms-auto">
+          <span className="text-[14px] text-textItemBlur hidden sm:inline">
+            {ready
+              ? t('onboarding_teach_ready', 'Your agent knows your business')
+              : t('onboarding_brief_waiting', 'Waiting for your agent...')}
+          </span>
+          {!ready && (
+            <button
+              type="button"
+              onClick={onDone}
+              className="text-[15px] font-[600] text-textItemBlur hover:text-newTextColor px-[12px] sm:px-[16px] h-[44px]"
+            >
+              {t('onboarding_skip_for_now', 'Skip for now')}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onDone}
+            disabled={!ready}
+            className="flex items-center bg-btnPrimary hover:brightness-110 text-white font-semibold px-[28px] sm:px-[32px] h-[48px] rounded-[12px] text-[16px] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:brightness-100"
+          >
+            {withCredits
+              ? t('onboarding_next_claim_credit', 'Next: claim free credit')
+              : t('onboarding_next_get_started', 'Next: get started')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// The agent is connected: one prompt to paste into it. It runs the
+// interview, answers what it can and asks only for the rest; the documents
+// tick off here as it saves them.
+const OnboardingTeach: FC<{
+  status?: OnboardingStatus;
+  connection: ReturnType<typeof useAgentConnection>['data'];
+}> = ({ status, connection }) => {
+  const t = useT();
+  useTrackView('onboarding_step', { step: 'brief' });
+  // ChatGPT runs plugins in Work only, so its users are told where to paste.
+  const chatgpt =
+    !!connection?.connected &&
+    (connection.clients || [connection.client]).includes('chatgpt');
+  const [copied, setCopied] = useState(false);
+  const documents = status?.brief?.documents || [];
+  const filled = documents.filter((document) => document.filled).length;
+  const prompt = useBriefPrompt();
+
+  const copyPrompt = useCallback(() => {
+    copy(prompt);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [prompt]);
+
+  const numbered = (index: number, text: string) => (
+    <div className="flex items-start gap-[10px] text-[14px]">
+      <span className="shrink-0 w-[22px] h-[22px] rounded-full border border-newBorder text-textItemBlur flex items-center justify-center text-[12px] font-[700]">
+        {index}
+      </span>
+      <span className="pt-[1px]">{text}</span>
+    </div>
+  );
+
+  return (
+    <>
+      <div className="flex flex-col gap-[12px]">
+        {numbered(1, t('onboarding_brief_step_copy', 'Copy this prompt'))}
+        <div className="flex flex-col sm:flex-row gap-[12px] sm:items-start bg-newBgColor border border-newBorder rounded-[12px] p-[14px]">
+          <div className="flex-1 text-[13px] leading-[1.5] text-textItemBlur select-all">
+            {prompt}
+          </div>
+          <button
+            type="button"
+            onClick={copyPrompt}
+            className="shrink-0 h-[40px] px-[18px] rounded-[10px] bg-btnPrimary hover:brightness-110 text-white text-[14px] font-[600] transition-all"
+          >
+            {copied
+              ? t('onboarding_brief_copied', 'Copied')
+              : t('onboarding_brief_copy', 'Copy prompt')}
+          </button>
+        </div>
+        {numbered(
+          2,
+          chatgpt
+            ? t(
+                'onboarding_brief_step_paste_chatgpt',
+                'Paste it into ChatGPT, in Work (not Chat)'
+              )
+            : t(
+                'onboarding_brief_step_paste',
+                'Paste it into the agent you just connected'
+              )
+        )}
+        {numbered(
+          3,
+          t(
+            'onboarding_brief_step_answer_files',
+            "Confirm or correct the little it can't find by itself, and send it any brand files you have (logo, brand guide, product photos)"
+          )
+        )}
+      </div>
+
+      <div className="flex flex-col gap-[10px]">
+        <div className="flex items-center justify-between text-[14px] font-[600]">
+          <span>{t('onboarding_teach_progress', 'What your agent knows')}</span>
+          <span className="text-textItemBlur font-[500]">
+            {filled} / {documents.length}
+          </span>
+        </div>
+        <div className="text-[13px] text-textItemBlur">
+          {t(
+            'onboarding_teach_wait',
+            'Your agent will spend a few minutes researching your business. Keep this page open; each item ticks off as it saves.'
+          )}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-[8px]">
+          {documents.map((document) => (
+            <div
+              key={document.key}
+              className="flex items-center gap-[10px] rounded-[10px] border border-newBorder px-[12px] py-[10px] text-[14px]"
+            >
+              <span
+                className={clsx(
+                  'shrink-0 w-[22px] h-[22px] rounded-full flex items-center justify-center',
+                  document.filled
+                    ? 'bg-btnPrimary text-white'
+                    : 'border border-newBorder'
+                )}
+              >
+                {document.filled && <StepCheckIcon />}
+              </span>
+              <span
+                className={
+                  document.filled ? 'text-newTextColor' : 'text-textItemBlur'
+                }
+              >
+                {document.label}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="text-[13px] text-textItemBlur">
+          {t(
+            'onboarding_teach_saved_agent',
+            'Saved as your Brief. Edit it any time from the Brief tab or tell your agent to update it.'
+          )}
+        </div>
+      </div>
+    </>
   );
 };
 
@@ -436,27 +955,73 @@ const BackArrowIcon = () => (
   </svg>
 );
 
-// Third step: a short video of the product. How much of it people watch is
-// tracked by the player. Skippable.
-const OnboardingTutorialStep: FC<{ onBack: () => void; onDone: () => void }> =
-  ({ onBack, onDone }) => {
-    const t = useT();
-    useTrackView('onboarding_step', { step: 'tutorial' });
-    return (
-      <div className="flex flex-col gap-[24px] w-full max-w-[860px] mx-auto">
-        <div className="flex gap-[4px] flex-col text-center">
-          <div className="text-[24px] font-semibold">
-            {t('onboarding_tutorial_title', 'Watch the tutorial')}
-          </div>
-          <div className="text-[14px] text-textItemBlur">
-            {t(
-              'onboarding_tutorial_sub',
-              'A quick tour of how to plan, write and schedule your posts.'
-            )}
-          </div>
+// Three prompts to start with, each one copied with a click and pasted into
+// the agent the person just connected.
+const StartPrompts: FC = () => {
+  const t = useT();
+  const [copied, setCopied] = useState<number | null>(null);
+  const prompts = [
+    t('onboarding_start_prompt_post', "Let's schedule my first post together."),
+    t(
+      'onboarding_start_prompt_flows',
+      'What are flows? Show me what you can make for my business.'
+    ),
+    t(
+      'onboarding_start_prompt_analytics',
+      'How are my posts doing? Show me my analytics.'
+    ),
+  ];
+  const copyPrompt = useCallback((index: number, prompt: string) => {
+    copy(prompt);
+    setCopied(index);
+    setTimeout(() => setCopied(null), 2000);
+  }, []);
+  return (
+    <div className="flex flex-col gap-[12px]">
+      {prompts.map((prompt, index) => (
+        <div
+          key={index}
+          className="flex flex-col sm:flex-row gap-[12px] sm:items-center bg-newBgColor border border-newBorder rounded-[12px] p-[14px]"
+        >
+          <div className="flex-1 text-[15px] select-all">{prompt}</div>
+          <button
+            type="button"
+            onClick={() => copyPrompt(index, prompt)}
+            className="shrink-0 h-[40px] px-[18px] rounded-[10px] bg-btnPrimary hover:brightness-110 text-white text-[14px] font-[600] transition-all"
+          >
+            {copied === index
+              ? t('onboarding_brief_copied', 'Copied')
+              : t('onboarding_brief_copy', 'Copy prompt')}
+          </button>
         </div>
-        <TutorialVideo placement="onboarding" />
-        <div className="flex flex-wrap items-center justify-between gap-[12px] pt-[16px] border-t border-newBorder">
+      ))}
+    </div>
+  );
+};
+
+// Last step: the three prompts to start with.
+const OnboardingGetStartedStep: FC<{
+  onBack?: () => void;
+  onDone: () => void;
+}> = ({ onBack, onDone }) => {
+  const t = useT();
+  useTrackView('onboarding_step', { step: 'get_started' });
+  return (
+    <div className="flex flex-col gap-[24px] w-full max-w-[760px] mx-auto">
+      <div className="flex gap-[4px] flex-col text-center">
+        <div className="text-[24px] font-semibold">
+          {t('onboarding_get_started_title', 'Get started')}
+        </div>
+        <div className="text-[14px] text-textItemBlur">
+          {t(
+            'onboarding_get_started_sub',
+            'Copy one of these and paste it into your agent.'
+          )}
+        </div>
+      </div>
+      <StartPrompts />
+      <div className="flex flex-wrap items-center justify-between gap-[12px] pt-[16px] border-t border-newBorder">
+        {onBack && (
           <button
             type="button"
             onClick={onBack}
@@ -465,23 +1030,232 @@ const OnboardingTutorialStep: FC<{ onBack: () => void; onDone: () => void }> =
             <BackArrowIcon />
             {t('onboarding_back', 'Back')}
           </button>
-          <div className="flex items-center gap-[8px] sm:gap-[12px] ms-auto">
-            <button
-              type="button"
-              onClick={onDone}
-              className="text-[15px] font-[600] text-textItemBlur hover:text-newTextColor px-[12px] sm:px-[16px] h-[44px]"
-            >
-              {t('onboarding_skip_for_now', 'Skip for now')}
-            </button>
-            <button
-              type="button"
-              onClick={onDone}
-              className="flex items-center bg-btnPrimary hover:brightness-110 text-white font-semibold px-[28px] sm:px-[32px] h-[48px] rounded-[12px] text-[16px] transition-all"
-            >
-              {t('onboarding_finish', 'Finish')}
-            </button>
+        )}
+        <button
+          type="button"
+          onClick={onDone}
+          className="ms-auto flex items-center bg-btnPrimary hover:brightness-110 text-white font-semibold px-[28px] sm:px-[32px] h-[48px] rounded-[12px] text-[16px] transition-all"
+        >
+          {t('onboarding_finish', 'Finish')}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// The early bird the claim (or a skip) started, with its live countdown.
+const OnboardingEarlyBird: FC = () => {
+  const { data: plan, mutate } = usePlusPlan(true);
+  if (!plan || plan.access.plus || !plan.paymentsEnabled) {
+    return null;
+  }
+  return (
+    <EarlyBirdOfferBox
+      offer={plan.offer}
+      earlyBird={plan.earlyBird}
+      offsetMs={plan.clockOffsetMs}
+      onExpire={() => mutate()}
+    />
+  );
+};
+
+// Last step when there are welcome credits: the agent connected and every
+// item of the brief filled earns them (the server checks again). Not there
+// yet, it lists what is missing and leads back to step 2. Skipping asks
+// first, since the credits are lost. Once claimed, the prompts to start with.
+const OnboardingClaimStep: FC<{
+  status: OnboardingStatus;
+  onBack: () => void;
+  onBackForCredits: () => void;
+  onDone: () => void;
+}> = ({ status, onBack, onBackForCredits, onDone }) => {
+  const t = useT();
+  const fetch = useFetch();
+  const toaster = useToaster();
+  const { mutate } = useSWRConfig();
+  const refreshWallet = useRefreshWallet();
+  useTrackView('onboarding_step', { step: 'claim_credit' });
+  const [claiming, setClaiming] = useState(false);
+  const { available, claimed, eligible } = status.credits;
+  const credits = available / 100;
+  const missing = [
+    ...(status.agent
+      ? []
+      : [t('onboarding_step_agent', 'Connect your agent')]),
+    ...status.brief.documents
+      .filter((document) => !document.filled)
+      .map((document) => document.label),
+  ];
+
+  const claim = useCallback(async () => {
+    setClaiming(true);
+    const res = await fetch('/user/onboarding/credits', {
+      method: 'POST',
+    }).catch(() => undefined);
+    await mutate('/user/onboarding');
+    setClaiming(false);
+    if (!res?.ok) {
+      toaster.show(
+        t(
+          'onboarding_credits_not_claimed',
+          'The credits could not be added. Check that your agent knows everything, then try again.'
+        ),
+        'warning'
+      );
+      return;
+    }
+    // The wallet and Plus (claiming starts the early bird).
+    refreshWallet();
+  }, [fetch, mutate, refreshWallet, toaster, t]);
+
+  const skip = useCallback(async () => {
+    if (
+      await deleteDialog(
+        t(
+          'onboarding_credits_skip_message',
+          'To get them, connect your agent and let it fill in everything under What your agent knows. It takes about 5 minutes.'
+        ),
+        t('onboarding_credits_skip_confirm', 'Skip, no credits'),
+        t('onboarding_credits_skip_title', "You'll miss {{credits}} free credits", {
+          credits,
+        }),
+        t('onboarding_credits_want', 'I want the credits')
+      )
+    ) {
+      // Turning them down is final, and recorded before onboarding ends.
+      const res = await fetch('/user/onboarding/credits/skip', {
+        method: 'POST',
+      }).catch(() => undefined);
+      if (!res?.ok) {
+        toaster.show(
+          t('onboarding_credits_skip_failed', 'Something went wrong. Try again.'),
+          'warning'
+        );
+        return;
+      }
+      // Skipping starts the early bird too.
+      refreshWallet();
+      onDone();
+      return;
+    }
+    onBackForCredits();
+  }, [t, credits, fetch, toaster, refreshWallet, onDone, onBackForCredits]);
+
+  if (claimed) {
+    return (
+      <div className="flex flex-col gap-[24px] w-full max-w-[760px] mx-auto">
+        <div className="flex gap-[4px] flex-col text-center">
+          <div className="text-[24px] font-semibold">
+            {t('onboarding_credits_claimed_title', 'Your free credits are in')}
           </div>
+          <div className="text-[14px] text-textItemBlur">
+            {t(
+              'onboarding_credits_claimed_sub',
+              'They are in your wallet. Try your agent: copy one of these and paste it in.'
+            )}
+          </div>
+        </div>
+        <div
+          className={clsx(
+            'flex items-center gap-[10px] rounded-[12px] px-[16px] py-[12px] text-[14px] font-[600]',
+            POS_SOFT,
+            POS_TEXT
+          )}
+        >
+          <StepCheckIcon />
+          {t('onboarding_credits_added', 'Free credits added to your wallet')}
+        </div>
+        <OnboardingEarlyBird />
+        <div className="text-[18px] font-semibold">
+          {t('onboarding_get_started_title', 'Get started')}
+        </div>
+        <StartPrompts />
+        <div className="flex flex-wrap items-center justify-end gap-[12px] pt-[16px] border-t border-newBorder">
+          <button
+            type="button"
+            onClick={onDone}
+            className="flex items-center bg-btnPrimary hover:brightness-110 text-white font-semibold px-[28px] sm:px-[32px] h-[48px] rounded-[12px] text-[16px] transition-all"
+          >
+            {t('onboarding_finish', 'Finish')}
+          </button>
         </div>
       </div>
     );
-  };
+  }
+
+  return (
+    <div className="flex flex-col gap-[24px] w-full max-w-[760px] mx-auto">
+      <div className="flex gap-[4px] flex-col text-center">
+        <div className="text-[24px] font-semibold">
+          {t('onboarding_credits_title', 'Claim {{credits}} free credits', {
+            credits,
+          })}
+        </div>
+        <div className="text-[14px] text-textItemBlur">
+          {eligible
+            ? t(
+                'onboarding_credits_ready',
+                'Your agent knows your business. Claim your free credits and try it out.'
+              )
+            : t(
+                'onboarding_credits_how',
+                'To get them, connect your agent and let it fill in everything under What your agent knows.'
+              )}
+        </div>
+      </div>
+      {eligible ? (
+        <button
+          type="button"
+          onClick={claim}
+          disabled={claiming}
+          className="self-center flex items-center bg-btnPrimary hover:brightness-110 text-white font-semibold px-[32px] h-[52px] rounded-[12px] text-[16px] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:brightness-100"
+        >
+          {t('onboarding_credits_claim', 'Claim {{credits}} free credits', {
+            credits,
+          })}
+        </button>
+      ) : (
+        <div className="flex flex-col gap-[10px]">
+          <div className="text-[14px] font-[600]">
+            {t('onboarding_credits_missing', 'Still to do')}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-[8px]">
+            {missing.map((item) => (
+              <div
+                key={item}
+                className="flex items-center gap-[10px] rounded-[10px] border border-newBorder px-[12px] py-[10px] text-[14px] text-textItemBlur"
+              >
+                <span className="shrink-0 w-[22px] h-[22px] rounded-full border border-newBorder" />
+                {item}
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={onBackForCredits}
+            className="self-center mt-[8px] flex items-center bg-btnPrimary hover:brightness-110 text-white font-semibold px-[32px] h-[48px] rounded-[12px] text-[16px] transition-all"
+          >
+            {t('onboarding_credits_complete', 'Complete the steps')}
+          </button>
+        </div>
+      )}
+      <div className="flex flex-wrap items-center justify-between gap-[12px] pt-[16px] border-t border-newBorder">
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex items-center gap-[6px] text-[15px] font-[600] text-textItemBlur hover:text-newTextColor px-[8px] h-[44px]"
+        >
+          <BackArrowIcon />
+          {t('onboarding_back', 'Back')}
+        </button>
+        <button
+          type="button"
+          onClick={skip}
+          className="ms-auto text-[15px] font-[600] text-textItemBlur hover:text-newTextColor px-[12px] sm:px-[16px] h-[44px]"
+        >
+          {t('onboarding_skip', 'Skip')}
+        </button>
+      </div>
+    </div>
+  );
+};

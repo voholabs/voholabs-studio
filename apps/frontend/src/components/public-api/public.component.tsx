@@ -775,6 +775,8 @@ const ConnectSection = ({
   apiBase,
   cloudflareUrl,
   bare,
+  mcpOnly,
+  pickFirst,
 }: {
   apiKey: string;
   mcpBase: string;
@@ -783,15 +785,24 @@ const ConnectSection = ({
   cloudflareUrl: string;
   // Without the card and its heading, for the onboarding step that has its own.
   bare?: boolean;
+  // Only the ways in that reach the MCP, which is what counts as a connected
+  // agent: no API tab and no CLI. Onboarding also drops the "Try it" prompt,
+  // since its next step gives the agent its first prompt.
+  mcpOnly?: boolean;
+  // Onboarding: first only "which agent do you use?", then that agent's steps
+  // alone, signing in (no API key choice). Less on screen at once.
+  pickFirst?: boolean;
 }) => {
   const t = useT();
-  const [target, setTarget] = useState<ConnectTarget>('claude');
+  const [target, setTarget] = useState<ConnectTarget | null>(
+    pickFirst ? null : 'claude'
+  );
   const [otherPick, setOtherPick] = useState<OtherPick>(otherClients[0]);
   const [auth, setAuth] = useState<McpAuth>('oauth');
   const [revealed, setRevealed] = useState(false);
 
   // A key revealed on one tab stays hidden on the next.
-  const chooseTarget = (value: ConnectTarget) => {
+  const chooseTarget = (value: ConnectTarget | null) => {
     setTarget(value);
     setRevealed(false);
   };
@@ -876,7 +887,7 @@ const ConnectSection = ({
     }
   );
 
-  const authTabs = (
+  const authTabs = pickFirst ? null : (
     <div className="flex flex-col gap-[6px]">
       <ConnectTabs<McpAuth>
         value={auth}
@@ -957,7 +968,7 @@ const ConnectSection = ({
       label: t('agent_tab_other', 'Other agents'),
       icon: <McpClientIcon client="Other agents" />,
     },
-    ...(bare
+    ...(bare && !mcpOnly
       ? [
           {
             value: 'api' as ConnectTarget,
@@ -968,14 +979,52 @@ const ConnectSection = ({
       : []),
   ];
 
+  const picked = targetOptions.find((option) => option.value === target);
+
   const content = (
     <div className="flex flex-col gap-[20px] min-w-0">
-      <AgentConnectionStatus />
-      <Tabs<ConnectTarget>
-        value={target}
-        onChange={chooseTarget}
-        options={targetOptions}
-      />
+      {!pickFirst && <AgentConnectionStatus />}
+      {!pickFirst ? (
+        <Tabs<ConnectTarget>
+          value={target || 'claude'}
+          onChange={chooseTarget}
+          options={targetOptions}
+        />
+      ) : !picked ? (
+        <div className="flex flex-col gap-[12px]">
+          <div className="text-[16px] font-[600] text-center">
+            {t('agent_pick_question', 'Which agent do you use?')}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-[10px]">
+            {targetOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => chooseTarget(option.value)}
+                className="flex flex-col items-center justify-center gap-[10px] h-[96px] rounded-[12px] border border-newBorder bg-newBgColor hover:border-btnPrimary hover:bg-boxHover text-[14px] font-[600] transition-colors"
+              >
+                <span className="scale-[1.6]">{option.icon}</span>
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center gap-[10px] text-[15px] font-[600]">
+          {picked.icon}
+          {t('agent_pick_connecting', 'Connect {{agent}}', {
+            agent: picked.label,
+            interpolation: { escapeValue: false },
+          })}
+          <button
+            type="button"
+            onClick={() => chooseTarget(null)}
+            className="ms-auto text-[13px] font-[500] text-textItemBlur hover:text-newTextColor underline"
+          >
+            {t('agent_pick_change', 'Use another agent')}
+          </button>
+        </div>
+      )}
 
       {target === 'claude' && (
         <>
@@ -1063,7 +1112,7 @@ const ConnectSection = ({
               </SubLine>
             </ShortStep>
           </ol>
-          <TryItBox />
+          {!mcpOnly && <TryItBox />}
           <MoreHelp title={t('agent_more_help', 'More help')}>
             <div>
               {t(
@@ -1118,8 +1167,8 @@ const ConnectSection = ({
               </div>
               <SubLine>
                 {t(
-                  'agent_chatgpt_where',
-                  'Plugins is in the left sidebar of chatgpt.com. On the web only, on Plus, Pro, Business, Enterprise or Edu.'
+                  'agent_chatgpt_where_icon',
+                  'Plugins is the @ icon in the left sidebar of chatgpt.com. On the web only, on Plus, Pro, Business, Enterprise or Edu.'
                 )}
               </SubLine>
             </ShortStep>
@@ -1147,10 +1196,19 @@ const ConnectSection = ({
                   },
                 ]}
               />
+              {/* ChatGPT keeps a deleted plugin's name until the plugin
+                  itself is deleted, not only uninstalled. */}
+              <SubLine>
+                {t(
+                  'agent_chatgpt_name_taken',
+                  'If ChatGPT says the name already exists, you added Studio before: name it Voholabs Studio 2, or delete the old one under Plugins › Personal.'
+                )}
+              </SubLine>
             </ShortStep>
-            {auth === 'oauth' && signInStep(3, 'Continue')}
+            {auth === 'oauth' &&
+              signInStep(3, `Continue to ${CONNECTOR_NAME}`)}
           </ol>
-          <TryItBox />
+          {!mcpOnly && <TryItBox />}
           <MoreHelp title={t('agent_more_help', 'More help')}>
             <div>
               {t(
@@ -1289,31 +1347,33 @@ const ConnectSection = ({
                   />
                 </div>
               </div>
-              <TryItBox />
-              <MoreHelp
-                title={t(
-                  'agent_prefer_cli',
-                  'Prefer a CLI? Use the Voholabs CLI'
-                )}
-              >
-                <div>
-                  {t(
-                    'agent_cli_intro',
-                    'Agents that run in a terminal can use the Voholabs CLI instead of MCP. Install it and sign in with your browser:'
+              {!mcpOnly && <TryItBox />}
+              {!mcpOnly && (
+                <MoreHelp
+                  title={t(
+                    'agent_prefer_cli',
+                    'Prefer a CLI? Use the Voholabs CLI'
                   )}
-                </div>
-                <CodeBlock>{`${CLI_INSTALL}\nvoholabs auth:login`}</CodeBlock>
-                <div className="flex gap-[8px] flex-wrap">
-                  <CopyButton
-                    text={`${CLI_INSTALL} && voholabs auth:login`}
-                    label={t('copy_all', 'Copy All')}
+                >
+                  <div>
+                    {t(
+                      'agent_cli_intro',
+                      'Agents that run in a terminal can use the Voholabs CLI instead of MCP. Install it and sign in with your browser:'
+                    )}
+                  </div>
+                  <CodeBlock>{`${CLI_INSTALL}\nvoholabs auth:login`}</CodeBlock>
+                  <div className="flex gap-[8px] flex-wrap">
+                    <CopyButton
+                      text={`${CLI_INSTALL} && voholabs auth:login`}
+                      label={t('copy_all', 'Copy All')}
+                    />
+                  </div>
+                  <HelpLink
+                    href="https://voholabs.com/docs/cli"
+                    label={t('agent_cli_docs', 'CLI documentation')}
                   />
-                </div>
-                <HelpLink
-                  href="https://voholabs.com/docs/cli"
-                  label={t('agent_cli_docs', 'CLI documentation')}
-                />
-              </MoreHelp>
+                </MoreHelp>
+              )}
             </>
           )}
           <HelpLink
@@ -1603,7 +1663,11 @@ const PublicApiContent = () => {
 
 // The "Connect an AI agent" panel on its own, for the onboarding step.
 // Nothing shows without an API key. `bare` drops the card and its heading.
-export const ConnectAgentPanel: FC<{ bare?: boolean }> = ({ bare }) => {
+export const ConnectAgentPanel: FC<{
+  bare?: boolean;
+  mcpOnly?: boolean;
+  pickFirst?: boolean;
+}> = ({ bare, mcpOnly, pickFirst }) => {
   const user = useUser();
   const { backendUrl, mcpUrl, cloudflareUrl } = useVariables();
   if (!user?.publicApi) {
@@ -1616,6 +1680,8 @@ export const ConnectAgentPanel: FC<{ bare?: boolean }> = ({ bare }) => {
       apiBase={backendUrl}
       cloudflareUrl={cloudflareUrl}
       bare={bare}
+      mcpOnly={mcpOnly}
+      pickFirst={pickFirst}
     />
   );
 };

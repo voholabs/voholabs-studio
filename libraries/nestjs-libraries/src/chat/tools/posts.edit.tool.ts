@@ -22,6 +22,7 @@ import {
   toCredits,
   walletPostCost,
   walletRefusal,
+  walletRefusalLock,
 } from '@gitroom/nestjs-libraries/chat/tools/wallet.shared';
 import { MediaService } from '@gitroom/nestjs-libraries/database/prisma/media/media.service';
 import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
@@ -61,19 +62,19 @@ export class PostsEditTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'editPostTool',
-      description: `Change a post that is already on the calendar, in place. Use postsList to find it, then pass its "id".
-This is how you rewrite a post's text — never delete and re-create it for that. The post keeps its id, its channel, its settings and, above all, its attachments: anything you do not pass is left exactly as it was, so editing the words of a post that carries a video keeps that video on it.
-Pass only what changes. "content" replaces the text of the post itself; "comments" replaces the thread items / comments after it; "attachments" replaces the media on the post; "date" moves it; "settings" is merged over the settings it already has, so you can fix one key without resending the rest.
-The output reports the post as it now stands, including its attachments, so you can confirm the media survived.
+      description: `Changes a post that is already on the calendar, in place, by its "id" from postsList.
+This is where a post's text is rewritten; deleting and re-creating it would drop its attachments and give it a new id. The post keeps its id, its channel, its settings and, above all, its attachments: anything not passed is left exactly as it was, so editing the words of a post that carries a video keeps that video on it.
+Only the fields passed change. "content" replaces the text of the post itself; "comments" replaces the thread items / comments after it; "attachments" replaces the media on the post; "date" moves it; "settings" is merged over the settings it already has, so one key can be fixed without resending the rest.
+The output reports the post as it now stands, including its attachments, so the media can be checked.
 
 What it does to the schedule:
-- A queued post stays queued and its publishing job is rebuilt around the new content. If its date has already passed, it can go out immediately — pass a future "date" if you are editing something overdue.
+- A queued post stays queued and its publishing job is rebuilt around the new content. If its date has already passed, it can go out immediately unless a future "date" is passed.
 - A draft stays a draft.
-- A post that has ALREADY PUBLISHED can only be corrected on the calendar. The message live on the social network is not touched, and the tool tells you so ("livePostUnchanged"). Say that to the user rather than letting them believe the live post changed.
+- A post that has ALREADY PUBLISHED can only be corrected on the calendar. The message live on the social network is not touched, and the output says so ("livePostUnchanged").
 
-To remove media rather than replace it, pass "clearAttachments" — an empty "attachments" array is treated as "no change", so it cannot silently strip a video.
+"clearAttachments" removes media; an empty "attachments" array counts as "no change", so it cannot silently strip a video.
 
-On a workspace that pays for the channel from its wallet, editing a queued post re-prices only what changed: "cost" is the difference taken now (negative when credits were given back). When the credits (with auto top-up) do not cover it, nothing is changed and the error carries the top-up link.`,
+On a workspace that pays for the channel from its wallet, editing a queued post re-prices only what changed: "cost" is the difference taken now (negative when credits were given back). When the credits (with auto top-up) fall short, nothing is changed and the error carries the top-up link.`,
       mcp: {
         annotations: {
           title: 'Edit Scheduled Post',
@@ -93,19 +94,19 @@ On a workspace that pays for the channel from its wallet, editing a queued post 
           .string()
           .optional()
           .describe(
-            "The new content of the post, HTML, each line wrapped in <p> — possible tags: h1, h2, h3, u, strong, li, ul, p (you can't have u and strong together); a long-form article (see the integration schema) also keeps ol, em, blockquote, pre/code, hr and figure/figcaption. Omit to leave the text as it is. Use \"(post:<postId>)\" to embed another post's live URL."
+            "The new content of the post, HTML, each line wrapped in <p> — possible tags: h1, h2, h3, u, strong, li, ul, p (u and strong cannot be combined); a long-form article (see the integration schema) also keeps ol, em, blockquote, pre/code, hr and figure/figcaption. Omitted, the text stays as it is. \"(post:<postId>)\" embeds another post's live URL."
           ),
         attachments: z
           .array(attachmentUrl)
           .optional()
           .describe(
-            'An external URL passed here is automatically copied into the media library before saving, so the post stores a durable path instead of a link that can expire. Replaces the ENTIRE media list of the post with exactly these (URLs / media library paths). A partial list drops everything you left out: send one path to a three-image post and the other two images are gone. To swap a single image or video and keep the rest, use replacePostAsset instead of this field. OMIT THIS to keep the media that is already attached — that is what you want when you are only rewriting the text. An empty array is ignored; use clearAttachments to remove media.'
+            'Replaces the ENTIRE media list of the post with exactly these (URLs / media library paths); an external URL is copied into the media library before saving, so the post stores a durable path instead of a link that can expire. A partial list drops everything left out: one path sent to a three-image post leaves one image. replacePostAsset swaps a single image or video and keeps the rest. Omitted, the media already attached stays, which is what a text-only rewrite needs. An empty array is ignored; clearAttachments removes media.'
           ),
         clearAttachments: z
           .boolean()
           .optional()
           .describe(
-            'Remove every attachment from the post. Only pass this when the user asked for the media to go.'
+            'Remove every attachment from the post, for when the user wants the media gone.'
           ),
         comments: z
           .array(
@@ -117,7 +118,7 @@ On a workspace that pays for the channel from its wallet, editing a queued post 
                 .array(attachmentUrl)
                 .optional()
                 .describe(
-                  'Replaces the media on this item. Omit to keep whatever the item at this position already had.'
+                  'Replaces the media on this item. Left out, the item at this position keeps the media it already had.'
                 ),
               clearAttachments: z
                 .boolean()
@@ -127,19 +128,19 @@ On a workspace that pays for the channel from its wallet, editing a queued post 
                 .array(z.string())
                 .optional()
                 .describe(
-                  "Ids of other posts whose live URL should appear in this item, appended as \"(post:<id>)\" when the content does not already reference them"
+                  "Ids of other posts whose live URL appears in this item, appended as \"(post:<id>)\" when the content does not already reference them"
                 ),
             })
           )
           .optional()
           .describe(
-            'Replaces every thread item / comment that follows the post: the list you pass becomes the whole thread, so you must resend EVERY item with its exact current content even when changing only one — leave one out and it is deleted. To change just one item\'s image or video, replacePostAsset with commentIndex does it without resending anything. Omit to leave the thread alone; pass an empty array to delete it all. Items map by position onto the existing ones, so a comment keeps its media unless you say otherwise.'
+            'Replaces every thread item / comment that follows the post: the list passed becomes the whole thread, so changing one item means resending EVERY item with its exact current content, and an item left out is deleted. replacePostAsset with commentIndex changes one item\'s image or video without resending anything. Omitted, the thread is left alone; an empty array deletes it all. Items map by position onto the existing ones, so a comment keeps its media unless told otherwise.'
           ),
         date: z
           .string()
           .optional()
           .describe(
-            'New publish date, UTC ISO string. Omit to keep the current one.'
+            'New publish date, UTC ISO string. Left out, the current one stays.'
           ),
         settings: z
           .array(
@@ -150,13 +151,13 @@ On a workspace that pays for the channel from its wallet, editing a queued post 
           )
           .optional()
           .describe(
-            'Channel settings to change, from integrationSchema. Merged over the settings the post already has, so only pass the keys you are changing.'
+            'Channel settings to change, from integrationSchema. Merged over the settings the post already has, so it takes only the keys that change.'
           ),
         linkToPostIds: z
           .array(z.string())
           .optional()
           .describe(
-            "Ids of other posts whose live URL should appear in this post, appended as \"(post:<id>)\" when the content does not already reference them. The URL is filled in when this post publishes."
+            "Ids of other posts whose live URL appears in this post, appended as \"(post:<id>)\" when the content does not already reference them. The URL is filled in when this post publishes."
           ),
       }),
       outputSchema: z.object({
@@ -166,7 +167,7 @@ On a workspace that pays for the channel from its wallet, editing a queued post 
           .nullable()
           .optional()
           .describe(
-            'The group id after the edit — editing gives the post a new group, so use this one from now on'
+            'The group id after the edit — editing gives the post a new group, and this is the one it has from now on'
           ),
         state: z.string().optional(),
         publishDate: z.string().optional(),
@@ -200,6 +201,12 @@ On a workspace that pays for the channel from its wallet, editing a queued post 
             'The post had already published: only the calendar entry was corrected, the message on the social network is untouched'
           ),
         error: z.string().optional(),
+        locked: z
+          .boolean()
+          .optional()
+          .describe('The channel needs Plus and this workspace does not have it'),
+        reason: z.literal('plus').optional(),
+        upgradeUrl: z.string().optional().describe('The Plus page'),
       }),
       execute: async (inputData, context) => {
         checkAuth(inputData, context);
@@ -490,7 +497,7 @@ On a workspace that pays for the channel from its wallet, editing a queued post 
         } catch (err) {
           const refusal = walletRefusal(err);
           if (refusal) {
-            return { error: refusal };
+            return { error: refusal, ...walletRefusalLock(err) };
           }
           return {
             error: `Failed to edit the post: ${

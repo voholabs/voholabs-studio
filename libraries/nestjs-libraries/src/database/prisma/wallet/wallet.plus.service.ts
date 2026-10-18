@@ -419,6 +419,63 @@ export class WalletPlusService {
     return { id: promotion.id, code: promotion.code };
   }
 
+  // What each Plus subscription bills each period from now on, read from
+  // Stripe: its item's price times quantity, less the discounts that keep
+  // applying (a one-off one, such as the early bird, does not), and whether
+  // they take all of it (a comped subscription). Read by the growth
+  // dashboard, so nothing is thrown: a subscription Stripe could not return
+  // is left out. Read ten at a time, to stay well inside Stripe's limits.
+  async subscriptionPrices(subscriptionIds: string[]) {
+    const prices = new Map<
+      string,
+      { amount: number; currency: string; interval: string; comped: boolean }
+    >();
+    if (!subscriptionIds.length || !walletPaymentsEnabled()) {
+      return prices;
+    }
+    const read = async (id: string) => {
+      try {
+        const subscription = await this._billing.stripe.subscriptions.retrieve(
+          id,
+          { expand: ['discounts.source.coupon'] }
+        );
+        const item = subscription.items?.data?.[0];
+        const price = item?.price;
+        if (!price?.unit_amount || !price.recurring) {
+          return;
+        }
+        const full = price.unit_amount * (item.quantity || 1);
+        let amount = full;
+        for (const discount of subscription.discounts || []) {
+          const coupon =
+            typeof discount === 'string' ? null : discount.source?.coupon;
+          if (!coupon || typeof coupon === 'string' || coupon.duration === 'once') {
+            continue;
+          }
+          amount -= coupon.percent_off
+            ? (full * coupon.percent_off) / 100
+            : coupon.amount_off || 0;
+        }
+        prices.set(id, {
+          amount: Math.max(0, Math.round(amount)),
+          currency: price.currency.toUpperCase(),
+          interval: price.recurring.interval,
+          comped: amount <= 0,
+        });
+      } catch (err) {
+        this._logger.error(
+          `Plus subscription ${id} could not be read: ${
+            err instanceof Error ? err.message : err
+          }`
+        );
+      }
+    };
+    for (let i = 0; i < subscriptionIds.length; i += 10) {
+      await Promise.all(subscriptionIds.slice(i, i + 10).map(read));
+    }
+    return prices;
+  }
+
   // Everything the Plus and wallet pages show.
   async plan(organizationId: string) {
     const offer = await this.offer();

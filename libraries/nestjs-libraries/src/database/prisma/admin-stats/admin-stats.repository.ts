@@ -1,6 +1,10 @@
 import { PrismaRepository } from '@gitroom/nestjs-libraries/database/prisma/prisma.service';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import {
+  plusIsActive,
+  plusPaymentFailed,
+} from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 
 export interface StatsParams {
   from: Date;
@@ -115,6 +119,86 @@ export interface GrowthActiveAgents {
   clients: { client: string; monthly: number; allTime: number }[];
 }
 
+// The money side of the same sign-up cohorts: workspaces the person owns that
+// claimed the welcome credits (or turned them down), spent credits, and ever
+// had a Plus subscription (split by interval, and how many still have it).
+export interface GrowthMoneyFunnelRow {
+  window: GrowthWindow;
+  signups: number;
+  claimedCredits: number;
+  skippedCredits: number;
+  spentCredits: number;
+  subscribed: number;
+  subscribedMonthly: number;
+  subscribedAnnual: number;
+  subscribedNow: number;
+}
+
+// Ledger totals for entries made in a window, in credits. topUpRevenue is
+// what was paid for top-ups before tax, per currency, in its smallest unit.
+export interface GrowthCreditsRow {
+  window: GrowthWindow;
+  welcome: number;
+  plan: number;
+  topUp: number;
+  spent: number;
+  expired: number;
+  topUpRevenue: { currency: string; amount: number }[];
+}
+
+// Early-bird codes made for workspaces whose early bird started in a window
+// (the welcome credits claim, or the skip), and how many of them went on to
+// subscribe.
+export interface GrowthEarlyBirdRow {
+  window: GrowthWindow;
+  issued: number;
+  converted: number;
+}
+
+// Net credits spent on an action (charges less their refunds) and how many
+// charges, over the last 30 days and ever.
+export interface GrowthAction {
+  actionKey: string;
+  name: string;
+  monthly: { credits: number; charges: number };
+  allTime: { credits: number; charges: number };
+}
+
+export interface GrowthMoney {
+  funnel: GrowthMoneyFunnelRow[];
+  plus: {
+    active: number;
+    monthly: number;
+    annual: number;
+    cancelling: number;
+    pastDue: number;
+    // Active subscriptions a discount takes all of; left out of mrr.
+    comped: number;
+    // Monthly recurring revenue per currency, in its smallest unit: monthly
+    // prices plus a twelfth of annual ones. Read from Stripe, or from the
+    // price settings when Stripe could not be read (comped is then unknown).
+    mrr: { currency: string; amount: number }[];
+    mrrSource: 'stripe' | 'settings';
+  };
+  earlyBird: GrowthEarlyBirdRow[];
+  credits: GrowthCreditsRow[];
+  // Pay-as-you-go workspaces from before Plus (first top-up before
+  // plus_launch_at): still open (not on hold), now on Plus, and spent
+  // credits in the last 30 days.
+  legacy: { total: number; open: number; onPlus: number; spentLast30d: number };
+  topActions: GrowthAction[];
+}
+
+// What the repository reads for GrowthMoney; the service prices the active
+// subscriptions and names the actions.
+export interface GrowthMoneyRows
+  extends Omit<GrowthMoney, 'plus' | 'topActions'> {
+  plus: Omit<GrowthMoney['plus'], 'comped' | 'mrr' | 'mrrSource'> & {
+    subscriptions: { subscriptionId: string; interval: string | null }[];
+  };
+  topActions: Omit<GrowthAction, 'name'>[];
+}
+
 export interface GrowthResponse {
   generatedAt: string;
   funnel: GrowthFunnelRow[];
@@ -134,6 +218,7 @@ export interface GrowthResponse {
     created: GrowthCount[];
     perSocial: PerSocial[];
   };
+  money: GrowthMoney;
 }
 
 const sortDesc = (list: PerSocial[]) =>
@@ -163,7 +248,10 @@ export class AdminStatsRepository {
     private _oauthApp: PrismaRepository<'oAuthApp'>,
     private _oauthAuth: PrismaRepository<'oAuthAuthorization'>,
     private _agentActivity: PrismaRepository<'agentActivityDay'>,
-    private _agentConnection: PrismaRepository<'agentConnection'>
+    private _agentConnection: PrismaRepository<'agentConnection'>,
+    private _user: PrismaRepository<'user'>,
+    private _wallet: PrismaRepository<'wallet'>,
+    private _walletEntry: PrismaRepository<'walletEntry'>
   ) {}
 
   private async errorStats(params: StatsParams) {
@@ -880,7 +968,267 @@ export class AdminStatsRepository {
     };
   }
 
-  async getGrowth(): Promise<GrowthResponse> {
+  // Net credits (hundredths) and charges per action since a date: charges
+  // less their refunds, which carry the charge's action.
+  private async growthActionTotals(since: Date) {
+    const rows = await this._walletEntry.model.walletEntry.groupBy({
+      by: ['actionKey', 'type'],
+      where: {
+        type: { in: ['SPEND', 'REFUND'] },
+        actionKey: { not: null },
+        createdAt: { gte: since },
+      },
+      _sum: { amount: true },
+      _count: { _all: true },
+    });
+    const totals = new Map<string, { amount: number; charges: number }>();
+    for (const row of rows) {
+      const key = row.actionKey!;
+      const total = totals.get(key) || { amount: 0, charges: 0 };
+      total.amount -= row._sum.amount || 0;
+      if (row.type === 'SPEND') {
+        total.charges += row._count._all;
+      }
+      totals.set(key, total);
+    }
+    return totals;
+  }
+
+  // The money funnel and the Plus, early-bird, credits, legacy and action
+  // numbers for the growth dashboard. plusLaunchAt is when Plus launched: a
+  // first top-up before it is pay-as-you-go from before Plus (unset, every
+  // workspace that topped up is).
+  async getGrowthMoney(plusLaunchAt?: Date): Promise<GrowthMoneyRows> {
+    const now = new Date();
+    const starts = windowStarts(now);
+    const entry = this._walletEntry.model.walletEntry;
+    // A spend: a charge that took credits. Plan credits running out
+    // (PLAN_EXPIRE) and clawbacks or admin debits (ADJUST) are not spends.
+    const spend: Prisma.WalletEntryWhereInput = {
+      type: 'SPEND',
+      amount: { lt: 0 },
+    };
+
+    const [
+      users,
+      wallets,
+      welcomeEntries,
+      spenders,
+      planGranted,
+      recentSpenders,
+      ledger,
+      monthlyActions,
+      allTimeActions,
+    ] = await Promise.all([
+      this._user.model.user.findMany({
+        select: {
+          createdAt: true,
+          organizations: {
+            where: { role: { in: ['ADMIN', 'SUPERADMIN'] } },
+            select: { organizationId: true },
+          },
+        },
+      }),
+      this._wallet.model.wallet.findMany({
+        select: {
+          organizationId: true,
+          createdAt: true,
+          firstTopUpAt: true,
+          frozenAt: true,
+          welcomeCreditsSkippedAt: true,
+          plusSubscriptionId: true,
+          plusStatus: true,
+          plusInterval: true,
+          plusPeriodEnd: true,
+          plusCancelAt: true,
+          plusPaidPeriodStart: true,
+          plusEarlyBirdCodeId: true,
+        },
+      }),
+      entry.findMany({
+        where: { type: 'GRANT', idempotencyKey: { startsWith: 'welcome:' } },
+        select: {
+          organizationId: true,
+          amount: true,
+          idempotencyKey: true,
+          createdAt: true,
+        },
+      }),
+      entry.groupBy({ by: ['organizationId'], where: spend }),
+      entry.groupBy({ by: ['organizationId'], where: { type: 'PLAN_GRANT' } }),
+      entry.groupBy({
+        by: ['organizationId'],
+        where: { ...spend, createdAt: { gte: starts['30d'] } },
+      }),
+      Promise.all(
+        GROWTH_WINDOWS.map((window) =>
+          entry.groupBy({
+            by: ['type', 'currency'],
+            where: { createdAt: { gte: starts[window] } },
+            _sum: { amount: true, paidAmount: true },
+          })
+        )
+      ),
+      this.growthActionTotals(starts['30d']),
+      this.growthActionTotals(starts.all),
+    ]);
+
+    type WalletRow = (typeof wallets)[number];
+    const walletOf = new Map(wallets.map((w) => [w.organizationId, w]));
+    // The welcome claim is the entry keyed welcome:<its own organization>.
+    const welcome = welcomeEntries.filter(
+      (e) => e.idempotencyKey === `welcome:${e.organizationId}`
+    );
+    const welcomeAt = new Map(welcome.map((e) => [e.organizationId, e.createdAt]));
+    const spent = new Set(spenders.map((s) => s.organizationId));
+    const planned = new Set(planGranted.map((p) => p.organizationId));
+    const spentRecently = new Set(recentSpenders.map((s) => s.organizationId));
+
+    // A Plus subscription that was ever on: its span was paid, or it
+    // released plan credits. One that never got paid (incomplete) is not.
+    const everPlus = (w?: WalletRow) =>
+      !!w?.plusSubscriptionId &&
+      (!!w.plusPaidPeriodStart || planned.has(w.organizationId));
+    const plusNow = (w?: WalletRow) => plusIsActive(w, now);
+
+    const funnel = GROWTH_WINDOWS.map((window) => {
+      const cohort = users.filter((u) => u.createdAt >= starts[window]);
+      const count = (test: (id: string, w?: WalletRow) => boolean) =>
+        cohort.filter((u) =>
+          u.organizations.some((o) =>
+            test(o.organizationId, walletOf.get(o.organizationId))
+          )
+        ).length;
+      return {
+        window,
+        signups: cohort.length,
+        claimedCredits: count((id) => welcomeAt.has(id)),
+        skippedCredits: count(
+          (id, w) => !welcomeAt.has(id) && !!w?.welcomeCreditsSkippedAt
+        ),
+        spentCredits: count((id) => spent.has(id)),
+        subscribed: count((_, w) => everPlus(w)),
+        subscribedMonthly: count(
+          (_, w) => everPlus(w) && w?.plusInterval === 'month'
+        ),
+        subscribedAnnual: count(
+          (_, w) => everPlus(w) && w?.plusInterval === 'year'
+        ),
+        subscribedNow: count((_, w) => plusNow(w)),
+      };
+    });
+
+    const active = wallets.filter(plusNow);
+
+    // The early bird starts at the welcome credits claim, or at the skip.
+    const coded = wallets
+      .filter((w) => w.plusEarlyBirdCodeId)
+      .map((w) => ({
+        startedAt:
+          welcomeAt.get(w.organizationId) ||
+          w.welcomeCreditsSkippedAt ||
+          w.createdAt,
+        converted: everPlus(w),
+      }));
+    const earlyBird = GROWTH_WINDOWS.map((window) => {
+      const issued = coded.filter((c) => c.startedAt >= starts[window]);
+      return {
+        window,
+        issued: issued.length,
+        converted: issued.filter((c) => c.converted).length,
+      };
+    });
+
+    const credits = GROWTH_WINDOWS.map((window, i) => {
+      const sum = (...types: string[]) =>
+        ledger[i]
+          .filter((row) => types.includes(row.type))
+          .reduce((total, row) => total + (row._sum.amount || 0), 0);
+      const revenue = new Map<string, number>();
+      for (const row of ledger[i]) {
+        if (
+          (row.type === 'TOPUP' || row.type === 'AUTO_TOPUP') &&
+          row.currency &&
+          row._sum.paidAmount
+        ) {
+          const currency = row.currency.toUpperCase();
+          revenue.set(
+            currency,
+            (revenue.get(currency) || 0) + row._sum.paidAmount
+          );
+        }
+      }
+      return {
+        window,
+        welcome:
+          welcome
+            .filter((e) => e.createdAt >= starts[window])
+            .reduce((total, e) => total + e.amount, 0) / 100,
+        plan: sum('PLAN_GRANT') / 100,
+        topUp: sum('TOPUP', 'AUTO_TOPUP') / 100,
+        spent: (0 - sum('SPEND', 'REFUND')) / 100,
+        expired: (0 - sum('PLAN_EXPIRE')) / 100,
+        topUpRevenue: Array.from(revenue, ([currency, amount]) => ({
+          currency,
+          amount,
+        })),
+      };
+    });
+
+    const legacy = wallets.filter(
+      (w) =>
+        !!w.firstTopUpAt &&
+        (!plusLaunchAt || w.firstTopUpAt.getTime() < plusLaunchAt.getTime())
+    );
+
+    const topActions = Array.from(allTimeActions, ([actionKey, total]) => {
+      const month = monthlyActions.get(actionKey);
+      return {
+        actionKey,
+        monthly: {
+          credits: (month?.amount || 0) / 100,
+          charges: month?.charges || 0,
+        },
+        allTime: { credits: total.amount / 100, charges: total.charges },
+      };
+    })
+      .sort(
+        (a, b) =>
+          b.monthly.credits - a.monthly.credits ||
+          b.allTime.credits - a.allTime.credits ||
+          a.actionKey.localeCompare(b.actionKey)
+      )
+      .slice(0, 10);
+
+    return {
+      funnel,
+      plus: {
+        active: active.length,
+        monthly: active.filter((w) => w.plusInterval === 'month').length,
+        annual: active.filter((w) => w.plusInterval === 'year').length,
+        cancelling: active.filter((w) => w.plusCancelAt).length,
+        // A renewal not paid; a first payment never completed is not one.
+        pastDue: wallets.filter((w) => plusPaymentFailed(w) && everPlus(w))
+          .length,
+        subscriptions: active.map((w) => ({
+          subscriptionId: w.plusSubscriptionId!,
+          interval: w.plusInterval,
+        })),
+      },
+      earlyBird,
+      credits,
+      legacy: {
+        total: legacy.length,
+        open: legacy.filter((w) => !plusNow(w) && !w.frozenAt).length,
+        onPlus: legacy.filter(plusNow).length,
+        spentLast30d: legacy.filter((w) => spentRecently.has(w.organizationId))
+          .length,
+      },
+      topActions,
+    };
+  }
+
+  async getGrowth(): Promise<Omit<GrowthResponse, 'money'>> {
     const now = new Date();
     const starts = windowStarts(now);
     const [funnel, activeUsers, activeAgents, organizations, channels] =

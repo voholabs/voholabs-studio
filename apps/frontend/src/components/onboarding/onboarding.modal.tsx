@@ -33,12 +33,14 @@ import clsx from 'clsx';
 import { useWalletAccess } from '@gitroom/frontend/components/wallet-locks/wallet.access';
 import { SUPPORT_URL } from '@gitroom/frontend/components/layout/top.menu';
 import {
-  OnboardingStatus,
   OnboardingTeach,
   OnboardingTeachHeading,
   StepCheckIcon,
-  useOnboardingStatus,
 } from '@gitroom/frontend/components/onboarding/onboarding.teach';
+import {
+  OnboardingStatus,
+  useOnboardingStatus,
+} from '@gitroom/frontend/components/onboarding/use.onboarding.status';
 import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
 import {
   POS_SOFT,
@@ -94,7 +96,7 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
   const [step, setStep] = useState<OnboardingStepKey>('channels');
   // Also read when onboarding is opened again by hand, so the steps show
   // what was really done, never a guess.
-  const { data: status } = useOnboardingStatus(
+  const { data: status, mutate: refreshStatus } = useOnboardingStatus(
     mandatory || hasAgentStep,
     step === 'brief' || step === 'start'
   );
@@ -166,6 +168,12 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
         : 'start'
     );
   }, [mandatory, resumed, status, query, admin]);
+
+  // Each step reads the status again, so a step just done (an agent that
+  // connected, a channel added in another tab) is ticked, not shown skipped.
+  useEffect(() => {
+    refreshStatus();
+  }, [step, refreshStatus]);
 
   // Every step opens at its top, not wherever the last one was scrolled to.
   const top = useRef<HTMLDivElement>(null);
@@ -597,6 +605,7 @@ export const OnboardingStep1: FC<{
           <button
             type="button"
             onClick={onNext}
+            disabled={required && hasNext && !ready}
             className={
               required
                 ? 'group flex items-center justify-center gap-[12px] w-full sm:w-auto bg-btnPrimary hover:brightness-110 text-white font-semibold px-[32px] py-[14px] [@media(max-height:500px)]:py-[10px] rounded-[12px] text-[16px] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:brightness-100'
@@ -936,7 +945,9 @@ const OnboardingClaimStep: FC<{
   const { available, claimed, eligible } = status.credits;
   const credits = available / 100;
   const missing = [
-    ...(status.agent ? [] : [t('onboarding_step_agent', 'Connect your agent')]),
+    ...(status.agent
+      ? []
+      : [t('onboarding_step_agent', 'Connect your agent')]),
     ...status.brief.documents
       .filter((document) => !document.filled)
       .map((document) => document.label),
@@ -971,13 +982,9 @@ const OnboardingClaimStep: FC<{
           'To get them, connect your agent and let it fill in everything under What your agent knows. It takes about 5 minutes.'
         ),
         t('onboarding_credits_skip_confirm', 'Skip, no credits'),
-        t(
-          'onboarding_credits_skip_title',
-          "You'll miss {{credits}} free credits",
-          {
-            credits,
-          }
-        ),
+        t('onboarding_credits_skip_title', "You'll miss {{credits}} free credits", {
+          credits,
+        }),
         t('onboarding_credits_want', 'I want the credits')
       )
     ) {
@@ -987,10 +994,7 @@ const OnboardingClaimStep: FC<{
       }).catch(() => undefined);
       if (!res?.ok) {
         toaster.show(
-          t(
-            'onboarding_credits_skip_failed',
-            'Something went wrong. Try again.'
-          ),
+          t('onboarding_credits_skip_failed', 'Something went wrong. Try again.'),
           'warning'
         );
         return;

@@ -4,9 +4,13 @@
 let access: string | undefined;
 let documents: any[] = [];
 let onboarding: any;
+let user: any;
 const mutate = jest.fn();
 jest.mock('@gitroom/frontend/components/wallet-locks/wallet.access', () => ({
   useWalletAccess: () => access,
+}));
+jest.mock('@gitroom/frontend/components/layout/user.context', () => ({
+  useUser: () => user,
 }));
 jest.mock(
   '@gitroom/frontend/components/agent-brief/use.brief.documents',
@@ -15,12 +19,12 @@ jest.mock(
     useBriefDocuments: () => ({ data: { documents }, isLoading: false }),
   })
 );
-jest.mock('@gitroom/frontend/components/onboarding/onboarding.teach', () => ({
-  ...jest.requireActual(
-    '@gitroom/frontend/components/onboarding/onboarding.teach'
-  ),
-  useOnboardingStatus: () => ({ data: onboarding }),
-}));
+jest.mock(
+  '@gitroom/frontend/components/onboarding/use.onboarding.status',
+  () => ({
+    useOnboardingStatus: () => ({ data: onboarding }),
+  })
+);
 jest.mock('swr', () => ({
   ...jest.requireActual('swr'),
   useSWRConfig: () => ({ mutate }),
@@ -82,6 +86,7 @@ beforeEach(() => {
   access = 'payg';
   documents = [];
   onboarding = status();
+  user = { publicApi: 'key' };
   mutate.mockReset();
 });
 
@@ -135,6 +140,13 @@ describe('BriefPage with a brief, or on a paid plan', () => {
     documents = [{ category: 'foundation', key: 'business' }];
     render(<BriefPage />);
     expect(screen.getByText('Brief editor')).toBeTruthy();
+  });
+
+  it('a member, who holds no API key for an agent, gets the editor', () => {
+    user = {};
+    render(<BriefPage />);
+    expect(screen.getByText('Brief editor')).toBeTruthy();
+    expect(screen.queryByText('What your agent knows')).toBeNull();
   });
 
   it('a paid plan keeps the editor, even when empty', () => {

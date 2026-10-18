@@ -95,32 +95,6 @@ export const PlusIcon: FC<{ size?: number }> = ({ size = 16 }) => (
   </svg>
 );
 
-export const BriefMenuIcon: FC<{ size?: number }> = ({ size = 22 }) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.6"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    {/* Someone briefing someone: a person and what they are saying.
-        The scene it comes from has two people, a document and two
-        bubbles, which is a smudge at 22px — a person plus one bubble is
-        what survives. The bubble is square-ish and off to the side so it
-        does not read as the Agent chat icon, which is a round centred
-        bubble with the same two lines in it. */}
-    <rect x="12.2" y="2.6" width="9.4" height="7.6" rx="1.8" />
-    <path d="M15 10.2 13.8 13 17.4 10.2" />
-    <path d="M14.6 5.3h4.8M14.6 7.6h2.8" />
-    <circle cx="6.5" cy="12.8" r="2.9" />
-    <path d="M1.5 21.3c0-3 2.2-5.3 5-5.3s5 2.3 5 5.3" />
-  </svg>
-);
-
 export const GiftIcon: FC<{ size?: number }> = ({ size = 16 }) => (
   <svg
     width={size}

@@ -15,8 +15,9 @@ import { UpgradeBriefButton } from '@gitroom/frontend/components/agent-brief/bri
 import {
   OnboardingTeach,
   OnboardingTeachHeading,
-  useOnboardingStatus,
 } from '@gitroom/frontend/components/onboarding/onboarding.teach';
+import { useOnboardingStatus } from '@gitroom/frontend/components/onboarding/use.onboarding.status';
+import { useUser } from '@gitroom/frontend/components/layout/user.context';
 import { useAgentConnection } from '@gitroom/frontend/components/public-api/agent.connection.status';
 import { ConnectAgentPanel } from '@gitroom/frontend/components/public-api/public.component';
 
@@ -62,8 +63,10 @@ const BriefTeach: FC<{ onWrite: () => void }> = ({ onWrite }) => {
 };
 
 // The wallet plans: the teach step while the brief is empty, the brief
-// (with the Improve brief flow) once it is written.
+// (with the Improve brief flow) once it is written. Only an admin holds the
+// API key an agent connects with, so a member gets the editor.
 const OpenBrief: FC = () => {
+  const user = useUser();
   const { data, isLoading } = useBriefDocuments();
   const [writing, setWriting] = useState(false);
 
@@ -71,7 +74,7 @@ const OpenBrief: FC = () => {
     return <LoadingComponent />;
   }
 
-  if (!data?.documents?.length && !writing) {
+  if (!data?.documents?.length && !writing && !!user?.publicApi) {
     return <BriefTeach onWrite={() => setWriting(true)} />;
   }
 

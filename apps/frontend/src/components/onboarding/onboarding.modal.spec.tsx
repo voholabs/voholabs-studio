@@ -70,11 +70,22 @@ jest.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render as baseRender,
+  screen,
+} from '@testing-library/react';
+import { SWRConfig } from 'swr';
 import {
   OnboardingStep1,
   OnboardingStepper,
 } from '@gitroom/frontend/components/onboarding/onboarding.modal';
+
+// A fresh SWR cache for each render, so one test's lists never leak into
+// the next.
+const render = (ui: React.ReactElement) =>
+  baseRender(<SWRConfig value={{ provider: () => new Map() }}>{ui}</SWRConfig>);
 
 const status = (over: Record<string, any> = {}) => ({
   channel: false,
@@ -161,13 +172,34 @@ describe('OnboardingStep1', () => {
       />
     );
     await settle();
+    // Next waits for a channel; Skip moves on without one.
     const next = stepButton(/Next: connect your agent/);
-    expect((next as HTMLButtonElement).disabled).toBe(false);
+    expect((next as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(stepButton(/Skip for now/));
     expect(onNext).toHaveBeenCalledTimes(1);
-    fireEvent.click(next);
-    expect(onNext).toHaveBeenCalledTimes(2);
     expect(screen.queryByText(/Connect at least one channel/)).toBeNull();
+  });
+
+  it('with a channel connected, Next goes on and Skip is gone', async () => {
+    fetched['/integrations/list'] = {
+      integrations: [
+        { id: 'i1', name: 'Mine', identifier: 'linkedin', picture: '' },
+      ],
+    };
+    const onNext = jest.fn();
+    render(
+      <OnboardingStep1
+        onNext={onNext}
+        onSkip={jest.fn()}
+        hasNext={true}
+        required={true}
+      />
+    );
+    await settle();
+    expect(await screen.findByText('Channel connected')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Skip for now/ })).toBeNull();
+    fireEvent.click(stepButton(/Next: connect your agent/));
+    expect(onNext).toHaveBeenCalledTimes(1);
   });
 
   it('a member finishes without a channel', async () => {

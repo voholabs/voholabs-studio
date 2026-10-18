@@ -76,7 +76,11 @@ export class UsersService {
       );
 
     this._logger.log(
-      `User login switch performed by admin ${adminId}: account ${kept.id} login ${switched.email} -> ${kept.email}; account ${switched.id} login ${kept.email} -> ${switched.email}`
+      `User login switch performed by admin ${adminId}: account ${
+        kept.id
+      } login ${switched.email} -> ${kept.email}; account ${
+        switched.id
+      } login ${kept.email} -> ${switched.email}`
     );
 
     // the swap is already committed; a notification failure must not fail it
@@ -224,7 +228,9 @@ export class UsersService {
         400
       );
     }
-    const added = await this._walletService.claimWelcomeCredits(organizationId);
+    const added = await this._walletService.claimWelcomeCredits(
+      organizationId
+    );
     // The Plus early bird starts with the claim; its one email is scheduled
     // now (never fails the claim).
     if (added > 0) {

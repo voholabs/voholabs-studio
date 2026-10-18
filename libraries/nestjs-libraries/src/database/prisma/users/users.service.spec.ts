@@ -119,13 +119,12 @@ describe('UsersService onboarding and welcome credits', () => {
     expect(status.credits.eligible).toBe(true);
   });
 
-  it('skipped steps never earn the credits', async () => {
+  it('skipped steps never earn the credits, with or without a channel', async () => {
     const { built, wallet } = service({
       channels: 0,
       agent: false,
       briefDone: false,
     });
-    await built.completeOnboarding('user1', {});
     await expect(built.claimWelcomeCredits('org1', true, true)).rejects.toThrow(
       'Connect your agent and let it fill in what it knows first'
     );

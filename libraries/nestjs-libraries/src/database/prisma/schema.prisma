@@ -1080,6 +1080,9 @@ model PostRevision {
   learnedAt      DateTime?
   learnedTopic   String?
   learnedOutcome RevisionLearnedOutcome?
+  // Set when the post is deleted. The history is kept; a deleted chain is
+  // left out of the learning queue and never picked up by a later save.
+  deletedAt      DateTime?
   createdAt      DateTime                @default(now())
   updatedAt      DateTime                @updatedAt
   organization   Organization            @relation(fields: [organizationId], references: [id])
@@ -1089,6 +1092,25 @@ model PostRevision {
   @@index([group])
   @@index([postIds(ops: ArrayOps)], type: Gin)
   @@index([organizationId, kind, publishedAt])
+}
+
+// Every distinct state a post went through, v1 (the first save) to the last,
+// for the chain of the same PostRevision rows. Append-only: a save that
+// changes nothing adds nothing, and deleting the post keeps every version.
+model PostVersion {
+  id             String   @id @default(uuid())
+  organizationId String
+  chainId        String
+  version        Int
+  integrationId  String
+  // Same shape and hashes as PostRevision.payload
+  payload        String
+  payloadHash    String
+  contentHash    String
+  createdAt      DateTime @default(now())
+
+  @@unique([chainId, version])
+  @@index([organizationId, chainId])
 }
 
 // The same idea for the agent brief, except a document has no published state:
@@ -1195,6 +1217,42 @@ model Wallet {
   forecastNotifiedAt  DateTime?
   // Saved card expiry, "MM/YYYY".
   cardExp             String?
+  // Set when the welcome credits were turned down in onboarding; they can no
+  // longer be claimed. (Claimed is the ledger entry welcome:<organizationId>.)
+  welcomeCreditsSkippedAt DateTime?
+  // Plus, read from the wallet's Stripe subscription by its webhooks: the
+  // subscription (kept after it ends: a workspace that had Plus gets no early
+  // bird again), its Stripe status, interval ("month" or "year") and the paid
+  // span it is in. plusCancelAt is when it ends if it was cancelled.
+  plusSubscriptionId  String?
+  plusStatus          String?
+  plusInterval        String?
+  plusPeriodStart     DateTime?
+  plusPeriodEnd       DateTime?
+  plusCancelAt        DateTime?
+  // The start of the latest paid span whose invoice is paid. A span's plan
+  // credits are released only once this equals plusPeriodStart.
+  plusPaidPeriodStart DateTime?
+  // Hundredths of a credit granted each plan period, fixed when the
+  // subscription was bought (its Stripe metadata).
+  plusCredits         Int?
+  // Days in one plan period, fixed with plusCredits.
+  plusPeriodDays      Int?
+  // When the one early-bird extension email went out.
+  plusEarlyBirdEmailAt DateTime?
+  // The workspace's personal early-bird code: a Stripe promotion code on the
+  // wallet's Stripe account (its id) and the text the person types. One per
+  // workspace, made when the early bird starts.
+  plusEarlyBirdCodeId String?
+  plusEarlyBirdCode   String?
+  // The card the Plus subscription pays with (its Stripe payment method), as
+  // last recorded here: a different one at Stripe is a card changed there
+  // (the billing portal), which the wallet's card then follows.
+  plusPaymentMethodId String?
+  // Why auto top-up last turned itself off ("card_failed", "plus_ended") and
+  // when; cleared when it is turned on again.
+  autoTopUpOffReason  String?
+  autoTopUpOffAt      DateTime?
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
   organization        Organization @relation(fields: [organizationId], references: [id])
@@ -1258,6 +1316,10 @@ enum WalletEntryType {
   REFUND
   GRANT
   ADJUST
+  // Plus: the credits of one plan period, and what was left of them when
+  // that period ended.
+  PLAN_GRANT
+  PLAN_EXPIRE
 }
 
 // One run of the guided brief onboarding (first one free, later ones charged
@@ -1344,6 +1406,20 @@ model AgentConnection {
   @@unique([organizationId, client, authMethod])
   @@index([lastSeenAt])
   @@index([client])
+}
+
+// One row per organization, agent and UTC day the agent called a tool over the
+// MCP, for the daily active agents chart on /admin/growth (signing in to the
+// app counts toward UserActivityDay instead). Written with the agent
+// connection, a second write the same day is a no-op. No relation on purpose, like UserActivityDay.
+model AgentActivityDay {
+  organizationId String
+  // The agent, as AgentConnection.client (claude, chatgpt, codex, ...)
+  client         String   @default("unknown")
+  day            DateTime @db.Date
+
+  @@id([organizationId, client, day])
+  @@index([day])
 }
 
 // One row per person per UTC day they used the app while signed in, for the

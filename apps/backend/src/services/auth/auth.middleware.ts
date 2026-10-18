@@ -180,7 +180,7 @@ export class AuthMiddleware implements NestMiddleware {
     // here for its subscription. Unfinished onboarding is not blocked here
     // either: its steps connect channels and an agent and fill the brief, which
     // all need the API, so the frontend holds the app on those steps instead
-    // (only the channel cannot be skipped).
+    // (each of them can be skipped).
     const path = req.originalUrl.split('?')[0];
 
     // A signed-in session that has not agreed to the current Terms can read

@@ -27,6 +27,7 @@ import { difference, uniq } from 'lodash';
 import utc from 'dayjs/plugin/utc';
 import { AutopostRepository } from '@gitroom/nestjs-libraries/database/prisma/autopost/autopost.repository';
 import { RefreshIntegrationService } from '@gitroom/nestjs-libraries/integrations/refresh.integration.service';
+import { IntegrationPictureService } from '@gitroom/nestjs-libraries/integrations/integration.picture.service';
 import { TemporalService } from 'nestjs-temporal-core';
 
 dayjs.extend(utc);
@@ -109,7 +110,8 @@ export class IntegrationService {
     private _refreshIntegrationService: RefreshIntegrationService,
     private _temporalService: TemporalService,
     private _walletService: WalletService,
-    private _walletBilling: WalletBillingService
+    private _walletBilling: WalletBillingService,
+    private _integrationPictureService: IntegrationPictureService
   ) {}
 
   async changeActiveCron(orgId: string) {
@@ -236,6 +238,61 @@ export class IntegrationService {
 
   updateCustomName(org: string, id: string, name: string) {
     return this._integrationRepository.updateCustomName(org, id, name);
+  }
+
+  // Renews channel avatars whose copy is gone from the bucket: the current
+  // avatar is fetched from the network, copied into the bucket again and the
+  // channel points at the new copy. Copies still in the bucket are left alone.
+  // Without `apply` it only reports.
+  async renewPictures(apply: boolean) {
+    const channels = await this._integrationRepository.bucketPictureChannels();
+    const missing: typeof channels = [];
+
+    for (const channel of channels) {
+      const response = await fetch(channel.picture!, { method: 'HEAD' }).catch(
+        () => null
+      );
+      if (response?.status === 404) {
+        missing.push(channel);
+      }
+    }
+
+    const failed: string[] = [];
+    if (apply) {
+      for (const channel of missing) {
+        try {
+          const source = await this._integrationPictureService.networkPicture(
+            channel.id
+          );
+          if (!source) {
+            failed.push(channel.id);
+            continue;
+          }
+
+          const picture = await this.storage.uploadSimple(source);
+          await this._integrationRepository.updatePicture(
+            channel.id,
+            picture,
+            source
+          );
+        } catch (err) {
+          failed.push(channel.id);
+        }
+      }
+    }
+
+    return {
+      dryRun: !apply,
+      checked: channels.length,
+      missing: missing.length,
+      missingByProvider: missing.reduce((all, channel) => {
+        all[channel.providerIdentifier] =
+          (all[channel.providerIdentifier] || 0) + 1;
+        return all;
+      }, {} as Record<string, number>),
+      renewed: apply ? missing.length - failed.length : 0,
+      failed,
+    };
   }
 
   updateNameAndUrl(id: string, name: string, url: string) {

@@ -489,6 +489,30 @@ export class IntegrationRepository {
     });
   }
 
+  // Channels whose avatar is a copy in the bucket rather than the proxy URL.
+  // Only the picture columns are read.
+  bucketPictureChannels() {
+    return this._integration.model.integration.findMany({
+      where: {
+        deletedAt: null,
+        picture: { startsWith: `${process.env.CLOUDFLARE_BUCKET_URL}/` },
+      },
+      select: {
+        id: true,
+        providerIdentifier: true,
+        picture: true,
+      },
+    });
+  }
+
+  updatePicture(id: string, picture: string, pictureSource: string) {
+    return this._integration.model.integration.update({
+      where: { id },
+      data: { picture, pictureSource },
+      select: { id: true },
+    });
+  }
+
   // `url` here is what the network returned after we pushed a new avatar to it,
   // so it belongs in pictureSource like any other network URL. `picture` stays
   // the proxy URL - it is not the image, and it never changes.

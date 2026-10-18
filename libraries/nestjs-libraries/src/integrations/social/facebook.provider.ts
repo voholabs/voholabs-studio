@@ -314,6 +314,22 @@ export class FacebookProvider extends SocialAbstract implements SocialProvider {
     };
   }
 
+  // Asked by the avatar proxy, so a page picture changed on Facebook shows up
+  // here. The stored token is the page token and internalId the page id.
+  async currentProfilePicture(accessToken: string, internalId?: string) {
+    if (!internalId) {
+      return undefined;
+    }
+
+    const { picture } = await (
+      await fetch(
+        `https://graph.facebook.com/${META_GRAPH_API_VERSION}/${internalId}?fields=picture.type(large)&access_token=${accessToken}`
+      )
+    ).json();
+
+    return picture?.data?.url || undefined;
+  }
+
   async reConnect(
     id: string,
     requiredId: string,

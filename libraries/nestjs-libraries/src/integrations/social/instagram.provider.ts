@@ -435,6 +435,23 @@ export class InstagramProvider
     return undefined;
   }
 
+  // Asked by the avatar proxy, so a picture changed on Instagram shows up
+  // here. Same lookup fetchPageInformation uses, with the page token half.
+  async currentProfilePicture(token: string, internalId?: string) {
+    if (!internalId) {
+      return undefined;
+    }
+
+    const [accessToken] = token.split('___');
+    const { profile_picture_url } = await (
+      await fetch(
+        `https://graph.facebook.com/${META_GRAPH_API_VERSION}/${internalId}?fields=profile_picture_url&access_token=${accessToken}`
+      )
+    ).json();
+
+    return profile_picture_url || undefined;
+  }
+
   async reConnect(
     id: string,
     requiredId: string,

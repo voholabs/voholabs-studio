@@ -331,15 +331,9 @@ export class UsersController {
   @Post('/onboarding')
   async completeOnboarding(
     @GetUserFromRequest() user: User,
-    @GetOrgFromRequest() organization: Organization,
     @Body() body: OnboardingDto
   ) {
-    await this._userService.completeOnboarding(
-      user.id,
-      organization.id,
-      isOrgAdmin(organization),
-      body
-    );
+    await this._userService.completeOnboarding(user.id, body);
     return { success: true };
   }
 

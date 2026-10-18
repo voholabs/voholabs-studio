@@ -76,11 +76,7 @@ export class UsersService {
       );
 
     this._logger.log(
-      `User login switch performed by admin ${adminId}: account ${
-        kept.id
-      } login ${switched.email} -> ${kept.email}; account ${
-        switched.id
-      } login ${kept.email} -> ${switched.email}`
+      `User login switch performed by admin ${adminId}: account ${kept.id} login ${switched.email} -> ${kept.email}; account ${switched.id} login ${kept.email} -> ${switched.email}`
     );
 
     // the swap is already committed; a notification failure must not fail it
@@ -171,11 +167,12 @@ export class UsersService {
   }
 
   // The onboarding steps, worked out from the workspace itself: a connected
-  // channel (required), an agent that reached the MCP and the brief's
-  // onboarding documents (both skippable), and the welcome credits that
-  // doing those two earns. Only an admin holds the API key an agent connects
-  // with, so for anyone else the agent and the brief are not theirs to do.
-  // The credits are for the free plan only; a paid plan never pays from them.
+  // channel, an agent that reached the MCP and the brief's onboarding
+  // documents (all three skippable), and the welcome credits that doing the
+  // agent and the brief earns. Only an admin holds the API key an agent
+  // connects with, so for anyone else the agent and the brief are not theirs
+  // to do. The credits are for the free plan only; a paid plan never pays
+  // from them.
   async onboardingStatus(
     organizationId: string,
     isAdmin: boolean,
@@ -187,31 +184,21 @@ export class UsersService {
       this._briefService.onboardingStatus(organizationId),
       this._walletService.welcomeCredits(organizationId),
     ]);
-    const channel = integrations.length > 0;
     return {
-      channel,
+      channel: integrations.length > 0,
       agent: agent.connected,
       brief,
       credits: {
         ...credits,
         eligible: freePlan && isAdmin && agent.connected && brief.done,
       },
-      done: channel,
     };
   }
 
-  // Checked again here, so skipping a step in the browser gets nowhere. The
-  // agent and the brief can be skipped; a channel cannot.
-  async completeOnboarding(
-    userId: string,
-    organizationId: string,
-    isAdmin: boolean,
-    body: OnboardingDto
-  ) {
-    const status = await this.onboardingStatus(organizationId, isAdmin, false);
-    if (!status.done) {
-      throw new HttpException('Onboarding is not finished yet', 400);
-    }
+  // Every step can be skipped, so reaching the end finishes onboarding, with
+  // or without a channel. Finishing gives nothing: the welcome credits come
+  // only from the claim, which checks the agent and the brief again.
+  completeOnboarding(userId: string, body: OnboardingDto) {
     return this._usersRepository.completeOnboarding(userId, body);
   }
 
@@ -237,9 +224,7 @@ export class UsersService {
         400
       );
     }
-    const added = await this._walletService.claimWelcomeCredits(
-      organizationId
-    );
+    const added = await this._walletService.claimWelcomeCredits(organizationId);
     // The Plus early bird starts with the claim; its one email is scheduled
     // now (never fails the claim).
     if (added > 0) {

@@ -395,6 +395,29 @@ export class MediaService {
     return this.planStorageLeft(org, subscription);
   }
 
+  // What the media library holds and what the organization may store, in
+  // bytes, for the storage section in settings. `limit` is null when there
+  // is no cap: a free-plan organization paying from its wallet, where
+  // `included` is what it stores before paying for more.
+  async storageUsage(org: string) {
+    const subscription =
+      await this._subscriptionService.getSubscriptionByOrganizationId(org);
+    const used = await this._mediaRepository.getStorageUsed(org);
+    if (await this.paysStorageFromWallet(org, subscription)) {
+      const rule = await this._walletStorage.rule();
+      return {
+        used,
+        limit: null as number | null,
+        included: rule ? rule.freeUnits * rule.unitBytes : 0,
+      };
+    }
+    return {
+      used,
+      limit: pricing[planOf(subscription)].storage_mb * 1024 * 1024,
+      included: null as number | null,
+    };
+  }
+
   private async planStorageLeft(
     org: string,
     subscription: Parameters<typeof planOf>[0]

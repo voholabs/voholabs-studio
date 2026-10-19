@@ -8,6 +8,7 @@ import EmailNotificationsComponent from '@gitroom/frontend/components/settings/e
 import ShortlinkPreferenceComponent from '@gitroom/frontend/components/settings/shortlink-preference.component';
 import DeleteAccountComponent from '@gitroom/frontend/components/settings/delete-account.component';
 import DeleteOrganizationComponent from '@gitroom/frontend/components/settings/delete-organization.component';
+import StorageUsageComponent from '@gitroom/frontend/components/settings/storage-usage.component';
 
 const MetricComponent = dynamic(
   () => import('@gitroom/frontend/components/settings/metric.component'),
@@ -22,6 +23,7 @@ export const GlobalSettings = () => {
     <div className="flex flex-col">
       <h3 className="text-[20px]">{t('global_settings', 'Global Settings')}</h3>
       <AuthenticationComponent />
+      <StorageUsageComponent />
       <MetricComponent />
       <EmailNotificationsComponent />
       <ShortlinkPreferenceComponent />

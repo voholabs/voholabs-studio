@@ -241,6 +241,12 @@ export class MediaController {
     res.status(200).json({ ...upload, saved: saveFile });
   }
 
+  // How much of its storage the organization uses, for settings.
+  @Get('/storage')
+  getStorageUsage(@GetOrgFromRequest() org: Organization) {
+    return this._mediaService.storageUsage(org.id);
+  }
+
   @Get('/:id/status')
   getMediaStatus(
     @GetOrgFromRequest() org: Organization,

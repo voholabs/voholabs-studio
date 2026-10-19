@@ -50,6 +50,11 @@ const build = (opts: {
   } as any;
   const walletStorage = {
     liftsCap: jest.fn(async () => !!opts.liftsCap),
+    rule: jest.fn(async () => ({
+      price: 20,
+      unitBytes: 1024 * MB,
+      freeUnits: 2,
+    })),
     payForUpload: jest.fn(async () => {
       if (opts.refuse) {
         throw walletPaymentRequired('Not enough credits to store this file.');
@@ -121,6 +126,36 @@ describe('MediaService.assertStorage', () => {
     });
     await service.saveFile('org-1', 'a.png', '/a.png', 'a.png', 5 * MB);
     expect(walletStorage.payForUpload).not.toHaveBeenCalled();
+  });
+});
+
+describe('MediaService.storageUsage', () => {
+  it('reports the plan cap for a free organization without a wallet', async () => {
+    const { service } = build({ subscription: FREE_PLAN, used: 5 * MB });
+    await expect(service.storageUsage('org-1')).resolves.toEqual({
+      used: 5 * MB,
+      limit: pricing.FREE.storage_mb * MB,
+      included: null,
+    });
+  });
+
+  it('reports the paid plan cap', async () => {
+    const { service } = build({ subscription: PAID_PLAN, liftsCap: true });
+    const usage = await service.storageUsage('org-1');
+    expect(usage.limit).toBe(pricing.PRO.storage_mb * MB);
+  });
+
+  it('has no cap for a wallet organization, with what is included', async () => {
+    const { service } = build({
+      subscription: FREE_PLAN,
+      liftsCap: true,
+      used: 3 * 1024 * MB,
+    });
+    await expect(service.storageUsage('org-1')).resolves.toEqual({
+      used: 3 * 1024 * MB,
+      limit: null,
+      included: 2 * 1024 * MB,
+    });
   });
 });
 

@@ -46,7 +46,16 @@ const StorageUsageComponent = () => {
   const t = useT();
   const { data, isLoading } = useStorageUsage();
 
-  if (isLoading || !data || typeof data.used !== 'number') {
+  if (isLoading) {
+    return (
+      <div className="my-[16px] mt-[16px] bg-sixth border-fifth border rounded-[4px] p-[24px]">
+        <div className="animate-pulse">{t('loading', 'Loading...')}</div>
+      </div>
+    );
+  }
+
+  // Nothing to show when the figure could not be read.
+  if (!data || typeof data.used !== 'number') {
     return null;
   }
 
@@ -80,7 +89,7 @@ const StorageUsageComponent = () => {
             <div
               className={clsx(
                 'h-full',
-                nearlyFull ? 'bg-red-600' : 'bg-btnPrimary'
+                nearlyFull ? 'bg-danger' : 'bg-btnPrimary'
               )}
               style={{ width: `${Math.max(percent, used > 0 ? 1 : 0)}%` }}
             />
@@ -119,13 +128,21 @@ const StorageUsageComponent = () => {
           )}
         </div>
       )}
-      <div className="flex">
+      <div className="flex flex-wrap gap-x-[20px] gap-y-[8px]">
         <Link
           href="/media"
           className="text-[14px] font-[600] text-btnPrimary hover:underline"
         >
           {t('storage_usage_open_library', 'Open the media library')}
         </Link>
+        {(full || nearlyFull) && (
+          <Link
+            href="/billing"
+            className="text-[14px] font-[600] text-btnPrimary hover:underline"
+          >
+            {t('storage_usage_upgrade', 'See plans')}
+          </Link>
+        )}
       </div>
     </div>
   );

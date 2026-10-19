@@ -16,8 +16,8 @@ interface FunnelRow {
   onboarded: number;
   channelConnected: number;
   mcpConnected: number;
-  watchedTutorial: number;
-  finishedTutorial: number;
+  claimedCredits: number;
+  skippedCredits: number;
   scheduledPost: number;
   toppedUp: number;
 }
@@ -125,14 +125,18 @@ const WINDOWS: { key: GrowthWindow; label: string }[] = [
   { key: 'all', label: 'All time' },
 ];
 
-const STEPS: { key: keyof Omit<FunnelRow, 'window'>; label: string }[] = [
+// The sign-up funnel steps, in the order onboarding takes them. Skipped free
+// credits is shown under the claim row, not as a step of its own.
+export const STEPS: {
+  key: keyof Omit<FunnelRow, 'window' | 'skippedCredits'>;
+  label: string;
+}[] = [
   { key: 'signups', label: 'Signed up' },
   { key: 'activated', label: 'Activated' },
   { key: 'onboarded', label: 'Onboarding done' },
   { key: 'channelConnected', label: 'Channel connected' },
   { key: 'mcpConnected', label: 'MCP connected' },
-  { key: 'watchedTutorial', label: 'Watched tutorial' },
-  { key: 'finishedTutorial', label: 'Watched 90%+ of tutorial' },
+  { key: 'claimedCredits', label: 'Claimed free credits' },
   { key: 'scheduledPost', label: 'Scheduled a post' },
   { key: 'toppedUp', label: 'Topped up' },
 ];
@@ -261,6 +265,11 @@ const FunnelTable: FC<{ funnel: FunnelRow[] }> = ({ funnel }) => {
           step.key === 'signups'
             ? undefined
             : (w) => byWindow.get(w)?.signups || 0,
+        hint:
+          step.key === 'claimedCredits'
+            ? (w) =>
+                `${(byWindow.get(w)?.skippedCredits || 0).toLocaleString()} skipped`
+            : undefined,
       }))}
     />
   );
@@ -849,7 +858,8 @@ export const AdminGrowthComponent: FC = () => {
               People who signed up in each period, and how many of them have
               reached each step since. Percentages are of sign-ups. Steps after
               onboarding count the workspaces the person owns, not ones they
-              were invited to.
+              were invited to. Every onboarding step can be skipped, so
+              Onboarding done means the person pressed Finish.
             </div>
           </div>
           <FunnelTable funnel={data.funnel} />

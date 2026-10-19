@@ -76,9 +76,10 @@ export interface GrowthFunnelRow {
   onboarded: number;
   channelConnected: number;
   mcpConnected: number;
-  // Pressed play on the onboarding tutorial, and reached 90% of it.
-  watchedTutorial: number;
-  finishedTutorial: number;
+  // The onboarding credits step: claimed the welcome credits, or turned them
+  // down without claiming. Read the same way as the money funnel.
+  claimedCredits: number;
+  skippedCredits: number;
   scheduledPost: number;
   toppedUp: number;
 }
@@ -689,8 +690,8 @@ export class AdminStatsRepository {
         onboarded: bigint;
         channelConnected: bigint;
         mcpConnected: bigint;
-        watchedTutorial: bigint;
-        finishedTutorial: bigint;
+        claimedCredits: bigint;
+        skippedCredits: bigint;
         scheduledPost: bigint;
         toppedUp: bigint;
       }>
@@ -703,12 +704,17 @@ export class AdminStatsRepository {
         SELECT u."createdAt",
           u.activated,
           u."onboardedAt" IS NOT NULL AS onboarded,
-          u."tutorialStartedAt" IS NOT NULL AS tutorial,
-          COALESCE(u."tutorialWatchedPercent", 0) >= 90 AS "tutorialFinished",
           EXISTS (SELECT 1 FROM owned o JOIN "Integration" i ON i."organizationId" = o."organizationId"
             WHERE o."userId" = u.id) AS channel,
           EXISTS (SELECT 1 FROM owned o JOIN "Organization" org ON org.id = o."organizationId"
             WHERE o."userId" = u.id AND org."agentFirstConnectedAt" IS NOT NULL) AS mcp,
+          EXISTS (SELECT 1 FROM owned o JOIN "WalletEntry" w ON w."organizationId" = o."organizationId"
+            WHERE o."userId" = u.id AND w.type = 'GRANT'
+              AND w."idempotencyKey" = 'welcome:' || o."organizationId") AS claimed,
+          EXISTS (SELECT 1 FROM owned o JOIN "Wallet" wa ON wa."organizationId" = o."organizationId"
+            WHERE o."userId" = u.id AND wa."welcomeCreditsSkippedAt" IS NOT NULL
+              AND NOT EXISTS (SELECT 1 FROM "WalletEntry" w WHERE w."organizationId" = o."organizationId"
+                AND w.type = 'GRANT' AND w."idempotencyKey" = 'welcome:' || o."organizationId")) AS skipped,
           EXISTS (SELECT 1 FROM owned o JOIN "Post" p ON p."organizationId" = o."organizationId"
             WHERE o."userId" = u.id AND p."parentPostId" IS NULL) AS scheduled,
           EXISTS (SELECT 1 FROM owned o JOIN "WalletEntry" w ON w."organizationId" = o."organizationId"
@@ -726,8 +732,8 @@ export class AdminStatsRepository {
         COUNT(*) FILTER (WHERE s.onboarded) AS onboarded,
         COUNT(*) FILTER (WHERE s.channel) AS "channelConnected",
         COUNT(*) FILTER (WHERE s.mcp) AS "mcpConnected",
-        COUNT(*) FILTER (WHERE s.tutorial) AS "watchedTutorial",
-        COUNT(*) FILTER (WHERE s."tutorialFinished") AS "finishedTutorial",
+        COUNT(*) FILTER (WHERE s.claimed) AS "claimedCredits",
+        COUNT(*) FILTER (WHERE s.skipped) AS "skippedCredits",
         COUNT(*) FILTER (WHERE s.scheduled) AS "scheduledPost",
         COUNT(*) FILTER (WHERE s.topup) AS "toppedUp"
       FROM windows w
@@ -743,8 +749,8 @@ export class AdminStatsRepository {
         onboarded: Number(r?.onboarded || 0),
         channelConnected: Number(r?.channelConnected || 0),
         mcpConnected: Number(r?.mcpConnected || 0),
-        watchedTutorial: Number(r?.watchedTutorial || 0),
-        finishedTutorial: Number(r?.finishedTutorial || 0),
+        claimedCredits: Number(r?.claimedCredits || 0),
+        skippedCredits: Number(r?.skippedCredits || 0),
         scheduledPost: Number(r?.scheduledPost || 0),
         toppedUp: Number(r?.toppedUp || 0),
       };

@@ -347,6 +347,63 @@ describe('AdminStatsRepository.getGrowthMoney', () => {
   });
 });
 
+describe('AdminStatsRepository growth sign-up funnel', () => {
+  it('ends onboarding with the welcome credits claim or skip, read like the money funnel', async () => {
+    const $queryRaw = jest.fn(async (_strings: TemplateStringsArray) => [
+      {
+        window: '7d',
+        signups: BigInt(10),
+        activated: BigInt(9),
+        onboarded: BigInt(8),
+        channelConnected: BigInt(7),
+        mcpConnected: BigInt(6),
+        claimedCredits: BigInt(4),
+        skippedCredits: BigInt(1),
+        scheduledPost: BigInt(3),
+        toppedUp: BigInt(2),
+      },
+    ]);
+    const model = (m: any) => ({ model: m } as any);
+    const repository = new AdminStatsRepository(
+      model({ $queryRaw }),
+      model({}),
+      model({}),
+      model({}),
+      model({}),
+      model({}),
+      model({}),
+      model({}),
+      model({}),
+      model({})
+    );
+    const funnel = await (repository as any).growthFunnel({
+      '24h': ago(1),
+      '7d': ago(7),
+      '30d': ago(30),
+      all: new Date(0),
+    });
+    expect(funnel.find((r: any) => r.window === '7d')).toEqual({
+      window: '7d',
+      signups: 10,
+      activated: 9,
+      onboarded: 8,
+      channelConnected: 7,
+      mcpConnected: 6,
+      claimedCredits: 4,
+      skippedCredits: 1,
+      scheduledPost: 3,
+      toppedUp: 2,
+    });
+    expect(funnel.find((r: any) => r.window === '24h').claimedCredits).toBe(0);
+    // The claim is the grant keyed welcome:<its own organization>, and a skip
+    // counts only without one.
+    const sql = ($queryRaw.mock.calls[0][0] as TemplateStringsArray).join('?');
+    expect(sql).toContain(`w."idempotencyKey" = 'welcome:' || o."organizationId"`);
+    expect(sql).toContain('wa."welcomeCreditsSkippedAt" IS NOT NULL');
+    expect(sql).not.toContain('tutorial');
+  });
+});
+
 describe('WalletPlusService.subscriptionPrices', () => {
   const key = process.env.WALLET_STRIPE_SECRET_KEY;
   beforeAll(() => {

@@ -92,6 +92,28 @@ describe('PostsRepository.createOrUpdatePost', () => {
     });
   });
 
+  it('scopes the keepGroup sweep of dropped rows to the organization', async () => {
+    const { repository, post } = setup();
+    await repository.createOrUpdatePost(
+      'update',
+      'org-a',
+      '2026-10-10T10:00:00',
+      body,
+      [],
+      'APP' as any,
+      undefined,
+      true
+    );
+
+    expect(post.updateMany).toHaveBeenCalledTimes(1);
+    expect((post.updateMany.mock.calls[0] as any)[0].where).toEqual({
+      organizationId: 'org-a',
+      group: 'g1',
+      deletedAt: null,
+      id: { notIn: ['existing-1', 'existing-2'] },
+    });
+  });
+
   it('scopes tag rewrites to the organization', async () => {
     const { repository, post, tagsPosts, tags } = setup();
     await repository.createOrUpdatePost(

@@ -51,6 +51,13 @@ const signsInWithProviderMessage = (provider: Provider) =>
     provider
   )}, or use "Forgot password" to add a password.`;
 
+const unverifiedEmailMessage = (provider: Provider) =>
+  `Your ${providerLabel(
+    provider
+  )} email address is not verified. Verify it with ${providerLabel(
+    provider
+  )} and try again.`;
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -240,6 +247,12 @@ export class AuthService {
     if (user) {
       await ioRedis.del(providerTokenKey(provider, body.providerToken));
       return user;
+    }
+
+    // A new account only for an address the provider verified. A provider
+    // that does not say leaves `emailVerified` undefined and is not refused.
+    if (providerUser.emailVerified === false) {
+      throw new Error(unverifiedEmailMessage(provider));
     }
 
     if (!(await this.canRegister(provider))) {
@@ -485,6 +498,11 @@ export class AuthService {
     );
     if (checkExists) {
       return { jwt: await this.jwt(checkExists) };
+    }
+
+    // Said here too, before the sign-up form, not only once it is sent.
+    if (user.emailVerified === false) {
+      throw new Error(unverifiedEmailMessage(provider as Provider));
     }
 
     await ioRedis.set(

@@ -1,4 +1,8 @@
-import { toFlowSummary } from '@gitroom/nestjs-libraries/flows/flows.service';
+import {
+  FLOWS_TTL_MS,
+  FlowsService,
+  toFlowSummary,
+} from '@gitroom/nestjs-libraries/flows/flows.service';
 
 describe('toFlowSummary', () => {
   it('keeps the fields the page reads and drops the rest', () => {
@@ -122,5 +126,66 @@ describe('toFlowSummary', () => {
     expect(toFlowSummary({ id: '../x', title: 'A' })).toBeNull();
     expect(toFlowSummary({ id: 'a', title: '  ' })).toBeNull();
     expect(toFlowSummary(null)).toBeNull();
+  });
+});
+
+// The catalog is read from the gateway at most once a minute.
+describe('FlowsService.list', () => {
+  const env = process.env.MCP_GATEWAY_URL;
+  const realFetch = global.fetch;
+  let fetchMock: jest.Mock;
+
+  beforeEach(() => {
+    process.env.MCP_GATEWAY_URL = 'http://gateway.test/';
+    fetchMock = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({ flows: [{ id: 'a', title: 'A' }] }),
+    }));
+    global.fetch = fetchMock as any;
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+    global.fetch = realFetch;
+    if (env === undefined) {
+      delete process.env.MCP_GATEWAY_URL;
+    } else {
+      process.env.MCP_GATEWAY_URL = env;
+    }
+  });
+
+  it('serves the cached catalog within the TTL and reads it again after', async () => {
+    const service = new FlowsService();
+    const first = await service.list();
+    expect(first).toEqual({ flows: [{ id: 'a', title: 'A', summary: '' }] });
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://gateway.test/flows',
+      expect.anything()
+    );
+
+    jest.advanceTimersByTime(FLOWS_TTL_MS - 1);
+    expect(await service.list()).toEqual(first);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    jest.advanceTimersByTime(2);
+    await service.list();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('answers no flows on a failed read and tries again on the next request', async () => {
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 502 });
+    const service = new FlowsService();
+    expect(await service.list()).toEqual({ flows: [] });
+    expect(await service.list()).toEqual({
+      flows: [{ id: 'a', title: 'A', summary: '' }],
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('answers no flows without a gateway', async () => {
+    delete process.env.MCP_GATEWAY_URL;
+    expect(await new FlowsService().list()).toEqual({ flows: [] });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

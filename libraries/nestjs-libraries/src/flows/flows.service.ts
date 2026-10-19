@@ -1,5 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 
+// How long one catalog read from the gateway is served before it is read again.
+export const FLOWS_TTL_MS = 60_000;
+
 // Exactly what the Flows page reads. Anything else the gateway sends is
 // dropped, so the page only ever gets these fields, in these shapes.
 export interface FlowSummary {
@@ -129,30 +132,41 @@ export const toFlowSummary = (raw: any): FlowSummary | null => {
 @Injectable()
 export class FlowsService {
   private readonly logger = new Logger(FlowsService.name);
+  private _cache?: { at: number; value: Promise<FlowSummary[]> };
 
   async list(): Promise<{ flows: FlowSummary[] }> {
     const gateway = process.env.MCP_GATEWAY_URL?.replace(/\/+$/, '');
     if (!gateway) {
       return { flows: [] };
     }
-    try {
-      const res = await fetch(`${gateway}/flows`, {
-        signal: AbortSignal.timeout(5000),
+    if (!this._cache || Date.now() - this._cache.at > FLOWS_TTL_MS) {
+      const value = this.load(gateway);
+      this._cache = { at: Date.now(), value };
+      // A failed read is not kept: the next request tries again.
+      value.catch(() => {
+        if (this._cache?.value === value) this._cache = undefined;
       });
-      if (!res.ok) {
-        throw new Error(`gateway answered ${res.status}`);
-      }
-      const body = await res.json();
-      const flows: unknown[] = Array.isArray(body?.flows) ? body.flows : [];
-      return {
-        flows: flows
-          .slice(0, MAX_FLOWS)
-          .map(toFlowSummary)
-          .filter((flow): flow is FlowSummary => !!flow),
-      };
+    }
+    try {
+      return { flows: await this._cache.value };
     } catch (err) {
       this.logger.warn(`Could not read the flows: ${String(err)}`);
       return { flows: [] };
     }
+  }
+
+  private async load(gateway: string): Promise<FlowSummary[]> {
+    const res = await fetch(`${gateway}/flows`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) {
+      throw new Error(`gateway answered ${res.status}`);
+    }
+    const body = await res.json();
+    const flows: unknown[] = Array.isArray(body?.flows) ? body.flows : [];
+    return flows
+      .slice(0, MAX_FLOWS)
+      .map(toFlowSummary)
+      .filter((flow): flow is FlowSummary => !!flow);
   }
 }

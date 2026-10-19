@@ -51,7 +51,7 @@ import {
 
 const secret = () => process.env.JWT_SECRET!;
 
-const make = (opts: { provider?: any } = {}) => {
+const make = (opts: { provider?: any; organizations?: any } = {}) => {
   const user = {
     id: 'user-1',
     email: 'a@b.co',
@@ -82,7 +82,7 @@ const make = (opts: { provider?: any } = {}) => {
   };
   const service = new AuthService(
     users as any,
-    {} as any,
+    (opts.organizations || {}) as any,
     email as any,
     providers as any
   );
@@ -262,6 +262,103 @@ describe('social sign-in', () => {
   });
 });
 
+// A new provider account only for an address the provider verified.
+describe('provider sign-up', () => {
+  const providerUser = (emailVerified?: boolean) => ({
+    requiresState: false,
+    verifiesEmail: true,
+    generateLink: jest.fn(),
+    getToken: jest.fn(async () => 'provider-access-token'),
+    getUser: jest.fn(async () => ({
+      id: 'google-1',
+      email: 'new@b.co',
+      emailVerified,
+    })),
+  });
+  const organizations = () => ({
+    createOrgAndUser: jest.fn(async () => ({
+      id: 'org-1',
+      users: [{ user: { id: 'google-user' } }],
+    })),
+  });
+  const body = (providerToken: string) =>
+    ({
+      provider: 'GOOGLE',
+      providerToken,
+      company: 'Acme',
+      termsAccepted: true,
+      contactConsent: true,
+    } as any);
+
+  it('refuses a new account when the provider did not verify the address', async () => {
+    const orgs = organizations();
+    const unverified = providerUser(false);
+    const { service } = make({ provider: unverified, organizations: orgs });
+    await expect(service.checkExists('GOOGLE', 'code')).rejects.toThrow(
+      'not verified'
+    );
+
+    // The form step refuses it too, even with a token from our own exchange.
+    const verified = providerUser(true);
+    const { service: other } = make({
+      provider: verified,
+      organizations: orgs,
+    });
+    const { token } = (await other.checkExists('GOOGLE', 'code')) as any;
+    verified.getUser.mockResolvedValue({
+      id: 'google-1',
+      email: 'new@b.co',
+      emailVerified: false,
+    });
+    await expect(
+      other.routeAuth('GOOGLE' as any, body(token), '1.1.1.1', 'ua', false)
+    ).rejects.toThrow('not verified');
+    expect(orgs.createOrgAndUser).not.toHaveBeenCalled();
+  });
+
+  it('creates the account when the provider verified the address', async () => {
+    const orgs = organizations();
+    const { service } = make({
+      provider: providerUser(true),
+      organizations: orgs,
+    });
+    const { token } = (await service.checkExists('GOOGLE', 'code')) as any;
+    const { jwt } = await service.routeAuth(
+      'GOOGLE' as any,
+      body(token),
+      '1.1.1.1',
+      'ua',
+      false
+    );
+    expect(orgs.createOrgAndUser).toHaveBeenCalledTimes(1);
+    expect(verify(jwt, secret())).toMatchObject({ id: 'google-user' });
+  });
+
+  it('creates the account for a provider that does not report verification', async () => {
+    const orgs = organizations();
+    const { service } = make({
+      provider: { ...providerUser(undefined), verifiesEmail: false },
+      organizations: orgs,
+    });
+    const { token } = (await service.checkExists('GOOGLE', 'code')) as any;
+    await service.routeAuth(
+      'GOOGLE' as any,
+      body(token),
+      '1.1.1.1',
+      'ua',
+      false
+    );
+    expect(orgs.createOrgAndUser).toHaveBeenCalledTimes(1);
+  });
+
+  it('still signs in an existing provider account', async () => {
+    const { service, users } = make({ provider: providerUser(false) });
+    users.getUserByProvider.mockResolvedValueOnce({ id: 'google-user' } as any);
+    const result = (await service.checkExists('GOOGLE', 'code')) as any;
+    expect(verify(result.jwt, secret())).toMatchObject({ id: 'google-user' });
+  });
+});
+
 // One person, one account: signing in with Google finds the email+password
 // account for the same address, and a Google account can add a password.
 describe('account linking by email', () => {
@@ -285,11 +382,13 @@ describe('account linking by email', () => {
   });
 
   it('does not link when the provider did not verify the address', async () => {
-    const { service, user } = make({ provider: googleUser(false) });
+    const { service, user, users } = make({ provider: googleUser(false) });
     user.activated = true;
-    expect(await service.checkExists('GOOGLE', 'code')).toEqual({
-      token: 'provider-access-token',
-    });
+    // No session for the email+password account; a new account is refused.
+    await expect(service.checkExists('GOOGLE', 'code')).rejects.toThrow(
+      'not verified'
+    );
+    expect(users.getUserByEmail).not.toHaveBeenCalled();
   });
 
   it('does not link into an account that was never activated', async () => {

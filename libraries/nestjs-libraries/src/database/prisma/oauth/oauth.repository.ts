@@ -231,6 +231,10 @@ export class OAuthRepository {
       where: {
         accessToken: encryptedToken,
         revokedAt: null,
+        // A deleted organization's tokens stop working with it
+        organization: {
+          deletedAt: null,
+        },
       },
       include: {
         oauthApp: {

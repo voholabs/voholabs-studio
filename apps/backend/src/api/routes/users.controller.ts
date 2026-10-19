@@ -536,6 +536,45 @@ export class UsersController {
     return this.logout(response);
   }
 
+  @Post('/delete-organization')
+  async deleteOrganization(
+    @GetUserFromRequest() user: User,
+    @GetOrgFromRequest() org: Organization,
+    @Req() req: Request
+  ) {
+    const impersonate = req.cookies.impersonate || req.headers.impersonate;
+    if (impersonate) {
+      throw new HttpException(
+        'Organization cannot be deleted while impersonating',
+        400
+      );
+    }
+
+    await this._userService.getOrgToDelete(user.id, org.id);
+
+    // Wallet credit is paid money and is lost with the organization
+    if ((await this._walletService.balance(org.id)) > 0) {
+      throw new HttpException(
+        'This organization still has wallet credit, please use it or contact support before deleting it',
+        400
+      );
+    }
+
+    // Cancel billing before deleting — once the organization is deleted
+    // there is no way to retry a failed cancellation
+    try {
+      await this._paymentService.cancelAllSubscriptions(org.id);
+    } catch (err) {
+      console.log(err);
+      throw new HttpException(
+        'Could not cancel your subscription, please try again or contact support',
+        400
+      );
+    }
+
+    await this._userService.deleteOrganization(user.id, org.id);
+  }
+
   @Post('/logout')
   logout(@Res({ passthrough: true }) response: Response) {
     response.header('logout', 'true');

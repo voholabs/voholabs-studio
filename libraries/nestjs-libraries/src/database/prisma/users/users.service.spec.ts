@@ -99,9 +99,9 @@ describe('UsersService onboarding and welcome credits', () => {
     const status = await built.onboardingStatus('org1', true, true);
     expect(status.brief.done).toBe(false);
     expect(status.credits.eligible).toBe(true);
-    await expect(built.claimWelcomeCredits('org1', true, true)).resolves.toEqual(
-      { credits: 100 }
-    );
+    await expect(
+      built.claimWelcomeCredits('org1', true, true)
+    ).resolves.toEqual({ credits: 100 });
     expect(wallet.claimWelcomeCredits).toHaveBeenCalledWith('org1');
   });
 

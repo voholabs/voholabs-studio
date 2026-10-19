@@ -44,7 +44,9 @@ export const useOnboardingStatus = (enabled: boolean, poll: boolean) => {
     refreshInterval: (latest) =>
       poll &&
       (!latest?.brief?.done ||
-        (latest.credits.available > 0 && !latest.credits.claimed))
+        (!latest.credits.eligible &&
+          latest.credits.available > 0 &&
+          !latest.credits.claimed))
         ? 4000
         : 0,
     revalidateOnFocus: true,

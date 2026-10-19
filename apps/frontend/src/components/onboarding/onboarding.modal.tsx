@@ -39,8 +39,8 @@ import {
 } from '@gitroom/frontend/components/onboarding/onboarding.teach';
 import {
   OnboardingStatus,
-  useOnboardingStatus,
   briefStarted,
+  useOnboardingStatus,
 } from '@gitroom/frontend/components/onboarding/use.onboarding.status';
 import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
 import {
@@ -79,8 +79,8 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
   // A paid plan keeps the onboarding it always had: channels only.
   const paidPlan = useWalletAccess() === 'plan';
   // A new workspace goes through the steps before it gets in. Each one can be
-  // skipped; connecting its agent and having the agent fill the brief earn
-  // the welcome credits when done.
+  // skipped; connecting its agent and having the agent fill at least one item
+  // of the brief earn the welcome credits.
   const needsOnboarding = !!user?.needsOnboarding;
   // Onboarded before the welcome credits: shown again once, until they are
   // claimed or turned down.
@@ -312,7 +312,7 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
 // "1 Connect channels", "2 Connect your agent", "3 Teach your agent", "4 Claim free credit" (or
 // "Get started" when there are no credits to claim). Steps already passed
 // stay clickable to go back: ticked when the server says they are done
-// (a channel connected, the agent connected, the brief filled), marked
+// (a channel connected, the agent connected, one item of the brief filled), marked
 // skipped when they are not.
 export const OnboardingStepper: FC<{
   step: OnboardingStepKey;
@@ -739,10 +739,9 @@ const OnboardingAgentStep: FC<{
 };
 
 // Third step: the connected agent fills in the brief. The person pastes one
-// prompt into it; Next waits until the agent has saved at least one document
-// (all of them are shown), and
-// Skip moves on without it (the welcome credits wait on it). Back returns to
-// the connect steps.
+// prompt into it; every document is listed and ticks off as it is saved. Next
+// waits until the agent has saved at least one, and Skip moves on without it
+// (the welcome credits wait on it). Back returns to the connect steps.
 const OnboardingBriefStep: FC<{
   onBack: () => void;
   onDone: () => void;
@@ -968,7 +967,7 @@ const OnboardingClaimStep: FC<{
       toaster.show(
         t(
           'onboarding_credits_not_claimed',
-          'The credits could not be added. Check that your agent knows everything, then try again.'
+          'The credits could not be added. Check that your agent has filled in at least one item, then try again.'
         ),
         'warning'
       );

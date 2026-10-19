@@ -154,6 +154,51 @@ export class UsersService {
     return { deletedOrgs };
   }
 
+  // Only the super admin can delete an organization, and only when they keep
+  // at least one other organization to land in.
+  async getOrgToDelete(userId: string, orgId: string) {
+    const orgs = (
+      await this._organizationRepository.getOrgsByUserId(userId)
+    ).filter((org) => !org.users[0].disabled);
+    const org = orgs.find((p) => p.id === orgId);
+
+    if (!org || org.users[0].role !== Role.SUPERADMIN) {
+      throw new HttpException(
+        'Only the super admin can delete this organization',
+        400
+      );
+    }
+
+    if (orgs.length < 2) {
+      throw new HttpException(
+        'You cannot delete your only organization',
+        400
+      );
+    }
+
+    const team = await this._organizationRepository.getTeam(org.id);
+    if (
+      team?.users?.some(
+        (member) => member.user.id !== userId && !member.disabled
+      )
+    ) {
+      throw new HttpException(
+        'Please remove your team members before deleting this organization',
+        400
+      );
+    }
+
+    return org;
+  }
+
+  async deleteOrganization(userId: string, orgId: string) {
+    await this.getOrgToDelete(userId, orgId);
+    await this._integrationRepository.deleteIntegrationsForAccount(orgId);
+    await this._organizationRepository.deleteOrganization(orgId);
+
+    this._logger.log(`Organization ${orgId} deleted by ${userId}`);
+  }
+
   activateUser(id: string) {
     return this._usersRepository.activateUser(id);
   }

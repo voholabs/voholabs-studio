@@ -337,7 +337,8 @@ export class UsersController {
     return { success: true };
   }
 
-  // The welcome credits, once the agent is connected and knows the brief.
+  // The welcome credits, once the agent is connected and has filled at least
+  // one item of the brief.
   // Never while impersonating: the decision is the person's own.
   @Post('/onboarding/credits')
   async claimWelcomeCredits(

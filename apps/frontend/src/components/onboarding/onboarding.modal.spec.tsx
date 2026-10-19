@@ -135,6 +135,31 @@ describe('OnboardingStepper', () => {
     expect(stepButton(/Teach your agent/).querySelector('svg')).toBeNull();
   });
 
+  it('ticks the brief once one of its documents is filled', () => {
+    render(
+      <OnboardingStepper
+        step="start"
+        onGoTo={jest.fn()}
+        withBrief={true}
+        status={
+          status({
+            channel: true,
+            agent: true,
+            brief: {
+              done: false,
+              documents: [
+                { key: 'a', label: 'A', filled: true },
+                { key: 'b', label: 'B', filled: false },
+              ],
+            },
+          }) as any
+        }
+      />
+    );
+    expect(stepButton(/Teach your agent/).textContent).not.toContain('Skipped');
+    expect(stepButton(/Teach your agent/).querySelector('svg')).not.toBeNull();
+  });
+
   it('a skipped step can be opened again', () => {
     const onGoTo = jest.fn();
     render(

@@ -6,8 +6,8 @@ import {
 /**
  * Mandatory onboarding: a new account goes through the steps before it gets
  * to use the product: connect a channel, connect its agent and have the agent
- * fill its brief. Each can be skipped; doing the agent and the brief earns the
- * welcome credits.
+ * fill its brief. Each can be skipped; connecting the agent and having it fill
+ * at least one item of the brief earns the welcome credits.
  *
  * Nobody with the paid features is ever asked, and that is decided by
  * `hasAccess` and nothing narrower. It has to be the same test that grants the

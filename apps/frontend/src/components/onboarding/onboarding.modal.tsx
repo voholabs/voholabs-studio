@@ -39,6 +39,7 @@ import {
 } from '@gitroom/frontend/components/onboarding/onboarding.teach';
 import {
   OnboardingStatus,
+  briefStarted,
   useOnboardingStatus,
 } from '@gitroom/frontend/components/onboarding/use.onboarding.status';
 import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
@@ -78,8 +79,8 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
   // A paid plan keeps the onboarding it always had: channels only.
   const paidPlan = useWalletAccess() === 'plan';
   // A new workspace goes through the steps before it gets in. Each one can be
-  // skipped; connecting its agent and having the agent fill the brief earn
-  // the welcome credits when done.
+  // skipped; connecting its agent and having the agent fill at least one item
+  // of the brief earn the welcome credits.
   const needsOnboarding = !!user?.needsOnboarding;
   // Onboarded before the welcome credits: shown again once, until they are
   // claimed or turned down.
@@ -105,11 +106,10 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
     withBrief &&
     !!status &&
     (status.credits.available > 0 || status.credits.claimed);
-  // Set when the person chose to go back for the credits: steps 2 and 3 then
-  // say what earns them.
-  const [forCredits, setForCredits] = useState(false);
+  // Steps 2 and 3 say what earns the credits while they can be claimed.
+  const creditsToClaim =
+    withCredits && !!status && status.credits.available > 0;
   const backForCredits = useCallback(() => {
-    setForCredits(true);
     setStep('agent');
   }, []);
   const query = useSearchParams();
@@ -163,7 +163,7 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
         ? 'channels'
         : !status.agent
         ? 'agent'
-        : !status.brief.done
+        : !briefStarted(status)
         ? 'brief'
         : 'start'
     );
@@ -279,9 +279,7 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
                 onBack={() => setStep('channels')}
                 onDone={() => setStep(withBrief ? 'brief' : 'start')}
                 required={withBrief}
-                creditsNote={
-                  forCredits && withCredits ? status?.credits : undefined
-                }
+                creditsNote={creditsToClaim ? status?.credits : undefined}
               />
             ) : step === 'brief' ? (
               <OnboardingBriefStep
@@ -289,7 +287,7 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
                 onDone={() => setStep('start')}
                 status={status}
                 withCredits={withCredits}
-                creditsNote={forCredits && withCredits}
+                creditsNote={creditsToClaim}
               />
             ) : withBrief && !status ? null : withCredits && status ? (
               <OnboardingClaimStep
@@ -314,7 +312,7 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
 // "1 Connect channels", "2 Connect your agent", "3 Teach your agent", "4 Claim free credit" (or
 // "Get started" when there are no credits to claim). Steps already passed
 // stay clickable to go back: ticked when the server says they are done
-// (a channel connected, the agent connected, the brief filled), marked
+// (a channel connected, the agent connected, one item of the brief filled), marked
 // skipped when they are not.
 export const OnboardingStepper: FC<{
   step: OnboardingStepKey;
@@ -340,7 +338,7 @@ export const OnboardingStepper: FC<{
           {
             key: 'brief' as const,
             label: t('onboarding_step_teach', 'Teach your agent'),
-            done: !!status?.brief?.done,
+            done: briefStarted(status),
           },
         ]
       : []),
@@ -648,8 +646,8 @@ export const OnboardingStep1: FC<{
   );
 };
 
-// What earns the welcome credits, shown on steps 2 and 3 to someone who went
-// back for them.
+// What earns the welcome credits, shown on steps 2 and 3 while they can be
+// claimed.
 const CreditsNote: FC<{ available: number }> = ({ available }) => {
   const t = useT();
   return (
@@ -662,7 +660,7 @@ const CreditsNote: FC<{ available: number }> = ({ available }) => {
     >
       {t(
         'onboarding_credits_note',
-        'To get your {{credits}} free credits, connect your agent and let it fill in everything under What your agent knows.',
+        'To get your {{credits}} free credits, connect your agent and let it fill in at least one item under What your agent knows.',
         { credits: available / 100 }
       )}
     </div>
@@ -741,9 +739,9 @@ const OnboardingAgentStep: FC<{
 };
 
 // Third step: the connected agent fills in the brief. The person pastes one
-// prompt into it; Next waits until the agent has saved every document, and
-// Skip moves on without it (the welcome credits wait on it). Back returns to
-// the connect steps.
+// prompt into it; every document is listed and ticks off as it is saved. Next
+// waits until the agent has saved at least one, and Skip moves on without it
+// (the welcome credits wait on it). Back returns to the connect steps.
 const OnboardingBriefStep: FC<{
   onBack: () => void;
   onDone: () => void;
@@ -754,7 +752,7 @@ const OnboardingBriefStep: FC<{
   const t = useT();
   useTrackView('onboarding_step', { step: 'brief' });
   const { data: connection } = useAgentConnection(true);
-  const ready = !!status?.agent && !!status?.brief?.done;
+  const ready = !!status?.agent && briefStarted(status);
   return (
     <div className="flex flex-col gap-[24px] w-full max-w-[760px] mx-auto">
       {creditsNote && !!status && (
@@ -925,8 +923,8 @@ const OnboardingEarlyBird: FC = () => {
   );
 };
 
-// Last step when there are welcome credits: the agent connected and every
-// item of the brief filled earns them (the server checks again). Not there
+// Last step when there are welcome credits: the agent connected and at least
+// one item of the brief filled earns them (the server checks again). Not there
 // yet, it lists what is missing and leads back to step 2. Skipping asks
 // first, since the credits are lost. Once claimed, the prompts to start with.
 const OnboardingClaimStep: FC<{
@@ -948,9 +946,14 @@ const OnboardingClaimStep: FC<{
     ...(status.agent
       ? []
       : [t('onboarding_step_agent', 'Connect your agent')]),
-    ...status.brief.documents
-      .filter((document) => !document.filled)
-      .map((document) => document.label),
+    ...(briefStarted(status)
+      ? []
+      : [
+          t(
+            'onboarding_credits_one_item',
+            'Let your agent fill in at least one item under What your agent knows'
+          ),
+        ]),
   ];
 
   const claim = useCallback(async () => {
@@ -964,7 +967,7 @@ const OnboardingClaimStep: FC<{
       toaster.show(
         t(
           'onboarding_credits_not_claimed',
-          'The credits could not be added. Check that your agent knows everything, then try again.'
+          'The credits could not be added. Check that your agent has filled in at least one item, then try again.'
         ),
         'warning'
       );
@@ -979,7 +982,7 @@ const OnboardingClaimStep: FC<{
       await deleteDialog(
         t(
           'onboarding_credits_skip_message',
-          'To get them, connect your agent and let it fill in everything under What your agent knows. It takes about 5 minutes.'
+          'To get them, connect your agent and let it fill in at least one item under What your agent knows. It takes a few minutes.'
         ),
         t('onboarding_credits_skip_confirm', 'Skip, no credits'),
         t('onboarding_credits_skip_title', "You'll miss {{credits}} free credits", {
@@ -1065,7 +1068,7 @@ const OnboardingClaimStep: FC<{
               )
             : t(
                 'onboarding_credits_how',
-                'To get them, connect your agent and let it fill in everything under What your agent knows.'
+                'To get them, connect your agent and let it fill in at least one item under What your agent knows.'
               )}
         </div>
       </div>

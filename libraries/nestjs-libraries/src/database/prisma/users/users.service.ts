@@ -218,7 +218,7 @@ export class UsersService {
   // The onboarding steps, worked out from the workspace itself: a connected
   // channel, an agent that reached the MCP and the brief's onboarding
   // documents (all three skippable), and the welcome credits that doing the
-  // agent and the brief earns. Only an admin holds the API key an agent
+  // agent and filling at least one document of the brief earns. Only an admin holds the API key an agent
   // connects with, so for anyone else the agent and the brief are not theirs
   // to do. The credits are for the free plan only; a paid plan never pays
   // from them.
@@ -239,7 +239,11 @@ export class UsersService {
       brief,
       credits: {
         ...credits,
-        eligible: freePlan && isAdmin && agent.connected && brief.done,
+        eligible:
+          freePlan &&
+          isAdmin &&
+          agent.connected &&
+          brief.documents.some((document) => document.filled),
       },
     };
   }
@@ -251,9 +255,9 @@ export class UsersService {
     return this._usersRepository.completeOnboarding(userId, body);
   }
 
-  // The welcome credits, for a workspace whose agent is connected and knows
-  // every item of the brief, and that has not turned them down. Checked
-  // here, not in the browser.
+  // The welcome credits, for a workspace whose agent is connected and has
+  // filled at least one document of the brief, and that has not turned them
+  // down. Checked here, not in the browser.
   async claimWelcomeCredits(
     organizationId: string,
     isAdmin: boolean,

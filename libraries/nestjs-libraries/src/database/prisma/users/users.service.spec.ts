@@ -1,18 +1,21 @@
 import { UsersService } from '@gitroom/nestjs-libraries/database/prisma/users/users.service';
 
 // The onboarding steps against stub services: every step can be skipped,
-// and only connecting the agent and having it fill the brief earns the
-// welcome credits.
+// and only connecting the agent and having it fill at least one document of
+// the brief earns the welcome credits.
 
 const service = ({
   channels = 1,
   agent = true,
   briefDone = true,
+  filled,
   skipped = false,
 }: {
   channels?: number;
   agent?: boolean;
   briefDone?: boolean;
+  // Which documents are filled, when not all or none.
+  filled?: boolean[];
   skipped?: boolean;
 } = {}) => {
   const users = {
@@ -40,8 +43,12 @@ const service = ({
     { status: jest.fn(async () => ({ connected: agent })) } as any,
     {
       onboardingStatus: jest.fn(async () => ({
-        done: briefDone,
-        documents: [{ key: 'business', label: 'Business', filled: briefDone }],
+        done: filled ? filled.every(Boolean) : briefDone,
+        documents: (filled || [briefDone]).map((isFilled, i) => ({
+          key: `doc${i}`,
+          label: `Document ${i}`,
+          filled: isFilled,
+        })),
       })),
     } as any,
     wallet as any,
@@ -51,7 +58,7 @@ const service = ({
 };
 
 describe('UsersService onboarding and welcome credits', () => {
-  it('is eligible only when the agent is connected and the brief is done', async () => {
+  it('is eligible only when the agent is connected and the brief has content', async () => {
     for (const [agent, briefDone, eligible] of [
       [true, true, true],
       [false, true, false],
@@ -83,6 +90,27 @@ describe('UsersService onboarding and welcome credits', () => {
     ).toBe(false);
     await expect(
       built.claimWelcomeCredits('org1', true, false)
+    ).rejects.toThrow();
+    expect(wallet.claimWelcomeCredits).not.toHaveBeenCalled();
+  });
+
+  it('one filled document of several is enough for the credits', async () => {
+    const { built, wallet } = service({ filled: [false, true, false] });
+    const status = await built.onboardingStatus('org1', true, true);
+    expect(status.brief.done).toBe(false);
+    expect(status.credits.eligible).toBe(true);
+    await expect(built.claimWelcomeCredits('org1', true, true)).resolves.toEqual(
+      { credits: 100 }
+    );
+    expect(wallet.claimWelcomeCredits).toHaveBeenCalledWith('org1');
+  });
+
+  it('no filled document is not enough, with the agent connected', async () => {
+    const { built, wallet } = service({ filled: [false, false, false] });
+    const status = await built.onboardingStatus('org1', true, true);
+    expect(status.credits.eligible).toBe(false);
+    await expect(
+      built.claimWelcomeCredits('org1', true, true)
     ).rejects.toThrow();
     expect(wallet.claimWelcomeCredits).not.toHaveBeenCalled();
   });
@@ -131,7 +159,7 @@ describe('UsersService onboarding and welcome credits', () => {
     expect(wallet.claimWelcomeCredits).not.toHaveBeenCalled();
   });
 
-  it('refuses the claim when the brief is not done, checked on the server', async () => {
+  it('refuses the claim when nothing in the brief is filled, checked on the server', async () => {
     const { built, wallet } = service({ briefDone: false });
     await expect(
       built.claimWelcomeCredits('org1', true, true)

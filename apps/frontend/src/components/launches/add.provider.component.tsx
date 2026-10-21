@@ -881,7 +881,7 @@ export const AddProviderComponent: FC<{
   const perUse = usePerUseProviders();
   const topUpLocked = useTopUpProviders();
   // Onboarding and Add Channel tag every channel that stays free, whatever
-  // the plan; never one that sits next to a lock, a price or maintenance.
+  // the plan; never one that sits next to a lock or a price.
   const isFreeChannel = useFreeChannel();
   const walletMode = (identifier: string) =>
     !walletWorkspace
@@ -937,22 +937,11 @@ export const AddProviderComponent: FC<{
       'X now charges for every post sent through its API, and with high demand we can no longer offer it for free. A premium plan that includes X is coming soon. All other channels remain free.'
     ),
   };
-  // Under maintenance for wallet workspaces (free and pay as you go): shown
-  // greyed out at the end of the grid. Paid plans connect it as before.
-  const walletMaintenance = ['linkedin-page'];
-  const inMaintenance = (identifier: string) =>
-    walletWorkspace && walletMaintenance.includes(identifier);
-  const enabledSocial = filteredSocial
-    .filter(
-      (item) =>
-        ENABLED_PROVIDERS.includes(item.identifier) &&
-        !isUnavailable(item.identifier)
-    )
-    .sort(
-      (a, b) =>
-        Number(inMaintenance(a.identifier)) -
-        Number(inMaintenance(b.identifier))
-    );
+  const enabledSocial = filteredSocial.filter(
+    (item) =>
+      ENABLED_PROVIDERS.includes(item.identifier) &&
+      !isUnavailable(item.identifier)
+  );
   const unavailableSocial = filteredSocial.filter(
     (item) =>
       ENABLED_PROVIDERS.includes(item.identifier) &&
@@ -975,31 +964,20 @@ export const AddProviderComponent: FC<{
         >
           {enabledSocial.map((item) => {
             const mode = walletMode(item.identifier);
-            const maintenance = inMaintenance(item.identifier);
-            const free =
-              !!isFreeChannel?.(item.identifier) && !mode && !maintenance;
-            const tip = maintenance
-              ? t(
-                  'channel_under_maintenance',
-                  'Under maintenance, will be available again shortly'
-                )
-              : walletTip(item.identifier, item.toolTip);
+            const free = !!isFreeChannel?.(item.identifier) && !mode;
+            const tip = walletTip(item.identifier, item.toolTip);
             return (
               <div
                 key={item.identifier}
-                onClick={
-                  maintenance
-                    ? undefined
-                    : getSocialLink(
-                        props.invite,
-                        item.identifier,
-                        item.isExternal,
-                        item.isWeb3,
-                        item.isChromeExtension,
-                        item.customFields,
-                        item.customFieldsSetup
-                      )
-                }
+                onClick={getSocialLink(
+                  props.invite,
+                  item.identifier,
+                  item.isExternal,
+                  item.isWeb3,
+                  item.isChromeExtension,
+                  item.customFields,
+                  item.customFieldsSetup
+                )}
                 {...(!!tip
                   ? mode
                     ? {
@@ -1024,8 +1002,7 @@ export const AddProviderComponent: FC<{
                       'flex-col min-h-[100px] h-full pt-[28px] pb-[12px] px-[10px] justify-start mobile:text-[13px] mobile:leading-[1.2]',
                   'w-full text-[14px] rounded-[8px] bg-newTableHeader text-textColor relative items-center flex gap-[10px] cursor-pointer',
                   // Pay-per-use marker: a thin warm ring.
-                  !!mode && 'ring-1 ring-inset ring-warmRing',
-                  maintenance && 'opacity-40 grayscale !cursor-default'
+                  !!mode && 'ring-1 ring-inset ring-warmRing'
                 )}
               >
                 {free && (
@@ -1086,7 +1063,7 @@ export const AddProviderComponent: FC<{
                   )}
                 >
                   {item.name}
-                  {!!item.toolTip && !isMobile && !mode && !maintenance && (
+                  {!!item.toolTip && !isMobile && !mode && (
                     <svg
                       width="15"
                       height="15"

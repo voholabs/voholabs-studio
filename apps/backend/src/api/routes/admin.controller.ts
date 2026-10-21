@@ -240,6 +240,17 @@ export class AdminController {
     return this._integrationService.renewPictures(!!body?.apply);
   }
 
+  // One off: encrypts the channel tokens stored before tokens were encrypted.
+  // Reports what it would change unless `apply` is set.
+  @Post('/channel-tokens/encrypt')
+  async channelTokensEncrypt(
+    @GetUserFromRequest() user: User,
+    @Body() body: { apply?: boolean }
+  ) {
+    this.assertSuperAdmin(user);
+    return this._integrationService.encryptStoredTokens(!!body?.apply);
+  }
+
   private async assertOrganization(organizationId: string) {
     if (!(await this._organizationService.getOrgById(organizationId))) {
       throw new HttpException('Organization not found', 404);

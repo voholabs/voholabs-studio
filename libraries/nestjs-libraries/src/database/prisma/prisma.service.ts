@@ -91,7 +91,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       encryptSecret('key check');
     } catch (err) {
       console.error(
-        'CHANNEL_TOKEN_KEY is missing or invalid: connecting and refreshing channels will fail'
+        'ENCRYPTION_KEY is missing or invalid: connecting and refreshing channels will fail'
       );
     }
     await this.$connect();

@@ -33,18 +33,41 @@ export function encrypt_legacy_using_IV(utf8Plaintext: string) {
   const out = Buffer.concat([cipher.update(utf8Plaintext, 'utf8'), cipher.final()]);
   return out.toString('hex');
 }
-// Channel credentials (OAuth access and refresh tokens) are stored encrypted
-// with AES-256-GCM under CHANNEL_TOKEN_KEY, a base64 32-byte key that is not
-// JWT_SECRET. Stored as "enc:v1:<iv>:<tag>:<ciphertext>" (base64 parts), so a
-// value without the prefix is a row written before encryption and is read as is.
+// Stored credentials (channel tokens, keys of other services we read back) are
+// encrypted with AES-256-GCM under ENCRYPTION_KEY, a base64 32-byte key that is
+// not JWT_SECRET. Stored as "enc:v1:<iv>:<tag>:<ciphertext>" (base64 parts), so
+// a value without the prefix is a row written before encryption.
 export const ENCRYPTED_SECRET_PREFIX = 'enc:v1:';
+// Credentials we only ever compare (OAuth client secrets, codes and access
+// tokens) are kept as a keyed hash instead, which can not be turned back.
+export const LOOKUP_HASH_PREFIX = 'h1:';
 
-function channelTokenKey() {
-  const key = Buffer.from(process.env.CHANNEL_TOKEN_KEY || '', 'base64');
+function encryptionKey() {
+  const key = Buffer.from(process.env.ENCRYPTION_KEY || '', 'base64');
   if (key.length !== 32) {
-    throw new Error('CHANNEL_TOKEN_KEY must be a base64 32-byte key');
+    throw new Error('ENCRYPTION_KEY must be a base64 32-byte key');
   }
   return key;
+}
+
+export function lookupHash(value: string) {
+  const key = Buffer.from(
+    crypto.hkdfSync('sha256', encryptionKey(), '', 'lookup', 32)
+  );
+  return (
+    LOOKUP_HASH_PREFIX +
+    crypto.createHmac('sha256', key).update(value).digest('base64url')
+  );
+}
+
+// What a credential may be stored as: its keyed hash, or, for rows written
+// before the hash, the old JWT_SECRET encryption.
+export function lookupCandidates(value: string) {
+  const candidates = [lookupHash(value)];
+  try {
+    candidates.push(encrypt_legacy_using_IV(value));
+  } catch (err) {}
+  return candidates;
 }
 
 export function isEncryptedSecret(value: unknown): value is string {
@@ -56,7 +79,7 @@ export function encryptSecret(value: string) {
     return value;
   }
   const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv('aes-256-gcm', channelTokenKey(), iv);
+  const cipher = crypto.createCipheriv('aes-256-gcm', encryptionKey(), iv);
   const out = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
   return `${ENCRYPTED_SECRET_PREFIX}${iv.toString('base64')}:${cipher
     .getAuthTag()
@@ -70,7 +93,7 @@ export function decryptSecret(value: string) {
   const [iv, tag, data] = value.slice(ENCRYPTED_SECRET_PREFIX.length).split(':');
   const decipher = crypto.createDecipheriv(
     'aes-256-gcm',
-    channelTokenKey(),
+    encryptionKey(),
     Buffer.from(iv, 'base64')
   );
   decipher.setAuthTag(Buffer.from(tag, 'base64'));
@@ -78,6 +101,20 @@ export function decryptSecret(value: string) {
     decipher.update(Buffer.from(data, 'base64')),
     decipher.final(),
   ]).toString('utf8');
+}
+
+// The plain value of a credential stored with the older JWT_SECRET encryption,
+// or null when the value is not one (already moved, or never encrypted).
+export function decryptLegacySecret(value: string) {
+  if (!/^[0-9a-f]+$/.test(value) || value.length % 32 !== 0) {
+    return null;
+  }
+  try {
+    const plain = decrypt_legacy_using_IV(value);
+    return plain && !plain.includes('�') ? plain : null;
+  } catch (err) {
+    return null;
+  }
 }
 
 export class AuthService {
@@ -104,7 +141,10 @@ export class AuthService {
     return encrypt_legacy_using_IV(value);
   }
 
+  // Reads both what encryptSecret wrote and the older JWT_SECRET encryption.
   static fixedDecryption(hash: string) {
-    return decrypt_legacy_using_IV(hash);
+    return isEncryptedSecret(hash)
+      ? decryptSecret(hash)
+      : decrypt_legacy_using_IV(hash);
   }
 }

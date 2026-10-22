@@ -34,6 +34,7 @@ import {
 } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.billing.service';
 import { AgentConnectionService } from '@gitroom/nestjs-libraries/database/prisma/agent-connections/agent-connection.service';
 import { IntegrationService } from '@gitroom/nestjs-libraries/database/prisma/integrations/integration.service';
+import { StoredSecretsService } from '@gitroom/nestjs-libraries/database/prisma/stored-secrets/stored-secrets.service';
 import {
   PlusUnavailableError,
   WalletPlusService,
@@ -69,7 +70,8 @@ export class AdminController {
     private _walletBilling: WalletBillingService,
     private _agentConnectionService: AgentConnectionService,
     private _integrationService: IntegrationService,
-    private _walletPlus: WalletPlusService
+    private _walletPlus: WalletPlusService,
+    private _storedSecretsService: StoredSecretsService
   ) {}
 
   private assertSuperAdmin(user: User) {
@@ -249,6 +251,19 @@ export class AdminController {
   ) {
     this.assertSuperAdmin(user);
     return this._integrationService.encryptStoredTokens(!!body?.apply);
+  }
+
+  // One off: moves the credentials kept with the older JWT_SECRET encryption
+  // (service keys, OAuth client secrets and access tokens) to ENCRYPTION_KEY,
+  // so JWT_SECRET can be rotated. Reports what it would change unless `apply`
+  // is set.
+  @Post('/stored-secrets/encrypt')
+  async storedSecretsEncrypt(
+    @GetUserFromRequest() user: User,
+    @Body() body: { apply?: boolean }
+  ) {
+    this.assertSuperAdmin(user);
+    return this._storedSecretsService.moveToEncryptionKey(!!body?.apply);
   }
 
   private async assertOrganization(organizationId: string) {

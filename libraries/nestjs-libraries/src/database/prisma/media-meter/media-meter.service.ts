@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { AuthService } from '@gitroom/helpers/auth/auth.service';
+import {
+  AuthService,
+  encryptSecret,
+} from '@gitroom/helpers/auth/auth.service';
 import { MediaMeterRepository } from '@gitroom/nestjs-libraries/database/prisma/media-meter/media-meter.repository';
 
 export interface MediaMeterUsage {
@@ -122,7 +125,7 @@ export class MediaMeterService {
     const claimed = await this._mediaMeterRepository.claimMeterKey(
       orgId,
       minted.id,
-      AuthService.fixedEncryption(minted.key)
+      encryptSecret(minted.key)
     );
 
     if (claimed.count > 0) {

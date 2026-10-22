@@ -3,7 +3,12 @@ import { OAuthRepository } from '@gitroom/nestjs-libraries/database/prisma/oauth
 import { CreateOAuthAppDto } from '@gitroom/nestjs-libraries/dtos/oauth/create-oauth-app.dto';
 import { UpdateOAuthAppDto } from '@gitroom/nestjs-libraries/dtos/oauth/update-oauth-app.dto';
 import { makeSecureId } from '@gitroom/nestjs-libraries/services/make.secure.id';
-import { AuthService } from '@gitroom/helpers/auth/auth.service';
+import {
+  AuthService,
+  encryptSecret,
+  lookupCandidates,
+  lookupHash,
+} from '@gitroom/helpers/auth/auth.service';
 import { RegisterClientDto } from '@gitroom/nestjs-libraries/dtos/oauth/register-client.dto';
 import {
   isAllowedRedirectUri,
@@ -65,7 +70,7 @@ export class OAuthService {
 
     const clientId = 'pca_' + makeSecureId(32);
     const clientSecret = 'pcs_' + makeSecureId(48);
-    const encryptedSecret = AuthService.fixedEncryption(clientSecret);
+    const encryptedSecret = lookupHash(clientSecret);
 
     const app = await this._oauthRepository.createApp(orgId, {
       name: dto.name,
@@ -105,7 +110,7 @@ export class OAuthService {
     }
 
     const newSecret = 'pcs_' + makeSecureId(48);
-    const encrypted = AuthService.fixedEncryption(newSecret);
+    const encrypted = lookupHash(newSecret);
     await this._oauthRepository.updateClientSecret(orgId, encrypted);
     return { clientSecret: newSecret };
   }
@@ -155,7 +160,7 @@ export class OAuthService {
       clientId,
       // Never used: a public client authenticates with PKCE. The column is
       // required, so it holds a random value no one knows.
-      clientSecret: AuthService.fixedEncryption('pcs_' + makeSecureId(48)),
+      clientSecret: lookupHash('pcs_' + makeSecureId(48)),
     });
 
     return {
@@ -333,7 +338,7 @@ export class OAuthService {
     } = {}
   ) {
     const code = makeSecureId(32);
-    const encryptedCode = AuthService.fixedEncryption(code);
+    const encryptedCode = lookupHash(code);
     const codeExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
     await this._oauthRepository.createAuthorization({
@@ -372,9 +377,9 @@ export class OAuthService {
     await this._oauthRepository.createSelfHostedAuthorization({
       oauthAppId,
       mcpUrl: instance.mcpUrl,
-      apiKey: AuthService.fixedEncryption(instance.apiKey),
+      apiKey: encryptSecret(instance.apiKey),
       email: instance.email,
-      authorizationCode: AuthService.fixedEncryption(code),
+      authorizationCode: lookupHash(code),
       codeExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
       codeChallenge: pkce.codeChallenge,
       codeChallengeMethod: pkce.codeChallengeMethod,
@@ -402,7 +407,9 @@ export class OAuthService {
       !app.isPublic &&
       (!clientSecret ||
         !app.clientSecret ||
-        !safeEqual(app.clientSecret, AuthService.fixedEncryption(clientSecret)))
+        !lookupCandidates(clientSecret).some((candidate) =>
+          safeEqual(app.clientSecret!, candidate)
+        ))
     ) {
       throw new HttpException(
         { error: 'invalid_client' },
@@ -414,8 +421,7 @@ export class OAuthService {
       return this.exchangeSelfHostedCodeForToken(app, code, proof);
     }
 
-    const encryptedCode = AuthService.fixedEncryption(code);
-    const auth = await this._oauthRepository.findByCode(encryptedCode);
+    const auth = await this._oauthRepository.findByCode(lookupCandidates(code));
     if (!auth || auth.oauthAppId !== app.id) {
       throw new HttpException(
         { error: 'invalid_grant' },
@@ -426,7 +432,7 @@ export class OAuthService {
     this.verifyCodeGrant(app, auth, proof);
 
     const token = 'pos_' + makeSecureId(40);
-    const encryptedToken = AuthService.fixedEncryption(token);
+    const encryptedToken = lookupHash(token);
     const {
       organizationId,
       organization: { paymentId },
@@ -511,7 +517,7 @@ export class OAuthService {
   ) {
     const auth = selfHostedRelayEnabled()
       ? await this._oauthRepository.findSelfHostedByCode(
-          AuthService.fixedEncryption(code)
+          lookupCandidates(code)
         )
       : null;
     if (!auth || auth.oauthAppId !== app.id) {
@@ -526,7 +532,7 @@ export class OAuthService {
     const token = 'psh_' + makeSecureId(40);
     await this._oauthRepository.exchangeSelfHostedCodeForToken(
       auth.id,
-      AuthService.fixedEncryption(token)
+      lookupHash(token)
     );
 
     return {
@@ -544,7 +550,7 @@ export class OAuthService {
 
     const authorization =
       await this._oauthRepository.findSelfHostedByAccessToken(
-        AuthService.fixedEncryption(token)
+        lookupCandidates(token)
       );
     if (!authorization) {
       return null;
@@ -562,8 +568,7 @@ export class OAuthService {
   }
 
   async getOrgByOAuthToken(token: string) {
-    const encrypted = AuthService.fixedEncryption(token);
-    return this._oauthRepository.findByAccessToken(encrypted);
+    return this._oauthRepository.findByAccessToken(lookupCandidates(token));
   }
 
   async getUserInfo(authorization?: string) {
@@ -624,7 +629,7 @@ export class OAuthService {
   private async getSelfHostedUserInfo(token: string) {
     const selfHosted = selfHostedRelayEnabled()
       ? await this._oauthRepository.findSelfHostedUserInfo(
-          AuthService.fixedEncryption(token)
+          lookupCandidates(token)
         )
       : null;
     if (!selfHosted) {

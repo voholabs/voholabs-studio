@@ -1,6 +1,6 @@
 import { PrismaRepository } from '@gitroom/nestjs-libraries/database/prisma/prisma.service';
 import { Injectable } from '@nestjs/common';
-import { AuthService } from '@gitroom/helpers/auth/auth.service';
+import { encryptSecret } from '@gitroom/helpers/auth/auth.service';
 
 @Injectable()
 export class ThirdPartyRepository {
@@ -21,6 +21,7 @@ export class ThirdPartyRepository {
     return this._thirdParty.model.thirdParty.update({
       where: { id, organizationId: org },
       data: { deletedAt: new Date() },
+      select: { id: true },
     });
   }
 
@@ -48,7 +49,7 @@ export class ThirdPartyRepository {
         name: data.name,
         internalId: data.id,
         identifier,
-        apiKey: AuthService.fixedEncryption(apiKey),
+        apiKey: encryptSecret(apiKey),
         deletedAt: null,
       },
       update: {
@@ -56,7 +57,7 @@ export class ThirdPartyRepository {
         name: data.name,
         internalId: data.id,
         identifier,
-        apiKey: AuthService.fixedEncryption(apiKey),
+        apiKey: encryptSecret(apiKey),
         deletedAt: null,
       },
     });

@@ -27,6 +27,35 @@ import {
   walletWarning,
 } from '@gitroom/nestjs-libraries/chat/tools/wallet.shared';
 
+// Attachments are either a plain URL string or { path, alt?, thumbnail?,
+// thumbnailTimestamp? }, the same per-media fields as the public API.
+const attachment = z.union([
+  attachmentUrl,
+  z.object({
+    path: attachmentUrl,
+    alt: z.string().optional(),
+    thumbnail: attachmentUrl.optional(),
+    thumbnailTimestamp: z.number().int().min(0).optional(),
+  }),
+]);
+
+type AttachmentMedia = {
+  path: string;
+  alt?: string;
+  thumbnail?: string;
+  thumbnailTimestamp?: number;
+};
+
+const toMedia = (a: string | AttachmentMedia): AttachmentMedia =>
+  typeof a === 'string'
+    ? { path: a }
+    : {
+        path: a.path,
+        alt: a.alt,
+        thumbnail: a.thumbnail,
+        thumbnailTimestamp: a.thumbnailTimestamp,
+      };
+
 @Injectable()
 export class IntegrationSchedulePostTool implements AgentToolInterface {
   constructor(
@@ -117,12 +146,12 @@ If validation fails, the result contains output.errors describing what to fix; t
                     content: z
                       .string()
                       .describe(
-                        "The content of the post, HTML, each line wrapped in <p>. The possible tags: h1, h2, h3, u, strong, li, ul, p (u and strong cannot be combined), and img (<img src=\"...\">) only when the integration rules say pictures go inside the content. A long-form article (see the integration schema, e.g. X post_type article) also keeps ol, em, blockquote, pre/code, hr and figure/figcaption. \"(post:<postId>)\" embeds another post's live URL - see the tool description."
+                        "The content of the post, HTML, each line wrapped in <p>. The possible tags: h1, h2, h3, u, strong, li, ul, p (u and strong cannot be combined), img (<img src=\"...\">) only when the integration rules say pictures go inside the content, and span only for a mention in the exact format given by a mention tool from the integrationSchema tools. A long-form article (see the integration schema, e.g. X post_type article) also keeps ol, em, blockquote, pre/code, hr and figure/figcaption. \"(post:<postId>)\" embeds another post's live URL - see the tool description."
                       ),
                     attachments: z
-                      .array(attachmentUrl)
+                      .array(attachment)
                       .describe(
-                        'The images/videos of the post (URLs or media-library paths). An external URL is automatically copied into the media library before saving, so the post stores a durable path instead of a link that can expire.'
+                        'The media of the post: either a URL / media-library path string, or { path, alt?, thumbnail?, thumbnailTimestamp? } where path is the media URL, alt is its alt text, thumbnail is the path of a jpeg/png used as the video thumbnail / cover, and thumbnailTimestamp is the video frame used as the cover, in milliseconds. An external URL (path or thumbnail) is automatically copied into the media library before saving, so the post stores a durable path instead of a link that can expire.'
                       ),
                     linkToPostIds: z
                       .array(z.string())
@@ -233,9 +262,7 @@ If validation fails, the result contains output.errors describing what to fix; t
                 settings,
                 value: platform.postsAndComments.map((p: any) => ({
                   content: withPostLinks(p),
-                  image: (p.attachments || []).map((path: string) => ({
-                    path,
-                  })),
+                  image: (p.attachments || []).map(toMedia),
                 })),
               },
             ]
@@ -281,18 +308,28 @@ If validation fails, the result contains output.errors describing what to fix; t
         // before any createPost (a failed copy leaves every post unwritten).
         // Deduped across the whole call, so a URL shared by several posts is
         // fetched once.
-        let rehost: (path: string) => string;
+        let rehostMedia: (media: AttachmentMedia) => AttachmentMedia;
         try {
           const hosted = await hostExternalAttachments({
             mediaService: this._mediaService,
             organizationId,
-            paths: inputData.socialPost.flatMap((platform) =>
-              platform.postsAndComments.flatMap(
-                (item) => item.attachments || []
+            paths: inputData.socialPost.flatMap((platform: any) =>
+              platform.postsAndComments.flatMap((item: any) =>
+                (item.attachments || []).flatMap((a: string | AttachmentMedia) => {
+                  const media = toMedia(a);
+                  return media.thumbnail
+                    ? [media.path, media.thumbnail]
+                    : [media.path];
+                })
               )
             ),
           });
-          rehost = (path: string) => hosted.get(path) ?? path;
+          const rehost = (path: string) => hosted.get(path) ?? path;
+          rehostMedia = (media) => ({
+            ...media,
+            path: rehost(media.path),
+            ...(media.thumbnail ? { thumbnail: rehost(media.thumbnail) } : {}),
+          });
         } catch (err) {
           return {
             output: {
@@ -370,9 +407,9 @@ If validation fails, the result contains output.errors describing what to fix; t
                   content: withPostLinks(p),
                   id: makeId(10),
                   delay: 0,
-                  image: p.attachments.map((path: any) => ({
+                  image: p.attachments.map((a: any) => ({
                     id: makeId(10),
-                    path: rehost(path),
+                    ...rehostMedia(toMedia(a)),
                   })),
                 })),
               },

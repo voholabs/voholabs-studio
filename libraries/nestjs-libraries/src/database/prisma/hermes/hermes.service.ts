@@ -3,7 +3,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { AuthService } from '@gitroom/helpers/auth/auth.service';
+import {
+  AuthService,
+  encryptSecret,
+} from '@gitroom/helpers/auth/auth.service';
 import { ssrfSafeDispatcher } from '@gitroom/nestjs-libraries/dtos/webhooks/ssrf.safe.dispatcher';
 import { HermesRepository } from '@gitroom/nestjs-libraries/database/prisma/hermes/hermes.repository';
 import { HermesMessageDto } from '@gitroom/nestjs-libraries/dtos/hermes/hermes.dto';
@@ -37,7 +40,7 @@ export class HermesService {
       ...(body.url !== undefined ? { hermesUrl: body.url || null } : {}),
       // An omitted key leaves the stored one alone; an empty string clears it.
       ...(body.apiKey
-        ? { hermesApiKey: AuthService.fixedEncryption(body.apiKey) }
+        ? { hermesApiKey: encryptSecret(body.apiKey) }
         : {}),
       ...(body.apiKey === '' ? { hermesApiKey: null } : {}),
     });

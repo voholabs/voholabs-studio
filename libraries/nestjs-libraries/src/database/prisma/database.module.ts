@@ -73,6 +73,8 @@ import { ErrorsRepository } from '@gitroom/nestjs-libraries/database/prisma/erro
 import { ErrorsService } from '@gitroom/nestjs-libraries/database/prisma/errors/errors.service';
 import { AdminStatsRepository } from '@gitroom/nestjs-libraries/database/prisma/admin-stats/admin-stats.repository';
 import { AdminStatsService } from '@gitroom/nestjs-libraries/database/prisma/admin-stats/admin-stats.service';
+import { StoredSecretsRepository } from '@gitroom/nestjs-libraries/database/prisma/stored-secrets/stored-secrets.repository';
+import { StoredSecretsService } from '@gitroom/nestjs-libraries/database/prisma/stored-secrets/stored-secrets.service';
 import { AgentConnectionRepository } from '@gitroom/nestjs-libraries/database/prisma/agent-connections/agent-connection.repository';
 import { AgentConnectionService } from '@gitroom/nestjs-libraries/database/prisma/agent-connections/agent-connection.service';
 import { MediaMeterRepository } from '@gitroom/nestjs-libraries/database/prisma/media-meter/media-meter.repository';
@@ -159,6 +161,8 @@ import { MediaMeterService } from '@gitroom/nestjs-libraries/database/prisma/med
     ErrorsService,
     AdminStatsRepository,
     AdminStatsService,
+    StoredSecretsRepository,
+    StoredSecretsService,
     AgentConnectionRepository,
     AgentConnectionService,
     MediaMeterRepository,

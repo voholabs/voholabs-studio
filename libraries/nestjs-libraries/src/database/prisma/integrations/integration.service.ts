@@ -292,6 +292,47 @@ export class IntegrationService {
     };
   }
 
+  // Encrypts channel tokens stored before encryption shipped. New and
+  // refreshed tokens are encrypted on write already. Without `apply` it only
+  // reports.
+  async encryptStoredTokens(apply: boolean) {
+    const channels = await this._integrationRepository.plainTokenChannels();
+
+    const failed: string[] = [];
+    // Refreshed between the read and the write: the refresh stored the new
+    // token encrypted already.
+    const skipped: string[] = [];
+    if (apply) {
+      for (const channel of channels) {
+        try {
+          const written = await this._integrationRepository.rewriteTokens(
+            channel.id,
+            channel.token,
+            channel.refreshToken
+          );
+          if (!written) {
+            skipped.push(channel.id);
+          }
+        } catch (err) {
+          failed.push(channel.id);
+        }
+      }
+    }
+
+    return {
+      dryRun: !apply,
+      plain: channels.length,
+      plainByProvider: channels.reduce((all, channel) => {
+        all[channel.providerIdentifier] =
+          (all[channel.providerIdentifier] || 0) + 1;
+        return all;
+      }, {} as Record<string, number>),
+      encrypted: apply ? channels.length - failed.length - skipped.length : 0,
+      skipped,
+      failed,
+    };
+  }
+
   updateNameAndUrl(id: string, name: string, url: string) {
     return this._integrationRepository.updateNameAndUrl(id, name, url);
   }

@@ -75,10 +75,18 @@ export const initializeSentry = (appName: string, allowLogs = false) => {
         if (method === 'GET' && /^(https?:\/\/[^/]+)?\/mcp(\/|-oauth|\?|$)/.test(path)) {
           return 0;
         }
+        if (name?.startsWith('prisma:')) {
+          return 0;
+        }
         return inheritOrSampleWith(
           path.includes('/public/v1/analytics/') ? 0.01 : 0.2
         );
       },
+      ignoreSpans: [
+        /^prisma:(client:serialize|engine:(query|serialize|response_json_serialization|connection))$/,
+        { op: 'db', name: /^(BEGIN|COMMIT|DEALLOCATE ALL)$/ },
+        { op: 'middleware.express' },
+      ],
       enableLogs: true,
       // API keys ride in MCP/SSE URL paths and some query strings; auth
       // headers, cookies and credential-bearing bodies never leave the box.
@@ -88,7 +96,7 @@ export const initializeSentry = (appName: string, allowLogs = false) => {
       beforeSendLog: (log) => redactLog(log),
 
       // Profiling
-      profileSessionSampleRate: process.env.NODE_ENV === 'development' ? 1.0 : 0.2,
+      profileSessionSampleRate: process.env.NODE_ENV === 'development' ? 1.0 : 0.4,
       profileLifecycle: 'trace',
     });
   } catch (err) {

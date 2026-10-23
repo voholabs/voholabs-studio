@@ -1,6 +1,7 @@
 import { PrismaRepository } from '@gitroom/nestjs-libraries/database/prisma/prisma.service';
 import { Injectable } from '@nestjs/common';
 import { createHash } from 'crypto';
+import { ENCRYPTED_SECRET_PREFIX } from '@gitroom/helpers/auth/auth.service';
 import dayjs from 'dayjs';
 import { Integration, Prisma } from '@prisma/client';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
@@ -204,6 +205,20 @@ export class IntegrationRepository {
       },
     });
 
+    // The page was picked through a fresh login: the row that keeps living
+    // must also take that login's identity and refresh token, otherwise the
+    // next refresh runs as the old identity and cannot find the page.
+    const fresh = existing
+      ? await this._integration.model.integration.findUnique({
+          where: { id },
+          select: {
+            rootInternalId: true,
+            refreshToken: true,
+            tokenExpiration: true,
+          },
+        })
+      : null;
+
     if (existing) {
       await this._posts.model.post.updateMany({
         where: {
@@ -235,8 +250,16 @@ export class IntegrationRepository {
       },
       data: {
         ...params,
+        ...(fresh?.rootInternalId
+          ? { rootInternalId: fresh.rootInternalId }
+          : {}),
+        ...(fresh?.refreshToken ? { refreshToken: fresh.refreshToken } : {}),
+        ...(fresh?.tokenExpiration
+          ? { tokenExpiration: fresh.tokenExpiration }
+          : {}),
         disabled: false,
         deletedAt: null,
+        refreshNeeded: false,
       },
     });
   }
@@ -503,6 +526,43 @@ export class IntegrationRepository {
         picture: true,
       },
     });
+  }
+
+  // Channels whose token or refresh token is still plain text because it was
+  // stored before tokens were encrypted. Deleted channels are included, as
+  // older ones still hold their token.
+  plainTokenChannels() {
+    return this._integration.model.integration.findMany({
+      where: {
+        OR: [
+          {
+            token: { not: '' },
+            NOT: { token: { startsWith: ENCRYPTED_SECRET_PREFIX } },
+          },
+          {
+            refreshToken: { not: '' },
+            NOT: { refreshToken: { startsWith: ENCRYPTED_SECRET_PREFIX } },
+          },
+        ],
+      },
+      select: {
+        id: true,
+        providerIdentifier: true,
+        token: true,
+        refreshToken: true,
+      },
+    });
+  }
+
+  // Writing the tokens back is what encrypts them (see PrismaService). Only
+  // while the row still holds these exact values, so a token refreshed in the
+  // meantime is never overwritten with the old one. Returns how many rows.
+  async rewriteTokens(id: string, token: string, refreshToken: string | null) {
+    const { count } = await this._integration.model.integration.updateMany({
+      where: { id, token, refreshToken },
+      data: { token, refreshToken },
+    });
+    return count;
   }
 
   updatePicture(id: string, picture: string, pictureSource: string) {

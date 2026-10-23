@@ -17,7 +17,10 @@ import { IntegrationService } from '@gitroom/nestjs-libraries/database/prisma/in
 import { CheckPolicies } from '@gitroom/backend/services/auth/permissions/permissions.ability';
 import { ApiTags } from '@nestjs/swagger';
 import { NotEnoughScopesFilter } from '@gitroom/nestjs-libraries/integrations/integration.missing.scopes';
-import { AuthService } from '@gitroom/helpers/auth/auth.service';
+import {
+  AuthService,
+  encryptSecret,
+} from '@gitroom/helpers/auth/auth.service';
 import { AuthTokenDetails } from '@gitroom/nestjs-libraries/integrations/social/social.integrations.interface';
 import { NotEnoughScopes } from '@gitroom/nestjs-libraries/integrations/social.abstract';
 import {
@@ -339,13 +342,13 @@ export class NoAuthIntegrationsController {
         body.refresh,
         +body.timezone,
         details
-          ? AuthService.fixedEncryption(details)
+          ? encryptSecret(details)
           : integrationProvider.customFields
-          ? AuthService.fixedEncryption(
+          ? encryptSecret(
               Buffer.from(body.code, 'base64').toString()
             )
           : integrationProvider.isChromeExtension
-          ? AuthService.fixedEncryption(
+          ? encryptSecret(
               Buffer.from(body.code, 'base64').toString()
             )
           : undefined

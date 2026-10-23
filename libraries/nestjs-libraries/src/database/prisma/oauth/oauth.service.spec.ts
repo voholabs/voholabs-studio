@@ -9,6 +9,8 @@ import {
 import { AuthService } from '@gitroom/helpers/auth/auth.service';
 
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
+process.env.ENCRYPTION_KEY =
+  process.env.ENCRYPTION_KEY || Buffer.alloc(32, 7).toString('base64');
 
 const CLAUDE = 'https://claude.ai/api/mcp/auth_callback';
 const verifier = 'a'.repeat(50);
@@ -37,8 +39,8 @@ const makeRepo = () => {
     createAuthorization: async (data: any) => {
       auths.push({ id: `auth-${auths.length}`, ...data });
     },
-    findByCode: async (code: string) =>
-      auths.find((a) => a.authorizationCode === code) || null,
+    findByCode: async (codes: string[]) =>
+      auths.find((a) => codes.includes(a.authorizationCode)) || null,
     exchangeCodeForToken: async () => ({
       organizationId: 'org-1',
       organization: { paymentId: 'cus_1' },

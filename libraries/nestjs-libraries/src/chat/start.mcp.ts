@@ -62,18 +62,6 @@ const fixAcceptHeader = (req: Request) => {
   }
 };
 
-// 2026-07-28 clients hold a subscriptions/listen stream open for the whole
-// session, and the tool list never changes - the stream ends once the
-// subscription had time to be acknowledged
-const endListenStream = (req: Request, res: Response) => {
-  if (req.headers['mcp-method'] !== 'subscriptions/listen') {
-    return;
-  }
-
-  const timer = setTimeout(() => res.end(), 10000);
-  res.on('close', () => clearTimeout(timer));
-};
-
 export const startMcp = async (app: INestApplication) => {
   const mastraService = app.get(MastraService, { strict: false });
   const organizationService = app.get(OrganizationService, { strict: false });
@@ -248,11 +236,7 @@ export const startMcp = async (app: INestApplication) => {
     // agents: { postiz: agent },
   };
 
-  // The streamable-HTTP servers run in Mastra's dual-era mode: 2026-07-28
-  // clients natively, 2025-era clients through the SDK's stateless fallback.
-  // The legacy /sse server below is built from the plain config.
-  const streamable = { protocolVersion: '2026-07-28' as const };
-  const server = new MCPServer({ ...serverConfig, ...streamable });
+  const server = new MCPServer(serverConfig);
 
   // What a free organization is served: the same server without the paid tools.
   // The tool map cannot vary per request, a whole server can.
@@ -265,7 +249,7 @@ export const startMcp = async (app: INestApplication) => {
     ),
     appResources,
   };
-  const freeServer = new MCPServer({ ...freeServerConfig, ...streamable });
+  const freeServer = new MCPServer(freeServerConfig);
 
   // A pay-as-you-go workspace: the free tools plus the ones a wallet top-up
   // opens.
@@ -279,10 +263,7 @@ export const startMcp = async (app: INestApplication) => {
     ),
     appResources,
   };
-  const walletServer = new MCPServer({
-    ...walletServerConfig,
-    ...streamable,
-  });
+  const walletServer = new MCPServer(walletServerConfig);
 
   // The wallet server once the top-up opens any of its features (the brief or
   // the skills); each of its tools still checks its own key (paidOnly).
@@ -300,11 +281,7 @@ export const startMcp = async (app: INestApplication) => {
   // it may call (gatewayToolList) added. Nobody else is ever served them.
   const gatewayTools = await loadToolsService.loadGatewayTools();
   const withGatewayTools = (config: typeof serverConfig) =>
-    new MCPServer({
-      ...config,
-      ...streamable,
-      tools: { ...config.tools, ...gatewayTools },
-    });
+    new MCPServer({ ...config, tools: { ...config.tools, ...gatewayTools } });
   const gatewayServers = {
     server: withGatewayTools(serverConfig),
     free: withGatewayTools(freeServerConfig),
@@ -332,7 +309,6 @@ export const startMcp = async (app: INestApplication) => {
     ? new MCPServer({
         name: 'Voholabs MCP',
         version: '1.0.0',
-        ...streamable,
         tools: mcpRelayService.tools(tools),
       })
     : undefined;
@@ -460,7 +436,6 @@ export const startMcp = async (app: INestApplication) => {
       if (!(await bufferJsonBody(req, res))) {
         return;
       }
-      endListenStream(req, res);
       fixAcceptHeader(req);
       await runWithContext({ requestId: token!, auth: undefined, relay }, async () => {
         await selfHostedServer.startHTTP({
@@ -468,6 +443,7 @@ export const startMcp = async (app: INestApplication) => {
           httpPath: url.pathname,
           options: {
             serverless: true,
+            enableJsonResponse: true,
           },
           req,
           res,
@@ -490,7 +466,6 @@ export const startMcp = async (app: INestApplication) => {
     }
     noteConnection(req, auth.id, authMethodOf(token));
 
-    endListenStream(req, res);
     fixAcceptHeader(req);
     await runWithContext({ requestId: token!, auth }, async () => {
       await serverFor(auth, fromGateway(req)).startHTTP({
@@ -505,6 +480,7 @@ export const startMcp = async (app: INestApplication) => {
           // request is served by a transient server and transport that keep
           // nothing, so there is nothing to expire and a restart goes unnoticed.
           serverless: true,
+          enableJsonResponse: true,
         },
         req,
         res,
@@ -556,7 +532,6 @@ export const startMcp = async (app: INestApplication) => {
 
     const url = new URL('/mcp', process.env.NEXT_PUBLIC_BACKEND_URL);
 
-    endListenStream(req, res);
     fixAcceptHeader(req);
     // @ts-ignore
     await runWithContext({ requestId: token, auth: req.auth }, async () => {
@@ -573,6 +548,7 @@ export const startMcp = async (app: INestApplication) => {
           // request is served by a transient server and transport that keep
           // nothing, so there is nothing to expire and a restart goes unnoticed.
           serverless: true,
+          enableJsonResponse: true,
         },
         req,
         res,
@@ -617,7 +593,6 @@ export const startMcp = async (app: INestApplication) => {
       process.env.NEXT_PUBLIC_BACKEND_URL
     );
 
-    endListenStream(req, res);
     fixAcceptHeader(req);
     await runWithContext(
       // @ts-ignore
@@ -632,6 +607,7 @@ export const startMcp = async (app: INestApplication) => {
             // only exists in one process's memory, so a redeploy leaves every
             // client holding an id the server no longer knows.
             serverless: true,
+            enableJsonResponse: true,
           },
           req,
           res,

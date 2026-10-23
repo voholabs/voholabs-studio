@@ -517,13 +517,14 @@ export class OAuthService {
       encryptedToken
     );
 
-    // A public client is an AI assistant: it gets the token alone, not the
-    // workspace's ids.
-    if (app.isPublic) {
+    // A public client (an AI assistant, HubSpot) gets the token alone, not
+    // the workspace's ids.
+    if (this.isPublicClient(app)) {
       return {
         access_token: token,
         token_type: 'bearer',
         scope: this.grantedScope(app),
+        ...this.refreshFields(app, token),
       };
     }
 

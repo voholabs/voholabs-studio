@@ -15,10 +15,10 @@ export class UploadWidgetStatusTool implements AgentToolInterface {
     return createTool({
       id: 'uploadWidgetStatusTool',
       description: `Lists the media the user uploaded with the upload box, using the sessionId returned by uploadWidgetTool.
-It lists only the files uploaded in that session, not the whole media library. A media id returned by uploadFromUrlTool or the public API is followed with mediaStatusTool.
+It lists only the files uploaded in that session, not the whole media library.
 An empty list means nothing has finished uploading yet: a large video can take a few minutes.
 A media with the status "processing" is still being prepared, which takes about 10 seconds.
-A media with the status "ready" (or no status) can be attached to a post with its { id, path }. "ready" with a warning means the adjustment failed and the original file was kept and will be used for publishing.`,
+A media with the status "ready" (or no status) can be attached to a post with its { id, path }.`,
       mcp: {
         annotations: {
           title: 'Upload Box Status',
@@ -41,7 +41,6 @@ A media with the status "ready" (or no status) can be attached to a post with it
               path: z.string(),
               name: z.string().optional(),
               status: z.string().optional(),
-              warning: z.string().optional(),
               error: z.string().optional(),
             })
           )
@@ -60,14 +59,11 @@ A media with the status "ready" (or no status) can be attached to a post with it
           );
           return {
             media: media.map((p: any) => ({
-              ...(p.status
-                ? this._mediaService.toUploadStatus(p)
-                : {
-                    id: p.id,
-                    path: p.path,
-                    ...(p.processingError ? { error: p.processingError } : {}),
-                  }),
+              id: p.id,
+              path: p.path,
               name: p.originalName || p.name || undefined,
+              ...(p.status ? { status: p.status } : {}),
+              ...(p.processingError ? { error: p.processingError } : {}),
             })),
           };
         } catch (err) {

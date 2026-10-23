@@ -9,8 +9,10 @@ import {
   HttpStatus,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { OAuthService } from '@gitroom/nestjs-libraries/database/prisma/oauth/oauth.service';
@@ -26,6 +28,7 @@ import {
 import { TokenExchangeDto } from '@gitroom/nestjs-libraries/dtos/oauth/token-exchange.dto';
 import { RegisterClientDto } from '@gitroom/nestjs-libraries/dtos/oauth/register-client.dto';
 import { redirectLabel } from '@gitroom/nestjs-libraries/database/prisma/oauth/oauth.client';
+import { HubspotInstallQueryDto } from '@gitroom/nestjs-libraries/dtos/oauth/hubspot-install.dto';
 import { extractBasicCredentials } from '@gitroom/nestjs-libraries/chat/oauth-types';
 import { McpRelayService } from '@gitroom/nestjs-libraries/chat/mcp.relay.service';
 import { ThrottlerRealIpGuard } from '@gitroom/nestjs-libraries/throttler/throttler.provider';
@@ -108,13 +111,11 @@ export class OAuthController {
     const code = await this._oauthService.createSelfHostedAuthorizationCode(
       app.id,
       { ...instance, email },
-      app.isPublic
-        ? {
-            codeChallenge: body.code_challenge,
-            codeChallengeMethod: body.code_challenge_method,
-            redirectUri,
-          }
-        : {}
+      this._oauthService.pkceBinding(app, {
+        codeChallenge: body.code_challenge,
+        codeChallengeMethod: body.code_challenge_method,
+        redirectUri,
+      })
     );
 
     // Same redirect as an approved workspace authorization
@@ -135,6 +136,20 @@ export class OAuthController {
     @Body() body: TokenExchangeDto,
     @Headers('authorization') authorization?: string
   ) {
+    // client_secret_basic puts the credentials in the Authorization header,
+    // client_secret_post and public clients put them in the body
+    const basic = extractBasicCredentials(authorization);
+    const clientId = basic?.clientId || body.client_id;
+
+    // Only HubSpot gets refresh tokens, the service answers every other
+    // client with unsupported_grant_type, as before
+    if (body.grant_type === 'refresh_token') {
+      return this._oauthService.refreshAccessToken(
+        clientId,
+        body.refresh_token
+      );
+    }
+
     if (body.grant_type !== 'authorization_code') {
       throw new HttpException(
         { error: 'unsupported_grant_type' },
@@ -142,10 +157,6 @@ export class OAuthController {
       );
     }
 
-    // client_secret_basic puts the credentials in the Authorization header,
-    // client_secret_post and public clients put them in the body
-    const basic = extractBasicCredentials(authorization);
-    const clientId = basic?.clientId || body.client_id;
     if (!clientId) {
       throw new HttpException(
         { error: 'invalid_client' },
@@ -171,6 +182,26 @@ export class OAuthController {
   @Header('Cache-Control', 'no-store')
   async userinfoPost(@Headers('authorization') authorization?: string) {
     return this._oauthService.getUserInfo(authorization);
+  }
+
+  // Public (HubSpot sends the person here after they install the HubSpot app)
+  // and capped per IP, since every attempt sends a request to HubSpot
+  @UseGuards(ThrottlerRealIpGuard)
+  @Throttle({ default: { limit: 30, ttl: 3600000 } })
+  @Get('/hubspot/callback')
+  async hubspotCallback(
+    @Query() query: HubspotInstallQueryDto,
+    @Res({ passthrough: false }) response: Response
+  ) {
+    await this._oauthService.completeHubspotInstall(query.code);
+
+    // The calendar explains what just happened (HubspotInstalled); returnUrl
+    // brings someone who has to sign in first back to it
+    const installed = `${process.env.FRONTEND_URL}/launches?hubspot=installed`;
+    return response.redirect(
+      302,
+      `${installed}&returnUrl=${encodeURIComponent(installed)}`
+    );
   }
 }
 

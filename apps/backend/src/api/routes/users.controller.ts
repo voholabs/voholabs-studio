@@ -30,12 +30,13 @@ import { OnboardingDto } from '@gitroom/nestjs-libraries/dtos/users/onboarding.d
 import { TutorialProgressDto } from '@gitroom/nestjs-libraries/dtos/users/tutorial-progress.dto';
 import { isGrowthViewer } from '@gitroom/nestjs-libraries/database/prisma/admin-stats/growth.viewer';
 import { EmailNotificationsDto } from '@gitroom/nestjs-libraries/dtos/users/email-notifications.dto';
+import { TimezoneDto } from '@gitroom/nestjs-libraries/dtos/users/timezone.dto';
 import { HttpForbiddenException } from '@gitroom/nestjs-libraries/services/exception.filter';
 import { RealIP } from 'nestjs-real-ip';
 import { UserAgent } from '@gitroom/nestjs-libraries/user/user.agent';
 import { TrackEnum } from '@gitroom/nestjs-libraries/user/track.enum';
 import { TrackService } from '@gitroom/nestjs-libraries/track/track.service';
-import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
+import { applyTrackCookies } from '@gitroom/nestjs-libraries/track/track.cookies';
 import {
   AuthorizationActions,
   Sections,
@@ -104,23 +105,6 @@ export class UsersController {
     );
 
     return { token };
-  }
-
-  @Get('/agent-media-sso')
-  async getAgentMediaSsoUrl(
-    @GetUserFromRequest() user: User,
-    @GetOrgFromRequest() organization: Organization
-  ) {
-    if (!process.env.AGENT_MEDIA_SSO_KEY) {
-      throw new HttpException('Agent Media SSO is not configured', 400);
-    }
-
-    const token = sign(
-      { id: organization.id, displayName: organization.name },
-      process.env.AGENT_MEDIA_SSO_KEY
-    );
-
-    return { url: `https://app.agent-media.ai/sso/${token}` };
   }
 
   @Get('/self')
@@ -418,6 +402,14 @@ export class UsersController {
     return this._userService.updateEmailNotifications(user.id, body);
   }
 
+  @Post('/timezone')
+  async updateTimezone(
+    @GetUserFromRequest() user: User,
+    @Body() body: TimezoneDto
+  ) {
+    return this._userService.updateTimezone(user.id, body);
+  }
+
   @Post('/api-key/rotate')
   @CheckPolicies([AuthorizationActions.Create, Sections.ADMIN])
   async rotateApiKey(@GetOrgFromRequest() organization: Organization) {
@@ -498,6 +490,11 @@ export class UsersController {
     }
 
     response.status(200).send();
+  }
+
+  @Get('/delete-account-info')
+  getDeleteAccountInfo(@GetUserFromRequest() user: User) {
+    return this._userService.getDeleteAccountInfo(user.id);
   }
 
   @Post('/delete-account')
@@ -620,30 +617,19 @@ export class UsersController {
     @Body()
     body: { tt: TrackEnum; fbclid: string; additional: Record<string, any> }
   ) {
-    const uniqueId = req?.cookies?.track || makeId(10);
-    const fbclid = req?.cookies?.fbclid || body.fbclid;
-    await this._trackService.track(
-      uniqueId,
-      ip,
-      userAgent,
-      body.tt,
-      body.additional,
-      fbclid,
-      user
-    );
-    if (!req.cookies.track) {
-      res.cookie('track', uniqueId, {
-        domain: getCookieUrlFromDomain(process.env.FRONTEND_URL!),
-        ...(!process.env.NOT_SECURED
-          ? {
-              secure: true,
-              httpOnly: true,
-              sameSite: 'none',
-            }
-          : {}),
-        expires: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365),
-      });
-    }
+    const { uniqueId, fbc, fbp } = applyTrackCookies(req, res, body.fbclid);
+    this._trackService
+      .track(
+        uniqueId,
+        ip,
+        userAgent,
+        body.tt,
+        body.additional,
+        fbc,
+        user,
+        fbp
+      )
+      .catch((err) => {});
 
     res.status(200).json({
       track: uniqueId,

@@ -3,6 +3,7 @@ import { providerNeedsPaidPlan } from '@gitroom/nestjs-libraries/database/prisma
 import {
   BadBody,
   Disconnect,
+  PublishedWithError,
 } from '@gitroom/nestjs-libraries/integrations/social.abstract';
 import { stripLinks } from '@gitroom/helpers/utils/strip.links';
 import {
@@ -494,6 +495,28 @@ export class PostActivity {
             integration.organizationId,
             integration,
             err.message
+          );
+        } catch (e) {
+          /**empty**/
+        }
+
+        throw new BadBody(
+          integration.providerIdentifier,
+          JSON.stringify({}),
+          Buffer.from('{}'),
+          err.message
+        );
+      }
+
+      // The post is live but a follow-up mutation failed: keep its platform
+      // id / URL on the post, then fail it as BadBody like any other error.
+      if (err instanceof PublishedWithError) {
+        try {
+          await this._postService.updateResolvedRelease(
+            err.postDbId,
+            integration.organizationId,
+            err.releaseId,
+            err.releaseURL
           );
         } catch (e) {
           /**empty**/

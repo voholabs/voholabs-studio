@@ -19,6 +19,7 @@ export class IntegrationValidationTool implements AgentToolInterface {
       id: 'integrationSchema',
       description: `Returns the schema of a platform's integration: the rules, the maximum length and the settings a post to it takes when it is scheduled.
          Some settings take an id (a tag, a list, a board) that comes from one of the returned 'tools', run through the triggerTool function.
+         The 'tools' can also include a mention lookup, which finds the people or pages that can be tagged in the post content.
         `,
       mcp: {
         annotations: {

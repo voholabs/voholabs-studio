@@ -3,9 +3,7 @@
 import { FC, useCallback, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useLocalStorage } from '@mantine/hooks';
-import { TrackEnum } from '@gitroom/nestjs-libraries/user/track.enum';
 import { useFireEvents } from '@gitroom/helpers/utils/use.fire.events';
-import { useTrack } from '@gitroom/react/helpers/use.track';
 
 // A form submitted before hydration falls back to GET and puts its fields in
 // the address bar. Never keep those fields, or send them anywhere.
@@ -29,12 +27,12 @@ const UtmSaver: FC = () => {
   const [value, setValue] = useLocalStorage({ key: 'utm', defaultValue: '' });
   const searchParams = useSearchParams();
   const fireEvents = useFireEvents();
-  const track = useTrack();
 
+  // the Facebook pixel StartTrial is sent by the backend once Stripe confirms
+  // the trial, firing it here as well would count it twice
   useEffect(() => {
     if (searchParams.get('check')) {
       fireEvents('purchase');
-      track(TrackEnum.StartTrial);
     }
   }, []);
 

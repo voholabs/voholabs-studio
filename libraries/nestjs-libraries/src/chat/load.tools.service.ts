@@ -102,7 +102,7 @@ export class LoadToolsService {
       .map(
         (p) => this._moduleRef.get(p, { strict: false }) as AgentToolInterface
       )
-      .filter((p) => !p.mcpOnly && !p.available)
+      .filter((p) => !p.mcpOnly && !p.available && !p.optionalOnSelfHosted)
       .map((p) => p.name);
   }
 

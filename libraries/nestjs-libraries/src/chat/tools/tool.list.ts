@@ -20,6 +20,7 @@ import { PostSettingsTool } from '@gitroom/nestjs-libraries/chat/tools/post.sett
 import { PostsReplaceAssetTool } from '@gitroom/nestjs-libraries/chat/tools/posts.replace.asset.tool';
 import { FindSlotTool } from '@gitroom/nestjs-libraries/chat/tools/find.slot.tool';
 import { MediaListTool } from '@gitroom/nestjs-libraries/chat/tools/media.list.tool';
+import { MediaStatusTool } from '@gitroom/nestjs-libraries/chat/tools/media.status.tool';
 import { MediaPreviewTool } from '@gitroom/nestjs-libraries/chat/tools/media.preview.tool';
 import { MediaDeleteTool } from '@gitroom/nestjs-libraries/chat/tools/media.delete.tool';
 import { MediaUploadTool } from '@gitroom/nestjs-libraries/chat/tools/media.upload.tool';
@@ -80,6 +81,7 @@ export const toolList = [
   AnalyticsPostTool,
   FindSlotTool,
   MediaListTool,
+  MediaStatusTool,
   MediaPreviewTool,
   MediaDeleteTool,
   MediaUploadTool,

@@ -19,7 +19,9 @@ export class UploadFromUrlTool implements AgentToolInterface {
       description: `Uploads a remote image, video or audio file (mp3, wav) into the media library from a public http(s) URL.
 This is how anything produced OUTSIDE this system gets onto a post: an AI generator's result URL, a link the user pasted, a file an external editing tool handed back. Those URLs are usually temporary: attached directly, a post may look fine and then point at a file that expires before it publishes. The "path" this returns is the durable hosted copy, and that path is what every attachments field (and replacePostAsset's newPath) takes.
 Local or private files cannot be fetched by this tool; uploadWidgetTool (in apps that show it), uploadMediaTool (a small file) and createUploadLinkTool (anything bigger) take those.
-Returns the hosted media { id, path }, or { error } on failure. An image's or video's path is used as an attachment (or an image's as the src of an <img> in the content, when the channel rules say pictures go inside the content); an mp3 is kept as a file to download again and is refused as a post attachment.`,
+Returns the hosted media { id, path }, or { error } on failure. An image's or video's path is used as an attachment (or an image's as the src of an <img> in the content, when the channel rules say pictures go inside the content); an mp3 is kept as a file to download again and is refused as a post attachment.
+With adjust set to true (off by default) an image or video is also adjusted to the platforms' limits after the upload, for media a platform may reject as too large, too small or in an unsupported encoding: videos get their short side scaled to 1080 px (up or down, long side at most 1920 px) and are re-encoded to H.264 MP4 with AAC audio at up to 60 fps; images are only scaled down (short side at most 1080 px, long side at most 1920 px) and keep their format. GIF, AVIF, BMP and TIFF files are stored as uploaded.
+Without adjust the returned status is "ready" and the path is usable at once. With adjust it is "processing" until the adjusted file replaces the original at the same path, usually within seconds; a post published while it is processing uses the original, unadjusted file. mediaStatusTool reports, by the returned id, when the adjusted file is in place.`,
       mcp: {
         annotations: {
           title: 'Upload Media From URL',
@@ -36,6 +38,12 @@ Returns the hosted media { id, path }, or { error } on failure. An image's or vi
           .describe(
             'The public http(s) URL of the image, video or audio file (mp3, wav) to upload. Local files and private hosts are not supported'
           ),
+        adjust: z
+          .boolean()
+          .optional()
+          .describe(
+            "Adjust the media to the platforms' limits (resize and re-encode) after the upload. Defaults to false"
+          ),
       }),
       // Mastra validates a tool's return against this schema, so it must also
       // allow the graceful { error } shape. Fields are optional (rather than
@@ -45,6 +53,8 @@ Returns the hosted media { id, path }, or { error } on failure. An image's or vi
       outputSchema: z.object({
         id: z.string().optional(),
         path: z.string().optional(),
+        status: z.string().optional(),
+        warning: z.string().optional(),
         error: z.string().optional(),
       }),
       execute: async (inputData, context) => {
@@ -54,10 +64,22 @@ Returns the hosted media { id, path }, or { error } on failure. An image's or vi
             (context?.requestContext as any)?.get('organization') as string
           );
 
-          // The whole fetch-sniff-store pipeline (SSRF-safe fetch, size caps,
-          // byte sniffing, storage) is shared with the copy-on-attach path in
+          // Adjusting runs the media processor on the stored file, which only
+          // the media service's own upload starts. Without it, the whole
+          // fetch-sniff-store pipeline (SSRF-safe fetch, size caps, byte
+          // sniffing, storage) is shared with the copy-on-attach path in
           // post.write.shared, so there is exactly one implementation of
           // "make a remote file durable".
+          if (inputData.adjust) {
+            return this._mediaService.toUploadStatus(
+              (await this._mediaService.uploadFromUrl(
+                org.id,
+                inputData.url,
+                true
+              )) as any
+            );
+          }
+
           return await storeUrlAsMedia({
             storage: this.storage,
             mediaService: this._mediaService,

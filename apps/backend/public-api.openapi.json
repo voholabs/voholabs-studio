@@ -1263,6 +1263,63 @@
         ]
       }
     },
+    "/media/{id}/status": {
+      "get": {
+        "tags": [
+          "Media"
+        ],
+        "summary": "Status of an adjusted upload",
+        "description": "Status of a file uploaded with adjust set to true. \"processing\": the file is still being adjusted to the platforms' limits, and a post published now uses the original file. \"ready\": the adjusted file is in place at the same path; with a warning, the adjustment failed and the original file is kept.",
+        "operationId": "getMediaStatus",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Media id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "processing",
+                        "ready"
+                      ]
+                    },
+                    "warning": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
     "/analytics/{integration}": {
       "get": {
         "tags": [

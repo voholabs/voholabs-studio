@@ -298,7 +298,7 @@ export class MediaService {
   // and a few upload parts are ever in memory, so a 1 GB video does not cost
   // 1 GB of heap. Held to the organization's storage like every other upload:
   // a file that does not fit is removed again.
-  async uploadFromUrl(org: string, url: string) {
+  async uploadFromUrl(org: string, url: string, adjust?: boolean) {
     let response: globalThis.Response;
     try {
       response = await fetch(url, {
@@ -354,13 +354,21 @@ export class MediaService {
       await this.storage.removeFile(uploaded.path).catch(() => undefined);
       throw err;
     }
-    return this.saveFile(
-      org,
-      uploaded.originalname,
-      uploaded.path,
-      undefined,
-      received
-    );
+    return adjust
+      ? this.saveUploadedFile(
+          org,
+          uploaded.originalname,
+          uploaded.path,
+          undefined,
+          received
+        )
+      : this.saveFile(
+          org,
+          uploaded.originalname,
+          uploaded.path,
+          undefined,
+          received
+        );
   }
 
   async saveFile(
@@ -535,6 +543,39 @@ export class MediaService {
     return media;
   }
 
+  // What API and MCP callers see: a failed adjustment of a file the
+  // platforms accept as-is is not a failed upload, the original stays in
+  // place and is what gets published
+  toUploadStatus(media: {
+    id: string;
+    name: string;
+    path: string;
+    status: string;
+  }) {
+    if (media.status !== 'failed') {
+      return { id: media.id, path: media.path, status: media.status };
+    }
+
+    return USABLE_AS_IS.has(extname(media.name).toLowerCase())
+      ? {
+          id: media.id,
+          path: media.path,
+          status: 'ready',
+          warning:
+            'Adjustment failed, the original file was kept and will be used for publishing',
+        }
+      : {
+          id: media.id,
+          path: media.path,
+          status: 'failed',
+          error: 'Processing failed and the original file cannot be used',
+        };
+  }
+
+  async getMediaUploadStatus(org: string, id: string) {
+    return this.toUploadStatus(await this.getMediaStatus(org, id));
+  }
+
   // The normalized file overwrites the original in place; only a container
   // change (mov -> mp4, jpeg -> jpg) lands under a new key. Either way the
   // polling side needs nothing but the media record to know where it is
@@ -702,7 +743,10 @@ export class MediaService {
     }
 
     if (!video.trial && org.isTrailing) {
-      throw new HttpException('This video is not available in trial mode', 406);
+      throw new HttpException(
+        `This video is not available in trial mode. To use it now, open ${process.env.FRONTEND_URL}/billing and click "Finish trial" (this charges the plan immediately)`,
+        406
+      );
     }
 
     return true;
@@ -727,7 +771,10 @@ export class MediaService {
     }
 
     if (!video.trial && org.isTrailing) {
-      throw new HttpException('This video is not available in trial mode', 406);
+      throw new HttpException(
+        `This video is not available in trial mode. To use it now, open ${process.env.FRONTEND_URL}/billing and click "Finish trial" (this charges the plan immediately)`,
+        406
+      );
     }
 
     await video.instance.processAndValidate(body.customParams);

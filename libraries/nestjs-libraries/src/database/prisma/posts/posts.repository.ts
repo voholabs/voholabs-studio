@@ -892,6 +892,29 @@ export class PostsRepository {
     });
   }
 
+  // What one channel already has on a day, scheduled or published, top-level
+  // only (comments and thread replies belong to their post). The groups being
+  // re-saved in the same request are left out, so an edit never counts itself.
+  countPostsForChannelOnDay(
+    orgId: string,
+    integrationId: string,
+    from: Date,
+    to: Date,
+    excludeGroups: string[]
+  ) {
+    return this._post.model.post.count({
+      where: {
+        organizationId: orgId,
+        integrationId,
+        parentPostId: null,
+        deletedAt: null,
+        publishDate: { gte: from, lt: to },
+        state: { in: ['QUEUE', 'PUBLISHED'] },
+        ...(excludeGroups.length ? { group: { notIn: excludeGroups } } : {}),
+      },
+    });
+  }
+
   async createOrUpdatePost(
     state: 'draft' | 'schedule' | 'now' | 'update',
     orgId: string,

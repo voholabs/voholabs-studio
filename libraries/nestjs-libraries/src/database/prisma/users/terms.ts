@@ -1,7 +1,7 @@
 /**
  * The version of the Terms people agree to when they sign up.
  */
-export const CURRENT_TERMS_VERSION = '2026-09-20';
+export const CURRENT_TERMS_VERSION = '2026-10-25';
 
 // People agree once, with the box on the sign-up form, and nobody is asked
 // again: no screen in place of the app, and no request refused. The screen and
@@ -25,6 +25,9 @@ export const contactConsent = (ip?: string) => ({
 
 export const contactConsentRequiredMessage = () =>
   'Please agree to receive emails from Voholabs to create an account';
+
+export const closedAccountMessage = () =>
+  'This account has been closed and cannot be reopened.';
 
 export const termsRequiredMessage = () =>
   'Please agree to the Terms of Service and Privacy Policy to create an account';

@@ -40,7 +40,7 @@ export default function TermsPage() {
   return (
     <LegalPage
       title="Voholabs Studio Terms of Service"
-      updated="4 October 2026"
+      updated="25 October 2026"
       intro={
         <>
           These terms are the agreement between you and us for Voholabs Studio,
@@ -160,7 +160,8 @@ export default function TermsPage() {
         </p>
         <p>
           Scheduling is free. The free plan has no set limit on connected
-          channels or scheduled posts, and includes the calendar, team members,
+          channels, no monthly limit on posts beyond the daily cap per account
+          in section 9, and includes the calendar, team members,
           up to 30 webhooks, the public API and the MCP connection for AI
           assistants. We do not ask for a card. In return we ask every new
           account a few questions, and we may contact you about Voholabs
@@ -179,7 +180,8 @@ export default function TermsPage() {
             </>,
             <>
               <strong>Fair use.</strong> &quot;No set limit&quot; means we do
-              not count your channels or posts. It does not mean unlimited load.
+              not count your channels, and we do not count your posts beyond
+              the daily cap per account. It does not mean unlimited load.
               We apply rate limits to the API and the MCP connection, each
               social network applies its own posting limits, and we may restrict
               an account whose usage degrades the service for others.
@@ -498,6 +500,14 @@ export default function TermsPage() {
               coordinated networks of them, or artificially inflate engagement;
             </>,
             <>
+              schedule more than 50 posts in one day (UTC) to a single connected
+              account, on any plan. A post over that cap is refused when it is
+              scheduled, whether from the app, the API, the CLI or an AI
+              assistant, and the cap cannot be raised by connecting the same
+              account again or spreading the same content over several
+              accounts;
+            </>,
+            <>
               get around a platform&apos;s rules, rate limits, automation
               policy, suspension or ban, or use the service for an account that
               a platform has banned;
@@ -565,6 +575,14 @@ export default function TermsPage() {
           months, after emailing a warning to the registered address at least 30
           days before. We are not liable to you for taking any of these steps.
           Where we reasonably can, we will tell you why.
+        </p>
+        <p>
+          <strong>Spam and bulk cross-posting.</strong> An account we close for
+          spam, for posting the same or near-identical content across several
+          accounts, for operating bulk or inauthentic accounts, or for other
+          abuse under section 9 stays closed. We delete its data as described
+          below, cancel everything it had scheduled, and we may refuse new
+          accounts from the same person, email address or organisation.
         </p>
         <p>
           <strong>By you.</strong> You can stop using the service at any time.

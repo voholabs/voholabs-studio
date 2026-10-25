@@ -91,6 +91,7 @@ export class AuthService {
       if (body instanceof CreateOrgUserDto) {
         body.email = body.email.toLowerCase();
       }
+      await this._userService.assertNotBanned(body.email);
       const user =
         (await this._userService.getUserByEmail(body.email)) ||
         (await this.providerUserByEmail(body.email));
@@ -238,6 +239,8 @@ export class AuthService {
     if (!providerUser || !providerUser.id) {
       throw new Error('Invalid provider token');
     }
+
+    await this._userService.assertNotBanned(providerUser.email);
 
     const user = await this.existingUserForProvider(
       providerInstance,

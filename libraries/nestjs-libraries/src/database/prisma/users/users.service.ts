@@ -13,6 +13,7 @@ import { AgentConnectionService } from '@gitroom/nestjs-libraries/database/prism
 import { BriefService } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.service';
 import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 import { WalletPlusService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.plus.service';
+import { closedAccountMessage } from '@gitroom/nestjs-libraries/database/prisma/users/terms';
 
 // The UTC day each person was last recorded active by this process, so the
 // table is written once a day per person rather than on every request.
@@ -35,6 +36,15 @@ export class UsersService {
 
   getProviderUserByEmail(email: string, providers: Provider[]) {
     return this._usersRepository.getProviderUserByEmail(email, providers);
+  }
+
+  // An address whose account we closed for abuse cannot sign up or sign in
+  // again, with a password or through a provider. The plain Error is what the
+  // sign-in forms show.
+  async assertNotBanned(email?: string | null) {
+    if (email && (await this._usersRepository.isEmailBanned(email))) {
+      throw new Error(closedAccountMessage());
+    }
   }
 
   getUserByEmail(email: string) {

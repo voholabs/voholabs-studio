@@ -128,3 +128,13 @@ export const pricing: PricingInterface = {
     clipping_minutes: 600,
   },
 };
+
+// The most posts one connected account can have on one calendar day (UTC),
+// scheduled or already published, on every plan and every way in (app, API,
+// CLI, agents). A request that would take a channel past it is refused whole.
+// Keeps a single account's output well inside what the networks treat as
+// spam, which protects our access to them for everyone else.
+export const MAX_POSTS_PER_CHANNEL_PER_DAY = 50;
+
+export const postsPerChannelPerDayMessage = () =>
+  `Rate limit: no more than ${MAX_POSTS_PER_CHANNEL_PER_DAY} posts a day for one account. Move some of them to another day.`;

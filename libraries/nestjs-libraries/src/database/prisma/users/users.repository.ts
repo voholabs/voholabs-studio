@@ -22,6 +22,7 @@ export class UsersRepository {
   constructor(
     private _user: PrismaRepository<'user'>,
     private _activity: PrismaRepository<'userActivityDay'>,
+    private _banned: PrismaRepository<'bannedEmail'>,
     private _transaction: PrismaTransaction
   ) {}
 
@@ -157,6 +158,14 @@ export class UsersRepository {
         deletedAt: null,
       },
       orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  // The address of an account closed for abuse: sign-up and sign-in refuse it.
+  isEmailBanned(email: string) {
+    return this._banned.model.bannedEmail.findFirst({
+      where: { email: { equals: email, mode: 'insensitive' } },
+      select: { id: true },
     });
   }
 

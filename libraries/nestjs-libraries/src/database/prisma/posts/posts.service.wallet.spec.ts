@@ -53,6 +53,7 @@ const setup = (org: any) => {
   const repository: any = {
     organizationSubscription: jest.fn(async () => org),
     organizationBillingState: jest.fn(async () => org),
+    countPostsForChannelOnDay: jest.fn(async () => 0),
     createOrUpdatePost: jest.fn(async () => ({
       posts: [{ id: 'p1', group: 'g1', state: 'QUEUE' }],
     })),

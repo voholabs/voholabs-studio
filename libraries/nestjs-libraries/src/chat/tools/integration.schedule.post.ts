@@ -56,6 +56,13 @@ const toMedia = (a: string | AttachmentMedia): AttachmentMedia =>
         thumbnailTimestamp: a.thumbnailTimestamp,
       };
 
+// The daily cap of one account (a 429 from createPost): the agent gets the
+// message and which posts did go through, not a raw tool failure.
+const rateLimitRefusal = (err: any) =>
+  (typeof err?.getStatus === 'function' ? err.getStatus() : err?.status) === 429
+    ? (err.message as string)
+    : undefined;
+
 @Injectable()
 export class IntegrationSchedulePostTool implements AgentToolInterface {
   constructor(
@@ -425,7 +432,7 @@ If validation fails, the result contains output.errors describing what to fix; t
           } catch (err) {
             // A channel Plus has not opened yet (or credits are short): the
             // agent gets the reason and the link, not a raw tool failure.
-            const refusal = walletRefusal(err);
+            const refusal = walletRefusal(err) || rateLimitRefusal(err);
             if (!refusal) {
               throw err;
             }

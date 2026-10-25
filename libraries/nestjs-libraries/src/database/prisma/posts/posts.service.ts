@@ -1,10 +1,15 @@
 import { captureOrgEvent } from '@gitroom/nestjs-libraries/track/product.analytics';
 import {
   BadRequestException,
+  HttpException,
   Injectable,
   NotFoundException,
   ValidationPipe,
 } from '@nestjs/common';
+import {
+  MAX_POSTS_PER_CHANNEL_PER_DAY,
+  postsPerChannelPerDayMessage,
+} from '@gitroom/nestjs-libraries/database/prisma/subscriptions/pricing';
 import {
   hasAccess,
   paidOnlyChannelMessage,
@@ -1799,6 +1804,10 @@ export class PostsService {
       );
     }
 
+    // One account's day is capped, whatever the plan: refuse the whole
+    // request before anything is saved or charged.
+    await this.assertChannelDailyLimit(orgId, body);
+
     const postList = [];
     const batchId = uuidv4();
     for (const post of body.posts) {
@@ -1893,6 +1902,50 @@ export class PostsService {
     }
 
     return postList;
+  }
+
+  // No more than MAX_POSTS_PER_CHANNEL_PER_DAY posts for one channel on one
+  // UTC day: what the channel already has scheduled or published that day
+  // plus what this request adds to it. Drafts are not on the schedule, so a
+  // draft save is never refused. The groups in the request are left out of
+  // the existing count, so saving a post again does not count it twice.
+  private async assertChannelDailyLimit(orgId: string, body: CreatePostDto) {
+    if (body.type === 'draft') {
+      return;
+    }
+    const days = new Map<
+      string,
+      { integrationId: string; from: Date; adding: number; groups: string[] }
+    >();
+    for (const post of body.posts) {
+      const from = (
+        body.type === 'now' ? dayjs.utc() : dayjs.utc(post.date || body.date)
+      ).startOf('day');
+      const key = `${post.integration.id}|${from.toISOString()}`;
+      const day = days.get(key) || {
+        integrationId: post.integration.id,
+        from: from.toDate(),
+        adding: 0,
+        groups: [],
+      };
+      day.adding++;
+      if (post.group) {
+        day.groups.push(post.group);
+      }
+      days.set(key, day);
+    }
+    for (const day of days.values()) {
+      const existing = await this._postRepository.countPostsForChannelOnDay(
+        orgId,
+        day.integrationId,
+        day.from,
+        dayjs.utc(day.from).add(1, 'day').toDate(),
+        day.groups
+      );
+      if (existing + day.adding > MAX_POSTS_PER_CHANNEL_PER_DAY) {
+        throw new HttpException(postsPerChannelPerDayMessage(), 429);
+      }
+    }
   }
 
   // The wallet side of a save: settles the saved group (and the group it

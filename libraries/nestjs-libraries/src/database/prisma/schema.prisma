@@ -197,6 +197,15 @@ model User {
   @@index([deletedAt])
 }
 
+// Addresses of accounts we closed for abuse. Sign-up and sign-in refuse
+// them (UsersService.assertNotBanned). No link to User: the user row is gone.
+model BannedEmail {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  reason    String?
+  createdAt DateTime @default(now())
+}
+
 model UsedCodes {
   id           String       @id @default(uuid())
   code         String

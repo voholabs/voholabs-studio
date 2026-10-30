@@ -523,7 +523,7 @@ export const ReviewPostCard: FC<{
           : 'border-newTableBorder'
       )}
     >
-      <div className="flex items-center gap-[10px] px-[14px] py-[12px] border-b border-newTableBorder">
+      <div className="flex items-center gap-[10px] px-[14px] py-[12px] border-b border-newTableBorder mobile:flex-wrap">
         <div className="relative min-w-[36px]">
           <img
             className="w-[36px] h-[36px] rounded-full object-cover"
@@ -537,7 +537,7 @@ export const ReviewPostCard: FC<{
           />
         </div>
 
-        <div className="flex flex-col min-w-0 gap-[2px]">
+        <div className="flex flex-col min-w-0 gap-[2px] mobile:flex-1">
           <div className="text-[14px] font-[600] truncate">
             {integration.name}
           </div>
@@ -557,7 +557,8 @@ export const ReviewPostCard: FC<{
           </div>
         </div>
 
-        <div className="flex items-center gap-[6px] flex-1 min-w-0 flex-wrap">
+        {/* On phones the badges get their own line under the name */}
+        <div className="flex items-center gap-[6px] flex-1 min-w-0 flex-wrap mobile:order-last mobile:basis-full mobile:empty:hidden">
           {isNext && (
             <Badge className="bg-forth text-white">
               {t('next_up', 'Next up')}
@@ -711,7 +712,8 @@ export const ReviewPostCard: FC<{
             : undefined
         }
       >
-        <div ref={bodyRef}>
+        {/* a long link has no spaces to break at, and would run off a phone screen */}
+        <div ref={bodyRef} className="mobile:break-words">
           {!near || isLoading ? (
             <div className="text-[13px] text-textColor/50 px-[5px] py-[15px] line-clamp-2">
               {/* A blog post's stored body is a reference, not prose - showing

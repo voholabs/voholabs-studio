@@ -713,7 +713,7 @@ export const ReviewPostCard: FC<{
         }
       >
         {/* a long link has no spaces to break at, and would run off a phone screen */}
-        <div ref={bodyRef} className="mobile:[overflow-wrap:anywhere]">
+        <div ref={bodyRef} className="mobile:break-words">
           {!near || isLoading ? (
             <div className="text-[13px] text-textColor/50 px-[5px] py-[15px] line-clamp-2">
               {/* A blog post's stored body is a reference, not prose - showing

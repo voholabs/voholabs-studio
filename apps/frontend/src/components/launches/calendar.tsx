@@ -488,7 +488,7 @@ export const DayView = () => {
   }, [options, startDate, now]);
 
   return (
-    <div className="flex flex-col gap-[10px] flex-1 relative">
+    <div className="flex flex-col gap-[10px] flex-1 min-w-0 relative">
       <div className="absolute start-0 top-0 w-full h-full mobile:static mobile:h-auto flex flex-col overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
         {options.map((option, index) => (
           <Fragment key={option[0].time}>
@@ -822,7 +822,7 @@ export const ListView = () => {
   }
 
   return (
-    <div className="flex flex-col gap-[10px] flex-1 relative">
+    <div className="flex flex-col gap-[10px] flex-1 min-w-0 relative">
       <div className="absolute start-0 top-0 w-full h-full mobile:static mobile:h-auto flex flex-col overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
         {groupedPosts.map(([dateKey, datePosts]) => (
           <Fragment key={dateKey}>
@@ -910,7 +910,7 @@ export const ReviewView = () => {
       : undefined;
 
   return (
-    <div className="flex flex-col gap-[10px] flex-1 relative">
+    <div className="flex flex-col gap-[10px] flex-1 min-w-0 relative">
       <div className="absolute start-0 top-0 w-full h-full mobile:static mobile:h-auto flex flex-col overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
         <div className="w-full max-w-[640px] mx-auto px-[10px] pb-[20px]">
           {groupedPosts.map(([dateKey, datePosts]) => (

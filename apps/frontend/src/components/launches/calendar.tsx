@@ -489,7 +489,7 @@ export const DayView = () => {
 
   return (
     <div className="flex flex-col gap-[10px] flex-1 relative">
-      <div className="absolute start-0 top-0 w-full h-full flex flex-col overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
+      <div className="absolute start-0 top-0 w-full h-full mobile:static mobile:h-auto flex flex-col overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
         {options.map((option, index) => (
           <Fragment key={option[0].time}>
             {/* sits in the 20px gap under the previous slot */}
@@ -823,7 +823,7 @@ export const ListView = () => {
 
   return (
     <div className="flex flex-col gap-[10px] flex-1 relative">
-      <div className="absolute start-0 top-0 w-full h-full flex flex-col overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
+      <div className="absolute start-0 top-0 w-full h-full mobile:static mobile:h-auto flex flex-col overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
         {groupedPosts.map(([dateKey, datePosts]) => (
           <Fragment key={dateKey}>
             <div className="text-center text-[14px] min-h-[21px] text-textColor font-[500] mt-[10px]">
@@ -911,7 +911,7 @@ export const ReviewView = () => {
 
   return (
     <div className="flex flex-col gap-[10px] flex-1 relative">
-      <div className="absolute start-0 top-0 w-full h-full flex flex-col overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
+      <div className="absolute start-0 top-0 w-full h-full mobile:static mobile:h-auto flex flex-col overflow-auto scrollbar scrollbar-thumb-fifth scrollbar-track-newBgColor">
         <div className="w-full max-w-[640px] mx-auto px-[10px] pb-[20px]">
           {groupedPosts.map(([dateKey, datePosts]) => (
             <Fragment key={dateKey}>

@@ -36,7 +36,7 @@ export class FlowSaveTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'flowSave',
-      description: `Saves a flow to this workspace's own flows. A slug that exists updates that flow (fields left out keep their stored value); no slug, or a new one, creates a flow. "forkOf" records the library flow a copy came from and creates a new flow. "basedOn" makes a custom flow: it names the flow it is based on (a library flow id or "my/<slug>"), the base is read each time the flow is read, and "customization" holds what changes or adds to it. A new flow has a title and a body or a base. "skills" are skill slugs from the skills library the flow brings in. "importToken" copies the flow behind a share link as a new flow, with the author's colour codes, media links and Studio name scrubbed out; title and body are then optional. A flow holds the method only: brand details found in it come back as warnings and the flow is saved either way. Returns the slug, whether it was created, and the warnings. Included with Plus.`,
+      description: `Saves a flow to this workspace's own flows. A slug that exists updates that flow (fields left out keep their stored value); no slug, or a new one, creates a flow. "forkOf" records the library flow a copy came from and creates a new flow. "basedOn" makes a custom flow: it names the flow it is based on (a library flow id or "my/<slug>"), the base is read each time the flow is read, and "customization" holds what changes or adds to it. A new flow has a title and a body or a base. A skill link in the body, the customization or a part, "[Skill: Name](skill:<slug>)", brings in a skill from the skills library by its slug, or one of this workspace's own skills as "skill:my/<slug>"; "skills" adds skills by the same references without a link. A flow brings in at most 10 skills in all; a reference that names no skill is refused, and the error lists the workspace's own skills. The workspace's own skills are written in the app; this tool does not create them. "importToken" copies the flow behind a share link as a new flow, with the author's colour codes, media links and Studio name scrubbed out, and copies the author's own skills it brings in to this workspace's own skills; title and body are then optional. A flow holds the method only: brand details found in it come back as warnings and the flow is saved either way. Returns the slug, whether it was created, and the warnings. Included with Plus.`,
       mcp: {
         annotations: {
           title: 'Save My Flow',
@@ -60,7 +60,7 @@ export class FlowSaveTool implements AgentToolInterface {
           .string()
           .max(USER_FLOW_BODY_MAX)
           .optional()
-          .describe('The method, in Markdown'),
+          .describe('The method, in Markdown, with skill links "[Skill: Name](skill:<slug>)"'),
         parts: z
           .record(z.string(), z.string())
           .optional()
@@ -107,7 +107,9 @@ export class FlowSaveTool implements AgentToolInterface {
           .array(z.string().max(USER_FLOW_SKILL_SLUG_MAX))
           .max(USER_FLOW_SKILLS_MAX)
           .optional()
-          .describe('Skill slugs from the skills library, at most 5'),
+          .describe(
+            'Skills brought in without a link: skills library slugs, or "my/<slug>" for the workspace\'s own skills; at most 10 together with the linked ones'
+          ),
       }),
       outputSchema: z.object({
         slug: z.string().optional(),

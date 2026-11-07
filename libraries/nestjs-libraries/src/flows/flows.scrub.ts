@@ -81,6 +81,13 @@ export const scrubText = (text: string) => {
   };
 };
 
+// One of the author's My skills a shared flow brings in.
+export interface ScrubbableSkill {
+  name: string;
+  description: string;
+  body: string;
+}
+
 export interface ScrubbableFlow {
   title?: string;
   whenToUse?: string;
@@ -89,6 +96,8 @@ export interface ScrubbableFlow {
   // A custom flow's changes to its base.
   customization?: string;
   parts?: Record<string, string> | null;
+  // The author's own skills it brings in, scrubbed with it.
+  ownSkills?: ScrubbableSkill[];
 }
 
 const warningsFor = (found: Found, applied: boolean) => {
@@ -146,6 +155,16 @@ export const scrubFlow = <T extends ScrubbableFlow>(
           Object.entries(flow.parts).map(([key, value]) => [key, one(value)])
         )
       : flow.parts,
+    ...(flow.ownSkills
+      ? {
+          ownSkills: flow.ownSkills.map((skill) => ({
+            ...skill,
+            name: one(skill.name) as string,
+            description: one(skill.description) as string,
+            body: one(skill.body) as string,
+          })),
+        }
+      : {}),
   };
   return {
     flow: apply ? scrubbed : flow,

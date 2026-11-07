@@ -105,6 +105,7 @@ const flows = () => ({
             skills: [
               {
                 slug: 'hooks',
+                kind: 'voho',
                 name: 'Hooks',
                 summary: 'Openers',
                 whenToUse: null,
@@ -114,10 +115,19 @@ const flows = () => ({
               },
               {
                 slug: 'gone',
+                kind: 'voho',
                 name: 'gone',
                 summary: '',
                 whenToUse: null,
                 missing: true,
+              },
+              {
+                slug: 'my/brand-tone',
+                kind: 'mine',
+                name: 'Brand tone',
+                summary: 'How we sound',
+                whenToUse: null,
+                body: 'Tone steps',
               },
             ],
             poster: null,
@@ -259,8 +269,9 @@ describe('flowGet', () => {
       customization: 'Five slides',
       body: '',
       skills: [
-        { slug: 'hooks', body: 'Hook steps' },
-        { slug: 'gone', missing: true },
+        { slug: 'hooks', kind: 'voho', body: 'Hook steps' },
+        { slug: 'gone', kind: 'voho', missing: true },
+        { slug: 'my/brand-tone', kind: 'mine', body: 'Tone steps' },
       ],
     });
     expect(result).not.toHaveProperty('skillsUpgradeUrl');
@@ -286,10 +297,17 @@ describe('flowGet', () => {
     });
     expect(result.skills[0]).toEqual({
       slug: 'hooks',
+      kind: 'voho',
       name: 'Hooks',
       summary: 'Openers',
       whenToUse: null,
       locked: true,
+    });
+    // The workspace's own skills are never locked.
+    expect(result.skills[2]).toMatchObject({
+      slug: 'my/brand-tone',
+      kind: 'mine',
+      body: 'Tone steps',
     });
     expect(result.skillsUpgradeUrl).toBe('https://studio.example.com/plus');
   });
@@ -361,7 +379,7 @@ describe('flowSave', () => {
     );
   });
 
-  it('takes a library id or my/<slug> as a base, and at most 5 skills', () => {
+  it('takes a library id or my/<slug> as a base, and at most 10 skills', () => {
     const schema = tools(flows()).save.inputSchema;
     for (const basedOn of ['carousel', 'fact-short.v2', 'my/recap']) {
       expect(schema.safeParse({ title: 'T', basedOn }).success).toBe(true);
@@ -369,10 +387,17 @@ describe('flowSave', () => {
     for (const basedOn of ['my/', 'my/Bad Slug', 'a b', 'x'.repeat(101)]) {
       expect(schema.safeParse({ title: 'T', basedOn }).success).toBe(false);
     }
+    const eleven = 'abcdefghijk'.split('');
     expect(
-      schema.safeParse({ title: 'T', basedOn: 'c', skills: ['a', 'b', 'c', 'd', 'e', 'f'] })
+      schema.safeParse({ title: 'T', basedOn: 'c', skills: eleven.slice(0, 10) })
         .success
+    ).toBe(true);
+    expect(
+      schema.safeParse({ title: 'T', basedOn: 'c', skills: eleven }).success
     ).toBe(false);
+    expect(
+      schema.safeParse({ title: 'T', skills: ['hooks', 'my/brand-tone'] }).success
+    ).toBe(true);
   });
 
   it('passes on the reason a base was refused', async () => {

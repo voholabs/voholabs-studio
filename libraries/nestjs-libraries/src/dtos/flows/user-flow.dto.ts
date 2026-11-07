@@ -30,8 +30,20 @@ export const USER_FLOW_BASED_ON =
   /^(?:my\/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|[A-Za-z0-9._-]+)$/;
 export const USER_FLOW_BASED_ON_MAX = 100;
 export const USER_FLOW_CUSTOMIZATION_MAX = 20_000;
-export const USER_FLOW_SKILLS_MAX = 5;
+// The skills a flow brings in, skill links and others together.
+export const USER_FLOW_SKILLS_MAX = 10;
 export const USER_FLOW_SKILL_SLUG_MAX = 128;
+// A skill link in a flow's text: "[Skill: Hooks](skill:hooks)" for a skills
+// library skill, "[Skill: Brand tone](skill:my/brand-tone)" for one of My
+// skills. Group 1 is the label (display only), group 2 the reference. Global:
+// read it with matchAll or replace.
+export const SKILL_CHIP =
+  /\[Skill:\s*([^\]\n]{1,80})\]\(skill:(my\/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|[A-Za-z0-9._-]{1,128})\)/g;
+// My skills: a workspace's own skills, Markdown only.
+export const USER_SKILL_NAME_MAX = 80;
+export const USER_SKILL_DESCRIPTION_MAX = 300;
+export const USER_SKILL_BODY_MAX = 50_000;
+export const USER_SKILLS_MAX = 50;
 // How many of My flows a chain of bases may run through.
 export const USER_FLOW_CHAIN_MAX = 5;
 
@@ -109,7 +121,8 @@ export class SaveUserFlowDto {
   @MaxLength(USER_FLOW_CUSTOMIZATION_MAX)
   customization?: string;
 
-  // Skill slugs from the skills library.
+  // Skills brought in without a skill link in the text: a skills library
+  // slug or "my/<slug>". Added to the skills the links bring in.
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(USER_FLOW_SKILLS_MAX)
@@ -145,4 +158,25 @@ export class ImportUserFlowDto {
   @MaxLength(USER_FLOW_SLUG_MAX)
   @Matches(USER_FLOW_SLUG)
   slug?: string;
+}
+
+// Writing one of My skills from the app (POST /user-skills, or PATCH
+// /user-skills/:slug). The body is Markdown; a leading front matter block is
+// taken out.
+export class SaveUserSkillDto {
+  @IsString()
+  @IsDefined()
+  @MinLength(1)
+  @MaxLength(USER_SKILL_NAME_MAX)
+  name: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(USER_SKILL_DESCRIPTION_MAX)
+  description?: string;
+
+  @IsString()
+  @IsDefined()
+  @MaxLength(USER_SKILL_BODY_MAX)
+  body: string;
 }

@@ -1418,6 +1418,13 @@ model UserFlow {
   forkedFromId    String?
   // The FlowShare this was imported through.
   importedShareId String?
+  // A custom flow: the flow it is based on, a Voho library flow id or
+  // "my/<slug>". The base is read when the flow runs, never copied here.
+  basedOn         String?
+  // What the user changes or adds to the base; it wins over the base method.
+  customization   String       @default("")
+  // Skill slugs (the skills library) the flow brings in; at most 5.
+  skills          String[]     @default([])
   poster          String?
   exampleVideo    String?
   version         Int          @default(1)

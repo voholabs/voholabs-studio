@@ -5,9 +5,28 @@ import {
 } from '@gitroom/nestjs-libraries/database/prisma/user-flows/user-flows.service';
 import { scrubFlow, scrubText } from '@gitroom/nestjs-libraries/flows/flows.scrub';
 
+// The skills library: two active skills.
+const SKILLS = [
+  {
+    slug: 'hooks',
+    name: 'Hooks',
+    summary: 'Openers that stop the scroll',
+    whenToUse: 'The first line',
+    body: 'Hook steps',
+  },
+  {
+    slug: 'voice',
+    name: 'Your voice',
+    summary: 'Write like the user',
+    whenToUse: null,
+    body: 'Voice steps',
+  },
+];
+
 // The repository's methods over plain arrays: no database.
 const memory = () => {
   const flows: any[] = [];
+  const library = [...SKILLS];
   const shares: any[] = [];
   let ids = 0;
   const withShares = (flow: any) => ({
@@ -36,6 +55,23 @@ const memory = () => {
       );
       return flow ? { id: flow.id, deletedAt: flow.deletedAt } : null;
     }),
+    base: jest.fn(async (organizationId: string, slug: string) => {
+      const flow = flows.find(
+        (f) =>
+          f.organizationId === organizationId && f.slug === slug && !f.deletedAt
+      );
+      return flow ? { ...flow } : null;
+    }),
+    dependents: jest.fn(async (organizationId: string, slug: string) =>
+      flows
+        .filter(
+          (f) =>
+            f.organizationId === organizationId &&
+            !f.deletedAt &&
+            f.basedOn === `my/${slug}`
+        )
+        .map((f) => ({ slug: f.slug, title: f.title }))
+    ),
     origin: jest.fn(async (organizationId: string, slug: string) => {
       const flow = flows.find(
         (f) => f.organizationId === organizationId && f.slug === slug
@@ -69,6 +105,9 @@ const memory = () => {
         brandSlots: ['palette'],
         poster: null,
         exampleVideo: null,
+        basedOn: null,
+        customization: '',
+        skills: [],
         version: 1,
         deletedAt: null,
         updatedAt: new Date(),
@@ -126,7 +165,18 @@ const memory = () => {
       return { id: shareId };
     }),
   };
-  return { repo, flows, shares, service: new UserFlowsService(repo as any) };
+  const skills = {
+    bySlugs: jest.fn(async (slugs: string[]) =>
+      library.filter((skill) => slugs.includes(skill.slug))
+    ),
+  };
+  return {
+    repo,
+    flows,
+    shares,
+    library,
+    service: new UserFlowsService(repo as any, skills as any),
+  };
 };
 
 beforeAll(() => {
@@ -356,5 +406,316 @@ describe('UserFlowsService', () => {
     expect(flow).toMatchObject({ slug: 'recap', parts: { a: 'x' }, shared: false, shareUrl: null });
     expect(await service.get('org-2', 'recap')).toBeNull();
     expect(await service.get('org-1', '../x')).toBeNull();
+  });
+});
+
+describe('custom flows', () => {
+  it('saves a flow based on a library flow, with its changes and skills', async () => {
+    const { service, flows } = memory();
+    const result = await service.save('org-1', {
+      title: 'My carousel',
+      basedOn: 'carousel',
+      customization: 'Five slides, never more.',
+      skills: ['hooks', 'voice', 'hooks'],
+    });
+    expect(result).toMatchObject({ slug: 'my-carousel', created: true });
+    expect(flows[0]).toMatchObject({
+      source: 'CREATED',
+      basedOn: 'carousel',
+      customization: 'Five slides, never more.',
+      skills: ['hooks', 'voice'],
+      body: '',
+    });
+    const [listed] = await service.list('org-1');
+    expect(listed).toMatchObject({
+      basedOn: 'carousel',
+      skills: ['hooks', 'voice'],
+      shareable: true,
+    });
+    // The app reads the flow as stored, to edit it.
+    expect(await service.get('org-1', 'my-carousel')).toMatchObject({
+      basedOn: 'carousel',
+      customization: 'Five slides, never more.',
+      skills: ['hooks', 'voice'],
+    });
+  });
+
+  it('refuses a base or skills it cannot use', async () => {
+    const { service } = memory();
+    await service.save('org-1', { title: 'Recap', body: 'b' });
+    await expect(
+      service.save('org-1', { title: 'T', basedOn: 'my/nope' })
+    ).rejects.toThrow('no flow named "my/nope" to base on');
+    await expect(
+      service.save('org-1', { title: 'T', basedOn: 'bad id!' })
+    ).rejects.toThrow(/basedOn/);
+    await expect(
+      service.save('org-1', { title: 'T', basedOn: 'carousel', skills: ['nope'] })
+    ).rejects.toThrow('no skill named "nope"');
+    await expect(
+      service.save('org-1', {
+        title: 'T',
+        basedOn: 'carousel',
+        skills: ['a', 'b', 'c', 'd', 'e', 'f'],
+      })
+    ).rejects.toThrow(/at most 5 skills/);
+    await expect(
+      service.save('org-1', {
+        title: 'T',
+        basedOn: 'carousel',
+        customization: 'x'.repeat(20_001),
+      })
+    ).rejects.toThrow(/too long/);
+    // A deleted flow is no base either.
+    await service.delete('org-1', 'recap');
+    await expect(
+      service.save('org-1', { title: 'T', basedOn: 'my/recap' })
+    ).rejects.toThrow('no flow named "my/recap" to base on');
+  });
+
+  it('refuses a flow based on itself, directly or through others', async () => {
+    const { service } = memory();
+    await service.save('org-1', { title: 'A', body: 'A method' });
+    await service.save('org-1', { title: 'B', basedOn: 'my/a' });
+    await expect(
+      service.update('org-1', 'a', { basedOn: 'my/a' })
+    ).rejects.toThrow('a flow cannot be based on itself');
+    await expect(
+      service.update('org-1', 'a', { basedOn: 'my/b' })
+    ).rejects.toThrow('a flow cannot be based on itself');
+    await expect(
+      service.save(
+        'org-1',
+        { slug: 'a', title: 'A', basedOn: 'my/b' },
+        { overwrite: true }
+      )
+    ).rejects.toThrow('a flow cannot be based on itself');
+  });
+
+  it('refuses a chain longer than five of My flows', async () => {
+    const { service } = memory();
+    await service.save('org-1', { title: 'F0', body: 'root' });
+    for (let n = 1; n <= 5; n++) {
+      await service.save('org-1', { title: `F${n}`, basedOn: `my/f${n - 1}` });
+    }
+    await expect(
+      service.save('org-1', { title: 'F6', basedOn: 'my/f5' })
+    ).rejects.toThrow(/at most 5/);
+  });
+
+  it('merges a chain of My flows for the agent, the nearer flow winning', async () => {
+    const { service } = memory();
+    await service.save('org-1', {
+      title: 'A',
+      body: 'A method',
+      parts: { hook: 'a hook', outro: 'a outro' },
+      cost: '{{credits image 5}}',
+      foundation: ['business-basics'],
+      skills: ['hooks'],
+    });
+    await service.save('org-1', {
+      title: 'B',
+      basedOn: 'my/a',
+      customization: 'B change',
+      parts: { hook: 'b hook' },
+      foundation: ['audience'],
+    });
+    await service.save('org-1', {
+      title: 'C',
+      basedOn: 'my/b',
+      customization: 'C change',
+      skills: ['voice'],
+    });
+
+    const flow = await service.resolved('org-1', 'c', { skillsUnlocked: true });
+    expect(flow).toMatchObject({
+      slug: 'c',
+      title: 'C',
+      basedOn: null,
+      customization: 'B change\n\nC change',
+      body: 'A method',
+      parts: { hook: 'b hook', outro: 'a outro' },
+      cost: '{{credits image 5}}',
+      foundation: ['audience', 'business-basics'],
+    });
+    expect(flow?.skills).toEqual([
+      {
+        slug: 'voice',
+        name: 'Your voice',
+        summary: 'Write like the user',
+        whenToUse: null,
+        body: 'Voice steps',
+      },
+      {
+        slug: 'hooks',
+        name: 'Hooks',
+        summary: 'Openers that stop the scroll',
+        whenToUse: 'The first line',
+        body: 'Hook steps',
+      },
+    ]);
+  });
+
+  it('keeps a library base by id at the end of a chain, with no body', async () => {
+    const { service } = memory();
+    await service.save('org-1', {
+      title: 'L',
+      basedOn: 'carousel',
+      customization: 'L change',
+      cost: '{{credits image 3}}',
+    });
+    await service.save('org-1', { title: 'M', basedOn: 'my/l', customization: 'M change' });
+    const flow = await service.resolved('org-1', 'm', { skillsUnlocked: true });
+    expect(flow).toMatchObject({
+      basedOn: 'carousel',
+      customization: 'L change\n\nM change',
+      body: '',
+      parts: null,
+      cost: '{{credits image 3}}',
+      skills: [],
+    });
+  });
+
+  it('counts the body of a based-on flow as part of its customization', async () => {
+    const { service } = memory();
+    await service.save('org-1', {
+      title: 'T',
+      basedOn: 'carousel',
+      customization: 'Change',
+      body: 'Extra steps',
+    });
+    expect(
+      await service.resolved('org-1', 't', { skillsUnlocked: true })
+    ).toMatchObject({ customization: 'Change\n\nExtra steps', body: '' });
+  });
+
+  it('reads a flow of its own as stored', async () => {
+    const { service } = memory();
+    await service.save('org-1', { title: 'Recap', body: 'b', parts: { a: 'x' } });
+    expect(
+      await service.resolved('org-1', 'recap', { skillsUnlocked: true })
+    ).toMatchObject({ basedOn: null, customization: '', body: 'b', parts: { a: 'x' } });
+    expect(
+      await service.resolved('org-1', 'nope', { skillsUnlocked: true })
+    ).toBeNull();
+  });
+
+  it('locks the skills without the skills unlock and says which are gone', async () => {
+    const { service, library } = memory();
+    await service.save('org-1', {
+      title: 'T',
+      basedOn: 'carousel',
+      skills: ['hooks', 'voice'],
+    });
+    // "voice" is turned off in the library after the save.
+    library.splice(1, 1);
+    const flow = await service.resolved('org-1', 't', { skillsUnlocked: false });
+    expect(flow?.skills).toEqual([
+      {
+        slug: 'hooks',
+        name: 'Hooks',
+        summary: 'Openers that stop the scroll',
+        whenToUse: 'The first line',
+        locked: true,
+      },
+      { slug: 'voice', name: 'voice', summary: '', whenToUse: null, missing: true },
+    ]);
+  });
+
+  it('keeps a flow that others are based on until they change', async () => {
+    const { service } = memory();
+    await service.save('org-1', { title: 'A', body: 'A method' });
+    await service.save('org-1', { title: 'B', basedOn: 'my/a' });
+    await service.save('org-1', { title: 'C', basedOn: 'my/a' });
+    await expect(service.delete('org-1', 'a')).rejects.toThrow(
+      '2 flows are based on this one (my/b, my/c)'
+    );
+    await service.delete('org-1', 'b');
+    await expect(service.delete('org-1', 'a')).rejects.toThrow(
+      /^1 flow is based on this one \(my\/c\)/
+    );
+    await service.update('org-1', 'c', { basedOn: null, body: 'Own now' });
+    expect(await service.delete('org-1', 'a')).toEqual({ deleted: true });
+  });
+
+  it('shares a flow based on a library flow by reference, scrubbed, and imports it', async () => {
+    const { service, flows } = memory();
+    await service.save('org-1', {
+      title: 'Carousel plus',
+      basedOn: 'carousel',
+      customization: 'Accent #FF0000 on every slide.',
+      skills: ['hooks'],
+    });
+    const { token } = await service.share('org-1', 'carousel-plus');
+    const { flow, warnings } = await service.shared(token);
+    expect(flow).toMatchObject({
+      basedOn: 'carousel',
+      customization: "Accent the brand's accent colour on every slide.",
+      skills: ['hooks'],
+      body: '',
+    });
+    expect(warnings).toHaveLength(1);
+
+    const result = await service.import('org-2', token);
+    const copy = flows.find((f) => f.organizationId === 'org-2');
+    expect(result).toMatchObject({ slug: 'carousel-plus', created: true });
+    expect(copy).toMatchObject({
+      source: 'IMPORTED',
+      basedOn: 'carousel',
+      customization: "Accent the brand's accent colour on every slide.",
+      skills: ['hooks'],
+      body: '',
+    });
+  });
+
+  it('shares a chain of My flows merged, with no slug of the author', async () => {
+    const { service, flows } = memory();
+    await service.save('org-1', { title: 'A', body: 'A method', parts: { hook: 'a' } });
+    await service.save('org-1', {
+      title: 'B',
+      basedOn: 'my/a',
+      customization: 'B change',
+      skills: ['voice'],
+    });
+    const { token } = await service.share('org-1', 'b');
+    const { flow } = await service.shared(token);
+    expect(flow).toMatchObject({
+      title: 'B',
+      basedOn: null,
+      customization: 'B change',
+      body: 'A method',
+      parts: { hook: 'a' },
+      skills: ['voice'],
+    });
+    expect(JSON.stringify(flow)).not.toContain('my/');
+    expect(flow).not.toHaveProperty('slug');
+
+    await service.import('org-2', token);
+    expect(flows.find((f) => f.organizationId === 'org-2')).toMatchObject({
+      basedOn: null,
+      customization: 'B change',
+      body: 'A method',
+      skills: ['voice'],
+    });
+  });
+
+  it('never shares a flow based on a copy of a library flow', async () => {
+    const { service, repo, flows } = memory();
+    await service.fork('org-1', { id: 'carousel', title: 'Carousel', body: 'Voho method' });
+    await service.save('org-1', {
+      title: 'Carousel custom',
+      basedOn: 'my/carousel',
+      customization: 'Shorter',
+    });
+    await expect(service.share('org-1', 'carousel-custom')).rejects.toThrow(
+      /cannot be shared/
+    );
+    const shareable = Object.fromEntries(
+      (await service.list('org-1')).map((f: any) => [f.slug, f.shareable])
+    );
+    expect(shareable).toEqual({ carousel: false, 'carousel-custom': false });
+    // A link made some other way opens nothing either.
+    await repo.createShare('org-1', flows[1].id, 'old-token');
+    await expect(service.shared('old-token')).rejects.toThrow(/turned off/);
   });
 });

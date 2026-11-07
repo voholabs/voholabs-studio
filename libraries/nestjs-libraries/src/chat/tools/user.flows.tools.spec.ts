@@ -11,7 +11,7 @@ import { FlowsListTool } from '@gitroom/nestjs-libraries/chat/tools/flows.list.t
 import { FlowGetTool } from '@gitroom/nestjs-libraries/chat/tools/flow.get.tool';
 import { FlowSaveTool } from '@gitroom/nestjs-libraries/chat/tools/flow.save.tool';
 import { FlowShareTool } from '@gitroom/nestjs-libraries/chat/tools/flow.share.tool';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 const PAID = {
   id: 'org-1',
@@ -25,6 +25,8 @@ const FREE = {
 const PLUS = { ...FREE, walletUnlocks: ['brief', 'skills', 'flows'] };
 // A top-up that only opened the older keys.
 const SKILLS_ONLY = { ...FREE, walletUnlocks: ['brief', 'skills'] };
+// Flows open, the skills library not.
+const FLOWS_ONLY = { ...FREE, walletUnlocks: ['flows'] };
 
 const context = (org: any) => {
   const store = new Map<string, string>();
@@ -50,35 +52,82 @@ const flows = () => ({
       cost: null,
       foundation: ['business-basics'],
       source: 'SAVED_FROM_CHAT',
+      basedOn: 'carousel',
+      skills: ['hooks'],
       poster: null,
       updatedAt,
       shared: true,
     },
   ]),
-  get: jest.fn(async (_org: string, slug: string) =>
-    slug === 'recap'
-      ? {
-          id: 'f1',
-          slug: 'recap',
-          title: 'Recap',
-          whenToUse: '',
-          summary: '',
-          category: 'writing',
-          cost: null,
-          foundation: [],
-          body: 'The method',
-          parts: { hook: 'h' },
-          brandSlots: ['palette'],
-          source: 'FORKED',
-          forkedFromId: 'fact-short',
-          poster: null,
-          exampleVideo: null,
-          version: 2,
-          updatedAt,
-          shared: false,
-          shareUrl: null,
-        }
-      : null
+  resolved: jest.fn(
+    async (_org: string, slug: string, options: { skillsUnlocked: boolean }) =>
+      slug === 'recap'
+        ? {
+            id: 'f1',
+            slug: 'recap',
+            title: 'Recap',
+            whenToUse: '',
+            summary: '',
+            category: 'writing',
+            cost: null,
+            foundation: [],
+            body: 'The method',
+            parts: { hook: 'h' },
+            brandSlots: ['palette'],
+            source: 'FORKED',
+            forkedFromId: 'fact-short',
+            basedOn: null,
+            customization: '',
+            skills: [],
+            poster: null,
+            exampleVideo: null,
+            version: 2,
+            updatedAt,
+            shared: false,
+            shareUrl: null,
+          }
+        : slug === 'custom'
+        ? {
+            slug: 'custom',
+            title: 'Custom',
+            whenToUse: '',
+            summary: '',
+            category: null,
+            cost: null,
+            foundation: [],
+            body: '',
+            parts: null,
+            brandSlots: ['palette'],
+            source: 'CREATED',
+            forkedFromId: null,
+            basedOn: 'carousel',
+            customization: 'Five slides',
+            skills: [
+              {
+                slug: 'hooks',
+                name: 'Hooks',
+                summary: 'Openers',
+                whenToUse: null,
+                ...(options.skillsUnlocked
+                  ? { body: 'Hook steps' }
+                  : { locked: true }),
+              },
+              {
+                slug: 'gone',
+                name: 'gone',
+                summary: '',
+                whenToUse: null,
+                missing: true,
+              },
+            ],
+            poster: null,
+            exampleVideo: null,
+            version: 1,
+            updatedAt,
+            shared: false,
+            shareUrl: null,
+          }
+        : null
   ),
   save: jest.fn(async () => ({ slug: 'recap', created: true, warnings: [] })),
   share: jest.fn(async () => ({
@@ -166,6 +215,8 @@ describe('flowsList', () => {
           cost: null,
           foundation: ['business-basics'],
           source: 'SAVED_FROM_CHAT',
+          basedOn: 'carousel',
+          skills: ['hooks'],
           poster: null,
           shared: true,
           updatedAt: '2026-11-01T10:00:00.000Z',
@@ -188,10 +239,47 @@ describe('flowGet', () => {
       foundation: [],
       body: 'The method',
       parts: { hook: 'h' },
+      basedOn: null,
+      customization: '',
+      skills: [],
       brandSlots: ['palette'],
       source: 'FORKED',
       forkedFromId: 'fact-short',
     });
+  });
+
+  it('returns a custom flow with its skills whole, with the skills unlock', async () => {
+    const service = flows();
+    const result = await tools(service).get.execute({ slug: 'custom' }, context(PLUS));
+    expect(service.resolved).toHaveBeenCalledWith('org-1', 'custom', {
+      skillsUnlocked: true,
+    });
+    expect(result).toMatchObject({
+      basedOn: 'carousel',
+      customization: 'Five slides',
+      body: '',
+      skills: [
+        { slug: 'hooks', body: 'Hook steps' },
+        { slug: 'gone', missing: true },
+      ],
+    });
+    expect(result).not.toHaveProperty('skillsUpgradeUrl');
+  });
+
+  it('locks the skills without the skills unlock, with the Plus link', async () => {
+    const service = flows();
+    const result = await tools(service).get.execute({ slug: 'custom' }, context(FLOWS_ONLY));
+    expect(service.resolved).toHaveBeenCalledWith('org-1', 'custom', {
+      skillsUnlocked: false,
+    });
+    expect(result.skills[0]).toEqual({
+      slug: 'hooks',
+      name: 'Hooks',
+      summary: 'Openers',
+      whenToUse: null,
+      locked: true,
+    });
+    expect(result.skillsUpgradeUrl).toBe('https://studio.example.com/plus');
   });
 
   it('says "flow not found" for an unknown slug', async () => {
@@ -226,11 +314,65 @@ describe('flowSave', () => {
     expect(service.save.mock.calls[0][2]).toMatchObject({ importToken: 'tok' });
   });
 
-  it('needs a title and a body otherwise', async () => {
+  it('needs a title, and a body or a base otherwise', async () => {
     const service = flows();
     const result = await tools(service).save.execute({ title: 'T' }, context(PLUS));
-    expect(result.error).toMatch(/title and a body/);
+    expect(result.error).toBe('A flow needs a title, and a body or a base.');
     expect(service.save).not.toHaveBeenCalled();
+  });
+
+  it('saves a custom flow with a base, its changes and skills', async () => {
+    const service = flows();
+    await tools(service).save.execute(
+      {
+        title: 'Mine',
+        basedOn: 'my/recap',
+        customization: 'Shorter',
+        skills: ['hooks'],
+      },
+      context(PLUS)
+    );
+    expect(service.save).toHaveBeenCalledWith(
+      'org-1',
+      {
+        title: 'Mine',
+        basedOn: 'my/recap',
+        customization: 'Shorter',
+        skills: ['hooks'],
+      },
+      {
+        source: 'SAVED_FROM_CHAT',
+        forkOf: undefined,
+        importToken: undefined,
+        overwrite: true,
+      }
+    );
+  });
+
+  it('takes a library id or my/<slug> as a base, and at most 5 skills', () => {
+    const schema = tools(flows()).save.inputSchema;
+    for (const basedOn of ['carousel', 'fact-short.v2', 'my/recap']) {
+      expect(schema.safeParse({ title: 'T', basedOn }).success).toBe(true);
+    }
+    for (const basedOn of ['my/', 'my/Bad Slug', 'a b', 'x'.repeat(101)]) {
+      expect(schema.safeParse({ title: 'T', basedOn }).success).toBe(false);
+    }
+    expect(
+      schema.safeParse({ title: 'T', basedOn: 'c', skills: ['a', 'b', 'c', 'd', 'e', 'f'] })
+        .success
+    ).toBe(false);
+  });
+
+  it('passes on the reason a base was refused', async () => {
+    const service = flows();
+    service.save.mockRejectedValueOnce(
+      new BadRequestException('no flow named "my/x" to base on')
+    );
+    const result = await tools(service).save.execute(
+      { title: 'T', basedOn: 'my/x' },
+      context(PLUS)
+    );
+    expect(result).toEqual({ error: 'no flow named "my/x" to base on' });
   });
 
   it('passes on the reason a save was refused', async () => {

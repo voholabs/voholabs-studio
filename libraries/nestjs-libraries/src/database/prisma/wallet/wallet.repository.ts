@@ -190,6 +190,36 @@ export class WalletRepository {
     return this._action.model.billableAction.findUnique({ where: { key } });
   }
 
+  // Adds a price row the code ships with, leaving an existing row exactly as
+  // the admin set it.
+  createActionIfMissing(row: Prisma.BillableActionCreateInput) {
+    return this._action.model.billableAction.upsert({
+      where: { key: row.key },
+      update: {},
+      create: row,
+      select: { key: true },
+    });
+  }
+
+  setActionCost(key: string, costMicros: number) {
+    return this._action.model.billableAction.updateMany({
+      where: { key },
+      data: { costMicros },
+    });
+  }
+
+  setting(key: string) {
+    return this._setting.model.billingSetting.findUnique({ where: { key } });
+  }
+
+  saveSetting(key: string, value: string) {
+    return this._setting.model.billingSetting.upsert({
+      where: { key },
+      update: { value },
+      create: { key, value },
+    });
+  }
+
   getWallet(organizationId: string) {
     return this._wallet.model.wallet.findUnique({ where: { organizationId } });
   }

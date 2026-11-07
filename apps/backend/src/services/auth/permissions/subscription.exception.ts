@@ -35,7 +35,9 @@ export class SubscriptionExceptionFilter implements ExceptionFilter {
 
     // Opens with Plus, so the app offers Plus instead of Postiz billing.
     const isWallet =
-      error.section === Sections.BRIEF || error.section === Sections.SKILLS;
+      error.section === Sections.BRIEF ||
+      error.section === Sections.SKILLS ||
+      error.section === Sections.FLOWS;
 
     // The same body as every other Plus refusal in the app (plusRequired):
     // { message, wallet: true, plus: true, url: '/plus' }.
@@ -78,6 +80,8 @@ const getErrorMessage = (error: {
       return 'The agent brief is included with Plus.';
     case Sections.SKILLS:
       return 'The skills library is included with Plus.';
+    case Sections.FLOWS:
+      return 'Flows are included with Plus.';
     case Sections.POSTS_PER_MONTH:
       switch (error.action) {
         default:

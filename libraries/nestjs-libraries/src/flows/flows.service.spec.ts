@@ -189,3 +189,76 @@ describe('FlowsService.list', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe('FlowsService.source', () => {
+  const OLD_ENV = process.env;
+  const realFetch = global.fetch;
+  afterEach(() => {
+    process.env = OLD_ENV;
+    global.fetch = realFetch;
+  });
+
+  const withGateway = () => {
+    process.env = {
+      ...OLD_ENV,
+      MCP_GATEWAY_URL: 'https://gateway.example.com/',
+      MCP_GATEWAY_SECRET: 'shh',
+    };
+  };
+
+  it('reads a library flow with the gateway secret and fills the sample from the catalog', async () => {
+    withGateway();
+    const fetch = jest.fn(async (url: string) => ({
+      ok: true,
+      json: async () =>
+        url.endsWith('/source')
+          ? {
+              flow: {
+                title: 'Fact short',
+                body: 'The method',
+                parts: { script: 'Write', 'bad key!': 'x', n: 4 },
+                foundation: ['voice'],
+              },
+            }
+          : {
+              flows: [
+                {
+                  id: 'fact-short',
+                  title: 'Fact short',
+                  poster: 'https://cdn.example.com/p.jpg',
+                  category: 'video',
+                },
+              ],
+            },
+    }));
+    global.fetch = fetch as any;
+    const source = await new FlowsService().source('fact-short');
+    expect(fetch.mock.calls[0][0]).toBe(
+      'https://gateway.example.com/flows/fact-short/source'
+    );
+    expect((fetch.mock.calls[0] as any)[1].headers).toEqual({
+      'x-mcp-gateway-secret': 'shh',
+    });
+    expect(source).toEqual({
+      id: 'fact-short',
+      title: 'Fact short',
+      body: 'The method',
+      parts: { script: 'Write' },
+      foundation: ['voice'],
+      category: 'video',
+      poster: 'https://cdn.example.com/p.jpg',
+    });
+  });
+
+  it('is null without the secret, for a bad id, or when the gateway refuses', async () => {
+    process.env = { ...OLD_ENV, MCP_GATEWAY_URL: 'https://gateway.example.com' };
+    delete process.env.MCP_GATEWAY_SECRET;
+    const fetch = jest.fn(async () => ({ ok: false, status: 404 }));
+    global.fetch = fetch as any;
+    expect(await new FlowsService().source('fact-short')).toBeNull();
+    withGateway();
+    expect(await new FlowsService().source('../etc')).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(await new FlowsService().source('fact-short')).toBeNull();
+  });
+});

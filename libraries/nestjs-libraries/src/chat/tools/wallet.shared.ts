@@ -259,6 +259,7 @@ const SECTION_LABELS: Record<string, string> = {
   storage: 'Storage',
   brief: 'Brief',
   skills: 'Skills',
+  flows: 'Flows',
   ai: 'AI generation',
 };
 

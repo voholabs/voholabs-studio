@@ -72,6 +72,7 @@ model Organization {
   wallet              Wallet?
   walletEntries       WalletEntry[]
   briefOnboardings    BriefOnboarding[]
+  userFlows           UserFlow[]
 
   @@index([apiKey])
   @@index([streakSince])
@@ -1388,6 +1389,69 @@ model SkillTag {
   label     String
   sortOrder Int      @default(0)
   updatedAt DateTime @updatedAt
+}
+
+// A workspace's own flows ("My flows"): a method the agent runs, saved from a
+// chat, written in the app, forked from the Voho library or imported from a
+// share link. A flow holds method and style only, never brand facts: the
+// gateway attaches the workspace's brand when it reads one. Additive tables
+// only (db push runs on deploy), never renamed.
+model UserFlow {
+  id              String       @id @default(uuid())
+  organizationId  String
+  // The gateway names it "my/<slug>". Unique per workspace, deleted rows
+  // included, so a deleted flow's slug is never handed out again.
+  slug            String
+  title           String
+  whenToUse       String       @default("")
+  summary         String       @default("")
+  category        String?
+  // The cost line, "{{credits ...}}" placeholders priced by the gateway.
+  cost            String?
+  foundation      String[]     @default([])
+  body            String       @default("")
+  // Optional named parts of the method (workflowGet's "part").
+  parts           Json?
+  brandSlots      String[]     @default(["palette", "fonts", "logo", "files", "voice", "audience"])
+  source          FlowSource   @default(CREATED)
+  // The library flow id (or another origin) this was forked from.
+  forkedFromId    String?
+  // The FlowShare this was imported through.
+  importedShareId String?
+  poster          String?
+  exampleVideo    String?
+  version         Int          @default(1)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  deletedAt       DateTime?
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  shares          FlowShare[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, updatedAt])
+}
+
+// A share link to one UserFlow. Anyone signed in with the token can read the
+// flow's method fields and import a scrubbed copy; revoking sets revokedAt.
+model FlowShare {
+  id             String    @id @default(uuid())
+  token          String    @unique
+  userFlowId     String
+  organizationId String
+  imports        Int       @default(0)
+  createdAt      DateTime  @default(now())
+  revokedAt      DateTime?
+  userFlow       UserFlow  @relation(fields: [userFlowId], references: [id])
+
+  @@index([organizationId])
+  @@index([userFlowId])
+}
+
+enum FlowSource {
+  CREATED
+  FORKED
+  IMPORTED
+  SAVED_FROM_CHAT
 }
 
 enum AgentAuthMethod {

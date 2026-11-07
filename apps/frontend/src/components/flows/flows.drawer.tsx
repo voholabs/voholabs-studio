@@ -590,12 +590,65 @@ const FlowDetailBody: FC<{
   );
 };
 
-const FlowAside: FC<{
+interface FlowDrawerProps {
   flow: Flow;
   related: Flow[];
+  // Flows open with Plus: without it the drawer offers Plus instead
+  locked?: boolean;
+  // copies the flow into My flows; missing when that is not open
+  onFork?: (id: string) => Promise<void>;
   onClose: () => void;
   onOpen: (id: string) => void;
-}> = ({ flow, related, onClose, onOpen }) => {
+}
+
+// Copies a library flow into My flows, to change it there.
+const ForkButton: FC<{ flow: Flow; onFork: (id: string) => Promise<void> }> = ({
+  flow,
+  onFork,
+}) => {
+  const t = useT();
+  const [busy, setBusy] = useState(false);
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={async () => {
+        setBusy(true);
+        await onFork(flow.id);
+        setBusy(false);
+      }}
+      className="w-full h-[40px] rounded-[8px] border border-newTableBorder hover:border-tealText text-[14px] font-[600] disabled:opacity-50 transition-colors"
+    >
+      {busy
+        ? t('flows_forking', 'Adding...')
+        : t('flows_fork', 'Fork to my flows')}
+    </button>
+  );
+};
+
+// What a workspace without Plus gets in place of the prompt.
+const PlusButton: FC = () => {
+  const t = useT();
+  return (
+    <button
+      type="button"
+      onClick={() => openPlus()}
+      className="w-full h-[44px] rounded-[8px] bg-btnPrimary hover:brightness-110 text-white text-[15px] font-[600] inline-flex items-center justify-center gap-[8px] transition-all"
+    >
+      <LockIcon size={14} />
+      {t('flows_get_plus_to_run', 'Get Plus to run this flow')}
+    </button>
+  );
+};
+
+const FlowAside: FC<FlowDrawerProps> = ({
+  flow,
+  related,
+  locked,
+  onFork,
+  onClose,
+  onOpen,
+}) => {
   const t = useT();
   const { copyPrompt, label } = useCopyPrompt(flow);
 
@@ -633,15 +686,22 @@ const FlowAside: FC<{
           related={related}
           onOpen={onOpen}
           cta={
-            flow.prompt ? (
-              <button
-                type="button"
-                onClick={copyPrompt}
-                className="w-full h-[44px] rounded-[8px] bg-btnPrimary hover:brightness-110 text-white text-[15px] font-[600] transition-all"
-              >
-                {label}
-              </button>
-            ) : null
+            locked ? (
+              <PlusButton />
+            ) : (
+              <>
+                {!!flow.prompt && (
+                  <button
+                    type="button"
+                    onClick={copyPrompt}
+                    className="w-full h-[44px] rounded-[8px] bg-btnPrimary hover:brightness-110 text-white text-[15px] font-[600] transition-all"
+                  >
+                    {label}
+                  </button>
+                )}
+                {!!onFork && <ForkButton flow={flow} onFork={onFork} />}
+              </>
+            )
           }
         />
       </div>
@@ -649,31 +709,45 @@ const FlowAside: FC<{
   );
 };
 
-const FlowSheet: FC<{
-  flow: Flow;
-  related: Flow[];
-  onClose: () => void;
-  onOpen: (id: string) => void;
-}> = ({ flow, related, onClose, onOpen }) => {
+const FlowSheet: FC<FlowDrawerProps> = ({
+  flow,
+  related,
+  locked,
+  onFork,
+  onClose,
+  onOpen,
+}) => {
+  const t = useT();
   const { copyPrompt, label } = useCopyPrompt(flow);
   return (
     <BottomSheet
       title={flow.title}
       onClose={onClose}
-      button={flow.prompt ? { label, onClick: copyPrompt } : undefined}
+      button={
+        locked
+          ? {
+              label: t('flows_get_plus_to_run', 'Get Plus to run this flow'),
+              onClick: () => openPlus(),
+            }
+          : flow.prompt
+          ? { label, onClick: copyPrompt }
+          : undefined
+      }
     >
-      <FlowDetailBody flow={flow} related={related} onOpen={onOpen} />
+      <FlowDetailBody
+        flow={flow}
+        related={related}
+        onOpen={onOpen}
+        cta={
+          !locked && onFork ? <ForkButton flow={flow} onFork={onFork} /> : null
+        }
+      />
     </BottomSheet>
   );
 };
 
 // A side panel on desktop, a bottom sheet on phones.
-export const FlowDrawer: FC<{
-  flow: Flow;
-  related: Flow[];
-  onClose: () => void;
-  onOpen: (id: string) => void;
-}> = (props) => {
+export const FlowDrawer: FC<FlowDrawerProps> = (props) => {
   const mobile = useMediaMatch(MOBILE_MEDIA_QUERY);
   return mobile ? <FlowSheet {...props} /> : <FlowAside {...props} />;
 };

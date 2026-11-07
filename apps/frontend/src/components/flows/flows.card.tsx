@@ -269,8 +269,22 @@ const PlayGlyph = () => (
   </svg>
 );
 
+// Flows open with Plus: a workspace without it sees the catalog with this on
+// each card.
+export const FlowPlusPill: FC = () => {
+  const t = useT();
+  return (
+    <span className="inline-flex items-center gap-[5px] h-[20px] px-[8px] rounded-full text-[11px] font-[600] bg-black/60 border border-warmRing text-warm backdrop-blur-[6px]">
+      <LockIcon size={10} />
+      {t('flows_plus_pill', 'Plus')}
+    </span>
+  );
+};
+
 const FlowCardInner: FC<{
   flow: Flow;
+  // shows the Plus lock (a workspace without Plus)
+  locked?: boolean;
   // a key unique on the page: the same flow can sit in a rail and the grid
   playKey: string;
   playing: boolean;
@@ -280,6 +294,7 @@ const FlowCardInner: FC<{
   onVisible?: (key: string, visible: boolean) => void;
 }> = ({
   flow,
+  locked,
   playKey,
   playing,
   size = 'grid',
@@ -369,6 +384,7 @@ const FlowCardInner: FC<{
           <span className="flex-1" />
           <FlowSlideCount flow={flow} />
           <FlowBadges flow={flow} />
+          {locked && <FlowPlusPill />}
         </span>
       )}
       <span className="flex-1 min-h-[12px] flex items-center justify-center">

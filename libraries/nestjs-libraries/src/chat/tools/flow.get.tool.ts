@@ -24,7 +24,7 @@ export class FlowGetTool implements AgentToolInterface {
       id: 'flowGet',
       description: `Reads one of this workspace's own flows by its slug: the title, when to use it, the summary, category, cost line, foundation, the whole method ("body"), its named parts, the brand slots the reader's brand kit fills, how it was made and the origin it was forked from.
 A custom flow comes back merged with the flows of this workspace it is based on: "basedOn" is the Voho library flow at the end of that chain (null when there is none), "customization" holds the changes oldest first and wins over the base method, "body" is the method of the chain's own first flow ("" when the chain ends in a library flow), and "parts" are merged with the nearer flow winning.
-"skills" lists the skills the flow brings in, with their instructions in "body"; without the skills unlock each one is "locked" with no body and "skillsUpgradeUrl" is the Plus page; a skill no longer in the library is "missing". An unknown slug returns the error "flow not found". Included with Plus.`,
+"skills" lists the skills the flow brings in, with their instructions in "body"; without the skills unlock each one is "locked" with no body and "skillsUpgradeUrl" is the Plus page; a skill no longer in the library is "missing". "warnings" says when a chain of bases stops short, for flows saved before its checks. An unknown slug returns the error "flow not found". Included with Plus.`,
       mcp: {
         annotations: {
           title: 'Read My Flow',
@@ -73,6 +73,10 @@ A custom flow comes back merged with the flows of this workspace it is based on:
           .string()
           .optional()
           .describe('The Plus page, when a skill is locked'),
+        warnings: z
+          .array(z.string())
+          .optional()
+          .describe('Where a chain of bases stops short of its end'),
         brandSlots: z.array(z.string()).optional(),
         source: z
           .enum(['CREATED', 'FORKED', 'IMPORTED', 'SAVED_FROM_CHAT'])
@@ -115,6 +119,7 @@ A custom flow comes back merged with the flows of this workspace it is based on:
             ...(flow.skills.some((skill) => skill.locked)
               ? { skillsUpgradeUrl: plusUrl() }
               : {}),
+            ...(flow.warnings?.length ? { warnings: flow.warnings } : {}),
             brandSlots: flow.brandSlots,
             source: flow.source,
             forkedFromId: flow.forkedFromId,

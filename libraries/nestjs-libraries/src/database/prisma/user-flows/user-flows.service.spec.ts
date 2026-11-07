@@ -77,7 +77,12 @@ const memory = () => {
         (f) => f.organizationId === organizationId && f.slug === slug
       );
       return flow
-        ? { source: flow.source, forkedFromId: flow.forkedFromId }
+        ? {
+            slug: flow.slug,
+            basedOn: flow.basedOn,
+            source: flow.source,
+            forkedFromId: flow.forkedFromId,
+          }
         : null;
     }),
     slugsLike: jest.fn(async (organizationId: string, slug: string) =>
@@ -445,13 +450,15 @@ describe('custom flows', () => {
     await service.save('org-1', { title: 'Recap', body: 'b' });
     await expect(
       service.save('org-1', { title: 'T', basedOn: 'my/nope' })
-    ).rejects.toThrow('no flow named "my/nope" to base on');
+    ).rejects.toThrow('There is no flow named "my/nope" to base on.');
     await expect(
       service.save('org-1', { title: 'T', basedOn: 'bad id!' })
-    ).rejects.toThrow(/basedOn/);
+    ).rejects.toThrow('The base is a Voho library flow id or "my/<slug>".');
     await expect(
       service.save('org-1', { title: 'T', basedOn: 'carousel', skills: ['nope'] })
-    ).rejects.toThrow('no skill named "nope"');
+    ).rejects.toThrow(
+      'There is no skill named "nope" in the skills library.'
+    );
     await expect(
       service.save('org-1', {
         title: 'T',
@@ -470,7 +477,7 @@ describe('custom flows', () => {
     await service.delete('org-1', 'recap');
     await expect(
       service.save('org-1', { title: 'T', basedOn: 'my/recap' })
-    ).rejects.toThrow('no flow named "my/recap" to base on');
+    ).rejects.toThrow('There is no flow named "my/recap" to base on.');
   });
 
   it('refuses a flow based on itself, directly or through others', async () => {
@@ -479,17 +486,17 @@ describe('custom flows', () => {
     await service.save('org-1', { title: 'B', basedOn: 'my/a' });
     await expect(
       service.update('org-1', 'a', { basedOn: 'my/a' })
-    ).rejects.toThrow('a flow cannot be based on itself');
+    ).rejects.toThrow('A flow cannot be based on itself.');
     await expect(
       service.update('org-1', 'a', { basedOn: 'my/b' })
-    ).rejects.toThrow('a flow cannot be based on itself');
+    ).rejects.toThrow('A flow cannot be based on itself.');
     await expect(
       service.save(
         'org-1',
         { slug: 'a', title: 'A', basedOn: 'my/b' },
         { overwrite: true }
       )
-    ).rejects.toThrow('a flow cannot be based on itself');
+    ).rejects.toThrow('A flow cannot be based on itself.');
   });
 
   it('refuses a chain longer than five of My flows', async () => {
@@ -500,7 +507,36 @@ describe('custom flows', () => {
     }
     await expect(
       service.save('org-1', { title: 'F6', basedOn: 'my/f5' })
-    ).rejects.toThrow(/at most 5/);
+    ).rejects.toThrow(
+      'A flow can be based on a chain of at most 5 of My flows.'
+    );
+  });
+
+  it('refuses an edit that makes the chain of a flow based on it too long', async () => {
+    const { service, flows } = memory();
+    await service.save('org-1', { title: 'F0', body: 'root' });
+    for (let n = 1; n <= 4; n++) {
+      await service.save('org-1', { title: `F${n}`, basedOn: `my/f${n - 1}` });
+    }
+    await service.save('org-1', { title: 'G0', body: 'other root' });
+    await service.save('org-1', { title: 'G1', basedOn: 'my/g0' });
+    // g0 under f4 is 5 links deep, which puts g1 at 6.
+    await expect(
+      service.update('org-1', 'g0', { basedOn: 'my/f4' })
+    ).rejects.toThrow('based on a chain of at most 5');
+    await expect(
+      service.save(
+        'org-1',
+        { slug: 'g0', title: 'G0', basedOn: 'my/f4' },
+        { overwrite: true }
+      )
+    ).rejects.toThrow('based on a chain of at most 5');
+    expect(flows.find((f) => f.slug === 'g0').basedOn).toBeNull();
+    // Under f3, g1 ends 5 links deep: allowed.
+    await service.update('org-1', 'g0', { basedOn: 'my/f3' });
+    expect(
+      (await service.resolved('org-1', 'g1', { skillsUnlocked: true }))?.body
+    ).toBe('root');
   });
 
   it('merges a chain of My flows for the agent, the nearer flow winning', async () => {
@@ -587,6 +623,59 @@ describe('custom flows', () => {
     expect(
       await service.resolved('org-1', 't', { skillsUnlocked: true })
     ).toMatchObject({ customization: 'Change\n\nExtra steps', body: '' });
+  });
+
+  it('reads a chain that stops short up to its last flow, and says so', async () => {
+    const { service, flows } = memory();
+    await service.save('org-1', { title: 'X', body: 'X method' });
+    await service.save('org-1', { title: 'P', body: 'P method' });
+    await service.save('org-1', { title: 'Q', body: 'Q method' });
+    // Rows from before the checks: a base that is gone, and a loop.
+    flows.find((f) => f.slug === 'x').basedOn = 'my/gone';
+    flows.find((f) => f.slug === 'p').basedOn = 'my/q';
+    flows.find((f) => f.slug === 'q').basedOn = 'my/p';
+
+    expect(
+      await service.resolved('org-1', 'x', { skillsUnlocked: true })
+    ).toMatchObject({
+      basedOn: null,
+      body: 'X method',
+      warnings: [
+        'The flow "my/gone" it is based on no longer exists. It is read up to "my/x".',
+      ],
+    });
+    expect(
+      await service.resolved('org-1', 'p', { skillsUnlocked: true })
+    ).toMatchObject({
+      body: 'Q method',
+      customization: 'P method',
+      warnings: [
+        'Its chain of bases loops back on itself. It is read up to "my/q".',
+      ],
+    });
+
+    const { token } = await service.share('org-1', 'p');
+    expect((await service.shared(token)).warnings).toEqual([
+      'Its chain of bases loops back on itself. It is read up to the last flow that could be read.',
+    ]);
+  });
+
+  it('says when a chain runs past five of My flows at read time', async () => {
+    const { service, flows } = memory();
+    for (let n = 0; n <= 6; n++) {
+      await service.save('org-1', { title: `H${n}`, body: `H${n} method` });
+    }
+    for (let n = 1; n <= 6; n++) {
+      flows.find((f) => f.slug === `h${n}`).basedOn = `my/h${n - 1}`;
+    }
+    const flow = await service.resolved('org-1', 'h6', { skillsUnlocked: true });
+    expect(flow?.body).toBe('H1 method');
+    expect(flow?.warnings).toEqual([
+      'Its chain of bases runs through more than 5 of My flows. It is read up to "my/h1".',
+    ]);
+    expect(
+      (await service.resolved('org-1', 'h0', { skillsUnlocked: true }))?.warnings
+    ).toEqual([]);
   });
 
   it('reads a flow of its own as stored', async () => {
@@ -697,6 +786,63 @@ describe('custom flows', () => {
       body: 'A method',
       skills: ['voice'],
     });
+  });
+
+  it('says what an import of a long merged chain keeps', async () => {
+    const { service, flows, library } = memory();
+    for (const slug of ['s1', 's2', 's3', 's4']) {
+      library.push({ slug, name: slug, summary: '', whenToUse: null, body: '' });
+    }
+    await service.save('org-1', {
+      title: 'A',
+      body: 'A method',
+      customization: '',
+      skills: ['hooks', 'voice', 's1'],
+    });
+    await service.save('org-1', {
+      title: 'B',
+      basedOn: 'my/a',
+      customization: 'b'.repeat(15_000),
+      skills: ['s2', 's3', 's4'],
+    });
+    await service.save('org-1', {
+      title: 'C',
+      basedOn: 'my/b',
+      customization: 'c'.repeat(15_000),
+    });
+    const { token } = await service.share('org-1', 'c');
+    const notes = [
+      'The customization is longer than 20,000 characters; the imported flow keeps the first 20,000.',
+      'The flow brings in 6 skills; the imported flow keeps the first 5.',
+    ];
+    expect((await service.shared(token)).warnings).toEqual(notes);
+    const result = await service.import('org-2', token);
+    expect(result.warnings).toEqual(notes);
+    const copy = flows.find((f) => f.organizationId === 'org-2');
+    expect(copy.customization).toHaveLength(20_000);
+    expect(copy.skills).toEqual(['s2', 's3', 's4', 'hooks', 'voice']);
+  });
+
+  it('never shares a copy of a flow based on a copy of a library flow', async () => {
+    const { service } = memory();
+    await service.fork('org-1', { id: 'carousel', title: 'Carousel', body: 'Voho method' });
+    await service.save('org-1', {
+      title: 'Carousel custom',
+      basedOn: 'my/carousel',
+      customization: 'Shorter',
+    });
+    await service.save(
+      'org-1',
+      { title: 'Carousel copy', body: 'Voho method, shorter' },
+      { forkOf: 'my/carousel-custom' }
+    );
+    await expect(service.share('org-1', 'carousel-copy')).rejects.toThrow(
+      /cannot be shared/
+    );
+    const shareable = Object.fromEntries(
+      (await service.list('org-1')).map((f: any) => [f.slug, f.shareable])
+    );
+    expect(shareable['carousel-copy']).toBe(false);
   });
 
   it('never shares a flow based on a copy of a library flow', async () => {

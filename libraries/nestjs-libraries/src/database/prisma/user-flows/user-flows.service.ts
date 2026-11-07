@@ -142,11 +142,10 @@ const basedOn = (value: unknown) => {
   if (value === undefined) {
     return undefined;
   }
-  const raw = typeof value === 'string' ? value.trim() : '';
-  const base = raw.toLowerCase().startsWith(MY) ? raw.toLowerCase() : raw;
+  const base = typeof value === 'string' ? value.trim() : '';
   if (base.length > USER_FLOW_BASED_ON_MAX || !USER_FLOW_BASED_ON.test(base)) {
     throw new BadRequestException(
-      'basedOn is a library flow id or "my/<slug>"'
+      'The base is a Voho library flow id or "my/<slug>".'
     );
   }
   return base;
@@ -343,6 +342,63 @@ const flatten = (flow: FlowLink, chain: FlowLink[]) => {
   };
 };
 
+// What a read says when a chain of bases stops short (rows saved before the
+// checks): the flow is read up to the last flow of the chain that could be
+// read. Named gives the slugs, for the workspace's own agent; a share link
+// names none of the author's.
+const chainWarnings = (
+  found: Ancestors<{ slug: string }>,
+  flow: { slug: string },
+  named: boolean
+): string[] => {
+  const last = found.chain[found.chain.length - 1]?.slug || flow.slug;
+  const stop = named
+    ? ` It is read up to "${MY}${last}".`
+    : ' It is read up to the last flow that could be read.';
+  if (found.broken) {
+    return [
+      `${
+        named ? `The flow "${MY}${found.broken}"` : 'A flow'
+      } it is based on no longer exists.${stop}`,
+    ];
+  }
+  if (found.cycle) {
+    return [`Its chain of bases loops back on itself.${stop}`];
+  }
+  if (found.tooDeep) {
+    return [
+      `Its chain of bases runs through more than ${USER_FLOW_CHAIN_MAX} of My flows.${stop}`,
+    ];
+  }
+  return [];
+};
+
+// What an import of a shared flow keeps of a merged chain longer than one
+// flow may hold, and the warnings that say so.
+const importLimits = (flow: { customization?: string; skills: string[] }) => {
+  const customization = flow.customization || '';
+  const warnings: string[] = [];
+  if (customization.length > USER_FLOW_CUSTOMIZATION_MAX) {
+    warnings.push(
+      `The customization is longer than ${USER_FLOW_CUSTOMIZATION_MAX.toLocaleString(
+        'en-US'
+      )} characters; the imported flow keeps the first ${USER_FLOW_CUSTOMIZATION_MAX.toLocaleString(
+        'en-US'
+      )}.`
+    );
+  }
+  if (flow.skills.length > USER_FLOW_SKILLS_MAX) {
+    warnings.push(
+      `The flow brings in ${flow.skills.length} skills; the imported flow keeps the first ${USER_FLOW_SKILLS_MAX}.`
+    );
+  }
+  return {
+    customization: customization.slice(0, USER_FLOW_CUSTOMIZATION_MAX),
+    skills: flow.skills.slice(0, USER_FLOW_SKILLS_MAX),
+    warnings,
+  };
+};
+
 // A workspace's own flows ("My flows"): saved from a chat through the MCP
 // gateway, written in the app, forked from the Voho library or imported from
 // a share link. Method and style only: brand facts are attached by the
@@ -400,14 +456,15 @@ export class UserFlowsService {
     if (!flow) {
       return null;
     }
-    const { chain } = await this.ancestors(flow, (base) =>
+    const found = await this.ancestors(flow, (base) =>
       this._flows.base(organizationId, base)
     );
-    const flat = flatten(flow, chain);
+    const flat = flatten(flow, found.chain);
     return {
       ...flow,
       ...flat,
       skills: await this.skillsOf(flat.skills, options.skillsUnlocked),
+      warnings: chainWarnings(found, flow, true),
     };
   }
 
@@ -479,7 +536,7 @@ export class UserFlowsService {
   }
 
   // A Voho library flow, read from the gateway, as a new flow of this
-  // workspace.
+  // workspace. Kept for older clients: the app no longer calls it.
   fork(organizationId: string, source: LibraryFlowSource, slug?: string) {
     return this.save(
       organizationId,
@@ -553,7 +610,10 @@ export class UserFlowsService {
   async shared(token: string) {
     const share = await this.liveShare(token);
     const { flow, warnings } = scrubFlow(share.userFlow);
-    return { flow, warnings };
+    return {
+      flow,
+      warnings: [...warnings, ...share.warnings, ...importLimits(flow).warnings],
+    };
   }
 
   // Imports a shared flow as a new flow of this workspace (from the app).
@@ -567,7 +627,9 @@ export class UserFlowsService {
     input: UserFlowInput
   ): Promise<SaveUserFlowResult> {
     const share = await this.liveShare(token);
-    const { flow, warnings } = scrubFlow(share.userFlow);
+    const { flow, warnings: scrubbed } = scrubFlow(share.userFlow);
+    const limits = importLimits(flow);
+    const warnings = [...scrubbed, ...share.warnings, ...limits.warnings];
     const wanted = input.slug ? this.validSlug(input.slug) : undefined;
     if (input.slug && !wanted) {
       throw new BadRequestException(
@@ -586,11 +648,8 @@ export class UserFlowsService {
       foundation: flow.foundation,
       brandSlots: flow.brandSlots,
       basedOn: flow.basedOn,
-      customization: (flow.customization || '').slice(
-        0,
-        USER_FLOW_CUSTOMIZATION_MAX
-      ),
-      skills: flow.skills.slice(0, USER_FLOW_SKILLS_MAX),
+      customization: limits.customization,
+      skills: limits.skills,
     });
     const slug = await this.freeSlug(
       organizationId,
@@ -611,22 +670,24 @@ export class UserFlowsService {
   private async liveShare(token: string) {
     const key = text(token, USER_FLOW_TOKEN_MAX);
     const share = key ? await this._flows.shared(key) : null;
-    const read = (slug: string) =>
-      this._flows.base(share?.organizationId as string, slug);
-    // A link to a copy of a library flow opens nothing, whenever it was made.
-    if (
-      !share ||
-      (await this.holdsLibrary(share.organizationId, share.userFlow, read))
-    ) {
-      throw new NotFoundException(
-        'This share link was turned off or never existed'
-      );
+    const gone = new NotFoundException(
+      'This share link was turned off or never existed'
+    );
+    if (!share) {
+      throw gone;
     }
-    const { chain } = await this.ancestors(share.userFlow, read);
+    const read = (slug: string) =>
+      this._flows.base(share.organizationId, slug);
+    // A link to a copy of a library flow opens nothing, whenever it was made.
+    if (await this.holdsLibrary(share.organizationId, share.userFlow, read)) {
+      throw gone;
+    }
+    const found = await this.ancestors(share.userFlow, read);
     const { source, forkedFromId, slug, ...userFlow } = share.userFlow;
     return {
       ...share,
-      userFlow: { ...userFlow, ...flatten(share.userFlow, chain) },
+      userFlow: { ...userFlow, ...flatten(share.userFlow, found.chain) },
+      warnings: chainWarnings(found, share.userFlow, false),
     };
   }
 
@@ -660,33 +721,39 @@ export class UserFlowsService {
   }
 
   // The base and skills a save writes, checked: a base among My flows exists,
-  // is not the flow itself and does not lead back to it, and every skill is
-  // in the skills library. A library base is checked for its form only: the
-  // library is read through the gateway.
+  // is not the flow itself and does not lead back to it, no chain through it
+  // (its own, or one of a flow based on it) runs past USER_FLOW_CHAIN_MAX,
+  // and every skill is in the skills library. A library base is checked for
+  // its form only: the library is read through the gateway.
   private async checkReferences(
     organizationId: string,
     slug: string | undefined,
     data: CleanFlow
   ) {
     if (data.basedOn?.startsWith(MY)) {
+      const itself = new BadRequestException(
+        'A flow cannot be based on itself.'
+      );
       if (slug && data.basedOn === `${MY}${slug}`) {
-        throw new BadRequestException('a flow cannot be based on itself');
+        throw itself;
       }
       const { chain, cycle, tooDeep } = await this.ancestors(
         { slug, basedOn: data.basedOn },
         (base) => this._flows.base(organizationId, base)
       );
-      if (!chain.length && !cycle) {
+      if (cycle) {
+        throw itself;
+      }
+      if (!chain.length) {
         throw new BadRequestException(
-          `no flow named "${data.basedOn}" to base on`
+          `There is no flow named "${data.basedOn}" to base on.`
         );
       }
-      if (cycle) {
-        throw new BadRequestException('a flow cannot be based on itself');
-      }
-      if (tooDeep) {
+      // The flows based on this one sit that many links further down.
+      const below = slug ? await this.levelsBelow(organizationId, slug) : 0;
+      if (tooDeep || chain.length + below > USER_FLOW_CHAIN_MAX) {
         throw new BadRequestException(
-          `a flow can be based on a chain of at most ${USER_FLOW_CHAIN_MAX} of My flows`
+          `A flow can be based on a chain of at most ${USER_FLOW_CHAIN_MAX} of My flows.`
         );
       }
     }
@@ -696,9 +763,40 @@ export class UserFlowsService {
       );
       const unknown = data.skills.find((one) => !known.has(one));
       if (unknown) {
-        throw new BadRequestException(`no skill named "${unknown}"`);
+        throw new BadRequestException(
+          `There is no skill named "${unknown}" in the skills library.`
+        );
       }
     }
+  }
+
+  // How many links of live flows hang below one of My flows: 0 when none is
+  // based on it, 1 when only direct ones are, and so on. Stops past
+  // USER_FLOW_CHAIN_MAX, and never visits a flow twice.
+  private async levelsBelow(organizationId: string, slug: string) {
+    const seen = new Set([slug]);
+    let level = [slug];
+    let levels = 0;
+    while (level.length && levels <= USER_FLOW_CHAIN_MAX) {
+      const next: string[] = [];
+      for (const one of level) {
+        for (const dependent of await this._flows.dependents(
+          organizationId,
+          one
+        )) {
+          if (!seen.has(dependent.slug)) {
+            seen.add(dependent.slug);
+            next.push(dependent.slug);
+          }
+        }
+      }
+      if (!next.length) {
+        break;
+      }
+      levels++;
+      level = next;
+    }
+    return levels;
   }
 
   // The skills a flow brings in, in its order.
@@ -733,14 +831,15 @@ export class UserFlowsService {
   private async holdsLibrary(
     organizationId: string,
     flow: LibraryLink,
-    read: (slug: string) => Promise<LibraryLink | null>
-  ) {
-    if (await this.fromLibrary(organizationId, flow)) {
+    read: (slug: string) => Promise<LibraryLink | null>,
+    depth = 0
+  ): Promise<boolean> {
+    if (await this.fromLibrary(organizationId, flow, depth)) {
       return true;
     }
     const { chain } = await this.ancestors(flow, read);
     for (const link of chain) {
-      if (await this.fromLibrary(organizationId, link)) {
+      if (await this.fromLibrary(organizationId, link, depth)) {
         return true;
       }
     }
@@ -748,8 +847,9 @@ export class UserFlowsService {
   }
 
   // Whether a flow is a copy of a Voho library flow: forked from one, or
-  // forked from a flow of this workspace that is. Its method is Voho's, so it
-  // is never shared (a share link opens to anyone signed in to Studio).
+  // forked from a flow of this workspace that holds one (a copy itself, or
+  // based on one through My flows). Its method is Voho's, so it is never
+  // shared (a share link opens to anyone signed in to Studio).
   private async fromLibrary(
     organizationId: string,
     flow: { source: FlowSource; forkedFromId: string | null },
@@ -758,14 +858,22 @@ export class UserFlowsService {
     if (flow.source !== 'FORKED' || !flow.forkedFromId) {
       return false;
     }
-    if (!flow.forkedFromId.startsWith('my/') || depth >= 5) {
+    if (!flow.forkedFromId.startsWith(MY) || depth >= 5) {
       return true;
     }
     const parent = await this._flows.origin(
       organizationId,
-      flow.forkedFromId.slice(3)
+      flow.forkedFromId.slice(MY.length)
     );
-    return !!parent && this.fromLibrary(organizationId, parent, depth + 1);
+    return (
+      !!parent &&
+      this.holdsLibrary(
+        organizationId,
+        parent,
+        (slug) => this._flows.origin(organizationId, slug),
+        depth + 1
+      )
+    );
   }
 
   private async existing(organizationId: string, slug: string) {

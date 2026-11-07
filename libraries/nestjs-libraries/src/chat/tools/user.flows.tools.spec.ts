@@ -264,6 +264,18 @@ describe('flowGet', () => {
       ],
     });
     expect(result).not.toHaveProperty('skillsUpgradeUrl');
+    expect(result).not.toHaveProperty('warnings');
+  });
+
+  it('passes on where a chain of bases stopped short', async () => {
+    const service = flows();
+    const flow = await service.resolved('org-1', 'custom', { skillsUnlocked: true });
+    service.resolved.mockResolvedValueOnce({
+      ...flow,
+      warnings: ['Its chain of bases loops back on itself.'],
+    } as any);
+    const result = await tools(service).get.execute({ slug: 'custom' }, context(PLUS));
+    expect(result.warnings).toEqual(['Its chain of bases loops back on itself.']);
   });
 
   it('locks the skills without the skills unlock, with the Plus link', async () => {
@@ -366,13 +378,15 @@ describe('flowSave', () => {
   it('passes on the reason a base was refused', async () => {
     const service = flows();
     service.save.mockRejectedValueOnce(
-      new BadRequestException('no flow named "my/x" to base on')
+      new BadRequestException('There is no flow named "my/x" to base on.')
     );
     const result = await tools(service).save.execute(
       { title: 'T', basedOn: 'my/x' },
       context(PLUS)
     );
-    expect(result).toEqual({ error: 'no flow named "my/x" to base on' });
+    expect(result).toEqual({
+      error: 'There is no flow named "my/x" to base on.',
+    });
   });
 
   it('passes on the reason a save was refused', async () => {

@@ -123,11 +123,11 @@ export class UserFlowsRepository {
   }
 
   // Where the flow behind a slug came from, deleted or not: for following a
-  // fork back to the Voho library.
+  // fork (or a base) back to the Voho library.
   origin(organizationId: string, slug: string) {
     return this._flow.model.userFlow.findUnique({
       where: { organizationId_slug: { organizationId, slug } },
-      select: { source: true, forkedFromId: true },
+      select: { slug: true, basedOn: true, source: true, forkedFromId: true },
     });
   }
 

@@ -9,13 +9,17 @@ import { useModals } from '@gitroom/frontend/components/layout/new-modal';
 import { openPlus } from '@gitroom/frontend/components/wallet/wallet.bridge';
 import { LockIcon } from '@gitroom/frontend/components/wallet-locks/wallet.icons';
 import {
+  Flow,
   useUserFlowActions,
   UserFlowSource,
   UserFlowSummary,
   UserFlowsState,
 } from '@gitroom/frontend/components/flows/flows.hooks';
 import { flowCategoryLabel } from '@gitroom/frontend/components/flows/flows.card';
-import { FlowEditor } from '@gitroom/frontend/components/flows/flows.editor';
+import {
+  FlowEditor,
+  findBase,
+} from '@gitroom/frontend/components/flows/flows.editor';
 
 type T = ReturnType<typeof useT>;
 
@@ -32,20 +36,22 @@ const sourceLabel = (t: T, source: UserFlowSource) => {
   }
 };
 
-// Opens the editor in a modal: a new flow (slug null) or one of mine.
+// Opens the editor in a modal: a new flow (slug null), optionally based on a
+// flow from the start, or one of mine.
 export const useOpenFlowEditor = (onSaved: () => void) => {
   const modals = useModals();
   const t = useT();
   return useCallback(
-    (slug: string | null) =>
+    (slug: string | null, basedOn?: string) =>
       modals.openModal({
         title: slug
           ? t('flows_editor_edit', 'Edit flow')
-          : t('flows_editor_new', 'New flow'),
+          : t('flows_editor_new', 'New custom flow'),
         withCloseButton: true,
         children: (close: () => void) => (
           <FlowEditor
             slug={slug}
+            basedOn={basedOn}
             onSaved={() => {
               onSaved();
               close();
@@ -79,9 +85,11 @@ const ActionButton: FC<{
 
 const MyFlowCard: FC<{
   flow: UserFlowSummary;
+  // The title of the flow it is based on, for a custom flow.
+  baseTitle?: string;
   onEdit: (slug: string) => void;
   onChanged: () => void;
-}> = ({ flow, onEdit, onChanged }) => {
+}> = ({ flow, baseTitle, onEdit, onChanged }) => {
   const t = useT();
   const toaster = useToaster();
   const actions = useUserFlowActions();
@@ -150,6 +158,15 @@ const MyFlowCard: FC<{
         <span className="inline-flex items-center h-[20px] px-[8px] rounded-full text-[11px] font-[600] border border-newTableBorder text-textItemBlur">
           {sourceLabel(t, flow.source)}
         </span>
+        {!!flow.basedOn && (
+          <span className="inline-flex items-center h-[20px] px-[8px] rounded-full text-[11px] font-[600] border border-newTableBorder text-textItemBlur max-w-full min-w-0">
+            <span className="truncate">
+              {t('flows_mine_based_on', 'Based on {{title}}', {
+                title: baseTitle || flow.basedOn,
+              })}
+            </span>
+          </span>
+        )}
         {flow.shared && (
           <span className="inline-flex items-center h-[20px] px-[8px] rounded-full text-[11px] font-[600] bg-btnPrimary text-white">
             {t('flows_mine_shared', 'Shared')}
@@ -222,7 +239,7 @@ export const FlowsPlusLock: FC = () => {
         <div className="text-textItemBlur">
           {t(
             'flows_plus_locked_body',
-            'With Plus your agent runs every flow in the library, and you can save, fork and share your own.'
+            'With Plus your agent runs every flow in the library, and you can save, customize and share your own.'
           )}
         </div>
         <button
@@ -240,8 +257,10 @@ export const FlowsPlusLock: FC = () => {
 // "My flows", above the Voho library.
 export const MyFlowsSection: FC<{
   state?: UserFlowsState;
+  // The Voho library, for the titles of the flows custom flows are based on.
+  library?: Flow[];
   onChanged: () => void;
-}> = ({ state, onChanged }) => {
+}> = ({ state, library, onChanged }) => {
   const t = useT();
   const openEditor = useOpenFlowEditor(onChanged);
   if (!state) {
@@ -259,7 +278,7 @@ export const MyFlowsSection: FC<{
             onClick={() => openEditor(null)}
             className="h-[32px] px-[12px] rounded-[8px] text-[13px] font-[600] border border-newTableBorder hover:border-tealText"
           >
-            {t('flows_mine_new', 'New flow')}
+            {t('flows_mine_new', 'New custom flow')}
           </button>
         )}
       </div>
@@ -269,7 +288,7 @@ export const MyFlowsSection: FC<{
         <div className="text-[13px] leading-[1.5] text-textItemBlur">
           {t(
             'flows_mine_empty',
-            'Nothing here yet. Fork a flow from the library below, write one, or ask your agent to "save this as a flow" after a run you liked.'
+            'Nothing here yet. Customize a flow from the library below, write one, or ask your agent to "save this as a flow" after a run you liked.'
           )}
         </div>
       ) : (
@@ -278,6 +297,9 @@ export const MyFlowsSection: FC<{
             <MyFlowCard
               key={flow.slug}
               flow={flow}
+              baseTitle={
+                findBase(flow.basedOn, library, state.flows)?.title
+              }
               onEdit={openEditor}
               onChanged={onChanged}
             />

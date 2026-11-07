@@ -91,6 +91,10 @@ export interface UserFlowSummary {
   foundation: string[];
   source: UserFlowSource;
   poster: string | null;
+  // A custom flow: the flow it is based on, a library flow id or "my/<slug>".
+  basedOn: string | null;
+  // Skill slugs from the skills library.
+  skills: string[];
   shared: boolean;
   // False for a copy of a library flow: it gets no share link.
   shareable?: boolean;
@@ -99,6 +103,8 @@ export interface UserFlowSummary {
 
 export interface UserFlow extends UserFlowSummary {
   body: string;
+  // What a custom flow changes or adds to its base.
+  customization: string;
   parts: Record<string, string> | null;
   brandSlots: string[];
   forkedFromId: string | null;
@@ -163,6 +169,11 @@ export interface SharedFlow {
     body: string;
     parts: Record<string, string> | null;
     brandSlots: string[];
+    // A custom flow: the library flow it is based on, its changes to it and
+    // its skills.
+    basedOn: string | null;
+    customization: string;
+    skills: string[];
     updatedAt: string;
   };
   warnings: string[];
@@ -194,8 +205,46 @@ export interface UserFlowSaved {
 }
 
 export type UserFlowFields = Partial<
-  Pick<UserFlow, 'title' | 'whenToUse' | 'summary' | 'body'>
-> & { category?: string | null };
+  Pick<UserFlow, 'title' | 'whenToUse' | 'summary' | 'body' | 'customization'>
+> & {
+  category?: string | null;
+  basedOn?: string | null;
+  skills?: string[];
+};
+
+// The skills library (GET /skills), for the skills a flow brings in. It
+// opens with Plus, so a 402 is the locked state, not an error.
+export interface SkillSummary {
+  slug: string;
+  name: string;
+  summary: string;
+  whenToUse: string | null;
+}
+
+export interface SkillsListState {
+  locked: boolean;
+  skills: SkillSummary[];
+}
+
+export const useSkillsList = () => {
+  const fetch = useFetch();
+  const load = useCallback(async (): Promise<SkillsListState> => {
+    const response = await fetch('/skills', WALLET_INLINE_REQUEST);
+    if (response.status === 402 || response.status === 403) {
+      return { locked: true, skills: [] };
+    }
+    if (!response.ok) {
+      throw new Error('skills');
+    }
+    return {
+      locked: false,
+      skills: ((await response.json())?.skills || []) as SkillSummary[],
+    };
+  }, [fetch]);
+  return useSWR<SkillsListState>('skills-list', load, {
+    revalidateOnFocus: false,
+  });
+};
 
 // The writes on my flows. Each returns the parsed answer, or undefined when
 // the request was refused (a Plus refusal opens the Plus dialog, any other
@@ -268,10 +317,6 @@ export const useUserFlowActions = () => {
           `/user-flows/${encodeURIComponent(slug)}/share`,
           'DELETE'
         ),
-      [send]
-    ),
-    fork: useCallback(
-      (id: string) => send<UserFlowSaved>('/user-flows/fork', 'POST', { id }),
       [send]
     ),
     importShared: useCallback(

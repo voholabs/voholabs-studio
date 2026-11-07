@@ -7,6 +7,11 @@ import { SkillsController } from '@gitroom/backend/api/routes/skills.controller'
 import { FlowsController } from '@gitroom/backend/api/routes/flows.controller';
 import { FlowsService } from '@gitroom/nestjs-libraries/flows/flows.service';
 import {
+  SharedUserFlowsController,
+  UserFlowsController,
+} from '@gitroom/backend/api/routes/user-flows.controller';
+import { WalletPriceRowsService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.price.rows.service';
+import {
   WalletController,
   WalletWebhookController,
 } from '@gitroom/backend/api/routes/wallet.controller';
@@ -103,6 +108,8 @@ const authenticatedController = [
   WalletController,
   SkillsController,
   FlowsController,
+  SharedUserFlowsController,
+  UserFlowsController,
 ];
 @Module({
   imports: [UploadModule],
@@ -145,6 +152,8 @@ const authenticatedController = [
       ],
   providers: [
     FlowsService,
+    // Adds the price rows the code ships with, once the app is up.
+    WalletPriceRowsService,
     AuthService,
     StripeService,
     PaymentService,

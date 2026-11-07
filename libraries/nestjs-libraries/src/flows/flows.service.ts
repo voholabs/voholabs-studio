@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { MCP_GATEWAY_HEADER } from '@gitroom/nestjs-libraries/chat/mcp.gateway';
 
 // How long one catalog read from the gateway is served before it is read again.
 export const FLOWS_TTL_MS = 60_000;
@@ -127,6 +128,70 @@ export const toFlowSummary = (raw: any): FlowSummary | null => {
   ) as FlowSummary;
 };
 
+// A library flow's method, as GET <gateway>/flows/:id/source sends it, for
+// forking into My flows.
+export interface LibraryFlowSource {
+  id: string;
+  title: string;
+  whenToUse?: string;
+  summary?: string;
+  body: string;
+  parts?: Record<string, string>;
+  category?: string;
+  cost?: string;
+  foundation?: string[];
+  brandSlots?: string[];
+  poster?: string;
+  exampleVideo?: string;
+}
+
+const MAX_SOURCE_BODY = 100_000;
+const MAX_PARTS = 30;
+
+const textParts = (value: unknown) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+  const parts = Object.entries(value as Record<string, unknown>)
+    .filter(
+      ([key, text]) =>
+        /^[A-Za-z0-9._-]{1,64}$/.test(key) && typeof text === 'string'
+    )
+    .slice(0, MAX_PARTS)
+    .map(([key, text]) => [key, (text as string).slice(0, MAX_SOURCE_BODY)]);
+  return parts.length ? Object.fromEntries(parts) : undefined;
+};
+
+export const toLibraryFlowSource = (
+  id: string,
+  raw: any
+): LibraryFlowSource | null => {
+  const title = clean(raw?.title, 160);
+  const body =
+    typeof raw?.body === 'string' ? raw.body.slice(0, MAX_SOURCE_BODY) : '';
+  const parts = textParts(raw?.parts);
+  if (!title || (!body.trim() && !parts)) {
+    return null;
+  }
+  const source: LibraryFlowSource = {
+    id,
+    title,
+    whenToUse: clean(raw.whenToUse, 1000),
+    summary: clean(raw.summary, 1000),
+    body,
+    parts,
+    category: clean(raw.category, 40),
+    cost: clean(raw.cost, 300),
+    foundation: textList(raw.foundation),
+    brandSlots: textList(raw.brandSlots, 40),
+    poster: httpsUrl(raw.poster),
+    exampleVideo: httpsUrl(raw.exampleVideo),
+  };
+  return Object.fromEntries(
+    Object.entries(source).filter(([, value]) => value !== undefined)
+  ) as LibraryFlowSource;
+};
+
 // The flows catalog comes from the MCP gateway in front of this instance
 // (MCP_GATEWAY_URL), which owns the flows. Without a gateway there are none.
 @Injectable()
@@ -152,6 +217,47 @@ export class FlowsService {
     } catch (err) {
       this.logger.warn(`Could not read the flows: ${String(err)}`);
       return { flows: [] };
+    }
+  }
+
+  // The whole method of one library flow, for forking it into My flows. Only
+  // the gateway has it, behind MCP_GATEWAY_SECRET. Null when there is no
+  // gateway, no such flow, or the gateway cannot be reached.
+  async source(id: string): Promise<LibraryFlowSource | null> {
+    const gateway = process.env.MCP_GATEWAY_URL?.replace(/\/+$/, '');
+    const secret = process.env.MCP_GATEWAY_SECRET;
+    if (!gateway || !secret || !/^[A-Za-z0-9._-]{1,100}$/.test(id)) {
+      return null;
+    }
+    try {
+      const res = await fetch(
+        `${gateway}/flows/${encodeURIComponent(id)}/source`,
+        {
+          headers: { [MCP_GATEWAY_HEADER]: secret },
+          signal: AbortSignal.timeout(8000),
+        }
+      );
+      if (!res.ok) {
+        this.logger.warn(`The gateway answered ${res.status} for flow ${id}`);
+        return null;
+      }
+      const body = await res.json();
+      const source = toLibraryFlowSource(id, body?.flow ?? body);
+      if (!source) {
+        return null;
+      }
+      // The catalog has the sample the card shows, when the source does not.
+      const summary = (await this.list()).flows.find((one) => one.id === id);
+      return {
+        ...source,
+        category: source.category ?? summary?.category,
+        cost: source.cost ?? summary?.cost,
+        poster: source.poster ?? summary?.poster,
+        exampleVideo: source.exampleVideo ?? summary?.exampleVideo,
+      };
+    } catch (err) {
+      this.logger.warn(`Could not read the source of flow ${id}: ${String(err)}`);
+      return null;
     }
   }
 

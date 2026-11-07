@@ -6,7 +6,14 @@ import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
 import { InfoIcon } from '@gitroom/frontend/components/wallet-locks/wallet.icons';
 import { ChevronIcon } from '@gitroom/frontend/components/wallet/wallet.ui';
-import { Flow, useFlows } from '@gitroom/frontend/components/flows/flows.hooks';
+import {
+  Flow,
+  useFlows,
+  useUserFlowActions,
+  useUserFlows,
+} from '@gitroom/frontend/components/flows/flows.hooks';
+import { useToaster } from '@gitroom/react/toaster/toaster';
+import { MyFlowsSection } from '@gitroom/frontend/components/flows/flows.mine';
 import {
   FLOW_CATEGORIES,
   FlowBadges,
@@ -148,6 +155,7 @@ const FlowHero: FC<{
 const FlowRail: FC<{
   title: string;
   flows: Flow[];
+  locked?: boolean;
   railKey: string;
   playing: (key: string) => boolean;
   onOpen: (id: string) => void;
@@ -157,6 +165,7 @@ const FlowRail: FC<{
 }> = ({
   title,
   flows,
+  locked,
   railKey,
   playing,
   onOpen,
@@ -186,6 +195,7 @@ const FlowRail: FC<{
             <FlowCard
               key={flow.id}
               flow={flow}
+              locked={locked}
               playKey={key}
               playing={playing(key)}
               size="rail"
@@ -282,6 +292,29 @@ const FlowFilterBar: FC<{
 export const FlowsPage: FC = () => {
   const t = useT();
   const { data, isLoading, error } = useFlows();
+  const { data: mine, mutate: refreshMine } = useUserFlows();
+  const locked = !!mine?.locked;
+  const actions = useUserFlowActions();
+  const toaster = useToaster();
+  const refresh = useCallback(() => {
+    refreshMine();
+  }, [refreshMine]);
+  // A library flow, copied into My flows to change.
+  const fork = useCallback(
+    async (id: string) => {
+      const saved = await actions.fork(id);
+      if (saved) {
+        toaster.show(
+          t('flows_forked', 'Added to My flows as my/{{slug}}.', {
+            slug: saved.slug,
+          }),
+          'success'
+        );
+        refreshMine();
+      }
+    },
+    [actions, toaster, t, refreshMine]
+  );
   const pathname = usePathname();
   const [category, setCategory] = useState('');
   const [query, setQuery] = useState('');
@@ -444,6 +477,12 @@ export const FlowsPage: FC = () => {
               <InfoIcon />
             </span>
           </div>
+          <MyFlowsSection state={mine} onChanged={refresh} />
+          {!!mine && (
+            <h2 className="text-[22px] font-[700] -mb-[12px]">
+              {t('flows_library_title', 'Voho library')}
+            </h2>
+          )}
           {error || !flows.length ? (
             <div className="text-[14px] text-textItemBlur py-[40px] text-center">
               {t('flows_none', 'No flows yet. New ones land here first.')}
@@ -460,6 +499,7 @@ export const FlowsPage: FC = () => {
               )}
               {browsing && featured.length > 0 && (
                 <FlowRail
+                  locked={locked}
                   title={t('flows_featured', 'Featured')}
                   railKey="featured"
                   flows={featured}
@@ -473,6 +513,7 @@ export const FlowsPage: FC = () => {
                 categories.map((key) => (
                   <FlowRail
                     key={key}
+                    locked={locked}
                     title={flowCategoryLabel(t, key)}
                     railKey={key}
                     flows={flows
@@ -529,6 +570,7 @@ export const FlowsPage: FC = () => {
                         <FlowCard
                           key={flow.id}
                           flow={flow}
+                          locked={locked}
                           playKey={key}
                           playing={playing(key)}
                           onOpen={openFlow}
@@ -548,6 +590,8 @@ export const FlowsPage: FC = () => {
         <FlowDrawer
           key={selected.id}
           flow={selected}
+          locked={locked}
+          onFork={mine && !locked ? fork : undefined}
           related={related}
           onClose={close}
           onOpen={openFlow}

@@ -162,53 +162,70 @@ export class UserSkillsService {
     return { deleted: true };
   }
 
-  // The skills a shared flow brings with it, copied into this workspace's
-  // My skills (each under a free slug). Returns the reference each one has
-  // here, by its reference in the shared flow, and the warnings: a copy
-  // under another slug, or one My skills had no room for (its reference here
-  // then names no skill, so the flow runs without it).
-  async importCopies(
+  // What an import does with the author's own skills a shared flow brings,
+  // planned without writing anything (the import writes the copies with the
+  // flow, all or nothing). Each skill is linked to a copy in this
+  // workspace's My skills: the copy an earlier import of the same share made
+  // (same name), or a new one under a free slug. Returns the reference each
+  // one has here, by its reference in the shared flow, the copies to create,
+  // and the warnings: a copy under another slug, or one My skills has no
+  // room for (its reference here then names no skill, so the flow runs
+  // without it).
+  async planImport(
     organizationId: string,
     shareId: string,
     skills: SharedUserSkill[]
   ) {
     const references: Record<string, string> = {};
+    const create: Array<{ slug: string } & UserSkillData> = [];
     const warnings: string[] = [];
-    let live = await this._skills.countLive(organizationId);
+    const [earlier, live] = await Promise.all([
+      this._skills.importedCopies(organizationId, shareId),
+      this._skills.countLive(organizationId),
+    ]);
+    const reused = new Set<string>();
+    const planned = new Set<string>();
     for (const skill of skills) {
       const wanted =
         validSlug(skill.slug.slice(MY_SKILL.length)) ||
         slugify(skill.name, 'skill');
-      if (live >= USER_SKILLS_MAX) {
-        const slug = await this.freeSlug(organizationId, wanted);
-        references[skill.slug] = `${MY_SKILL}${slug}`;
-        warnings.push(
-          `My skills holds at most ${USER_SKILLS_MAX} skills, so "${skill.name}" was not copied; the flow runs without it.`
-        );
-        continue;
-      }
       // The scrub may have emptied the name or lengthened the body.
       const data = toData({
         name: skill.name.trim() || wanted,
         description: skill.description,
         body: stripFrontMatter(skill.body).slice(0, USER_SKILL_BODY_MAX),
       });
-      const slug = await this.freeSlug(organizationId, wanted);
-      await this._skills.create(organizationId, slug, {
-        name: data.name || wanted,
+      const name = data.name || wanted;
+      const copy = earlier.find(
+        (one) => one.name === name && !reused.has(one.slug)
+      );
+      if (copy) {
+        reused.add(copy.slug);
+        references[skill.slug] = `${MY_SKILL}${copy.slug}`;
+        continue;
+      }
+      const slug = await this.freeSlug(organizationId, wanted, planned);
+      planned.add(slug);
+      references[skill.slug] = `${MY_SKILL}${slug}`;
+      if (live + create.length >= USER_SKILLS_MAX) {
+        warnings.push(
+          `My skills holds at most ${USER_SKILLS_MAX} skills, so "${skill.name}" was not copied; the flow runs without it.`
+        );
+        continue;
+      }
+      create.push({
+        slug,
+        name,
         description: data.description || '',
         body: data.body || '',
-        importedShareId: shareId,
       });
-      live++;
-      references[skill.slug] = `${MY_SKILL}${slug}`;
       if (slug !== wanted) {
         warnings.push(
           `The skill "${skill.name}" is saved in My skills as "${MY_SKILL}${slug}", since "${MY_SKILL}${wanted}" was taken.`
         );
       }
     }
-    return { references, warnings };
+    return { references, create, warnings };
   }
 
   private async existing(organizationId: string, slug: string) {
@@ -220,13 +237,18 @@ export class UserSkillsService {
     return { id: row.id, slug: key };
   }
 
-  // A slug nothing (not even a deleted skill) has.
-  private async freeSlug(organizationId: string, slug: string) {
-    const taken = new Set(
-      (await this._skills.slugsLike(organizationId, slug)).map(
+  // A slug nothing (not even a deleted skill) has, nor one already planned.
+  private async freeSlug(
+    organizationId: string,
+    slug: string,
+    planned: Set<string> = new Set()
+  ) {
+    const taken = new Set([
+      ...planned,
+      ...(await this._skills.slugsLike(organizationId, slug)).map(
         (row) => row.slug
-      )
-    );
+      ),
+    ]);
     return nextFreeSlug(slug, taken);
   }
 }

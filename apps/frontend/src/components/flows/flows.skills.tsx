@@ -9,6 +9,7 @@ import {
   useState,
 } from 'react';
 import { useSWRConfig } from 'swr';
+import { useClickOutside } from '@mantine/hooks';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
@@ -47,6 +48,15 @@ export const skillLink = (name: string, reference: string) =>
   `[Skill: ${
     name.replace(/[\]\n\r]+/g, ' ').trim().slice(0, 80) || reference
   }](skill:${reference})`;
+
+// A text with every link to one skill taken out (a skill that is gone).
+export const withoutSkillLink = (
+  text: string | undefined,
+  reference: string
+) =>
+  text?.replace(SKILL_CHIP, (link: string, _label: string, one: string) =>
+    one === reference ? '' : link
+  );
 
 // The skills the links in these texts name, in order, with the label of
 // their first link.
@@ -373,24 +383,6 @@ export const MySkillsSection: FC = () => {
   );
 };
 
-// Closes a popover on a click outside it.
-const useOutsideClick = (open: boolean, close: () => void) => {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    const onDown = (event: MouseEvent) => {
-      if (ref.current && !ref.current.contains(event.target as Node)) {
-        close();
-      }
-    };
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, [open, close]);
-  return ref;
-};
-
 const GROUP =
   'px-[12px] pt-[10px] pb-[4px] text-[11px] font-[600] uppercase tracking-[0.08em] text-textItemBlur';
 const OPTION =
@@ -406,11 +398,34 @@ export const AddSkillButton: FC<{
   const t = useT();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const close = useCallback(() => {
+  const button = useRef<HTMLButtonElement>(null);
+  // Closing hands the focus back to the button, except on a click elsewhere.
+  const close = useCallback((refocus = true) => {
     setOpen(false);
     setQuery('');
+    if (refocus) {
+      button.current?.focus();
+    }
   }, []);
-  const ref = useOutsideClick(open, close);
+  const ref = useClickOutside(() => {
+    if (open) {
+      close(false);
+    }
+  });
+  // Escape closes the list, before it reaches the modal around the editor.
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        close();
+      }
+    };
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [open, close]);
   const { data: library } = useSkillsList();
   const { data: mine, mutate: refreshMine } = useUserSkills();
   const openEditor = useOpenSkillEditor();
@@ -424,7 +439,7 @@ export const AddSkillButton: FC<{
     close();
   };
   const newSkill = () => {
-    close();
+    close(false);
     openEditor(null, (skill) => {
       refreshMine();
       onPick(skill.name, `${MY}${skill.slug}`);
@@ -434,8 +449,10 @@ export const AddSkillButton: FC<{
   return (
     <div ref={ref} className="relative">
       <button
+        ref={button}
         type="button"
         onClick={() => (open ? close() : setOpen(true))}
+        aria-haspopup="listbox"
         aria-expanded={open}
         className="h-[30px] px-[10px] rounded-[6px] text-[12px] font-[600] border border-newTableBorder text-newTextColor hover:border-tealText transition-colors"
       >
@@ -553,31 +570,44 @@ export const AddSkillButton: FC<{
 const UploadSkillDialog: FC<{
   initial: UserSkillFields;
   canLink: boolean;
-  onInsertText: (text: string) => void;
-  onSaved: (skill: UserSkill) => void;
-}> = ({ initial, canLink, onInsertText, onSaved }) => {
+  // Each says whether it went into the flow; the dialog closes when it did.
+  onInsertText: (text: string) => boolean;
+  onSaved: (skill: UserSkill) => boolean;
+  onDone: () => void;
+}> = ({ initial, canLink, onInsertText, onSaved, onDone }) => {
   const t = useT();
   const actions = useUserFlowActions();
   const { mutate } = useSWRConfig();
   const [name, setName] = useState(initial.name);
   const [description, setDescription] = useState(initial.description);
   const [saving, setSaving] = useState(false);
+  // Saved but its link did not fit: the button links it without saving again.
+  const [saved, setSaved] = useState<UserSkill | null>(null);
   const tooLong = initial.body.length > USER_SKILL_BODY_MAX;
 
   const save = async () => {
+    if (saved) {
+      if (onSaved(saved)) {
+        onDone();
+      }
+      return;
+    }
     if (!name.trim() || saving || tooLong) {
       return;
     }
     setSaving(true);
-    const saved = await actions.createSkill({
+    const skill = await actions.createSkill({
       name,
       description,
       body: initial.body,
     });
     setSaving(false);
-    if (saved) {
+    if (skill) {
       await mutate('user-skills');
-      onSaved(saved);
+      setSaved(skill);
+      if (onSaved(skill)) {
+        onDone();
+      }
     }
   };
 
@@ -623,7 +653,11 @@ const UploadSkillDialog: FC<{
       <div className="flex justify-end gap-[8px] flex-wrap">
         <button
           type="button"
-          onClick={() => onInsertText(initial.body)}
+          onClick={() => {
+            if (onInsertText(initial.body)) {
+              onDone();
+            }
+          }}
           className="h-[40px] px-[16px] rounded-[8px] text-[14px] font-[600] border border-newTableBorder hover:border-tealText"
         >
           {t('flows_skill_upload_insert', 'Insert its text here')}
@@ -631,15 +665,19 @@ const UploadSkillDialog: FC<{
         <button
           type="button"
           onClick={save}
-          disabled={!name.trim() || saving || tooLong || !canLink}
+          disabled={
+            !saved && (!name.trim() || saving || tooLong || !canLink)
+          }
           className="h-[40px] px-[16px] rounded-[8px] bg-btnPrimary hover:brightness-110 text-white text-[14px] font-[600] disabled:opacity-50 transition-all"
         >
           {saving
             ? t('flows_editor_saving', 'Saving...')
+            : saved
+            ? t('flows_skill_upload_link', 'Add its link here')
             : t('flows_skill_upload_save', 'Save as one of My skills')}
         </button>
       </div>
-      {!canLink && (
+      {!canLink && !saved && (
         <div className="text-[12px] leading-[1.5] text-textItemBlur text-end">
           {t(
             'flows_editor_skills_full',
@@ -656,8 +694,9 @@ const UploadSkillDialog: FC<{
 // file, read in the browser; the dialog asks what to do with it.
 export const UploadSkillButton: FC<{
   canLink: boolean;
-  onInsertText: (text: string) => void;
-  onInsertSkill: (name: string, reference: string) => void;
+  // Each says whether it went into the flow.
+  onInsertText: (text: string) => boolean;
+  onInsertSkill: (name: string, reference: string) => boolean;
 }> = ({ canLink, onInsertText, onInsertSkill }) => {
   const t = useT();
   const toaster = useToaster();
@@ -690,14 +729,9 @@ export const UploadSkillButton: FC<{
             body: read.body,
           }}
           canLink={canLink}
-          onInsertText={(body) => {
-            onInsertText(body);
-            close();
-          }}
-          onSaved={(skill) => {
-            onInsertSkill(skill.name, `${MY}${skill.slug}`);
-            close();
-          }}
+          onInsertText={onInsertText}
+          onSaved={(skill) => onInsertSkill(skill.name, `${MY}${skill.slug}`)}
+          onDone={close}
         />
       ),
     });
@@ -734,7 +768,7 @@ export const UploadSkillButton: FC<{
       <input
         ref={input}
         type="file"
-        accept=".md,text/markdown,text/plain"
+        accept=".md,.markdown,text/markdown,text/plain"
         onChange={choose}
         className="hidden"
       />
@@ -758,7 +792,8 @@ export const FlowSkillsRow: FC<{
   links: Map<string, string>;
   listed: string[];
   onRemoveListed: (reference: string) => void;
-}> = ({ links, listed, onRemoveListed }) => {
+  onRemoveLink: (reference: string) => void;
+}> = ({ links, listed, onRemoveListed, onRemoveLink }) => {
   const t = useT();
   const { data: library } = useSkillsList();
   const { data: mine } = useUserSkills();
@@ -839,10 +874,14 @@ export const FlowSkillsRow: FC<{
                   {t('flows_editor_skill_mine', 'mine')}
                 </span>
               )}
-              {removable && (
+              {(removable || state === 'missing') && (
                 <button
                   type="button"
-                  onClick={() => onRemoveListed(reference)}
+                  onClick={() =>
+                    removable
+                      ? onRemoveListed(reference)
+                      : onRemoveLink(reference)
+                  }
                   aria-label={t('flows_editor_skill_remove', 'Remove')}
                   className="opacity-70 hover:opacity-100 no-underline"
                 >

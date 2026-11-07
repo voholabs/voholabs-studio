@@ -1583,6 +1583,7 @@
   "flows_skill_upload_too_long": "This file is longer than a skill can be ({{max}} characters). Its text can still go into the flow.",
   "flows_skill_upload_insert": "Insert its text here",
   "flows_skill_upload_save": "Save as one of My skills",
+  "flows_skill_upload_link": "Add its link here",
   "flows_skill_upload_empty": "This file has no instructions in it.",
   "flows_skill_upload_title": "Add a skill file",
   "flows_skill_upload_too_big": "This file is larger than 64 KB. Pick a smaller Markdown file.",

@@ -1,6 +1,6 @@
 'use client';
 
-import { FC, ReactNode, useMemo, useRef, useState } from 'react';
+import { FC, ReactNode, useId, useMemo, useRef, useState } from 'react';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { useToaster } from '@gitroom/react/toaster/toaster';
 import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
@@ -24,6 +24,7 @@ import {
   skillLink,
   skillLinksIn,
   UploadSkillButton,
+  withoutSkillLink,
 } from '@gitroom/frontend/components/flows/flows.skills';
 import {
   USER_FLOW_BODY_MAX,
@@ -195,9 +196,20 @@ const Instructions: FC<{
   links: Map<string, string>;
   listed: string[];
   onRemoveListed: (reference: string) => void;
-}> = ({ based, value, onChange, links, listed, onRemoveListed }) => {
+  // Takes the links to a skill that is gone out of the texts.
+  onRemoveLink: (reference: string) => void;
+}> = ({
+  based,
+  value,
+  onChange,
+  links,
+  listed,
+  onRemoveListed,
+  onRemoveLink,
+}) => {
   const t = useT();
   const toaster = useToaster();
+  const id = useId();
   const area = useRef<HTMLTextAreaElement>(null);
   const focused = useRef(false);
   const max = based ? USER_FLOW_CUSTOMIZATION_MAX : USER_FLOW_BODY_MAX;
@@ -206,6 +218,7 @@ const Instructions: FC<{
     [links, listed]
   );
 
+  // Whether the snippet went in: not when the text would grow past its limit.
   const insert = (snippet: string, block: boolean) => {
     const el = area.current;
     const start = el && focused.current ? el.selectionStart : value.length;
@@ -226,7 +239,7 @@ const Instructions: FC<{
         ),
         'warning'
       );
-      return;
+      return false;
     }
     onChange(next);
     const caret = start + lead.length + snippet.length;
@@ -236,6 +249,7 @@ const Instructions: FC<{
         area.current.setSelectionRange(caret, caret);
       }
     });
+    return true;
   };
   const insertSkill = (name: string, reference: string) =>
     insert(skillLink(name, reference), false);
@@ -243,9 +257,9 @@ const Instructions: FC<{
   return (
     <div className="flex flex-col gap-[6px]">
       <div className="flex items-end gap-[8px] flex-wrap">
-        <span className="flex-1 text-[13px] font-[600]">
+        <label htmlFor={id} className="flex-1 text-[13px] font-[600]">
           {t('flows_editor_instructions', 'Instructions')}
-        </span>
+        </label>
         <AddSkillButton used={used} onPick={insertSkill} />
         <UploadSkillButton
           canLink={used.size < USER_FLOW_SKILLS_MAX}
@@ -254,6 +268,7 @@ const Instructions: FC<{
         />
       </div>
       <textarea
+        id={id}
         ref={area}
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -278,6 +293,7 @@ const Instructions: FC<{
         links={links}
         listed={listed}
         onRemoveListed={onRemoveListed}
+        onRemoveLink={onRemoveLink}
       />
     </div>
   );
@@ -446,6 +462,13 @@ const FlowForm: FC<{
           setFields((now) => ({
             ...now,
             skills: (now.skills || []).filter((one) => one !== reference),
+          }))
+        }
+        onRemoveLink={(reference) =>
+          setFields((now) => ({
+            ...now,
+            body: withoutSkillLink(now.body, reference),
+            customization: withoutSkillLink(now.customization, reference),
           }))
         }
       />

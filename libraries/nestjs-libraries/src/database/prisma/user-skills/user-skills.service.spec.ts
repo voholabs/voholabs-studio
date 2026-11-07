@@ -37,6 +37,11 @@ const memory = () => {
         .map(whole)
     ),
     countLive: jest.fn(async (organizationId: string) => live(organizationId).length),
+    importedCopies: jest.fn(async (organizationId: string, shareId: string) =>
+      live(organizationId)
+        .filter((k) => k.importedShareId === shareId)
+        .map((k) => ({ slug: k.slug, name: k.name }))
+    ),
     slugRow: jest.fn(async (organizationId: string, slug: string) => {
       const k = skills.find(
         (one) => one.organizationId === organizationId && one.slug === slug
@@ -185,33 +190,69 @@ describe('UserSkillsService', () => {
     expect(repo.bySlugs).toHaveBeenCalledTimes(1);
   });
 
-  it('copies the skills of an imported flow, says when one was renamed or left out', async () => {
-    const { service, skills } = memory();
+  it('plans the copies of an imported flow without writing, and says when one was renamed or left out', async () => {
+    const { service, skills, repo } = memory();
     await service.create('org-2', { name: 'Brand tone', body: 'Mine' });
     for (let n = 0; n < 47; n++) {
       await service.create('org-2', { name: `Skill ${n}`, body: 'b' });
     }
-    const result = await service.importCopies('org-2', 'share-1', [
+    repo.create.mockClear();
+    const plan = await service.planImport('org-2', 'share-1', [
       { slug: 'my/brand-tone', name: 'Brand tone', description: 'd', body: '---\nname: x\n---\nTone' },
       { slug: 'my/offer', name: '', description: '', body: 'Offer' },
       { slug: 'my/extra', name: 'Extra', description: '', body: 'Extra' },
     ]);
-    expect(result.references).toEqual({
+    expect(repo.create).not.toHaveBeenCalled();
+    expect(skills).toHaveLength(48);
+    expect(plan.references).toEqual({
       'my/brand-tone': 'my/brand-tone-2',
       'my/offer': 'my/offer',
       'my/extra': 'my/extra',
     });
-    expect(result.warnings).toEqual([
+    // A name the scrub emptied falls back to the slug.
+    expect(plan.create).toEqual([
+      { slug: 'brand-tone-2', name: 'Brand tone', description: 'd', body: 'Tone' },
+      { slug: 'offer', name: 'offer', description: '', body: 'Offer' },
+    ]);
+    expect(plan.warnings).toEqual([
       'The skill "Brand tone" is saved in My skills as "my/brand-tone-2", since "my/brand-tone" was taken.',
       'My skills holds at most 50 skills, so "Extra" was not copied; the flow runs without it.',
     ]);
-    expect(skills.find((k) => k.slug === 'brand-tone-2')).toMatchObject({
+  });
+
+  it('keeps two planned copies apart and reuses the copy of an earlier import', async () => {
+    const { service, skills } = memory();
+    const twins = await service.planImport('org-2', 'share-1', [
+      { slug: 'my/a', name: 'Tone', description: '', body: 'A' },
+      { slug: 'my/b', name: 'Tone', description: '', body: 'B' },
+    ]);
+    expect(twins.create.map((one) => one.slug)).toEqual(['a', 'b']);
+    // The first import wrote its copy; the same share again reuses it.
+    skills.push({
+      id: 'k1',
       organizationId: 'org-2',
+      slug: 'brand-tone-2',
+      name: 'Brand tone',
+      description: '',
       body: 'Tone',
       importedShareId: 'share-1',
+      deletedAt: null,
     });
-    // A name the scrub emptied falls back to the slug.
-    expect(skills.find((k) => k.slug === 'offer')).toMatchObject({ name: 'offer' });
-    expect(skills.find((k) => k.slug === 'extra')).toBeUndefined();
+    const again = await service.planImport('org-2', 'share-1', [
+      { slug: 'my/brand-tone', name: 'Brand tone', description: '', body: 'Tone' },
+    ]);
+    expect(again).toEqual({
+      references: { 'my/brand-tone': 'my/brand-tone-2' },
+      create: [],
+      warnings: [],
+    });
+    // Another share does not.
+    expect(
+      (
+        await service.planImport('org-2', 'share-2', [
+          { slug: 'my/brand-tone', name: 'Brand tone', description: '', body: 'Tone' },
+        ])
+      ).create
+    ).toHaveLength(1);
   });
 });

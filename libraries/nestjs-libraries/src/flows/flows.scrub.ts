@@ -1,3 +1,5 @@
+import { SKILL_CHIP } from '@gitroom/nestjs-libraries/dtos/flows/user-flow.dto';
+
 // A flow holds method and style, never brand facts: the gateway attaches the
 // reader's own brand when it reads one. A flow imported from someone else's
 // share link may still carry the author's brand, so it goes through this
@@ -54,9 +56,8 @@ const tidy = (text: string) =>
     .replace(/[ \t]+$/gm, '')
     .replace(/\(\s*\)/g, '');
 
-// One text, scrubbed, with what was found in it.
-export const scrubText = (text: string) => {
-  const found: Found = { colours: 0, links: 0, names: 0 };
+// One piece of a text with the scrubs applied, counted into found.
+const scrubPiece = (text: string, found: Found) => {
   let out = text.replace(HEX_COLOUR, (match, before: string, digits: string) => {
     if (!isColour(digits)) {
       return match;
@@ -71,17 +72,33 @@ export const scrubText = (text: string) => {
     found.links++;
     return '';
   });
-  out = out.replace(OUR_NAME, () => {
+  return out.replace(OUR_NAME, () => {
     found.names++;
     return '';
   });
+};
+
+// One text, scrubbed, with what was found in it. The target of a skill link
+// ("](skill:<ref>)") is a reference and is never changed; its label and the
+// text around it are scrubbed.
+export const scrubText = (text: string) => {
+  const found: Found = { colours: 0, links: 0, names: 0 };
+  let out = '';
+  let last = 0;
+  for (const link of text.matchAll(SKILL_CHIP)) {
+    const index = link.index || 0;
+    out += scrubPiece(text.slice(last, index), found);
+    const label = scrubPiece(link[1], found).trim().slice(0, 80) || link[2];
+    out += `[Skill: ${label}](skill:${link[2]})`;
+    last = index + link[0].length;
+  }
+  out += scrubPiece(text.slice(last), found);
   return {
     text: found.colours || found.links || found.names ? tidy(out) : text,
     found,
   };
 };
 
-// One of the author's My skills a shared flow brings in.
 export interface ScrubbableSkill {
   name: string;
   description: string;

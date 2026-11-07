@@ -286,6 +286,19 @@ export const skillLinks = (flow: FlowTexts) =>
     )
   );
 
+// A flow's skills, as its index holds them: the skills its links name,
+// then the ones listed without a link.
+const skillIndex = (texts: FlowTexts, listed: string[]) => {
+  const linked = skillLinks(texts);
+  return {
+    linked,
+    index: unique([
+      ...linked,
+      ...listed.filter((one) => !linked.includes(one)),
+    ]),
+  };
+};
+
 // The skills index a save writes: the skills the links in the flow's texts
 // name, then the ones given without a link. An edit that gives none keeps
 // the stored ones that no stored link named. An edit that changes no text
@@ -302,16 +315,16 @@ const withSkillIndex = (
   if (stored && !touched) {
     return data;
   }
-  const linked = skillLinks({
-    body: data.body ?? stored?.body,
-    customization: data.customization ?? stored?.customization,
-    parts: data.parts === undefined ? stored?.parts : data.parts,
-  });
   const storedLinks = stored ? skillLinks(stored) : [];
-  const others =
+  const { index } = skillIndex(
+    {
+      body: data.body ?? stored?.body,
+      customization: data.customization ?? stored?.customization,
+      parts: data.parts === undefined ? stored?.parts : data.parts,
+    },
     data.skills ??
-    (stored?.skills || []).filter((one) => !storedLinks.includes(one));
-  const index = unique([...linked, ...others]);
+      (stored?.skills || []).filter((one) => !storedLinks.includes(one))
+  );
   if (index.length > USER_FLOW_SKILLS_MAX) {
     throw new BadRequestException(TOO_MANY_SKILLS);
   }
@@ -434,8 +447,14 @@ const chainWarnings = (
 
 // What an import of a shared flow keeps of a merged chain longer than one
 // flow may hold, and the warnings that say so.
-const importLimits = (flow: { customization?: string; skills: string[] }) => {
+const importLimits = (flow: FlowTexts & { skills: string[] }) => {
   const customization = flow.customization || '';
+  const kept = customization.slice(0, USER_FLOW_CUSTOMIZATION_MAX);
+  // The same index a save derives, kept to the first USER_FLOW_SKILLS_MAX.
+  const { linked, index } = skillIndex(
+    { body: flow.body, customization: kept, parts: flow.parts },
+    flow.skills
+  );
   const warnings: string[] = [];
   if (customization.length > USER_FLOW_CUSTOMIZATION_MAX) {
     warnings.push(
@@ -446,14 +465,23 @@ const importLimits = (flow: { customization?: string; skills: string[] }) => {
       )}.`
     );
   }
-  if (flow.skills.length > USER_FLOW_SKILLS_MAX) {
+  if (index.length > USER_FLOW_SKILLS_MAX) {
+    const dropped = index
+      .slice(USER_FLOW_SKILLS_MAX)
+      .filter((one) => linked.includes(one));
     warnings.push(
-      `The flow brings in ${flow.skills.length} skills; the imported flow keeps the first ${USER_FLOW_SKILLS_MAX}.`
+      `The flow brings in ${index.length} skills; the imported flow keeps the first ${USER_FLOW_SKILLS_MAX}.${
+        dropped.length
+          ? ` Its links to ${dropped
+              .map((one) => `"${one}"`)
+              .join(', ')} show as missing.`
+          : ''
+      }`
     );
   }
   return {
-    customization: customization.slice(0, USER_FLOW_CUSTOMIZATION_MAX),
-    skills: flow.skills.slice(0, USER_FLOW_SKILLS_MAX),
+    customization: kept,
+    skills: index.slice(0, USER_FLOW_SKILLS_MAX),
     warnings,
   };
 };
@@ -559,7 +587,12 @@ export class UserFlowsService {
       const existing = await this._flows.get(organizationId, wanted);
       if (existing) {
         const edit = withSkillIndex(data, existing);
-        await this.checkReferences(organizationId, wanted, edit);
+        await this.checkReferences(
+          organizationId,
+          wanted,
+          edit,
+          existing.skills
+        );
         await this._flows.update(existing.id, forDb(edit));
         return { slug: wanted, created: false, warnings };
       }
@@ -595,7 +628,7 @@ export class UserFlowsService {
     }
     const data = toData({ ...input, slug: undefined });
     const edit = withSkillIndex(data, existing);
-    await this.checkReferences(organizationId, key, edit);
+    await this.checkReferences(organizationId, key, edit, existing.skills);
     await this._flows.update(existing.id, forDb(edit));
     return { slug: key, created: false, warnings: brandWarnings(data) };
   }
@@ -701,7 +734,6 @@ export class UserFlowsService {
       flow: { ownSkills, ...flow },
       warnings: scrubbed,
     } = scrubFlow({ ...share.userFlow, ownSkills: share.ownSkills });
-    const limits = importLimits(flow);
     const wanted = input.slug ? this.validSlug(input.slug) : undefined;
     if (input.slug && !wanted) {
       throw new BadRequestException(
@@ -709,59 +741,66 @@ export class UserFlowsService {
       );
     }
     // The author's own skills come along into My skills; the skill links
-    // and the index then name the copies.
-    const copies = await this._userSkills.importCopies(
+    // and the index then name the copies. Planned first, written with the
+    // flow once everything is known to be valid.
+    const plan = await this._userSkills.planImport(
       organizationId,
       share.id,
       ownSkills || []
     );
     const relink = <T extends string | undefined>(value: T): T =>
       (typeof value === 'string'
-        ? value.replace(SKILL_CHIP, (link: string, _label, reference: string) =>
-            copies.references[reference]
-              ? link.replace(
-                  `(skill:${reference})`,
-                  `(skill:${copies.references[reference]})`
-                )
-              : link
+        ? value.replace(
+            SKILL_CHIP,
+            (link: string, label: string, reference: string) =>
+              plan.references[reference]
+                ? `[Skill: ${label}](skill:${plan.references[reference]})`
+                : link
           )
         : value) as T;
-    const warnings = [
-      ...scrubbed,
-      ...share.warnings,
-      ...limits.warnings,
-      ...copies.warnings,
-    ];
+    const parts = flow.parts
+      ? Object.fromEntries(
+          Object.entries(flow.parts).map(([key, one]) => [key, relink(one)])
+        )
+      : flow.parts;
+    const limits = importLimits({
+      body: relink(flow.body),
+      customization: relink(flow.customization),
+      parts,
+      skills: flow.skills.map((one) => plan.references[one] || one),
+    });
     const title = text(input.title, USER_FLOW_TITLE_MAX) || flow.title;
     const data = toData({
       title,
       whenToUse: flow.whenToUse,
       summary: flow.summary,
       body: relink(flow.body),
-      parts: flow.parts
-        ? Object.fromEntries(
-            Object.entries(flow.parts).map(([key, one]) => [key, relink(one)])
-          )
-        : flow.parts,
+      parts,
       category: flow.category,
       cost: flow.cost,
       foundation: flow.foundation,
       brandSlots: flow.brandSlots,
       basedOn: flow.basedOn,
-      customization: relink(limits.customization),
-      skills: limits.skills.map((one) => copies.references[one] || one),
+      customization: limits.customization,
+      skills: limits.skills,
     });
+    const warnings = [
+      ...scrubbed,
+      ...share.warnings,
+      ...limits.warnings,
+      ...plan.warnings,
+    ];
     const slug = await this.freeSlug(
       organizationId,
       wanted || slugify(title)
     );
-    await this._flows.create(organizationId, slug, {
-      ...(forDb(data) as UserFlowData),
-      source: 'IMPORTED',
-      forkedFromId: null,
-      importedShareId: share.id,
-    });
-    await this._flows.countImport(share.id);
+    await this._flows.importFlow(
+      organizationId,
+      slug,
+      forDb(data) as UserFlowData,
+      share.id,
+      plan.create
+    );
     return { slug, created: true, warnings };
   }
 
@@ -826,12 +865,15 @@ export class UserFlowsService {
   // is not the flow itself and does not lead back to it, no chain through it
   // (its own, or one of a flow based on it) runs past USER_FLOW_CHAIN_MAX,
   // every skill slug is in the skills library and every "my/<slug>" is one
-  // of My skills. A library base is checked for its form only: the library
-  // is read through the gateway.
+  // of My skills. Only the skills the flow did not bring in before are
+  // checked: one it already did that is gone since (shown as missing) does
+  // not stop an edit. A library base is checked for its form only: the
+  // library is read through the gateway.
   private async checkReferences(
     organizationId: string,
     slug: string | undefined,
-    data: CleanFlow
+    data: CleanFlow,
+    storedSkills: string[] = []
   ) {
     if (data.basedOn?.startsWith(MY)) {
       const itself = new BadRequestException(
@@ -860,9 +902,10 @@ export class UserFlowsService {
         );
       }
     }
-    const library = (data.skills || []).filter(
-      (one) => !one.startsWith(MY_SKILL)
+    const added = (data.skills || []).filter(
+      (one) => !storedSkills.includes(one)
     );
+    const library = added.filter((one) => !one.startsWith(MY_SKILL));
     if (library.length) {
       const known = new Set(
         (await this._skills.bySlugs(library)).map((one) => one.slug)
@@ -874,9 +917,7 @@ export class UserFlowsService {
         );
       }
     }
-    const mine = (data.skills || []).filter((one) =>
-      one.startsWith(MY_SKILL)
-    );
+    const mine = added.filter((one) => one.startsWith(MY_SKILL));
     if (mine.length) {
       const known = new Set(
         (

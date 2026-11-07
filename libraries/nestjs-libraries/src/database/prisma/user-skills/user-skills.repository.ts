@@ -77,6 +77,14 @@ export class UserSkillsRepository {
     });
   }
 
+  // The live skills copied with flows imported from one share link.
+  importedCopies(organizationId: string, importedShareId: string) {
+    return this._skill.model.userSkill.findMany({
+      where: { organizationId, importedShareId, deletedAt: null },
+      select: { slug: true, name: true },
+    });
+  }
+
   // The live flows that bring in a skill ("my/<slug>").
   flowsUsing(organizationId: string, reference: string) {
     return this._flow.model.userFlow.findMany({

@@ -86,6 +86,8 @@ export interface ScrubbableFlow {
   whenToUse?: string;
   summary?: string;
   body?: string;
+  // A custom flow's changes to its base.
+  customization?: string;
   parts?: Record<string, string> | null;
 }
 
@@ -138,6 +140,7 @@ export const scrubFlow = <T extends ScrubbableFlow>(
     whenToUse: one(flow.whenToUse),
     summary: one(flow.summary),
     body: one(flow.body),
+    customization: one(flow.customization),
     parts: flow.parts
       ? Object.fromEntries(
           Object.entries(flow.parts).map(([key, value]) => [key, one(value)])

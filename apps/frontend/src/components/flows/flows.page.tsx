@@ -9,11 +9,12 @@ import { ChevronIcon } from '@gitroom/frontend/components/wallet/wallet.ui';
 import {
   Flow,
   useFlows,
-  useUserFlowActions,
   useUserFlows,
 } from '@gitroom/frontend/components/flows/flows.hooks';
-import { useToaster } from '@gitroom/react/toaster/toaster';
-import { MyFlowsSection } from '@gitroom/frontend/components/flows/flows.mine';
+import {
+  MyFlowsSection,
+  useOpenFlowEditor,
+} from '@gitroom/frontend/components/flows/flows.mine';
 import {
   FLOW_CATEGORIES,
   FlowCard,
@@ -152,26 +153,14 @@ export const FlowsPage: FC = () => {
   const { data, isLoading, error } = useFlows();
   const { data: mine, mutate: refreshMine } = useUserFlows();
   const locked = !!mine?.locked;
-  const actions = useUserFlowActions();
-  const toaster = useToaster();
   const refresh = useCallback(() => {
     refreshMine();
   }, [refreshMine]);
-  // A library flow, copied into My flows to change.
-  const fork = useCallback(
-    async (id: string) => {
-      const saved = await actions.fork(id);
-      if (saved) {
-        toaster.show(
-          t('flows_forked', 'Added to My flows as my/{{slug}}.', {
-            slug: saved.slug,
-          }),
-          'success'
-        );
-        refreshMine();
-      }
-    },
-    [actions, toaster, t, refreshMine]
+  // A new custom flow based on a library flow, written in the editor.
+  const openEditor = useOpenFlowEditor(refresh);
+  const customize = useCallback(
+    (id: string) => openEditor(null, id),
+    [openEditor]
   );
   const pathname = usePathname();
   const [category, setCategory] = useState('');
@@ -314,7 +303,7 @@ export const FlowsPage: FC = () => {
               <InfoIcon />
             </span>
           </div>
-          <MyFlowsSection state={mine} onChanged={refresh} />
+          <MyFlowsSection state={mine} library={data} onChanged={refresh} />
           {!!mine && (
             <h2 className="text-[22px] font-[700] -mb-[12px]">
               {t('flows_library_title', 'Voho library')}
@@ -383,7 +372,7 @@ export const FlowsPage: FC = () => {
           key={selected.id}
           flow={selected}
           locked={locked}
-          onFork={mine && !locked ? fork : undefined}
+          onCustomize={mine && !locked ? customize : undefined}
           related={related}
           onClose={close}
           onOpen={openFlow}

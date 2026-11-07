@@ -48,7 +48,8 @@ export class UserFlowsController {
     return this._userFlows.save(org.id, body, { source: 'CREATED' });
   }
 
-  // A Voho library flow, copied into My flows.
+  // A Voho library flow, copied into My flows. Kept for older clients: the
+  // app no longer calls it (it makes custom flows based on the library flow).
   @Post('/fork')
   async fork(
     @GetOrgFromRequest() org: Organization,

@@ -19,7 +19,7 @@ export class FlowsListTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'flowsList',
-      description: `Lists this workspace's own flows (My flows), the saved methods its agent can run. Each entry has the slug, title, when to use it, a summary, the category, the cost line, the foundation it reads, how it was made (CREATED, FORKED, IMPORTED or SAVED_FROM_CHAT), the poster, whether it has a live share link and when it last changed. Included with Plus.`,
+      description: `Lists this workspace's own flows (My flows), the saved methods its agent can run. Each entry has the slug, title, when to use it, a summary, the category, the cost line, the foundation it reads, how it was made (CREATED, FORKED, IMPORTED or SAVED_FROM_CHAT), the flow it is based on ("basedOn": a library flow id, "my/<slug>" for another of these flows, or null), the skill slugs it brings in, the poster, whether it has a live share link and when it last changed. Included with Plus.`,
       mcp: {
         annotations: {
           title: 'List My Flows',
@@ -47,6 +47,8 @@ export class FlowsListTool implements AgentToolInterface {
                 'IMPORTED',
                 'SAVED_FROM_CHAT',
               ]),
+              basedOn: z.string().nullable(),
+              skills: z.array(z.string()),
               poster: z.string().nullable(),
               shared: z.boolean(),
               updatedAt: z.string(),
@@ -78,6 +80,8 @@ export class FlowsListTool implements AgentToolInterface {
               cost: flow.cost,
               foundation: flow.foundation,
               source: flow.source,
+              basedOn: flow.basedOn,
+              skills: flow.skills,
               poster: flow.poster,
               shared: flow.shared,
               updatedAt: flow.updatedAt.toISOString(),

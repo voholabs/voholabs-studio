@@ -15,6 +15,8 @@ const listFields = {
   source: true,
   // Read for the "shareable" check only; not returned by the service.
   forkedFromId: true,
+  basedOn: true,
+  skills: true,
   poster: true,
   updatedAt: true,
   shares: {
@@ -39,6 +41,9 @@ const flowFields = {
   brandSlots: true,
   source: true,
   forkedFromId: true,
+  basedOn: true,
+  customization: true,
+  skills: true,
   poster: true,
   exampleVideo: true,
   version: true,
@@ -48,6 +53,22 @@ const flowFields = {
     select: { token: true },
     take: 1,
   },
+} satisfies Prisma.UserFlowSelect;
+
+// What a flow adds to the ones based on it, read while following a chain of
+// bases: its method, where it comes from and its own base.
+const baseFields = {
+  slug: true,
+  title: true,
+  basedOn: true,
+  customization: true,
+  skills: true,
+  body: true,
+  parts: true,
+  cost: true,
+  foundation: true,
+  source: true,
+  forkedFromId: true,
 } satisfies Prisma.UserFlowSelect;
 
 export type UserFlowData = Pick<
@@ -63,6 +84,9 @@ export type UserFlowData = Pick<
   | 'brandSlots'
   | 'poster'
   | 'exampleVideo'
+  | 'basedOn'
+  | 'customization'
+  | 'skills'
 >;
 
 // A workspace's own flows and their share links. Deleted flows stay as rows
@@ -99,11 +123,27 @@ export class UserFlowsRepository {
   }
 
   // Where the flow behind a slug came from, deleted or not: for following a
-  // fork back to the Voho library.
+  // fork (or a base) back to the Voho library.
   origin(organizationId: string, slug: string) {
     return this._flow.model.userFlow.findUnique({
       where: { organizationId_slug: { organizationId, slug } },
-      select: { source: true, forkedFromId: true },
+      select: { slug: true, basedOn: true, source: true, forkedFromId: true },
+    });
+  }
+
+  // A live flow as a base of another: what the flows based on it read.
+  base(organizationId: string, slug: string) {
+    return this._flow.model.userFlow.findFirst({
+      where: { organizationId, slug, deletedAt: null },
+      select: baseFields,
+    });
+  }
+
+  // The live flows based on one of this workspace's flows ("my/<slug>").
+  dependents(organizationId: string, slug: string) {
+    return this._flow.model.userFlow.findMany({
+      where: { organizationId, deletedAt: null, basedOn: `my/${slug}` },
+      select: { slug: true, title: true },
     });
   }
 
@@ -168,8 +208,9 @@ export class UserFlowsRepository {
     });
   }
 
-  // A live share and the method fields of its flow; null when the link was
-  // revoked or the flow deleted.
+  // A live share and the method fields of its flow (with its slug and base,
+  // to follow a chain of bases); null when the link was revoked or the flow
+  // deleted.
   shared(token: string) {
     return this._share.model.flowShare.findFirst({
       where: {
@@ -182,8 +223,12 @@ export class UserFlowsRepository {
         organizationId: true,
         userFlow: {
           select: {
+            slug: true,
             source: true,
             forkedFromId: true,
+            basedOn: true,
+            customization: true,
+            skills: true,
             title: true,
             whenToUse: true,
             summary: true,

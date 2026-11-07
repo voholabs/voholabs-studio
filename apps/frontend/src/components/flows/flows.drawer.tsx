@@ -595,33 +595,27 @@ interface FlowDrawerProps {
   related: Flow[];
   // Flows open with Plus: without it the drawer offers Plus instead
   locked?: boolean;
-  // copies the flow into My flows; missing when that is not open
-  onFork?: (id: string) => Promise<void>;
+  // opens a new custom flow based on this one; missing when My flows is not
+  // open
+  onCustomize?: (id: string) => void;
   onClose: () => void;
   onOpen: (id: string) => void;
 }
 
-// Copies a library flow into My flows, to change it there.
-const ForkButton: FC<{ flow: Flow; onFork: (id: string) => Promise<void> }> = ({
-  flow,
-  onFork,
-}) => {
+// Starts a custom flow based on a library flow: the editor opens with the
+// base set, and the library method stays where it is.
+const CustomizeButton: FC<{
+  flow: Flow;
+  onCustomize: (id: string) => void;
+}> = ({ flow, onCustomize }) => {
   const t = useT();
-  const [busy, setBusy] = useState(false);
   return (
     <button
       type="button"
-      disabled={busy}
-      onClick={async () => {
-        setBusy(true);
-        await onFork(flow.id);
-        setBusy(false);
-      }}
-      className="w-full h-[40px] rounded-[8px] border border-newTableBorder hover:border-tealText text-[14px] font-[600] disabled:opacity-50 transition-colors"
+      onClick={() => onCustomize(flow.id)}
+      className="w-full h-[40px] rounded-[8px] border border-newTableBorder hover:border-tealText text-[14px] font-[600] transition-colors"
     >
-      {busy
-        ? t('flows_forking', 'Adding...')
-        : t('flows_fork', 'Fork to my flows')}
+      {t('flows_customize', 'Customize')}
     </button>
   );
 };
@@ -645,7 +639,7 @@ const FlowAside: FC<FlowDrawerProps> = ({
   flow,
   related,
   locked,
-  onFork,
+  onCustomize,
   onClose,
   onOpen,
 }) => {
@@ -699,7 +693,9 @@ const FlowAside: FC<FlowDrawerProps> = ({
                     {label}
                   </button>
                 )}
-                {!!onFork && <ForkButton flow={flow} onFork={onFork} />}
+                {!!onCustomize && (
+                  <CustomizeButton flow={flow} onCustomize={onCustomize} />
+                )}
               </>
             )
           }
@@ -713,7 +709,7 @@ const FlowSheet: FC<FlowDrawerProps> = ({
   flow,
   related,
   locked,
-  onFork,
+  onCustomize,
   onClose,
   onOpen,
 }) => {
@@ -739,7 +735,9 @@ const FlowSheet: FC<FlowDrawerProps> = ({
         related={related}
         onOpen={onOpen}
         cta={
-          !locked && onFork ? <ForkButton flow={flow} onFork={onFork} /> : null
+          !locked && onCustomize ? (
+            <CustomizeButton flow={flow} onCustomize={onCustomize} />
+          ) : null
         }
       />
     </BottomSheet>

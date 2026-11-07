@@ -45,6 +45,15 @@ export class SkillsService {
     return { tags, skills };
   }
 
+  // The active skills among these slugs; an inactive or unknown one is left
+  // out.
+  bySlugs(slugs: string[]) {
+    const keys = [
+      ...new Set(slugs.map((slug) => clean(slug, 128)).filter(Boolean)),
+    ] as string[];
+    return keys.length ? this._skills.bySlugs(keys) : Promise.resolve([]);
+  }
+
   async get(slug: string) {
     const key = clean(slug, 128);
     if (!key) {

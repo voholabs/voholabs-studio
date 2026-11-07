@@ -2,12 +2,16 @@ import { AgentToolInterface } from '@gitroom/nestjs-libraries/chat/agent.tool.in
 import { createTool } from '@mastra/core/tools';
 import { Injectable } from '@nestjs/common';
 import z from 'zod';
-import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
+import {
+  checkAuth,
+  paidOnly,
+} from '@gitroom/nestjs-libraries/chat/auth.context';
 import { UserFlowsService } from '@gitroom/nestjs-libraries/database/prisma/user-flows/user-flows.service';
 import {
   flowError,
   flowsLocked,
 } from '@gitroom/nestjs-libraries/chat/tools/user.flows.shared';
+import { plusUrl } from '@gitroom/nestjs-libraries/chat/tools/wallet.shared';
 
 // Only served to the MCP gateway (gatewayToolList).
 @Injectable()
@@ -18,7 +22,9 @@ export class FlowGetTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'flowGet',
-      description: `Reads one of this workspace's own flows by its slug: the title, when to use it, the summary, category, cost line, foundation, the whole method ("body"), its named parts, the brand slots the reader's brand kit fills, how it was made and the origin it was forked from. An unknown slug returns the error "flow not found". Included with Plus.`,
+      description: `Reads one of this workspace's own flows by its slug: the title, when to use it, the summary, category, cost line, foundation, the whole method ("body"), its named parts, the brand slots the reader's brand kit fills, how it was made and the origin it was forked from.
+A custom flow comes back merged with the flows of this workspace it is based on: "basedOn" is the Voho library flow at the end of that chain (null when there is none), "customization" holds the changes oldest first and wins over the base method, "body" is the method of the chain's own first flow ("" when the chain ends in a library flow), and "parts" are merged with the nearer flow winning.
+"skills" lists the skills the flow brings in, with their instructions in "body"; without the skills unlock each one is "locked" with no body and "skillsUpgradeUrl" is the Plus page; a skill no longer in the library is "missing". "warnings" says when a chain of bases stops short, for flows saved before its checks. An unknown slug returns the error "flow not found". Included with Plus.`,
       mcp: {
         annotations: {
           title: 'Read My Flow',
@@ -41,6 +47,36 @@ export class FlowGetTool implements AgentToolInterface {
         foundation: z.array(z.string()).optional(),
         body: z.string().optional(),
         parts: z.record(z.string(), z.string()).nullable().optional(),
+        basedOn: z
+          .string()
+          .nullable()
+          .optional()
+          .describe('The Voho library flow id the flow is based on'),
+        customization: z
+          .string()
+          .optional()
+          .describe('The changes to the base method, oldest first'),
+        skills: z
+          .array(
+            z.object({
+              slug: z.string(),
+              name: z.string(),
+              summary: z.string(),
+              whenToUse: z.string().nullable(),
+              body: z.string().optional(),
+              locked: z.literal(true).optional(),
+              missing: z.literal(true).optional(),
+            })
+          )
+          .optional(),
+        skillsUpgradeUrl: z
+          .string()
+          .optional()
+          .describe('The Plus page, when a skill is locked'),
+        warnings: z
+          .array(z.string())
+          .optional()
+          .describe('Where a chain of bases stops short of its end'),
         brandSlots: z.array(z.string()).optional(),
         source: z
           .enum(['CREATED', 'FORKED', 'IMPORTED', 'SAVED_FROM_CHAT'])
@@ -60,7 +96,10 @@ export class FlowGetTool implements AgentToolInterface {
           (context?.requestContext as any)?.get('organization') as string
         );
         try {
-          const flow = await this._userFlows.get(org.id, inputData.slug);
+          const flow = await this._userFlows.resolved(org.id, inputData.slug, {
+            // The skills a flow brings in open with the skills library.
+            skillsUnlocked: !paidOnly(context, 'The skills library', 'skills'),
+          });
           if (!flow) {
             return { error: 'flow not found' };
           }
@@ -74,6 +113,13 @@ export class FlowGetTool implements AgentToolInterface {
             foundation: flow.foundation,
             body: flow.body,
             parts: flow.parts,
+            basedOn: flow.basedOn,
+            customization: flow.customization,
+            skills: flow.skills,
+            ...(flow.skills.some((skill) => skill.locked)
+              ? { skillsUpgradeUrl: plusUrl() }
+              : {}),
+            ...(flow.warnings?.length ? { warnings: flow.warnings } : {}),
             brandSlots: flow.brandSlots,
             source: flow.source,
             forkedFromId: flow.forkedFromId,

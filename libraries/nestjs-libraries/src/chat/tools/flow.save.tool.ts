@@ -9,12 +9,17 @@ import {
   flowsLocked,
 } from '@gitroom/nestjs-libraries/chat/tools/user.flows.shared';
 import {
+  USER_FLOW_BASED_ON,
+  USER_FLOW_BASED_ON_MAX,
   USER_FLOW_BODY_MAX,
   USER_FLOW_CATEGORY_MAX,
+  USER_FLOW_CUSTOMIZATION_MAX,
   USER_FLOW_COST_MAX,
   USER_FLOW_LIBRARY_ID_MAX,
   USER_FLOW_LIST_ITEM_MAX,
   USER_FLOW_LIST_MAX,
+  USER_FLOW_SKILL_SLUG_MAX,
+  USER_FLOW_SKILLS_MAX,
   USER_FLOW_SLUG,
   USER_FLOW_SLUG_MAX,
   USER_FLOW_TEXT_MAX,
@@ -31,7 +36,7 @@ export class FlowSaveTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'flowSave',
-      description: `Saves a flow to this workspace's own flows. A slug that exists updates that flow (fields left out keep their stored value); no slug, or a new one, creates a flow. "forkOf" records the library flow a copy came from and creates a new flow. "importToken" copies the flow behind a share link as a new flow, with the author's colour codes, media links and Studio name scrubbed out; title and body are then optional. A flow holds the method only: brand details found in it come back as warnings and the flow is saved either way. Returns the slug, whether it was created, and the warnings. Included with Plus.`,
+      description: `Saves a flow to this workspace's own flows. A slug that exists updates that flow (fields left out keep their stored value); no slug, or a new one, creates a flow. "forkOf" records the library flow a copy came from and creates a new flow. "basedOn" makes a custom flow: it names the flow it is based on (a library flow id or "my/<slug>"), the base is read each time the flow is read, and "customization" holds what changes or adds to it. A new flow has a title and a body or a base. "skills" are skill slugs from the skills library the flow brings in. "importToken" copies the flow behind a share link as a new flow, with the author's colour codes, media links and Studio name scrubbed out; title and body are then optional. A flow holds the method only: brand details found in it come back as warnings and the flow is saved either way. Returns the slug, whether it was created, and the warnings. Included with Plus.`,
       mcp: {
         annotations: {
           title: 'Save My Flow',
@@ -85,6 +90,24 @@ export class FlowSaveTool implements AgentToolInterface {
           .max(USER_FLOW_TOKEN_MAX)
           .optional()
           .describe('The token of a share link to import'),
+        basedOn: z
+          .string()
+          .max(USER_FLOW_BASED_ON_MAX)
+          .regex(USER_FLOW_BASED_ON)
+          .optional()
+          .describe(
+            'The flow this one is based on: a library flow id, or "my/<slug>" for one of these flows'
+          ),
+        customization: z
+          .string()
+          .max(USER_FLOW_CUSTOMIZATION_MAX)
+          .optional()
+          .describe('What changes or adds to the base method, in Markdown'),
+        skills: z
+          .array(z.string().max(USER_FLOW_SKILL_SLUG_MAX))
+          .max(USER_FLOW_SKILLS_MAX)
+          .optional()
+          .describe('Skill slugs from the skills library, at most 5'),
       }),
       outputSchema: z.object({
         slug: z.string().optional(),
@@ -102,9 +125,10 @@ export class FlowSaveTool implements AgentToolInterface {
         }
         if (
           !inputData.importToken &&
-          (!inputData.title || inputData.body === undefined)
+          (!inputData.title ||
+            (inputData.body === undefined && !inputData.basedOn))
         ) {
-          return { error: 'A flow needs a title and a body.' };
+          return { error: 'A flow needs a title, and a body or a base.' };
         }
         const org = JSON.parse(
           (context?.requestContext as any)?.get('organization') as string

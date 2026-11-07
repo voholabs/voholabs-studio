@@ -6,11 +6,15 @@ import { useSWRConfig } from 'swr';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
 import {
+  useFlows,
   useSharedFlow,
   useUserFlowActions,
 } from '@gitroom/frontend/components/flows/flows.hooks';
 import { flowCategoryLabel } from '@gitroom/frontend/components/flows/flows.card';
-import { useShowFlowWarnings } from '@gitroom/frontend/components/flows/flows.editor';
+import {
+  findBase,
+  useShowFlowWarnings,
+} from '@gitroom/frontend/components/flows/flows.editor';
 
 // The page a flow's share link opens: what the flow does, its method as it
 // would be imported (the author's colour codes, media links and the Studio
@@ -21,6 +25,12 @@ export const FlowsSharedPage: FC<{ token: string }> = ({ token }) => {
   const router = useRouter();
   const { mutate } = useSWRConfig();
   const { data, isLoading, error } = useSharedFlow(token);
+  // The library, for the title of the flow a custom flow is based on.
+  const { data: library } = useFlows();
+  const basedOn = data?.flow.basedOn;
+  const base = basedOn
+    ? findBase(basedOn, library, undefined)?.title || basedOn
+    : undefined;
   const actions = useUserFlowActions();
   const showWarnings = useShowFlowWarnings();
   const [importing, setImporting] = useState(false);
@@ -111,16 +121,58 @@ export const FlowsSharedPage: FC<{ token: string }> = ({ token }) => {
                 </div>
               )}
             </div>
+            {!!base && (
+              <div className="flex flex-col gap-[4px] rounded-[10px] border border-newTableBorder bg-newTableHeader px-[14px] py-[12px]">
+                <div className="text-[12px] font-[500] uppercase tracking-[0.08em] text-textItemBlur">
+                  {t('flows_editor_base_library', 'Based on a Voho library flow')}
+                </div>
+                <div className="text-[15px] font-[700] break-words">{base}</div>
+              </div>
+            )}
+            {!!data.flow.customization && (
+              <div className="flex flex-col gap-[8px]">
+                <div className="text-[12px] font-[500] uppercase tracking-[0.08em] text-textItemBlur">
+                  {t('flows_editor_customization', 'Customization')}
+                </div>
+                <div
+                  dir="auto"
+                  className="rounded-[8px] bg-newBgColor p-[14px] font-mono text-[12px] leading-[1.6] whitespace-pre-wrap break-words"
+                >
+                  {data.flow.customization}
+                </div>
+              </div>
+            )}
+            {!!data.flow.skills?.length && (
+              <div className="flex flex-col gap-[8px]">
+                <div className="text-[12px] font-[500] uppercase tracking-[0.08em] text-textItemBlur">
+                  {t('flows_editor_skills', 'Skills')}
+                </div>
+                <div className="flex flex-wrap gap-[6px]">
+                  {data.flow.skills.map((slug) => (
+                    <span
+                      key={slug}
+                      className="inline-flex items-center h-[24px] px-[10px] rounded-full text-[12px] font-[600] bg-tealSoft text-tealText"
+                    >
+                      {slug}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="flex flex-col gap-[8px]">
-              <div className="text-[12px] font-[500] uppercase tracking-[0.08em] text-textItemBlur">
-                {t('flows_shared_method', 'The method')}
-              </div>
-              <div
-                dir="auto"
-                className="rounded-[8px] bg-newBgColor p-[14px] font-mono text-[12px] leading-[1.6] whitespace-pre-wrap break-words"
-              >
-                {data.flow.body}
-              </div>
+              {(!!data.flow.body || !base) && (
+                <>
+                  <div className="text-[12px] font-[500] uppercase tracking-[0.08em] text-textItemBlur">
+                    {t('flows_shared_method', 'The method')}
+                  </div>
+                  <div
+                    dir="auto"
+                    className="rounded-[8px] bg-newBgColor p-[14px] font-mono text-[12px] leading-[1.6] whitespace-pre-wrap break-words"
+                  >
+                    {data.flow.body}
+                  </div>
+                </>
+              )}
               {Object.entries(data.flow.parts || {}).map(([name, text]) => (
                 <details
                   key={name}

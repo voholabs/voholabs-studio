@@ -22,6 +22,7 @@ import {
   usePreviewPolicy,
 } from '@gitroom/frontend/components/flows/flows.card';
 import { FlowDrawer } from '@gitroom/frontend/components/flows/flows.drawer';
+import { MySkillsSection } from '@gitroom/frontend/components/flows/flows.skills';
 
 // Flows are packaged marketing jobs the user's own agent runs through Studio's
 // MCP. This page shows what each one makes, with a sample and its cost, and
@@ -304,6 +305,7 @@ export const FlowsPage: FC = () => {
             </span>
           </div>
           <MyFlowsSection state={mine} library={data} onChanged={refresh} />
+          {!!mine && !locked && <MySkillsSection />}
           {!!mine && (
             <h2 className="text-[22px] font-[700] -mb-[12px]">
               {t('flows_library_title', 'Voho library')}

@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { PrismaRepository } from '@gitroom/nestjs-libraries/database/prisma/prisma.service';
+import {
+  PrismaRepository,
+  PrismaTransaction,
+} from '@gitroom/nestjs-libraries/database/prisma/prisma.service';
 
 // What a list of flows shows: no body or parts.
 const listFields = {
@@ -95,7 +98,8 @@ export type UserFlowData = Pick<
 export class UserFlowsRepository {
   constructor(
     private _flow: PrismaRepository<'userFlow'>,
-    private _share: PrismaRepository<'flowShare'>
+    private _share: PrismaRepository<'flowShare'>,
+    private _transaction: PrismaTransaction
   ) {}
 
   list(organizationId: string) {
@@ -245,11 +249,44 @@ export class UserFlowsRepository {
     });
   }
 
-  countImport(shareId: string) {
-    return this._share.model.flowShare.update({
-      where: { id: shareId },
-      data: { imports: { increment: 1 } },
-      select: { id: true },
+  // An import, all or nothing: the copies of the author's own skills into
+  // My skills, the flow, and the share's import count.
+  importFlow(
+    organizationId: string,
+    slug: string,
+    data: UserFlowData,
+    shareId: string,
+    skills: Array<
+      Pick<
+        Prisma.UserSkillUncheckedCreateInput,
+        'slug' | 'name' | 'description' | 'body'
+      >
+    >
+  ) {
+    return this._transaction.model.$transaction(async (tx) => {
+      for (const skill of skills) {
+        await tx.userSkill.create({
+          data: { ...skill, organizationId, importedShareId: shareId },
+          select: { id: true },
+        });
+      }
+      const flow = await tx.userFlow.create({
+        data: {
+          ...data,
+          organizationId,
+          slug,
+          source: 'IMPORTED',
+          forkedFromId: null,
+          importedShareId: shareId,
+        },
+        select: { id: true, slug: true },
+      });
+      await tx.flowShare.update({
+        where: { id: shareId },
+        data: { imports: { increment: 1 } },
+        select: { id: true },
+      });
+      return flow;
     });
   }
 }

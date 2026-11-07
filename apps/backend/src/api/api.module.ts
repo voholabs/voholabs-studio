@@ -10,6 +10,7 @@ import {
   SharedUserFlowsController,
   UserFlowsController,
 } from '@gitroom/backend/api/routes/user-flows.controller';
+import { UserSkillsController } from '@gitroom/backend/api/routes/user-skills.controller';
 import { WalletPriceRowsService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.price.rows.service';
 import {
   WalletController,
@@ -110,6 +111,7 @@ const authenticatedController = [
   FlowsController,
   SharedUserFlowsController,
   UserFlowsController,
+  UserSkillsController,
 ];
 @Module({
   imports: [UploadModule],

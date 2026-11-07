@@ -15,6 +15,7 @@ import {
   findBase,
   useShowFlowWarnings,
 } from '@gitroom/frontend/components/flows/flows.editor';
+import { skillLinksIn } from '@gitroom/frontend/components/flows/flows.skills';
 
 // The page a flow's share link opens: what the flow does, its method as it
 // would be imported (the author's colour codes, media links and the Studio
@@ -31,6 +32,18 @@ export const FlowsSharedPage: FC<{ token: string }> = ({ token }) => {
   const base = basedOn
     ? findBase(basedOn, library, undefined)?.title || basedOn
     : undefined;
+  // The names of the skills it brings in: the author's own by their copy,
+  // the others by the label of their link.
+  const ownSkills = data?.ownSkills || [];
+  const labels = skillLinksIn([
+    data?.flow.body,
+    data?.flow.customization,
+    ...Object.values(data?.flow.parts || {}),
+  ]);
+  const skillName = (reference: string) =>
+    ownSkills.find((one) => one.slug === reference)?.name ||
+    labels.get(reference) ||
+    reference;
   const actions = useUserFlowActions();
   const showWarnings = useShowFlowWarnings();
   const [importing, setImporting] = useState(false);
@@ -45,6 +58,7 @@ export const FlowsSharedPage: FC<{ token: string }> = ({ token }) => {
     if (saved) {
       showWarnings(saved);
       await mutate('user-flows');
+      await mutate('user-skills');
       router.push('/flows');
     }
   };
@@ -145,18 +159,53 @@ export const FlowsSharedPage: FC<{ token: string }> = ({ token }) => {
             {!!data.flow.skills?.length && (
               <div className="flex flex-col gap-[8px]">
                 <div className="text-[12px] font-[500] uppercase tracking-[0.08em] text-textItemBlur">
-                  {t('flows_editor_skills', 'Skills')}
+                  {t('flows_editor_skills_in_flow', 'Skills in this flow')}
                 </div>
                 <div className="flex flex-wrap gap-[6px]">
                   {data.flow.skills.map((slug) => (
                     <span
                       key={slug}
+                      title={slug}
                       className="inline-flex items-center h-[24px] px-[10px] rounded-full text-[12px] font-[600] bg-tealSoft text-tealText"
                     >
-                      {slug}
+                      {skillName(slug)}
                     </span>
                   ))}
                 </div>
+              </div>
+            )}
+            {!!ownSkills.length && (
+              <div className="flex flex-col gap-[8px]">
+                <div className="text-[12px] font-[500] uppercase tracking-[0.08em] text-textItemBlur">
+                  {t('flows_shared_own_skills', "The author's own skills")}
+                </div>
+                <div className="text-[13px] leading-[1.5] text-textItemBlur">
+                  {t(
+                    'flows_shared_own_skills_note',
+                    'Importing the flow adds these to My skills, so the flow keeps them.'
+                  )}
+                </div>
+                {ownSkills.map((skill) => (
+                  <details
+                    key={skill.slug}
+                    className="rounded-[8px] border border-newTableBorder"
+                  >
+                    <summary className="cursor-pointer select-none px-[12px] min-h-[38px] py-[8px] flex flex-col justify-center gap-[2px]">
+                      <span className="text-[13px] font-[600]">{skill.name}</span>
+                      {!!skill.description && (
+                        <span className="text-[12px] text-textItemBlur">
+                          {skill.description}
+                        </span>
+                      )}
+                    </summary>
+                    <div
+                      dir="auto"
+                      className="mx-[12px] mb-[12px] rounded-[6px] bg-newBgColor p-[12px] font-mono text-[12px] leading-[1.6] whitespace-pre-wrap break-words"
+                    >
+                      {skill.body}
+                    </div>
+                  </details>
+                ))}
               </div>
             )}
             <div className="flex flex-col gap-[8px]">

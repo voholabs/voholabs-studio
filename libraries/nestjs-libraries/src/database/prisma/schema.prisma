@@ -73,6 +73,7 @@ model Organization {
   walletEntries       WalletEntry[]
   briefOnboardings    BriefOnboarding[]
   userFlows           UserFlow[]
+  userSkills          UserSkill[]
 
   @@index([apiKey])
   @@index([streakSince])
@@ -1423,7 +1424,10 @@ model UserFlow {
   basedOn         String?
   // What the user changes or adds to the base; it wins over the base method.
   customization   String       @default("")
-  // Skill slugs (the skills library) the flow brings in; at most 5.
+  // The skills the flow brings in, derived on every save from the skill
+  // links in its texts ("[Skill: Name](skill:<ref>)") plus older entries
+  // without a link: a skills library slug or "my/<slug>" (a UserSkill); at
+  // most 10.
   skills          String[]     @default([])
   poster          String?
   exampleVideo    String?
@@ -1433,6 +1437,30 @@ model UserFlow {
   deletedAt       DateTime?
   organization    Organization @relation(fields: [organizationId], references: [id])
   shares          FlowShare[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, updatedAt])
+}
+
+// One of a workspace's own skills ("My skills"): Markdown instructions a
+// flow brings in with a skill link to "my/<slug>". Deleted skills stay as
+// rows (deletedAt) and are never returned.
+model UserSkill {
+  id              String       @id @default(uuid())
+  organizationId  String
+  // "my/<slug>" in skill links. Unique per workspace, deleted rows included,
+  // so a deleted skill's slug is never handed out again.
+  slug            String
+  name            String
+  description     String       @default("")
+  // Markdown, front matter stripped.
+  body            String       @default("")
+  // The FlowShare this was copied through, with an imported flow.
+  importedShareId String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  deletedAt       DateTime?
+  organization    Organization @relation(fields: [organizationId], references: [id])
 
   @@unique([organizationId, slug])
   @@index([organizationId, updatedAt])

@@ -47,6 +47,8 @@ import { SkillsRepository } from '@gitroom/nestjs-libraries/database/prisma/skil
 import { SkillsService } from '@gitroom/nestjs-libraries/database/prisma/skills/skills.service';
 import { UserFlowsRepository } from '@gitroom/nestjs-libraries/database/prisma/user-flows/user-flows.repository';
 import { UserFlowsService } from '@gitroom/nestjs-libraries/database/prisma/user-flows/user-flows.service';
+import { UserSkillsRepository } from '@gitroom/nestjs-libraries/database/prisma/user-skills/user-skills.repository';
+import { UserSkillsService } from '@gitroom/nestjs-libraries/database/prisma/user-skills/user-skills.service';
 import { WalletBillingService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.billing.service';
 import { WalletPlusService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.plus.service';
 import { BriefRepository } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.repository';
@@ -129,6 +131,8 @@ import { MediaMeterService } from '@gitroom/nestjs-libraries/database/prisma/med
     SkillsService,
     UserFlowsRepository,
     UserFlowsService,
+    UserSkillsRepository,
+    UserSkillsService,
     BriefService,
     BriefRevisionRepository,
     BriefRevisionService,

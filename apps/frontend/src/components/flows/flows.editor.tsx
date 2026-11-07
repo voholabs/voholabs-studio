@@ -81,7 +81,22 @@ const StartFrom: FC<{
   const t = useT();
   const { data: library } = useFlows();
   const { data: mine } = useUserFlows();
-  const own = (mine?.flows || []).filter((one) => one.slug !== slug);
+  // Never the flow itself, nor a flow based on it (directly or through
+  // others): the base would lead back to it.
+  const flows = mine?.flows || [];
+  const below = new Set(slug ? [slug] : []);
+  let level = slug ? [slug] : [];
+  while (level.length) {
+    const bases = new Set(level.map((one) => `my/${one}`));
+    const next = flows
+      .filter(
+        (one) => !below.has(one.slug) && bases.has(one.basedOn || '')
+      )
+      .map((one) => one.slug);
+    next.forEach((one) => below.add(one));
+    level = next;
+  }
+  const own = flows.filter((one) => !below.has(one.slug));
   const known =
     !value ||
     (library || []).some((one) => one.id === value) ||
@@ -277,19 +292,28 @@ const FlowForm: FC<{
   const based = !!fields.basedOn;
 
   // Switching between a blank flow and a base keeps what was written in
-  // sight: the method becomes the customization, and back.
+  // sight, so nothing hidden is saved: the method moves into the
+  // customization, and back (after the method, a blank line between).
   const startFrom = (basedOn: string) =>
     setFields((now) => {
-      const body = (now.body || '').trim();
-      const customization = (now.customization || '').trim();
-      if (basedOn && !now.basedOn && body && !customization) {
-        return { ...now, basedOn, customization: now.body, body: '' };
+      const join = (first?: string, second?: string) =>
+        [first, second]
+          .map((one) => (one || '').trim())
+          .filter(Boolean)
+          .join('\n\n');
+      if (basedOn && !now.basedOn) {
+        return {
+          ...now,
+          basedOn,
+          customization: join(now.customization, now.body),
+          body: '',
+        };
       }
-      if (!basedOn && now.basedOn && customization && !body) {
+      if (!basedOn && now.basedOn) {
         return {
           ...now,
           basedOn: '',
-          body: now.customization,
+          body: join(now.body, now.customization),
           customization: '',
         };
       }

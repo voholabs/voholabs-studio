@@ -11,7 +11,10 @@ import {
   useUserFlowActions,
 } from '@gitroom/frontend/components/flows/flows.hooks';
 import { flowCategoryLabel } from '@gitroom/frontend/components/flows/flows.card';
-import { useShowFlowWarnings } from '@gitroom/frontend/components/flows/flows.editor';
+import {
+  findBase,
+  useShowFlowWarnings,
+} from '@gitroom/frontend/components/flows/flows.editor';
 
 // The page a flow's share link opens: what the flow does, its method as it
 // would be imported (the author's colour codes, media links and the Studio
@@ -26,7 +29,7 @@ export const FlowsSharedPage: FC<{ token: string }> = ({ token }) => {
   const { data: library } = useFlows();
   const basedOn = data?.flow.basedOn;
   const base = basedOn
-    ? library?.find((one) => one.id === basedOn)?.title || basedOn
+    ? findBase(basedOn, library, undefined)?.title || basedOn
     : undefined;
   const actions = useUserFlowActions();
   const showWarnings = useShowFlowWarnings();

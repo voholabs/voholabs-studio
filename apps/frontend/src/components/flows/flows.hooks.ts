@@ -213,7 +213,8 @@ export type UserFlowFields = Partial<
 };
 
 // The skills library (GET /skills), for the skills a flow brings in. It
-// opens with Plus, so a 402 is the locked state, not an error.
+// opens with Plus, so a 402 is the locked state, not an error (as in
+// useUserFlows).
 export interface SkillSummary {
   slug: string;
   name: string;
@@ -230,7 +231,7 @@ export const useSkillsList = () => {
   const fetch = useFetch();
   const load = useCallback(async (): Promise<SkillsListState> => {
     const response = await fetch('/skills', WALLET_INLINE_REQUEST);
-    if (response.status === 402 || response.status === 403) {
+    if (response.status === 402) {
       return { locked: true, skills: [] };
     }
     if (!response.ok) {

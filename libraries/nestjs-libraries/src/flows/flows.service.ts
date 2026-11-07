@@ -262,7 +262,10 @@ export class FlowsService {
   }
 
   private async load(gateway: string): Promise<FlowSummary[]> {
+    // The catalog is only served to Studio, with the gateway secret.
+    const secret = process.env.MCP_GATEWAY_SECRET;
     const res = await fetch(`${gateway}/flows`, {
+      headers: secret ? { [MCP_GATEWAY_HEADER]: secret } : undefined,
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) {

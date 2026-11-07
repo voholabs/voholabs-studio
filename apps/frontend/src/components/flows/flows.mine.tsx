@@ -177,15 +177,17 @@ const MyFlowCard: FC<{
           onClick={() => onEdit(flow.slug)}
           disabled={busy}
         />
-        <ActionButton
-          label={
-            flow.shared
-              ? t('flows_mine_copy_link', 'Copy link')
-              : t('flows_mine_share', 'Share')
-          }
-          onClick={share}
-          disabled={busy}
-        />
+        {flow.shareable !== false && (
+          <ActionButton
+            label={
+              flow.shared
+                ? t('flows_mine_copy_link', 'Copy link')
+                : t('flows_mine_share', 'Share')
+            }
+            onClick={share}
+            disabled={busy}
+          />
+        )}
         {flow.shared && (
           <ActionButton
             label={t('flows_mine_stop_sharing', 'Stop sharing')}

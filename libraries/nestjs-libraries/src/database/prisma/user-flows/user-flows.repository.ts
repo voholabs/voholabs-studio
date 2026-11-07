@@ -13,6 +13,8 @@ const listFields = {
   cost: true,
   foundation: true,
   source: true,
+  // Read for the "shareable" check only; not returned by the service.
+  forkedFromId: true,
   poster: true,
   updatedAt: true,
   shares: {
@@ -96,6 +98,15 @@ export class UserFlowsRepository {
     });
   }
 
+  // Where the flow behind a slug came from, deleted or not: for following a
+  // fork back to the Voho library.
+  origin(organizationId: string, slug: string) {
+    return this._flow.model.userFlow.findUnique({
+      where: { organizationId_slug: { organizationId, slug } },
+      select: { source: true, forkedFromId: true },
+    });
+  }
+
   // The slugs in use that start with this one, for picking a free one.
   slugsLike(organizationId: string, slug: string) {
     return this._flow.model.userFlow.findMany({
@@ -171,6 +182,8 @@ export class UserFlowsRepository {
         organizationId: true,
         userFlow: {
           select: {
+            source: true,
+            forkedFromId: true,
             title: true,
             whenToUse: true,
             summary: true,

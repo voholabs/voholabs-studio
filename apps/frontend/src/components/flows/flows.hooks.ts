@@ -92,6 +92,8 @@ export interface UserFlowSummary {
   source: UserFlowSource;
   poster: string | null;
   shared: boolean;
+  // False for a copy of a library flow: it gets no share link.
+  shareable?: boolean;
   updatedAt: string;
 }
 

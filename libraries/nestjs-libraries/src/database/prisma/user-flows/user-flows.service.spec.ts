@@ -36,6 +36,14 @@ const memory = () => {
       );
       return flow ? { id: flow.id, deletedAt: flow.deletedAt } : null;
     }),
+    origin: jest.fn(async (organizationId: string, slug: string) => {
+      const flow = flows.find(
+        (f) => f.organizationId === organizationId && f.slug === slug
+      );
+      return flow
+        ? { source: flow.source, forkedFromId: flow.forkedFromId }
+        : null;
+    }),
     slugsLike: jest.fn(async (organizationId: string, slug: string) =>
       flows
         .filter(
@@ -245,6 +253,40 @@ describe('UserFlowsService', () => {
     expect(await service.revoke('org-1', 'recap')).toEqual({ revoked: true });
     await expect(service.shared(link.token)).rejects.toThrow(/turned off/);
     expect(await service.revoke('org-1', 'recap')).toEqual({ revoked: false });
+  });
+
+  it('never shares a copy of a library flow, nor a copy of that copy', async () => {
+    const { service } = memory();
+    await service.fork('org-1', { id: 'carousel', title: 'Carousel', body: 'Voho method' });
+    await service.save('org-1', { title: 'Carousel v2', body: 'Voho method, edited' }, { forkOf: 'my/carousel' });
+    await service.save('org-1', { title: 'Recap', body: 'My own method' });
+
+    await expect(service.share('org-1', 'carousel')).rejects.toThrow(/cannot be shared/);
+    await expect(service.share('org-1', 'carousel-v2')).rejects.toThrow(/cannot be shared/);
+    expect((await service.share('org-1', 'recap')).token).toBeTruthy();
+
+    const shareable = Object.fromEntries(
+      (await service.list('org-1')).map((f: any) => [f.slug, f.shareable])
+    );
+    expect(shareable).toEqual({ carousel: false, 'carousel-v2': false, recap: true });
+    expect((await service.list('org-1'))[0]).not.toHaveProperty('forkedFromId');
+  });
+
+  it('opens nothing for a link made to a library copy before the rule', async () => {
+    const { service, repo, flows } = memory();
+    await service.fork('org-1', { id: 'fact-short', title: 'Fact short', body: 'Voho method' });
+    await repo.createShare('org-1', flows[0].id, 'old-token');
+    await expect(service.shared('old-token')).rejects.toThrow(/turned off/);
+    await expect(service.import('org-2', 'old-token')).rejects.toThrow(/turned off/);
+  });
+
+  it('keeps where a flow came from off the shared page', async () => {
+    const { service } = memory();
+    await service.save('org-1', { title: 'Recap', body: 'b' });
+    const { token } = await service.share('org-1', 'recap');
+    const { flow } = await service.shared(token);
+    expect(flow).not.toHaveProperty('source');
+    expect(flow).not.toHaveProperty('forkedFromId');
   });
 
   it('imports a shared flow into another workspace, scrubbed', async () => {

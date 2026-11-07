@@ -155,6 +155,21 @@ describe('FlowsService.list', () => {
     }
   });
 
+  it('sends the gateway secret with the catalog request', async () => {
+    const secret = process.env.MCP_GATEWAY_SECRET;
+    process.env.MCP_GATEWAY_SECRET = 'shh';
+    try {
+      await new FlowsService().list();
+      expect(fetchMock).toHaveBeenCalledWith(
+        'http://gateway.test/flows',
+        expect.objectContaining({ headers: { 'x-mcp-gateway-secret': 'shh' } })
+      );
+    } finally {
+      if (secret === undefined) delete process.env.MCP_GATEWAY_SECRET;
+      else process.env.MCP_GATEWAY_SECRET = secret;
+    }
+  });
+
   it('serves the cached catalog within the TTL and reads it again after', async () => {
     const service = new FlowsService();
     const first = await service.list();

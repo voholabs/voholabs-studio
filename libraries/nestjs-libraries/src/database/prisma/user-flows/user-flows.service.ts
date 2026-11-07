@@ -64,6 +64,11 @@ export interface SaveUserFlowResult {
 // Words the /user-flows routes use next to a slug.
 const RESERVED_SLUGS = ['shared', 'fork', 'import', 'new'];
 
+// A copy of a library flow holds Voho's method, which stays with workspaces
+// that have Plus: it gets no share link.
+export const LIBRARY_COPY_NOT_SHAREABLE =
+  'A copy of a Voho library flow cannot be shared. Flows you wrote yourself or imported from a share link can be.';
+
 // "Carousel for launches!" -> "carousel-for-launches"
 export const slugify = (title: string) => {
   const slug = title
@@ -212,10 +217,16 @@ export class UserFlowsService {
 
   async list(organizationId: string) {
     const rows = await this._flows.list(organizationId);
-    return rows.map(({ shares, ...row }) => ({
-      ...row,
-      shared: shares.length > 0,
-    }));
+    return Promise.all(
+      rows.map(async ({ shares, forkedFromId, ...row }) => ({
+        ...row,
+        shared: shares.length > 0,
+        shareable: !(await this.fromLibrary(organizationId, {
+          source: row.source,
+          forkedFromId,
+        })),
+      }))
+    );
   }
 
   async get(organizationId: string, slug: string) {
@@ -324,6 +335,9 @@ export class UserFlowsService {
   // The share link of a flow, made the first time it is asked for.
   async share(organizationId: string, slug: string) {
     const flow = await this.existing(organizationId, slug);
+    if (await this.fromLibrary(organizationId, flow)) {
+      throw new BadRequestException(LIBRARY_COPY_NOT_SHAREABLE);
+    }
     const token =
       (await this._flows.activeShare(flow.id))?.token ||
       (
@@ -411,12 +425,35 @@ export class UserFlowsService {
   private async liveShare(token: string) {
     const key = text(token, USER_FLOW_TOKEN_MAX);
     const share = key ? await this._flows.shared(key) : null;
-    if (!share) {
+    // A link to a copy of a library flow opens nothing, whenever it was made.
+    if (!share || (await this.fromLibrary(share.organizationId, share.userFlow))) {
       throw new NotFoundException(
         'This share link was turned off or never existed'
       );
     }
-    return share;
+    const { source, forkedFromId, ...userFlow } = share.userFlow;
+    return { ...share, userFlow };
+  }
+
+  // Whether a flow is a copy of a Voho library flow: forked from one, or
+  // forked from a flow of this workspace that is. Its method is Voho's, so it
+  // is never shared (a share link opens to anyone signed in to Studio).
+  private async fromLibrary(
+    organizationId: string,
+    flow: { source: FlowSource; forkedFromId: string | null },
+    depth = 0
+  ): Promise<boolean> {
+    if (flow.source !== 'FORKED' || !flow.forkedFromId) {
+      return false;
+    }
+    if (!flow.forkedFromId.startsWith('my/') || depth >= 5) {
+      return true;
+    }
+    const parent = await this._flows.origin(
+      organizationId,
+      flow.forkedFromId.slice(3)
+    );
+    return !!parent && this.fromLibrary(organizationId, parent, depth + 1);
   }
 
   private async existing(organizationId: string, slug: string) {

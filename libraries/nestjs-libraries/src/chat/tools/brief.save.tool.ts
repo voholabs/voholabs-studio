@@ -5,6 +5,12 @@ import z from 'zod';
 import { checkAuth } from '@gitroom/nestjs-libraries/chat/auth.context';
 import { BriefService } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.service';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
+import {
+  BRIEF_KIT_COLOR_ROLES,
+  BRIEF_KIT_FONT_ROLES,
+  BRIEF_KIT_IMAGERY_MAX,
+  BRIEF_KIT_LOGO_VARIANTS,
+} from '@gitroom/nestjs-libraries/agent-brief/brief.registry';
 
 @Injectable()
 export class BriefSaveTool implements AgentToolInterface {
@@ -15,8 +21,9 @@ export class BriefSaveTool implements AgentToolInterface {
     return createTool({
       id: 'briefSaveTool',
       description: `Writes one document of the agent brief, the description of the business that steers everything published on its behalf.
-The rules sent become the document's whole list of rules. When the document already holds rules whose headings are not in the call, nothing is saved and the result lists those headings in "missing"; with replace: true they are dropped instead. briefListTool returns the current rules, and the valid categories and keys.
+The rules sent become the document's whole list of rules; a call without rules keeps the stored rules as they are. When the document already holds rules whose headings are not in the call, nothing is saved and the result lists those headings in "missing"; with replace: true they are dropped instead. briefListTool returns the current rules, and the valid categories and keys.
 Each rule is a heading and the plain text under it. Markdown or HTML in a rule (# headings, bullets, tables, bold) is stored and shown literally, so it reads as broken text rather than as formatting. The headings are the document's structure, one rule per idea.
+For the branding-assets document, "kit" sets the structured brand kit: colours by role, Google Fonts families by role, logo files by variant and a one-line imagery style. Each kit field sent replaces that field, fields left out stay as stored, and an empty list or empty imagery line clears that field. The result returns the kit as stored.
 In the sources category each document is one source: a single place to read from, with its own short key and title ("forum", "discord", "notion") and its address in "links", with a note on what the link is and when it applies. The link is the source; the rules say how it is used.
 Experience lessons are kept by briefLearnTool, one lesson at a time.
 A new key can be created only in a category marked canCreate; the other categories accept their existing keys.`,
@@ -57,8 +64,9 @@ A new key can be created only in a category marked canCreate; the other categori
                 ),
             })
           )
+          .optional()
           .describe(
-            'The rules of this document, one rule per idea. They become its whole list of rules.'
+            'The rules of this document, one rule per idea. They become its whole list of rules. Left out, the stored rules stay as they are.'
           ),
         links: z
           .array(
@@ -74,6 +82,58 @@ A new key can be created only in a category marked canCreate; the other categori
           .describe(
             'Sources category only: the addresses this source is read from.'
           ),
+        kit: z
+          .object({
+            colors: z
+              .array(
+                z.object({
+                  role: z.enum(BRIEF_KIT_COLOR_ROLES),
+                  hex: z.string().describe('Six hex digits, like #0E1A2B'),
+                })
+              )
+              .optional()
+              .describe('One colour per role'),
+            fonts: z
+              .array(
+                z.object({
+                  role: z.enum(BRIEF_KIT_FONT_ROLES),
+                  family: z
+                    .string()
+                    .describe(
+                      'A Google Fonts family name, like "Inter" or "Playfair Display"'
+                    ),
+                })
+              )
+              .optional()
+              .describe('One font per role'),
+            logos: z
+              .array(
+                z.object({
+                  variant: z
+                    .enum(BRIEF_KIT_LOGO_VARIANTS)
+                    .describe(
+                      'light: the logo for light backgrounds. dark: the logo for dark backgrounds. icon: the square mark.'
+                    ),
+                  url: z
+                    .string()
+                    .describe(
+                      'The media-library path of the file (as returned by the upload tools), or a link to it'
+                    ),
+                })
+              )
+              .optional()
+              .describe('One logo per variant'),
+            imagery: z
+              .string()
+              .optional()
+              .describe(
+                `One line on how the photos and illustrations look, up to ${BRIEF_KIT_IMAGERY_MAX} characters`
+              ),
+          })
+          .optional()
+          .describe(
+            'branding-assets only: the structured brand kit. Each field sent replaces that field; fields left out stay as stored.'
+          ),
         replace: z
           .boolean()
           .optional()
@@ -88,6 +148,10 @@ A new key can be created only in a category marked canCreate; the other categori
         rules: z.number().optional(),
         error: z.string().optional(),
         missing: z.array(z.string()).optional(),
+        kit: z
+          .any()
+          .optional()
+          .describe('The brand kit as stored after this call'),
       }),
       execute: async (inputData, context) => {
         checkAuth(inputData, context);
@@ -96,7 +160,30 @@ A new key can be created only in a category marked canCreate; the other categori
             (context?.requestContext as any)?.get('organization') as string
           ).id;
 
-          if (!inputData.replace) {
+          if (
+            !inputData.rules &&
+            !inputData.links &&
+            !inputData.kit &&
+            inputData.title === undefined
+          ) {
+            return {
+              error:
+                'Not saved: the call holds no rules, links, kit or title to write.',
+            };
+          }
+
+          const problem =
+            inputData.kit &&
+            this._briefService.kitProblem(
+              inputData.category,
+              inputData.key,
+              inputData.kit
+            );
+          if (problem) {
+            return { error: problem };
+          }
+
+          if (inputData.rules && !inputData.replace) {
             const missing = await this._briefService.missingHeadings(
               organizationId,
               inputData.category,
@@ -121,11 +208,15 @@ A new key can be created only in a category marked canCreate; the other categori
               ...(inputData.title !== undefined
                 ? { title: inputData.title }
                 : {}),
-              blocks: inputData.rules.map((rule) => ({
-                id: makeId(10),
-                heading: rule.heading,
-                body: rule.body,
-              })),
+              ...(inputData.rules
+                ? {
+                    blocks: inputData.rules.map((rule) => ({
+                      id: makeId(10),
+                      heading: rule.heading,
+                      body: rule.body,
+                    })),
+                  }
+                : {}),
               ...(inputData.links
                 ? {
                     links: inputData.links.map((link) => ({
@@ -135,6 +226,7 @@ A new key can be created only in a category marked canCreate; the other categori
                     })),
                   }
                 : {}),
+              ...(inputData.kit ? { kit: inputData.kit } : {}),
             }
           );
 
@@ -143,6 +235,7 @@ A new key can be created only in a category marked canCreate; the other categori
             category: saved.category,
             key: saved.key,
             rules: saved.content.blocks.length,
+            ...(saved.content.kit ? { kit: saved.content.kit } : {}),
           };
         } catch (err) {
           return {

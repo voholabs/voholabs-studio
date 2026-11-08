@@ -22,6 +22,11 @@ import {
   BRIEF_LINK_URL_MAX,
   BRIEF_LINKS_MAX,
   BRIEF_TITLE_MAX,
+  BRIEF_KIT_COLOR_ROLES,
+  BRIEF_KIT_FONT_FAMILY_MAX,
+  BRIEF_KIT_FONT_ROLES,
+  BRIEF_KIT_IMAGERY_MAX,
+  BRIEF_KIT_LOGO_VARIANTS,
 } from '@gitroom/nestjs-libraries/agent-brief/brief.registry';
 
 export class BriefBlockDto {
@@ -88,6 +93,75 @@ export class BriefAssetDto {
   note?: string;
 }
 
+// The roles, the hex digits and the font family are checked by BriefService
+// rather than here, so the public API and the agent's briefSaveTool get the
+// same "Not saved: ..." wording. These only bound the size of what arrives.
+export class BriefKitColorDto {
+  @IsString()
+  @IsDefined()
+  @MaxLength(20)
+  role: string;
+
+  @IsString()
+  @IsDefined()
+  @MaxLength(20)
+  hex: string;
+}
+
+export class BriefKitFontDto {
+  @IsString()
+  @IsDefined()
+  @MaxLength(20)
+  role: string;
+
+  @IsString()
+  @IsDefined()
+  @MaxLength(BRIEF_KIT_FONT_FAMILY_MAX)
+  family: string;
+}
+
+export class BriefKitLogoDto {
+  @IsString()
+  @IsDefined()
+  @MaxLength(20)
+  variant: string;
+
+  @IsString()
+  @IsDefined()
+  @MaxLength(BRIEF_ASSET_URL_MAX)
+  url: string;
+}
+
+// Each field sent replaces that field of the stored kit; a field left out
+// keeps what is stored.
+export class BriefKitDto {
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(BRIEF_KIT_COLOR_ROLES.length)
+  @ValidateNested({ each: true })
+  @Type(() => BriefKitColorDto)
+  colors?: BriefKitColorDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(BRIEF_KIT_FONT_ROLES.length)
+  @ValidateNested({ each: true })
+  @Type(() => BriefKitFontDto)
+  fonts?: BriefKitFontDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(BRIEF_KIT_LOGO_VARIANTS.length)
+  @ValidateNested({ each: true })
+  @Type(() => BriefKitLogoDto)
+  logos?: BriefKitLogoDto[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(BRIEF_KIT_IMAGERY_MAX)
+  imagery?: string;
+}
+
 // Blocks and links are ordered lists, so each is replaced whole rather than
 // merged; a field that is absent is left exactly as it was stored.
 export class SaveBriefDocumentDto {
@@ -116,6 +190,11 @@ export class SaveBriefDocumentDto {
   @ValidateNested({ each: true })
   @Type(() => BriefAssetDto)
   assets?: BriefAssetDto[];
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => BriefKitDto)
+  kit?: BriefKitDto;
 }
 
 export class StartBriefOnboardingDto {

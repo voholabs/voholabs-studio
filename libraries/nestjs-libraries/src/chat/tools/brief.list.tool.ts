@@ -17,7 +17,8 @@ export class BriefListTool implements AgentToolInterface {
       description: `Reads the agent brief: everything the user has written about their business — what they do, who they are for, how they sound, what is off limits, how each channel is steered, and which sources to draw on.
 It is the context for anything written on the user's behalf: content drawn from it matches their business rather than generic advice.
 It returns both the schema (which categories and documents exist, and which of them can be created or deleted) and the content the user has filled in so far. A document that has not been written to yet is absent from "documents".
-Each document is a list of rules: a heading and the text under it. briefSaveTool writes a document's whole list of rules, so the rules returned here are the ones a save sends back alongside its changes.`,
+Each document is a list of rules: a heading and the text under it. briefSaveTool writes a document's whole list of rules, so the rules returned here are the ones a save sends back alongside its changes.
+Branding & assets also carries a structured brand kit under "kit": colours by role (primary, secondary, accent, background, text, muted, surface) as #RRGGBB hex, fonts by role (headline, body) as Google Fonts family names, logo files by variant (light for light backgrounds, dark for dark backgrounds, icon), and a one-line imagery style. A document without a kit has no "kit" key.`,
       mcp: {
         annotations: {
           title: 'Read Agent Brief',

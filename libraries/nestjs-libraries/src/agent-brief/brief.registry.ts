@@ -4,6 +4,10 @@ import {
   BriefDocumentContent,
   BriefDocumentDef,
   BriefDocumentFeature,
+  BriefKit,
+  BriefKitColorRole,
+  BriefKitFontRole,
+  BriefKitLogoVariant,
 } from '@gitroom/nestjs-libraries/agent-brief/brief.types';
 
 // The single source of truth for the agent brief. The tree, the breadcrumbs, the
@@ -31,6 +35,30 @@ export const BRIEF_ASSET_URL_MAX = 2048;
 export const BRIEF_ASSET_NOTE_MAX = 20_000;
 export const BRIEF_USER_DOCUMENTS_MAX = 100;
 
+// The brand kit holds one colour per role, one font per role and one logo per
+// variant, so the role lists are also its caps.
+export const BRIEF_KIT_COLOR_ROLES = [
+  'primary',
+  'secondary',
+  'accent',
+  'background',
+  'text',
+  'muted',
+  'surface',
+] as const satisfies readonly BriefKitColorRole[];
+export const BRIEF_KIT_FONT_ROLES = [
+  'headline',
+  'body',
+] as const satisfies readonly BriefKitFontRole[];
+export const BRIEF_KIT_LOGO_VARIANTS = [
+  'light',
+  'dark',
+  'icon',
+] as const satisfies readonly BriefKitLogoVariant[];
+export const BRIEF_KIT_FONT_FAMILY_MAX = 100;
+export const BRIEF_KIT_IMAGERY_MAX = 300;
+export const BRIEF_KIT_HEX = /^#[0-9A-F]{6}$/i;
+
 // Client-side timings, kept beside the caps so nothing is a magic number at the
 // call site.
 export const BRIEF_AUTOSAVE_MS = 1500;
@@ -43,7 +71,8 @@ const FOUNDATION: readonly BriefDocumentDef[] = [
     labelKey: 'brief_north_star',
     label: 'North Star',
     descriptionKey: 'brief_north_star_description',
-    description: 'What the company is working toward, and what matters most now.',
+    description:
+      'What the company is working toward, and what matters most now.',
     icon: 'compass',
   },
   {
@@ -97,7 +126,7 @@ const FOUNDATION: readonly BriefDocumentDef[] = [
     descriptionKey: 'brief_branding_assets_description',
     description: 'How you look: logo, colours, type, and imagery.',
     icon: 'palette',
-    features: ['assets'],
+    features: ['assets', 'kit'],
   },
   {
     key: 'boundaries',
@@ -174,7 +203,8 @@ export const BRIEF_REGISTRY: readonly BriefCategoryDef[] = [
     emptyKey: 'brief_sources_empty',
     empty: 'Add + sources agent should draw on',
     tooltipKey: 'brief_sources_tooltip',
-    tooltip: 'Where agent should read more; Add + sources agent should draw on.',
+    tooltip:
+      'Where agent should read more; Add + sources agent should draw on.',
     documentTemplate: SOURCE_TEMPLATE,
     canCreate: true,
     canDelete: true,
@@ -245,9 +275,13 @@ export const isDocumentEmpty = (content?: BriefDocumentContent) => {
     return true;
   }
 
-  // Links and files count as content in their own right: a document holding
-  // only an uploaded logo is not empty.
-  if (content.links?.length || content.assets?.length) {
+  // Links, files and the brand kit count as content in their own right: a
+  // document holding only an uploaded logo is not empty.
+  if (
+    content.links?.length ||
+    content.assets?.length ||
+    !isKitEmpty(content.kit)
+  ) {
     return false;
   }
 
@@ -255,6 +289,12 @@ export const isDocumentEmpty = (content?: BriefDocumentContent) => {
     (block) => !!block.heading?.trim() || !!stripHtml(block.body).trim()
   );
 };
+
+export const isKitEmpty = (kit?: BriefKit) =>
+  !kit?.colors?.length &&
+  !kit?.fonts?.length &&
+  !kit?.logos?.length &&
+  !kit?.imagery?.trim();
 
 export const stripHtml = (value?: string) =>
   (value || '').replace(/<[^>]*>/g, ' ');

@@ -12,6 +12,7 @@ import {
 import {
   BriefAsset,
   BriefBlock,
+  BriefKit,
   BriefLink,
 } from '@gitroom/nestjs-libraries/agent-brief/brief.types';
 import {
@@ -28,6 +29,7 @@ export interface BriefPatch {
   blocks?: BriefBlock[];
   links?: BriefLink[];
   assets?: BriefAsset[];
+  kit?: BriefKit;
 }
 
 // One controller per document, never per section: a single in-flight save is
@@ -93,7 +95,10 @@ export const useBriefAutosave = (category: string, documentKey: string) => {
             ...(keepalive ? { keepalive: true } : {}),
           }),
           new Promise<Response>((_, reject) =>
-            setTimeout(() => reject(new Error('timeout')), BRIEF_SAVE_TIMEOUT_MS)
+            setTimeout(
+              () => reject(new Error('timeout')),
+              BRIEF_SAVE_TIMEOUT_MS
+            )
           ),
         ]);
 

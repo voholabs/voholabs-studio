@@ -118,7 +118,9 @@ describe('BriefService.saveDocument', () => {
       .saveDocument(ORG, 'foundation', 'brand-voice', { blocks: [] } as any)
       .catch((err) => err);
     expect(error).toBeInstanceOf(NotFoundException);
-    expect(error.message).toContain('"brand-voice" is not a Foundation document');
+    expect(error.message).toContain(
+      '"brand-voice" is not a Foundation document'
+    );
     expect(error.message).toContain('voice');
     expect(error.message).toContain('additional-info');
     expect(repository.saveDocument).not.toHaveBeenCalled();
@@ -158,9 +160,11 @@ describe('BriefService.removeAssets', () => {
         ],
       }),
     });
-    await expect(
-      service.removeAssets(ORG, ['a1', 'zz'])
-    ).resolves.toEqual({ removed: ['a1'], notFound: ['zz'], assets: 1 });
+    await expect(service.removeAssets(ORG, ['a1', 'zz'])).resolves.toEqual({
+      removed: ['a1'],
+      notFound: ['zz'],
+      assets: 1,
+    });
     const written = JSON.parse(
       (repository.saveDocument.mock.calls[0] as any[])[3]
     );
@@ -300,5 +304,231 @@ describe('BriefService.missingHeadings', () => {
       service.missingHeadings(ORG, 'foundation', 'brand', [])
     ).resolves.toEqual([]);
     expect(repository.getDocument).not.toHaveBeenCalled();
+  });
+});
+
+describe('BriefService brand kit', () => {
+  const KIT = {
+    colors: [
+      { role: 'primary', hex: '#0E1A2B' },
+      { role: 'background', hex: '#FFFFFF' },
+    ],
+    fonts: [{ role: 'headline', family: 'Playfair Display' }],
+    logos: [{ variant: 'light', url: '/uploads/logo.png' }],
+    imagery: 'Warm candid photos of real customers',
+  };
+  const branding = (extra: Record<string, any> = {}) => ({
+    content: JSON.stringify({
+      v: 1,
+      blocks: [{ id: 'b', heading: 'Colours', body: 'Navy and white' }],
+      assets: [{ id: 'a1', name: 'Logo', url: '/logo.png' }],
+      kit: KIT,
+      ...extra,
+    }),
+  });
+  const written = (repository: any) =>
+    JSON.parse(repository.saveDocument.mock.calls[0][3]);
+  const save = (stored: any, body: any, key = 'branding-assets') => {
+    const built = build(stored);
+    return {
+      ...built,
+      result: built.service.saveDocument(ORG, 'foundation', key, body),
+    };
+  };
+  const problemOf = (kit: any, key = 'branding-assets') =>
+    save(branding(), { kit }, key).result.catch((err: any) => err);
+
+  it('keeps the kit when only the rules are saved (an agent without "kit")', async () => {
+    const { result, repository, revisions } = save(branding(), {
+      blocks: [{ id: 'c', heading: 'Type', body: 'Serif headings' }],
+    });
+    expect((await result).content.kit).toEqual(KIT);
+    expect(written(repository).kit).toEqual(KIT);
+    expect(revisions.capture.mock.calls[0][3].kit).toEqual(KIT);
+  });
+
+  it('keeps the kit when only the files are saved', async () => {
+    const { result, repository } = save(branding(), {
+      assets: [{ id: 'a2', name: 'Shot', url: '/shot.png' }],
+    });
+    expect((await result).content.kit).toEqual(KIT);
+    expect(written(repository).assets).toEqual([
+      { id: 'a2', name: 'Shot', url: '/shot.png' },
+    ]);
+  });
+
+  it('keeps the kit when the agent adds or removes a file', async () => {
+    const added = build(branding());
+    await added.service.registerAsset(ORG, { name: 'Shot', url: '/s.png' });
+    expect(written(added.repository).kit).toEqual(KIT);
+
+    const removed = build(branding());
+    await removed.service.removeAssets(ORG, ['a1']);
+    expect(written(removed.repository).kit).toEqual(KIT);
+    expect(written(removed.repository).assets).toEqual([]);
+  });
+
+  it('returns the kit with the document', async () => {
+    const service = new BriefService(
+      {
+        getDocuments: jest.fn(async () => [
+          { category: 'foundation', key: 'branding-assets', ...branding() },
+        ]),
+      } as any,
+      { getIntegrationsList: jest.fn(async () => []) } as any,
+      {} as any
+    );
+    const { documents } = await service.getDocuments(ORG);
+    expect(documents[0].content.kit).toEqual(KIT);
+  });
+
+  it('replaces each kit field sent and keeps the ones left out', async () => {
+    const { result } = save(branding(), {
+      kit: { colors: [{ role: 'accent', hex: '#c6f432' }] },
+    });
+    const { kit, blocks, assets } = (await result).content;
+    expect(kit).toEqual({
+      ...KIT,
+      colors: [{ role: 'accent', hex: '#C6F432' }],
+    });
+    expect(blocks).toHaveLength(1);
+    expect(assets).toHaveLength(1);
+  });
+
+  it('stores colours in role order and fonts as Google spells them', async () => {
+    const { result } = save(null, {
+      kit: {
+        colors: [
+          { role: 'text', hex: '#111111' },
+          { role: 'primary', hex: '#0e1a2b' },
+        ],
+        fonts: [
+          { role: 'body', family: ' inter ' },
+          { role: 'headline', family: 'playfair display' },
+        ],
+      },
+    });
+    expect((await result).content.kit).toEqual({
+      colors: [
+        { role: 'primary', hex: '#0E1A2B' },
+        { role: 'text', hex: '#111111' },
+      ],
+      fonts: [
+        { role: 'headline', family: 'Playfair Display' },
+        { role: 'body', family: 'Inter' },
+      ],
+    });
+  });
+
+  it('clears a field sent empty, and leaves no kit once every field is empty', async () => {
+    const partial = await save(branding(), {
+      kit: { fonts: [], imagery: '' },
+    }).result;
+    expect(partial.content.kit).toEqual({
+      colors: KIT.colors,
+      logos: KIT.logos,
+    });
+
+    const cleared = save(branding(), {
+      kit: { colors: [], fonts: [], logos: [], imagery: '' },
+    });
+    expect((await cleared.result).content.kit).toBeUndefined();
+    expect('kit' in written(cleared.repository)).toBe(false);
+  });
+
+  it('refuses a kit on a document that holds none, naming the one that does', async () => {
+    const error = await problemOf(KIT, 'voice');
+    expect(error).toBeInstanceOf(BadRequestException);
+    expect(error.message).toBe(
+      'Not saved: "kit" belongs to the branding-assets document (category foundation); this document holds no kit.'
+    );
+  });
+
+  it.each([
+    [
+      { colors: [{ role: 'primary', hex: '#12G' }] },
+      'Not saved: the colour for "primary" is "#12G" and a hex colour reads as six hex digits, like #0E1A2B.',
+    ],
+    [
+      {
+        colors: [
+          { role: 'accent', hex: '#000000' },
+          { role: 'accent', hex: '#FFFFFF' },
+        ],
+      },
+      'Not saved: "accent" is sent twice; the kit holds one colour per role (primary, secondary, accent, background, text, muted, surface).',
+    ],
+    [
+      { colors: [{ role: 'brand', hex: '#000000' }] },
+      'Not saved: a colour role is one of primary, secondary, accent, background, text, muted, surface; "brand" is none of them.',
+    ],
+    [
+      { fonts: [{ role: 'display', family: 'Inter' }] },
+      'Not saved: a font role is one of headline, body; "display" is neither.',
+    ],
+    [
+      { fonts: [{ role: 'headline', family: 'Helvetica Neue' }] },
+      'Not saved: "Helvetica Neue" is not a Google Fonts family. Pick one from fonts.google.com, for example "Inter" or "Playfair Display".',
+    ],
+    [
+      {
+        fonts: [
+          { role: 'body', family: 'Inter' },
+          { role: 'body', family: 'Lato' },
+        ],
+      },
+      'Not saved: "body" is sent twice; the kit holds one font per role (headline, body).',
+    ],
+    [
+      { logos: [{ variant: 'square', url: '/x.png' }] },
+      'Not saved: a logo variant is one of light, dark, icon; "square" is none of them.',
+    ],
+    [
+      { logos: [{ variant: 'dark', url: ' ' }] },
+      'Not saved: the "dark" logo needs its file, as a media-library path or a link of up to 2048 characters.',
+    ],
+    [
+      {
+        logos: [
+          { variant: 'icon', url: '/a.png' },
+          { variant: 'icon', url: '/b.png' },
+        ],
+      },
+      'Not saved: "icon" is sent twice; the kit holds one logo per variant (light, dark, icon).',
+    ],
+    [
+      { imagery: 'x'.repeat(301) },
+      'Not saved: the imagery line is 301 characters; it holds up to 300.',
+    ],
+  ])('refuses %j with its reason, saving nothing', async (kit, message) => {
+    const { result, repository } = save(branding(), { kit });
+    const error = await result.catch((err: any) => err);
+    expect(error).toBeInstanceOf(BadRequestException);
+    expect(error.message).toBe(message);
+    expect(repository.saveDocument).not.toHaveBeenCalled();
+  });
+
+  it('counts a branding document holding only a kit as filled', async () => {
+    const service = new BriefService(
+      {
+        getDocuments: jest.fn(async () => [
+          {
+            category: 'foundation',
+            key: 'branding-assets',
+            content: JSON.stringify({
+              v: 1,
+              blocks: [],
+              kit: { imagery: 'Bold' },
+            }),
+          },
+        ]),
+      } as any,
+      { getIntegrationsList: jest.fn(async () => []) } as any,
+      {} as any
+    );
+    const status = await service.onboardingStatus(ORG);
+    expect(
+      status.documents.find((one) => one.key === 'branding-assets')?.filled
+    ).toBe(true);
   });
 });

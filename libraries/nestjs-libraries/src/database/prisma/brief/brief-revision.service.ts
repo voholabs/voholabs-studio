@@ -234,7 +234,7 @@ export class BriefRevisionService {
       .filter(([heading]) => !afterBlocks.has(heading))
       .map(([, block]) => block.heading);
 
-    const changed = ['title', 'links', 'assets'].filter(
+    const changed = ['title', 'links', 'assets', 'kit'].filter(
       (field) =>
         stableStringify((before as any)[field]) !==
         stableStringify((after as any)[field])
@@ -251,6 +251,7 @@ export class BriefRevisionService {
         blocks: Array.isArray(parsed?.blocks) ? parsed.blocks : [],
         ...(parsed?.links ? { links: parsed.links } : {}),
         ...(parsed?.assets ? { assets: parsed.assets } : {}),
+        ...(parsed?.kit ? { kit: parsed.kit } : {}),
         ...(parsed?.title ? { title: parsed.title } : {}),
       };
     } catch (err) {

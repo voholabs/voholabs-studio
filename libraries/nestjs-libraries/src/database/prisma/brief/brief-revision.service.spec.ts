@@ -129,3 +129,23 @@ describe('BriefRevisionService.capture', () => {
     });
   });
 });
+
+describe('BriefRevisionService brand kit', () => {
+  it('reads the kit back and reports a kit change in "changed"', async () => {
+    const kit = { colors: [{ role: 'primary', hex: '#0E1A2B' }] };
+    const { service } = build([
+      revision('branding-assets', { v: 1, blocks: [rule('Logo')] }, 1, {
+        category: 'foundation',
+      }),
+      revision('branding-assets', { v: 1, blocks: [rule('Logo')], kit }, 2, {
+        category: 'foundation',
+      }),
+    ]);
+    expect(
+      service.parseContent(JSON.stringify({ v: 1, blocks: [], kit })).kit
+    ).toEqual(kit);
+    const [entry] = await service.getLearningQueue(ORG);
+    expect(entry.diff.changed).toEqual(['kit']);
+    expect(entry.diff.blocksEdited).toEqual([]);
+  });
+});

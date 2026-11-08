@@ -62,6 +62,10 @@ describe('briefListTool', () => {
     expect(result.notWritten).toEqual(['tasks']);
   });
 
+  it('describes the brand kit on Branding & assets', () => {
+    expect(tool.description).toContain('structured brand kit under "kit"');
+  });
+
   it('refuses an unknown category instead of returning everything', async () => {
     const result = await tool.execute({ category: 'sauces' }, context());
     expect(result.documents).toBeUndefined();
@@ -198,6 +202,100 @@ describe('briefSaveTool', () => {
     );
     expect(saveDocument).toHaveBeenCalled();
     expect(result).toMatchObject({ saved: true, rules: 1 });
+  });
+
+  const branding = () => {
+    const kit = { colors: [{ role: 'primary', hex: '#0E1A2B' }] };
+    const saveDocument = jest.fn(async () => ({ updatedAt: new Date() }));
+    const service = new BriefService(
+      {
+        getDocument: jest.fn(async () => ({
+          content: JSON.stringify({
+            blocks: [{ id: 'a', heading: 'Colours', body: 'Navy' }],
+            kit,
+          }),
+        })),
+        saveDocument,
+      } as any,
+      {} as any,
+      { capture: jest.fn() } as any
+    );
+    const written = () => JSON.parse((saveDocument.mock.calls[0] as any[])[3]);
+    return {
+      tool: new BriefSaveTool(service).run() as any,
+      saveDocument,
+      written,
+      kit,
+    };
+  };
+
+  it('keeps the kit on a rules-only save from an agent without "kit"', async () => {
+    const { tool, written, kit } = branding();
+    const result = await tool.execute(
+      {
+        category: 'foundation',
+        key: 'branding-assets',
+        rules: [{ heading: 'Colours', body: 'Navy and lime' }],
+      },
+      context()
+    );
+    expect(result).toMatchObject({ saved: true, rules: 1, kit });
+    expect(written().kit).toEqual(kit);
+  });
+
+  it('saves a kit without rules, keeping the rules and skipping the missing check', async () => {
+    const { tool, written } = branding();
+    const result = await tool.execute(
+      {
+        category: 'foundation',
+        key: 'branding-assets',
+        kit: { fonts: [{ role: 'headline', family: 'fraunces' }] },
+      },
+      context()
+    );
+    expect(result.missing).toBeUndefined();
+    expect(result).toMatchObject({ saved: true, rules: 1 });
+    expect(result.kit.fonts).toEqual([{ role: 'headline', family: 'Fraunces' }]);
+    expect(written().blocks).toEqual([
+      { id: 'a', heading: 'Colours', body: 'Navy' },
+    ]);
+    expect(written().kit.colors).toEqual([{ role: 'primary', hex: '#0E1A2B' }]);
+  });
+
+  it('returns a kit problem in "error" and saves nothing', async () => {
+    const { tool, saveDocument } = branding();
+    const result = await tool.execute(
+      {
+        category: 'foundation',
+        key: 'branding-assets',
+        kit: { fonts: [{ role: 'body', family: 'Comic Sans MS' }] },
+      },
+      context()
+    );
+    expect(result.error).toBe(
+      'Not saved: "Comic Sans MS" is not a Google Fonts family. Pick one from fonts.google.com, for example "Inter" or "Playfair Display".'
+    );
+    expect(saveDocument).not.toHaveBeenCalled();
+  });
+
+  it('refuses a kit on another document', async () => {
+    const { tool, saveDocument } = branding();
+    const result = await tool.execute(
+      { category: 'foundation', key: 'voice', kit: { imagery: 'Bold' } },
+      context()
+    );
+    expect(result.error).toMatch(/"kit" belongs to the branding-assets document/);
+    expect(saveDocument).not.toHaveBeenCalled();
+  });
+
+  it('says so when a call carries nothing to write', async () => {
+    const { tool, saveDocument } = branding();
+    const result = await tool.execute(
+      { category: 'foundation', key: 'branding-assets' },
+      context()
+    );
+    expect(result.error).toMatch(/no rules, links, kit or title/);
+    expect(saveDocument).not.toHaveBeenCalled();
   });
 
   it('documents the remove action on briefAssetTool', () => {

@@ -5,7 +5,10 @@ import {
 } from '@nestjs/common';
 import { BriefRepository } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.repository';
 import { IntegrationService } from '@gitroom/nestjs-libraries/database/prisma/integrations/integration.service';
-import { SaveBriefDocumentDto } from '@gitroom/nestjs-libraries/dtos/brief/brief.dto';
+import {
+  BriefKitDto,
+  SaveBriefDocumentDto,
+} from '@gitroom/nestjs-libraries/dtos/brief/brief.dto';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 import {
   BRIEF_ONBOARDING_DOCUMENTS,
@@ -14,19 +17,33 @@ import {
   isAgentManaged,
   isDocumentEmpty,
   BRIEF_ASSETS_MAX,
+  BRIEF_ASSET_URL_MAX,
+  BRIEF_KIT_COLOR_ROLES,
+  BRIEF_KIT_FONT_ROLES,
+  BRIEF_KIT_HEX,
+  BRIEF_KIT_IMAGERY_MAX,
+  BRIEF_KIT_LOGO_VARIANTS,
   BRIEF_USER_DOCUMENTS_MAX,
   channelDocumentKey,
   documentHasFeature,
   emptyContent,
   findCategory,
+  isKitEmpty,
   resolveDocumentDef,
 } from '@gitroom/nestjs-libraries/agent-brief/brief.registry';
 import {
   BriefDocument,
   BriefDocumentContent,
+  BriefKit,
 } from '@gitroom/nestjs-libraries/agent-brief/brief.types';
+import { GOOGLE_FONT_FAMILIES } from '@gitroom/nestjs-libraries/agent-brief/google.fonts';
 import { BriefRevisionService } from '@gitroom/nestjs-libraries/database/prisma/brief/brief-revision.service';
 import { IntegrationManager } from '@gitroom/nestjs-libraries/integrations/integration.manager';
+
+// Google's spelling of each family, looked up without regard to case.
+const GOOGLE_FONTS = new Map(
+  GOOGLE_FONT_FAMILIES.map((family) => [family.toLowerCase(), family])
+);
 
 @Injectable()
 export class BriefService {
@@ -128,6 +145,11 @@ export class BriefService {
       throw this.unknownDocument(category, key);
     }
 
+    const problem = body.kit && this.kitProblem(category, key, body.kit);
+    if (problem) {
+      throw new BadRequestException(problem);
+    }
+
     const storageKey = await this.toStorageKey(orgId, category, key);
     const existing = await this._briefRepository.getDocument(
       orgId,
@@ -155,6 +177,15 @@ export class BriefService {
       content.assets = body.assets;
     }
 
+    if (body.kit && documentHasFeature(document, 'kit')) {
+      const kit = this.mergeKit(content.kit, body.kit);
+      if (kit) {
+        content.kit = kit;
+      } else {
+        delete content.kit;
+      }
+    }
+
     if (body.title !== undefined && definition.source === 'user') {
       content.title = body.title;
     }
@@ -174,6 +205,134 @@ export class BriefService {
       content,
       updatedAt: saved.updatedAt?.toISOString(),
     };
+  }
+
+  // Why a brand kit cannot be saved on this document, in the words both the
+  // public API and briefSaveTool answer with. Nothing when it can be. An
+  // unknown document is left to saveDocument to explain.
+  kitProblem(category: string, key: string, kit: BriefKitDto) {
+    const document = resolveDocumentDef(category, key);
+    if (!document) {
+      return undefined;
+    }
+
+    if (!documentHasFeature(document, 'kit')) {
+      const holder = BRIEF_REGISTRY.flatMap((one) =>
+        (one.documents || []).map((def) => ({ category: one.id, def }))
+      ).find(({ def }) => documentHasFeature(def, 'kit'));
+      return `Not saved: "kit" belongs to the ${holder?.def.key} document (category ${holder?.category}); this document holds no kit.`;
+    }
+
+    const twice = (values: string[]) =>
+      values.find((value, at) => values.indexOf(value) !== at);
+    const colorRoles: readonly string[] = BRIEF_KIT_COLOR_ROLES;
+    const fontRoles: readonly string[] = BRIEF_KIT_FONT_ROLES;
+    const logoVariants: readonly string[] = BRIEF_KIT_LOGO_VARIANTS;
+
+    for (const color of kit.colors || []) {
+      if (!colorRoles.includes(color.role)) {
+        return `Not saved: a colour role is one of ${colorRoles.join(
+          ', '
+        )}; "${color.role}" is none of them.`;
+      }
+      if (!BRIEF_KIT_HEX.test(color.hex)) {
+        return `Not saved: the colour for "${color.role}" is "${color.hex}" and a hex colour reads as six hex digits, like #0E1A2B.`;
+      }
+    }
+
+    const colorTwice = twice((kit.colors || []).map((color) => color.role));
+    if (colorTwice) {
+      return `Not saved: "${colorTwice}" is sent twice; the kit holds one colour per role (${colorRoles.join(
+        ', '
+      )}).`;
+    }
+
+    for (const font of kit.fonts || []) {
+      if (!fontRoles.includes(font.role)) {
+        return `Not saved: a font role is one of ${fontRoles.join(
+          ', '
+        )}; "${font.role}" is neither.`;
+      }
+      if (!GOOGLE_FONTS.has(font.family.trim().toLowerCase())) {
+        return `Not saved: "${font.family}" is not a Google Fonts family. Pick one from fonts.google.com, for example "Inter" or "Playfair Display".`;
+      }
+    }
+
+    const fontTwice = twice((kit.fonts || []).map((font) => font.role));
+    if (fontTwice) {
+      return `Not saved: "${fontTwice}" is sent twice; the kit holds one font per role (${fontRoles.join(
+        ', '
+      )}).`;
+    }
+
+    for (const logo of kit.logos || []) {
+      if (!logoVariants.includes(logo.variant)) {
+        return `Not saved: a logo variant is one of ${logoVariants.join(
+          ', '
+        )}; "${logo.variant}" is none of them.`;
+      }
+      if (!logo.url.trim() || logo.url.length > BRIEF_ASSET_URL_MAX) {
+        return `Not saved: the "${logo.variant}" logo needs its file, as a media-library path or a link of up to ${BRIEF_ASSET_URL_MAX} characters.`;
+      }
+    }
+
+    const logoTwice = twice((kit.logos || []).map((logo) => logo.variant));
+    if (logoTwice) {
+      return `Not saved: "${logoTwice}" is sent twice; the kit holds one logo per variant (${logoVariants.join(
+        ', '
+      )}).`;
+    }
+
+    if ((kit.imagery || '').length > BRIEF_KIT_IMAGERY_MAX) {
+      return `Not saved: the imagery line is ${
+        (kit.imagery || '').length
+      } characters; it holds up to ${BRIEF_KIT_IMAGERY_MAX}.`;
+    }
+
+    return undefined;
+  }
+
+  // Each kit field sent replaces that field whole and a field left out keeps
+  // what is stored, the same contract as blocks, links and assets. Entries are
+  // kept in role order, and a kit with nothing left in it is no kit at all.
+  private mergeKit(stored: BriefKit | undefined, sent: BriefKitDto) {
+    const kit: BriefKit = { ...(stored || {}) };
+
+    if (sent.colors) {
+      kit.colors = BRIEF_KIT_COLOR_ROLES.flatMap((role) => {
+        const color = sent.colors!.find((one) => one.role === role);
+        return color ? [{ role, hex: color.hex.toUpperCase() }] : [];
+      });
+    }
+
+    if (sent.fonts) {
+      kit.fonts = BRIEF_KIT_FONT_ROLES.flatMap((role) => {
+        const font = sent.fonts!.find((one) => one.role === role);
+        const family =
+          font && GOOGLE_FONTS.get(font.family.trim().toLowerCase());
+        return family ? [{ role, family }] : [];
+      });
+    }
+
+    if (sent.logos) {
+      kit.logos = BRIEF_KIT_LOGO_VARIANTS.flatMap((variant) => {
+        const logo = sent.logos!.find((one) => one.variant === variant);
+        return logo ? [{ variant, url: logo.url.trim() }] : [];
+      });
+    }
+
+    if (sent.imagery !== undefined) {
+      kit.imagery = sent.imagery.trim();
+    }
+
+    const merged: BriefKit = {
+      ...(kit.colors?.length ? { colors: kit.colors } : {}),
+      ...(kit.fonts?.length ? { fonts: kit.fonts } : {}),
+      ...(kit.logos?.length ? { logos: kit.logos } : {}),
+      ...(kit.imagery ? { imagery: kit.imagery } : {}),
+    };
+
+    return isKitEmpty(merged) ? undefined : merged;
   }
 
   // The headings a stored document holds that a new list of rules leaves out,
@@ -500,6 +659,7 @@ export class BriefService {
         blocks: Array.isArray(parsed?.blocks) ? parsed.blocks : [],
         ...(parsed?.links ? { links: parsed.links } : {}),
         ...(parsed?.assets ? { assets: parsed.assets } : {}),
+        ...(parsed?.kit ? { kit: parsed.kit } : {}),
         ...(parsed?.title ? { title: parsed.title } : {}),
       };
     } catch (err) {

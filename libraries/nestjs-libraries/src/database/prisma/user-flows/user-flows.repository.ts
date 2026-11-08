@@ -29,7 +29,7 @@ const listFields = {
   },
 } satisfies Prisma.UserFlowSelect;
 
-// One flow whole: what workflowGet and the editor read.
+// One flow whole: what workflowGet and the flow view read.
 const flowFields = {
   id: true,
   slug: true,
@@ -249,27 +249,14 @@ export class UserFlowsRepository {
     });
   }
 
-  // An import, all or nothing: the copies of the author's own skills into
-  // My skills, the flow, and the share's import count.
+  // An import, all or nothing: the flow and the share's import count.
   importFlow(
     organizationId: string,
     slug: string,
     data: UserFlowData,
-    shareId: string,
-    skills: Array<
-      Pick<
-        Prisma.UserSkillUncheckedCreateInput,
-        'slug' | 'name' | 'description' | 'body'
-      >
-    >
+    shareId: string
   ) {
     return this._transaction.model.$transaction(async (tx) => {
-      for (const skill of skills) {
-        await tx.userSkill.create({
-          data: { ...skill, organizationId, importedShareId: shareId },
-          select: { id: true },
-        });
-      }
       const flow = await tx.userFlow.create({
         data: {
           ...data,

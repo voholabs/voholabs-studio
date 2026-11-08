@@ -79,7 +79,9 @@ export type UserFlowSource =
   | 'CREATED'
   | 'FORKED'
   | 'IMPORTED'
-  | 'SAVED_FROM_CHAT';
+  | 'SAVED_FROM_CHAT'
+  // Saved by an agent from a set of reference videos.
+  | 'LEARNED';
 
 export interface UserFlowSummary {
   slug: string;
@@ -94,7 +96,7 @@ export interface UserFlowSummary {
   // A custom flow: the flow it is based on, a library flow id or "my/<slug>".
   basedOn: string | null;
   // The skills it brings in, derived from the skill links in its texts plus
-  // older ones listed without a link: a skills library slug or "my/<slug>".
+  // older ones listed without a link: skills library slugs.
   skills: string[];
   shared: boolean;
   // False for a copy of a library flow: it gets no share link.
@@ -139,7 +141,7 @@ export const useUserFlows = () => {
   });
 };
 
-// One of my flows whole, for the editor. Null slug: a new flow, nothing read.
+// One of my flows whole, for the flow view. Null slug: nothing read.
 export const useUserFlow = (slug: string | null) => {
   const fetch = useFetch();
   const load = useCallback(async () => {
@@ -175,19 +177,11 @@ export interface SharedFlow {
     basedOn: string | null;
     customization: string;
     skills: string[];
+    // Saved by an agent from a set of reference videos.
+    learned?: boolean;
     updatedAt: string;
   };
-  // The author's own skills it brings in, scrubbed; "slug" is the reference
-  // in the flow ("my/<slug>"). An import copies them into My skills.
-  ownSkills?: SharedUserSkill[];
   warnings: string[];
-}
-
-export interface SharedUserSkill {
-  slug: string;
-  name: string;
-  description: string;
-  body: string;
 }
 
 export const useSharedFlow = (token: string) => {
@@ -215,111 +209,11 @@ export interface UserFlowSaved {
   warnings: string[];
 }
 
-export type UserFlowFields = Partial<
-  Pick<UserFlow, 'title' | 'whenToUse' | 'summary' | 'body' | 'customization'>
-> & {
-  category?: string | null;
-  basedOn?: string | null;
-  // The skills listed without a skill link (older flows); the links in the
-  // texts bring in the rest.
-  skills?: string[];
-};
+// What the app writes of a flow: the title (Rename). Everything else is
+// written by the workspace's agent.
+export type UserFlowFields = Partial<Pick<UserFlow, 'title'>>;
 
-// My skills: the workspace's own skills (GET /user-skills), which its flows
-// bring in with a skill link to "my/<slug>". They open with Plus, like My
-// flows: a 402 is the locked state.
-export interface UserSkillSummary {
-  slug: string;
-  name: string;
-  description: string;
-  updatedAt: string;
-}
-
-export interface UserSkill extends UserSkillSummary {
-  body: string;
-}
-
-export interface UserSkillsState {
-  locked: boolean;
-  skills: UserSkillSummary[];
-}
-
-export type UserSkillFields = Pick<UserSkill, 'name' | 'description' | 'body'>;
-
-export const useUserSkills = () => {
-  const fetch = useFetch();
-  const load = useCallback(async (): Promise<UserSkillsState> => {
-    const response = await fetch('/user-skills', WALLET_INLINE_REQUEST);
-    if (response.status === 402) {
-      return { locked: true, skills: [] };
-    }
-    if (!response.ok) {
-      throw new Error('user-skills');
-    }
-    return {
-      locked: false,
-      skills: ((await response.json())?.skills || []) as UserSkillSummary[],
-    };
-  }, [fetch]);
-  return useSWR<UserSkillsState>('user-skills', load, {
-    revalidateOnFocus: false,
-  });
-};
-
-// One of My skills whole, for its editor. Null slug: a new skill.
-export const useUserSkill = (slug: string | null) => {
-  const fetch = useFetch();
-  const load = useCallback(async () => {
-    const response = await fetch(
-      `/user-skills/${encodeURIComponent(slug as string)}`,
-      WALLET_INLINE_REQUEST
-    );
-    if (!response.ok) {
-      throw new Error('user-skill');
-    }
-    return (await response.json()) as UserSkill;
-  }, [fetch, slug]);
-  return useSWR<UserSkill>(slug ? `user-skill-${slug}` : null, load, {
-    revalidateOnFocus: false,
-  });
-};
-
-// The skills library (GET /skills), for the skills a flow brings in. It
-// opens with Plus, so a 402 is the locked state, not an error (as in
-// useUserFlows).
-export interface SkillSummary {
-  slug: string;
-  name: string;
-  summary: string;
-  whenToUse: string | null;
-}
-
-export interface SkillsListState {
-  locked: boolean;
-  skills: SkillSummary[];
-}
-
-export const useSkillsList = () => {
-  const fetch = useFetch();
-  const load = useCallback(async (): Promise<SkillsListState> => {
-    const response = await fetch('/skills', WALLET_INLINE_REQUEST);
-    if (response.status === 402) {
-      return { locked: true, skills: [] };
-    }
-    if (!response.ok) {
-      throw new Error('skills');
-    }
-    return {
-      locked: false,
-      skills: ((await response.json())?.skills || []) as SkillSummary[],
-    };
-  }, [fetch]);
-  return useSWR<SkillsListState>('skills-list', load, {
-    revalidateOnFocus: false,
-  });
-};
-
-// The writes on my flows and My skills. Each returns the parsed answer, or undefined when
+// The writes on my flows. Each returns the parsed answer, or undefined when
 // the request was refused (a Plus refusal opens the Plus dialog, any other
 // error is shown as a toast) so the caller can stop its spinner.
 export const useUserFlowActions = () => {
@@ -354,11 +248,6 @@ export const useUserFlowActions = () => {
     [fetch, toaster, t]
   );
   return {
-    create: useCallback(
-      (fields: UserFlowFields) =>
-        send<UserFlowSaved>('/user-flows', 'POST', fields),
-      [send]
-    ),
     update: useCallback(
       (slug: string, fields: UserFlowFields) =>
         send<UserFlowSaved>(
@@ -395,28 +284,6 @@ export const useUserFlowActions = () => {
     importShared: useCallback(
       (token: string) =>
         send<UserFlowSaved>('/user-flows/import', 'POST', { token }),
-      [send]
-    ),
-    createSkill: useCallback(
-      (fields: UserSkillFields) =>
-        send<UserSkill>('/user-skills', 'POST', fields),
-      [send]
-    ),
-    updateSkill: useCallback(
-      (slug: string, fields: UserSkillFields) =>
-        send<UserSkill>(
-          `/user-skills/${encodeURIComponent(slug)}`,
-          'PATCH',
-          fields
-        ),
-      [send]
-    ),
-    removeSkill: useCallback(
-      (slug: string) =>
-        send<{ deleted: boolean }>(
-          `/user-skills/${encodeURIComponent(slug)}`,
-          'DELETE'
-        ),
       [send]
     ),
   };

@@ -136,7 +136,9 @@ const DetailSection: FC<{ title: string; children: ReactNode }> = ({
   </div>
 );
 
-const useCopyPrompt = (flow: Flow) => {
+// Copies a prompt for the user's agent, with a toast and a short "Copied"
+// label: a library flow's prompt, or one the flows dialogs write.
+export const useCopyPrompt = (prompt?: string) => {
   const t = useT();
   const toaster = useToaster();
   const [copied, setCopied] = useState(false);
@@ -148,16 +150,16 @@ const useCopyPrompt = (flow: Flow) => {
     return () => clearTimeout(timer);
   }, [copied]);
   const copyPrompt = useCallback(() => {
-    if (!flow.prompt) {
+    if (!prompt) {
       return;
     }
-    copy(flow.prompt);
+    copy(prompt);
     setCopied(true);
     toaster.show(
       t('flows_prompt_copied', 'Prompt copied. Paste it into your agent.'),
       'success'
     );
-  }, [flow.prompt, t, toaster]);
+  }, [prompt, t, toaster]);
   const label = copied
     ? t('flows_copied', 'Copied — now paste it into your agent')
     : t('flows_copy_prompt', 'Copy prompt');
@@ -595,15 +597,15 @@ interface FlowDrawerProps {
   related: Flow[];
   // Flows open with Plus: without it the drawer offers Plus instead
   locked?: boolean;
-  // opens a new custom flow based on this one; missing when My flows is not
-  // open
+  // opens the new custom flow dialog based on this one; missing when My
+  // flows is not open
   onCustomize?: (id: string) => void;
   onClose: () => void;
   onOpen: (id: string) => void;
 }
 
-// Starts a custom flow based on a library flow: the editor opens with the
-// base set, and the library method stays where it is.
+// Starts a custom flow based on a library flow: the new custom flow dialog
+// opens with the base set, for the user's agent to make it.
 const CustomizeButton: FC<{
   flow: Flow;
   onCustomize: (id: string) => void;
@@ -644,7 +646,7 @@ const FlowAside: FC<FlowDrawerProps> = ({
   onOpen,
 }) => {
   const t = useT();
-  const { copyPrompt, label } = useCopyPrompt(flow);
+  const { copyPrompt, label } = useCopyPrompt(flow.prompt);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -714,7 +716,7 @@ const FlowSheet: FC<FlowDrawerProps> = ({
   onOpen,
 }) => {
   const t = useT();
-  const { copyPrompt, label } = useCopyPrompt(flow);
+  const { copyPrompt, label } = useCopyPrompt(flow.prompt);
   return (
     <BottomSheet
       title={flow.title}

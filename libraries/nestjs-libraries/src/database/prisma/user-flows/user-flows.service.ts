@@ -12,11 +12,6 @@ import {
 import { scrubFlow } from '@gitroom/nestjs-libraries/flows/flows.scrub';
 import { SkillsService } from '@gitroom/nestjs-libraries/database/prisma/skills/skills.service';
 import {
-  MY_SKILL,
-  SharedUserSkill,
-  UserSkillsService,
-} from '@gitroom/nestjs-libraries/database/prisma/user-skills/user-skills.service';
-import {
   nextFreeSlug,
   slugify,
 } from '@gitroom/nestjs-libraries/database/prisma/user-flows/user-flows.slug';
@@ -65,8 +60,11 @@ export interface UserFlowInput {
   basedOn?: string | null;
   customization?: string;
   // Skills brought in without a skill link in the texts (a skills library
-  // slug or "my/<slug>"), added to the ones the links name.
+  // slug), added to the ones the links name.
   skills?: string[];
+  // A new flow written from a set of reference videos is saved as LEARNED.
+  // An edit keeps how a flow was made.
+  learned?: boolean;
 }
 
 export interface SaveUserFlowOptions {
@@ -95,8 +93,12 @@ const RESERVED_SLUGS = ['shared', 'fork', 'import', 'new'];
 export const LIBRARY_COPY_NOT_SHAREABLE =
   'A copy of a Voho library flow cannot be shared. Flows you wrote yourself or imported from a share link can be.';
 
-// How a base among this workspace's own flows is named.
+// How a base among this workspace's own flows is named, and how a skill link
+// named one of the workspace's own skills (no longer brought in).
 const MY = 'my/';
+
+export const OWN_SKILLS_RETIRED =
+  "Flows no longer bring in a workspace's own skills; put that text in the flow itself.";
 
 export const shareUrl = (token: string) =>
   `${(process.env.FRONTEND_URL || '').replace(/\/+$/, '')}/flows/shared/${token}`;
@@ -364,9 +366,9 @@ interface Ancestors<T> {
 
 // A skill a flow brings in, as the gateway reads it: its instructions, or
 // locked (a skills library skill without the skills unlock) or missing (no
-// longer in the skills library, or deleted from My skills). "slug" is the
-// reference as stored: "hooks", or "my/<slug>" for one of My skills, which
-// is never locked.
+// longer in the skills library). "slug" is the reference as stored: "hooks",
+// or "my/<slug>" for one of the workspace's own skills, which flows no longer
+// bring in: always missing.
 export interface FlowSkill {
   slug: string;
   kind: 'voho' | 'mine';
@@ -496,8 +498,7 @@ const importLimits = (flow: FlowTexts & { skills: string[] }) => {
 export class UserFlowsService {
   constructor(
     private _flows: UserFlowsRepository,
-    private _skills: SkillsService,
-    private _userSkills: UserSkillsService
+    private _skills: SkillsService
   ) {}
 
   async list(organizationId: string) {
@@ -551,11 +552,7 @@ export class UserFlowsService {
     return {
       ...flow,
       ...flat,
-      skills: await this.skillsOf(
-        organizationId,
-        flat.skills,
-        options.skillsUnlocked
-      ),
+      skills: await this.skillsOf(flat.skills, options.skillsUnlocked),
       warnings: chainWarnings(found, flow, true),
     };
   }
@@ -609,6 +606,8 @@ export class UserFlowsService {
     );
     const source: FlowSource = forkOf
       ? 'FORKED'
+      : input.learned
+      ? 'LEARNED'
       : options.source || 'CREATED';
     await this._flows.create(organizationId, slug, {
       ...(forDb(created) as UserFlowData),
@@ -702,19 +701,14 @@ export class UserFlowsService {
     return { deleted: true };
   }
 
-  // What a share link holds, for the signed-in shared page: the method, the
-  // skills of the author's My skills it brings in (ownSkills, "slug" being
-  // the reference in the flow), and what the import would change. A custom
-  // flow carries its library base by id, never the base's method.
+  // What a share link holds, for the signed-in shared page: the method,
+  // whether it was learned from videos, and what the import would change. A
+  // custom flow carries its library base by id, never the base's method.
   async shared(token: string) {
     const share = await this.liveShare(token);
-    const {
-      flow: { ownSkills, ...flow },
-      warnings,
-    } = scrubFlow({ ...share.userFlow, ownSkills: share.ownSkills });
+    const { flow, warnings } = scrubFlow(share.userFlow);
     return {
       flow,
-      ownSkills: ownSkills || [],
       warnings: [...warnings, ...share.warnings, ...importLimits(flow).warnings],
     };
   }
@@ -730,52 +724,23 @@ export class UserFlowsService {
     input: UserFlowInput
   ): Promise<SaveUserFlowResult> {
     const share = await this.liveShare(token);
-    const {
-      flow: { ownSkills, ...flow },
-      warnings: scrubbed,
-    } = scrubFlow({ ...share.userFlow, ownSkills: share.ownSkills });
+    const { flow, warnings: scrubbed } = scrubFlow(share.userFlow);
     const wanted = input.slug ? this.validSlug(input.slug) : undefined;
     if (input.slug && !wanted) {
       throw new BadRequestException(
         'A slug is lower-case letters, digits and dashes'
       );
     }
-    // The author's own skills come along into My skills; the skill links
-    // and the index then name the copies. Planned first, written with the
-    // flow once everything is known to be valid.
-    const plan = await this._userSkills.planImport(
-      organizationId,
-      share.id,
-      ownSkills || []
-    );
-    const relink = <T extends string | undefined>(value: T): T =>
-      (typeof value === 'string'
-        ? value.replace(
-            SKILL_CHIP,
-            (link: string, label: string, reference: string) =>
-              plan.references[reference]
-                ? `[Skill: ${label}](skill:${plan.references[reference]})`
-                : link
-          )
-        : value) as T;
-    const parts = flow.parts
-      ? Object.fromEntries(
-          Object.entries(flow.parts).map(([key, one]) => [key, relink(one)])
-        )
-      : flow.parts;
-    const limits = importLimits({
-      body: relink(flow.body),
-      customization: relink(flow.customization),
-      parts,
-      skills: flow.skills.map((one) => plan.references[one] || one),
-    });
+    // Skill links pass through as they are: one to the author's own skills
+    // ("my/<slug>") reads as missing.
+    const limits = importLimits(flow);
     const title = text(input.title, USER_FLOW_TITLE_MAX) || flow.title;
     const data = toData({
       title,
       whenToUse: flow.whenToUse,
       summary: flow.summary,
-      body: relink(flow.body),
-      parts,
+      body: flow.body,
+      parts: flow.parts,
       category: flow.category,
       cost: flow.cost,
       foundation: flow.foundation,
@@ -784,12 +749,7 @@ export class UserFlowsService {
       customization: limits.customization,
       skills: limits.skills,
     });
-    const warnings = [
-      ...scrubbed,
-      ...share.warnings,
-      ...limits.warnings,
-      ...plan.warnings,
-    ];
+    const warnings = [...scrubbed, ...share.warnings, ...limits.warnings];
     const slug = await this.freeSlug(
       organizationId,
       wanted || slugify(title)
@@ -798,14 +758,14 @@ export class UserFlowsService {
       organizationId,
       slug,
       forDb(data) as UserFlowData,
-      share.id,
-      plan.create
+      share.id
     );
     return { slug, created: true, warnings };
   }
 
   // A live share and its flow as shared: a custom flow based on My flows is
   // merged with them (flatten), so the link carries no slug of the author's.
+  // How it was made stays off it, except whether it was learned from videos.
   private async liveShare(token: string) {
     const key = text(token, USER_FLOW_TOKEN_MAX);
     const share = key ? await this._flows.shared(key) : null;
@@ -826,8 +786,7 @@ export class UserFlowsService {
     const flat = flatten(share.userFlow, found.chain);
     return {
       ...share,
-      userFlow: { ...userFlow, ...flat },
-      ownSkills: await this.ownSkillsOf(share.organizationId, flat.skills),
+      userFlow: { ...userFlow, ...flat, learned: source === 'LEARNED' },
       warnings: chainWarnings(found, share.userFlow, false),
     };
   }
@@ -864,11 +823,12 @@ export class UserFlowsService {
   // The base and skills a save writes, checked: a base among My flows exists,
   // is not the flow itself and does not lead back to it, no chain through it
   // (its own, or one of a flow based on it) runs past USER_FLOW_CHAIN_MAX,
-  // every skill slug is in the skills library and every "my/<slug>" is one
-  // of My skills. Only the skills the flow did not bring in before are
-  // checked: one it already did that is gone since (shown as missing) does
-  // not stop an edit. A library base is checked for its form only: the
-  // library is read through the gateway.
+  // every skill slug is in the skills library, and no "my/<slug>" skill is
+  // added (the workspace's own skills are no longer brought in). Only the
+  // skills the flow did not bring in before are checked: one it already did
+  // that is gone since (shown as missing) does not stop an edit. A library
+  // base is checked for its form only: the library is read through the
+  // gateway.
   private async checkReferences(
     organizationId: string,
     slug: string | undefined,
@@ -905,37 +865,17 @@ export class UserFlowsService {
     const added = (data.skills || []).filter(
       (one) => !storedSkills.includes(one)
     );
-    const library = added.filter((one) => !one.startsWith(MY_SKILL));
-    if (library.length) {
+    if (added.some((one) => one.startsWith(MY))) {
+      throw new BadRequestException(OWN_SKILLS_RETIRED);
+    }
+    if (added.length) {
       const known = new Set(
-        (await this._skills.bySlugs(library)).map((one) => one.slug)
+        (await this._skills.bySlugs(added)).map((one) => one.slug)
       );
-      const unknown = library.find((one) => !known.has(one));
+      const unknown = added.find((one) => !known.has(one));
       if (unknown) {
         throw new BadRequestException(
           `There is no skill named "${unknown}" in the skills library.`
-        );
-      }
-    }
-    const mine = added.filter((one) => one.startsWith(MY_SKILL));
-    if (mine.length) {
-      const known = new Set(
-        (
-          await this._userSkills.bySlugs(
-            organizationId,
-            mine.map((one) => one.slice(MY_SKILL.length))
-          )
-        ).map((one) => `${MY_SKILL}${one.slug}`)
-      );
-      const unknown = mine.find((one) => !known.has(one));
-      if (unknown) {
-        const all = (await this._userSkills.list(organizationId)).map(
-          (one) => `${MY_SKILL}${one.slug}`
-        );
-        throw new BadRequestException(
-          `There is no skill named "${unknown}" in My skills. ${
-            all.length ? `My skills: ${all.join(', ')}.` : 'My skills is empty.'
-          }`
         );
       }
     }
@@ -971,57 +911,26 @@ export class UserFlowsService {
   }
 
   // The skills a flow brings in, in its order: the skills library's (locked
-  // without the skills unlock) and this workspace's own (never locked).
+  // without the skills unlock); a "my/<slug>" one is missing.
   private async skillsOf(
-    organizationId: string,
     slugs: string[],
     unlocked: boolean
   ): Promise<FlowSkill[]> {
     if (!slugs.length) {
       return [];
     }
-    const library = slugs.filter((one) => !one.startsWith(MY_SKILL));
-    const mine = slugs.filter((one) => one.startsWith(MY_SKILL));
+    const library = slugs.filter((one) => !one.startsWith(MY));
     const found = new Map(
       (library.length ? await this._skills.bySlugs(library) : []).map(
         (one) => [one.slug, one]
       )
     );
-    const own = new Map(
-      (mine.length
-        ? await this._userSkills.bySlugs(
-            organizationId,
-            mine.map((one) => one.slice(MY_SKILL.length))
-          )
-        : []
-      ).map((one) => [`${MY_SKILL}${one.slug}`, one])
-    );
     return slugs.map((slug): FlowSkill => {
-      if (slug.startsWith(MY_SKILL)) {
-        const skill = own.get(slug);
-        return skill
-          ? {
-              slug,
-              kind: 'mine',
-              name: skill.name,
-              summary: skill.description,
-              whenToUse: null,
-              body: skill.body,
-            }
-          : {
-              slug,
-              kind: 'mine',
-              name: slug,
-              summary: '',
-              whenToUse: null,
-              missing: true,
-            };
-      }
       const skill = found.get(slug);
       if (!skill) {
         return {
           slug,
-          kind: 'voho',
+          kind: slug.startsWith(MY) ? 'mine' : 'voho',
           name: slug,
           summary: '',
           whenToUse: null,
@@ -1036,42 +945,6 @@ export class UserFlowsService {
         whenToUse: skill.whenToUse,
         ...(unlocked ? { body: skill.body } : { locked: true as const }),
       };
-    });
-  }
-
-  // The skills of the author's My skills a shared flow brings in, whole,
-  // for the import to copy: the ones that still exist, at most
-  // USER_FLOW_SKILLS_MAX.
-  private async ownSkillsOf(
-    organizationId: string,
-    slugs: string[]
-  ): Promise<SharedUserSkill[]> {
-    const mine = slugs
-      .filter((one) => one.startsWith(MY_SKILL))
-      .slice(0, USER_FLOW_SKILLS_MAX);
-    if (!mine.length) {
-      return [];
-    }
-    const found = new Map(
-      (
-        await this._userSkills.bySlugs(
-          organizationId,
-          mine.map((one) => one.slice(MY_SKILL.length))
-        )
-      ).map((one) => [`${MY_SKILL}${one.slug}`, one])
-    );
-    return mine.flatMap((slug) => {
-      const skill = found.get(slug);
-      return skill
-        ? [
-            {
-              slug,
-              name: skill.name,
-              description: skill.description,
-              body: skill.body,
-            },
-          ]
-        : [];
     });
   }
 

@@ -1426,8 +1426,8 @@ model UserFlow {
   customization   String       @default("")
   // The skills the flow brings in, derived on every save from the skill
   // links in its texts ("[Skill: Name](skill:<ref>)") plus older entries
-  // without a link: a skills library slug or "my/<slug>" (a UserSkill); at
-  // most 10.
+  // without a link: a skills library slug; at most 10. "my/<slug>" entries
+  // named a UserSkill and now read as missing.
   skills          String[]     @default([])
   poster          String?
   exampleVideo    String?
@@ -1442,9 +1442,9 @@ model UserFlow {
   @@index([organizationId, updatedAt])
 }
 
-// One of a workspace's own skills ("My skills"): Markdown instructions a
-// flow brings in with a skill link to "my/<slug>". Deleted skills stay as
-// rows (deletedAt) and are never returned.
+// Unused since 2026-11; kept because the schema is additive. It held a
+// workspace's own skills ("My skills"), which flows brought in with a skill
+// link to "my/<slug>"; such links now read as missing.
 model UserSkill {
   id              String       @id @default(uuid())
   organizationId  String
@@ -1487,6 +1487,8 @@ enum FlowSource {
   FORKED
   IMPORTED
   SAVED_FROM_CHAT
+  // Saved by an agent from a set of reference videos (the learn-a-style flow).
+  LEARNED
 }
 
 enum AgentAuthMethod {

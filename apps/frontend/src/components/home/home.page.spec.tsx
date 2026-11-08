@@ -25,7 +25,9 @@ jest.mock('@gitroom/frontend/components/flows/flows.hooks', () => ({
 }));
 jest.mock('@gitroom/frontend/components/flows/flows.mine', () => ({
   MyFlowsSection: () => null,
-  useOpenFlowEditor: () => jest.fn(),
+}));
+jest.mock('@gitroom/frontend/components/flows/flows.new', () => ({
+  useOpenNewCustomFlow: () => jest.fn(),
 }));
 jest.mock('@gitroom/frontend/components/flows/flows.card', () => ({
   FlowCard: () => null,

@@ -22,9 +22,9 @@ export class FlowGetTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'flowGet',
-      description: `Reads one of this workspace's own flows by its slug: the title, when to use it, the summary, category, cost line, foundation, the whole method ("body"), its named parts, the brand slots the reader's brand kit fills, how it was made and the origin it was forked from.
+      description: `Reads one of this workspace's own flows by its slug: the title, when to use it, the summary, category, cost line, foundation, the whole method ("body"), its named parts, the brand slots the reader's brand kit fills, how it was made (LEARNED for a flow learned from reference videos) and the origin it was forked from.
 A custom flow comes back merged with the flows of this workspace it is based on: "basedOn" is the Voho library flow at the end of that chain (null when there is none), "customization" holds the changes oldest first and wins over the base method, "body" is the method of the chain's own first flow ("" when the chain ends in a library flow), and "parts" are merged with the nearer flow winning.
-"skills" lists the skills the flow brings in: the ones its texts link to as "[Skill: Name](skill:<slug>)" and the ones listed without a link, with their instructions in "body". Each has a "kind": "voho" for a skill from the skills library (its slug, e.g. "hooks") and "mine" for one of this workspace's own skills (slug "my/<slug>"). Without the skills unlock a skills library skill is "locked" with no body and "skillsUpgradeUrl" is the Plus page; the workspace's own skills are not locked. A skill no longer in the library, or deleted from the workspace's own skills, is "missing". "warnings" says when a chain of bases stops short, for flows saved before its checks. An unknown slug returns the error "flow not found". Included with Plus.`,
+"skills" lists the skills the flow brings in: the ones its texts link to as "[Skill: Name](skill:<slug>)" and the ones listed without a link, with their instructions in "body". Each has a "kind", "voho" for a skill from the skills library (its slug, e.g. "hooks"). Without the skills unlock a skill is "locked" with no body and "skillsUpgradeUrl" is the Plus page. A skill no longer available is "missing", as is every "my/<slug>" reference ("kind": "mine"), since flows no longer bring in a workspace's own skills. "warnings" says when a chain of bases stops short, for flows saved before its checks. An unknown slug returns the error "flow not found". Included with Plus.`,
       mcp: {
         annotations: {
           title: 'Read My Flow',
@@ -61,10 +61,12 @@ A custom flow comes back merged with the flows of this workspace it is based on:
             z.object({
               slug: z
                 .string()
-                .describe('The reference as the flow holds it: "hooks", or "my/<slug>"'),
+                .describe('The reference as the flow holds it, e.g. "hooks"'),
               kind: z
                 .enum(['voho', 'mine'])
-                .describe('"voho": the skills library; "mine": the workspace\'s own skills'),
+                .describe(
+                  '"voho": the skills library; "mine": a "my/<slug>" reference, which reads as missing'
+                ),
               name: z.string(),
               summary: z.string(),
               whenToUse: z.string().nullable(),
@@ -84,7 +86,7 @@ A custom flow comes back merged with the flows of this workspace it is based on:
           .describe('Where a chain of bases stops short of its end'),
         brandSlots: z.array(z.string()).optional(),
         source: z
-          .enum(['CREATED', 'FORKED', 'IMPORTED', 'SAVED_FROM_CHAT'])
+          .enum(['CREATED', 'FORKED', 'IMPORTED', 'SAVED_FROM_CHAT', 'LEARNED'])
           .optional(),
         forkedFromId: z.string().nullable().optional(),
         error: z.string().optional(),

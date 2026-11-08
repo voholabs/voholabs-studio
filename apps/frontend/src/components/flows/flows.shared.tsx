@@ -6,16 +6,31 @@ import { useSWRConfig } from 'swr';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
 import {
-  useFlows,
   useSharedFlow,
   useUserFlowActions,
 } from '@gitroom/frontend/components/flows/flows.hooks';
 import { flowCategoryLabel } from '@gitroom/frontend/components/flows/flows.card';
 import {
-  findBase,
+  FlowBaseCard,
+  FlowMethod,
   useShowFlowWarnings,
-} from '@gitroom/frontend/components/flows/flows.editor';
-import { skillLinksIn } from '@gitroom/frontend/components/flows/flows.skills';
+} from '@gitroom/frontend/components/flows/flows.view';
+import { SKILL_CHIP } from '@gitroom/nestjs-libraries/dtos/flows/user-flow.dto';
+
+// The skills library skills the links in these texts name, with the label
+// of their first link. A link to a workspace's own skill ("my/<slug>") is
+// left out: flows no longer bring those in.
+const librarySkillLinks = (texts: Array<string | null | undefined>) => {
+  const found = new Map<string, string>();
+  for (const text of texts) {
+    for (const match of (text || '').matchAll(SKILL_CHIP)) {
+      if (!match[2].startsWith('my/') && !found.has(match[2])) {
+        found.set(match[2], match[1].trim());
+      }
+    }
+  }
+  return found;
+};
 
 // The page a flow's share link opens: what the flow does, its method as it
 // would be imported (the author's colour codes, media links and the Studio
@@ -26,24 +41,15 @@ export const FlowsSharedPage: FC<{ token: string }> = ({ token }) => {
   const router = useRouter();
   const { mutate } = useSWRConfig();
   const { data, isLoading, error } = useSharedFlow(token);
-  // The library, for the title of the flow a custom flow is based on.
-  const { data: library } = useFlows();
-  const basedOn = data?.flow.basedOn;
-  const base = basedOn
-    ? findBase(basedOn, library, undefined)?.title || basedOn
-    : undefined;
-  // The names of the skills it brings in: the author's own by their copy,
-  // the others by the label of their link.
-  const ownSkills = data?.ownSkills || [];
-  const labels = skillLinksIn([
+  // The skills library skills it brings in, by the label of their link.
+  const labels = librarySkillLinks([
     data?.flow.body,
     data?.flow.customization,
     ...Object.values(data?.flow.parts || {}),
   ]);
-  const skillName = (reference: string) =>
-    ownSkills.find((one) => one.slug === reference)?.name ||
-    labels.get(reference) ||
-    reference;
+  const skills = (data?.flow.skills || []).filter(
+    (one) => !one.startsWith('my/')
+  );
   const actions = useUserFlowActions();
   const showWarnings = useShowFlowWarnings();
   const [importing, setImporting] = useState(false);
@@ -58,7 +64,6 @@ export const FlowsSharedPage: FC<{ token: string }> = ({ token }) => {
     if (saved) {
       showWarnings(saved);
       await mutate('user-flows');
-      await mutate('user-skills');
       router.push('/flows');
     }
   };
@@ -95,6 +100,11 @@ export const FlowsSharedPage: FC<{ token: string }> = ({ token }) => {
                 {!!data.flow.category && (
                   <span className="inline-flex items-center h-[22px] px-[10px] rounded-full text-[12px] font-[600] bg-tealSoft text-tealText">
                     {flowCategoryLabel(t, data.flow.category)}
+                  </span>
+                )}
+                {!!data.flow.learned && (
+                  <span className="inline-flex items-center h-[22px] px-[10px] rounded-full text-[12px] font-[600] border border-newTableBorder text-textItemBlur">
+                    {t('flows_mine_learned', 'Learned from videos')}
                   </span>
                 )}
                 {!!data.flow.whenToUse && (
@@ -135,110 +145,33 @@ export const FlowsSharedPage: FC<{ token: string }> = ({ token }) => {
                 </div>
               )}
             </div>
-            {!!base && (
-              <div className="flex flex-col gap-[4px] rounded-[10px] border border-newTableBorder bg-newTableHeader px-[14px] py-[12px]">
-                <div className="text-[12px] font-[500] uppercase tracking-[0.08em] text-textItemBlur">
-                  {t('flows_editor_base_library', 'Based on a Voho library flow')}
-                </div>
-                <div className="text-[15px] font-[700] break-words">{base}</div>
-              </div>
+            {!!data.flow.basedOn && (
+              <FlowBaseCard basedOn={data.flow.basedOn} />
             )}
-            {!!data.flow.customization && (
-              <div className="flex flex-col gap-[8px]">
-                <div className="text-[12px] font-[500] uppercase tracking-[0.08em] text-textItemBlur">
-                  {t('flows_editor_customization', 'Customization')}
-                </div>
-                <div
-                  dir="auto"
-                  className="rounded-[8px] bg-newBgColor p-[14px] font-mono text-[12px] leading-[1.6] whitespace-pre-wrap break-words"
-                >
-                  {data.flow.customization}
-                </div>
-              </div>
-            )}
-            {!!data.flow.skills?.length && (
+            {!!skills.length && (
               <div className="flex flex-col gap-[8px]">
                 <div className="text-[12px] font-[500] uppercase tracking-[0.08em] text-textItemBlur">
                   {t('flows_editor_skills_in_flow', 'Skills in this flow')}
                 </div>
                 <div className="flex flex-wrap gap-[6px]">
-                  {data.flow.skills.map((slug) => (
+                  {skills.map((slug) => (
                     <span
                       key={slug}
                       title={slug}
                       className="inline-flex items-center h-[24px] px-[10px] rounded-full text-[12px] font-[600] bg-tealSoft text-tealText"
                     >
-                      {skillName(slug)}
+                      {labels.get(slug) || slug}
                     </span>
                   ))}
                 </div>
               </div>
             )}
-            {!!ownSkills.length && (
-              <div className="flex flex-col gap-[8px]">
-                <div className="text-[12px] font-[500] uppercase tracking-[0.08em] text-textItemBlur">
-                  {t('flows_shared_own_skills', "The author's own skills")}
-                </div>
-                <div className="text-[13px] leading-[1.5] text-textItemBlur">
-                  {t(
-                    'flows_shared_own_skills_note',
-                    'Importing the flow adds these to My skills, so the flow keeps them.'
-                  )}
-                </div>
-                {ownSkills.map((skill) => (
-                  <details
-                    key={skill.slug}
-                    className="rounded-[8px] border border-newTableBorder"
-                  >
-                    <summary className="cursor-pointer select-none px-[12px] min-h-[38px] py-[8px] flex flex-col justify-center gap-[2px]">
-                      <span className="text-[13px] font-[600]">{skill.name}</span>
-                      {!!skill.description && (
-                        <span className="text-[12px] text-textItemBlur">
-                          {skill.description}
-                        </span>
-                      )}
-                    </summary>
-                    <div
-                      dir="auto"
-                      className="mx-[12px] mb-[12px] rounded-[6px] bg-newBgColor p-[12px] font-mono text-[12px] leading-[1.6] whitespace-pre-wrap break-words"
-                    >
-                      {skill.body}
-                    </div>
-                  </details>
-                ))}
-              </div>
-            )}
-            <div className="flex flex-col gap-[8px]">
-              {(!!data.flow.body || !base) && (
-                <>
-                  <div className="text-[12px] font-[500] uppercase tracking-[0.08em] text-textItemBlur">
-                    {t('flows_shared_method', 'The method')}
-                  </div>
-                  <div
-                    dir="auto"
-                    className="rounded-[8px] bg-newBgColor p-[14px] font-mono text-[12px] leading-[1.6] whitespace-pre-wrap break-words"
-                  >
-                    {data.flow.body}
-                  </div>
-                </>
-              )}
-              {Object.entries(data.flow.parts || {}).map(([name, text]) => (
-                <details
-                  key={name}
-                  className="rounded-[8px] border border-newTableBorder"
-                >
-                  <summary className="cursor-pointer select-none px-[12px] h-[38px] flex items-center text-[13px] font-[600]">
-                    {name}
-                  </summary>
-                  <div
-                    dir="auto"
-                    className="mx-[12px] mb-[12px] rounded-[6px] bg-newBgColor p-[12px] font-mono text-[12px] leading-[1.6] whitespace-pre-wrap break-words"
-                  >
-                    {text}
-                  </div>
-                </details>
-              ))}
-            </div>
+            <FlowMethod
+              customization={data.flow.customization}
+              body={data.flow.body}
+              parts={data.flow.parts}
+              based={!!data.flow.basedOn}
+            />
           </div>
         )}
       </div>

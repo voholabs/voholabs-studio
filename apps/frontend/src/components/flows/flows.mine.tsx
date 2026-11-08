@@ -1,151 +1,33 @@
 'use client';
 
-import { FC, useCallback, useState } from 'react';
-import copy from 'copy-to-clipboard';
+import { FC } from 'react';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
-import { useToaster } from '@gitroom/react/toaster/toaster';
-import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
-import { useModals } from '@gitroom/frontend/components/layout/new-modal';
 import { openPlus } from '@gitroom/frontend/components/wallet/wallet.bridge';
 import { LockIcon } from '@gitroom/frontend/components/wallet-locks/wallet.icons';
 import {
   Flow,
-  useUserFlowActions,
-  UserFlowSource,
   UserFlowSummary,
   UserFlowsState,
 } from '@gitroom/frontend/components/flows/flows.hooks';
 import { flowCategoryLabel } from '@gitroom/frontend/components/flows/flows.card';
 import {
-  FlowEditor,
+  ActionButton,
   findBase,
-} from '@gitroom/frontend/components/flows/flows.editor';
-
-type T = ReturnType<typeof useT>;
-
-const sourceLabel = (t: T, source: UserFlowSource) => {
-  switch (source) {
-    case 'FORKED':
-      return t('flows_mine_forked', 'From the library');
-    case 'IMPORTED':
-      return t('flows_mine_imported', 'Imported');
-    case 'SAVED_FROM_CHAT':
-      return t('flows_mine_from_chat', 'Saved from a chat');
-    default:
-      return t('flows_mine_created', 'Written here');
-  }
-};
-
-// Opens the editor in a modal: a new flow (slug null), optionally based on a
-// flow from the start, or one of mine.
-export const useOpenFlowEditor = (onSaved: () => void) => {
-  const modals = useModals();
-  const t = useT();
-  return useCallback(
-    (slug: string | null, basedOn?: string) =>
-      modals.openModal({
-        title: slug
-          ? t('flows_editor_edit', 'Edit flow')
-          : t('flows_editor_new', 'New custom flow'),
-        withCloseButton: true,
-        children: (close: () => void) => (
-          <FlowEditor
-            slug={slug}
-            basedOn={basedOn}
-            onSaved={() => {
-              onSaved();
-              close();
-            }}
-          />
-        ),
-      }),
-    [modals, t, onSaved]
-  );
-};
-
-const ActionButton: FC<{
-  label: string;
-  onClick: () => void;
-  danger?: boolean;
-  disabled?: boolean;
-}> = ({ label, onClick, danger, disabled }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    disabled={disabled}
-    className={`h-[28px] px-[10px] rounded-[6px] text-[12px] font-[600] border border-newTableBorder transition-colors disabled:opacity-50 ${
-      danger
-        ? 'text-textItemBlur hover:text-red-400 hover:border-red-400'
-        : 'text-newTextColor hover:border-tealText'
-    }`}
-  >
-    {label}
-  </button>
-);
+  sourceLabel,
+  useMyFlowActions,
+  useOpenFlowView,
+} from '@gitroom/frontend/components/flows/flows.view';
+import { useOpenNewCustomFlow } from '@gitroom/frontend/components/flows/flows.new';
 
 const MyFlowCard: FC<{
   flow: UserFlowSummary;
   // The title of the flow it is based on, for a custom flow.
   baseTitle?: string;
-  onEdit: (slug: string) => void;
+  onOpen: (slug: string) => void;
   onChanged: () => void;
-}> = ({ flow, baseTitle, onEdit, onChanged }) => {
+}> = ({ flow, baseTitle, onOpen, onChanged }) => {
   const t = useT();
-  const toaster = useToaster();
-  const actions = useUserFlowActions();
-  const [busy, setBusy] = useState(false);
-
-  const run = async (work: () => Promise<unknown>) => {
-    setBusy(true);
-    await work();
-    setBusy(false);
-  };
-
-  const share = () =>
-    run(async () => {
-      const link = await actions.share(flow.slug);
-      if (link) {
-        copy(link.url);
-        toaster.show(
-          t(
-            'flows_mine_link_copied',
-            'Share link copied. Anyone signed in to Studio can import this flow.'
-          ),
-          'success'
-        );
-        onChanged();
-      }
-    });
-
-  const unshare = () =>
-    run(async () => {
-      if (await actions.unshare(flow.slug)) {
-        toaster.show(
-          t('flows_mine_unshared', 'The share link is turned off.'),
-          'success'
-        );
-        onChanged();
-      }
-    });
-
-  const remove = () =>
-    run(async () => {
-      if (
-        !(await deleteDialog(
-          t(
-            'flows_mine_delete_confirm',
-            'Delete "{{title}}"? Its share link stops working too.',
-            { title: flow.title }
-          ),
-          t('flows_mine_delete', 'Delete')
-        ))
-      ) {
-        return;
-      }
-      if (await actions.remove(flow.slug)) {
-        onChanged();
-      }
-    });
+  const { busy, share, unshare, remove } = useMyFlowActions(flow, onChanged);
 
   return (
     <div className="flex flex-col gap-[10px] rounded-[12px] border border-newTableBorder bg-newTableHeader p-[14px] min-w-0">
@@ -175,7 +57,7 @@ const MyFlowCard: FC<{
       </div>
       <button
         type="button"
-        onClick={() => onEdit(flow.slug)}
+        onClick={() => onOpen(flow.slug)}
         className="text-start text-[15px] font-[700] leading-[1.25] line-clamp-2 hover:underline"
       >
         {flow.title}
@@ -190,8 +72,8 @@ const MyFlowCard: FC<{
       </div>
       <div className="flex items-center gap-[6px] flex-wrap mt-auto">
         <ActionButton
-          label={t('flows_mine_edit', 'Edit')}
-          onClick={() => onEdit(flow.slug)}
+          label={t('flows_mine_open', 'Open')}
+          onClick={() => onOpen(flow.slug)}
           disabled={busy}
         />
         {flow.shareable !== false && (
@@ -264,7 +146,8 @@ export const MyFlowsSection: FC<{
   limit?: number;
 }> = ({ state, library, onChanged, limit }) => {
   const t = useT();
-  const openEditor = useOpenFlowEditor(onChanged);
+  const openView = useOpenFlowView(onChanged);
+  const openNew = useOpenNewCustomFlow();
   if (!state) {
     return null;
   }
@@ -277,7 +160,7 @@ export const MyFlowsSection: FC<{
         {!state.locked && (
           <button
             type="button"
-            onClick={() => openEditor(null)}
+            onClick={() => openNew()}
             className="h-[32px] px-[12px] rounded-[8px] text-[13px] font-[600] border border-newTableBorder hover:border-tealText"
           >
             {t('flows_mine_new', 'New custom flow')}
@@ -290,7 +173,7 @@ export const MyFlowsSection: FC<{
         <div className="text-[13px] leading-[1.5] text-textItemBlur">
           {t(
             'flows_mine_empty',
-            'Nothing here yet. Customize a flow from the library below, write one, or ask your agent to "save this as a flow" after a run you liked.'
+            'Nothing here yet. Customize a flow from the library below, have your agent make one, or ask it to "save this as a flow" after a run you liked.'
           )}
         </div>
       ) : (
@@ -302,7 +185,7 @@ export const MyFlowsSection: FC<{
               baseTitle={
                 findBase(flow.basedOn, library, state.flows)?.title
               }
-              onEdit={openEditor}
+              onOpen={openView}
               onChanged={onChanged}
             />
           ))}

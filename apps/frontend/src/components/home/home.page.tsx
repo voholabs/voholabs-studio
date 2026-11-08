@@ -19,10 +19,8 @@ import {
   useFlows,
   useUserFlows,
 } from '@gitroom/frontend/components/flows/flows.hooks';
-import {
-  MyFlowsSection,
-  useOpenFlowEditor,
-} from '@gitroom/frontend/components/flows/flows.mine';
+import { MyFlowsSection } from '@gitroom/frontend/components/flows/flows.mine';
+import { useOpenNewCustomFlow } from '@gitroom/frontend/components/flows/flows.new';
 import {
   FlowCard,
   usePreviewPolicy,
@@ -284,11 +282,7 @@ export const HomePage: FC = () => {
   const refresh = useCallback(() => {
     refreshMine();
   }, [refreshMine]);
-  const openEditor = useOpenFlowEditor(refresh);
-  const customize = useCallback(
-    (id: string) => openEditor(null, id),
-    [openEditor]
-  );
+  const customize = useOpenNewCustomFlow();
 
   // The drawer opens here, over Home, like it does on the Flows page.
   const [open, setOpen] = useState<string | null>(null);

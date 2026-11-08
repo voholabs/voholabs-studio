@@ -19,7 +19,7 @@ export class FlowsListTool implements AgentToolInterface {
   run() {
     return createTool({
       id: 'flowsList',
-      description: `Lists this workspace's own flows (My flows), the saved methods its agent can run. Each entry has the slug, title, when to use it, a summary, the category, the cost line, the foundation it reads, how it was made (CREATED, FORKED, IMPORTED or SAVED_FROM_CHAT), the flow it is based on ("basedOn": a library flow id, "my/<slug>" for another of these flows, or null), the skills it brings in (a skills library slug, or "my/<slug>" for one of the workspace's own skills), the poster, whether it has a live share link and when it last changed. Included with Plus.`,
+      description: `Lists this workspace's own flows (My flows), the saved methods its agent can run. Each entry has the slug, title, when to use it, a summary, the category, the cost line, the foundation it reads, how it was made (CREATED, FORKED, IMPORTED, SAVED_FROM_CHAT, or LEARNED for a flow learned from reference videos), the flow it is based on ("basedOn": a library flow id, "my/<slug>" for another of these flows, or null), the skills it brings in (skills library slugs), the poster, whether it has a live share link and when it last changed. Included with Plus.`,
       mcp: {
         annotations: {
           title: 'List My Flows',
@@ -46,6 +46,7 @@ export class FlowsListTool implements AgentToolInterface {
                 'FORKED',
                 'IMPORTED',
                 'SAVED_FROM_CHAT',
+                'LEARNED',
               ]),
               basedOn: z.string().nullable(),
               skills: z.array(z.string()),

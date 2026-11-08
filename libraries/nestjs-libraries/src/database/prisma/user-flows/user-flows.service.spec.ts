@@ -4,7 +4,6 @@ import {
   UserFlowsService,
 } from '@gitroom/nestjs-libraries/database/prisma/user-flows/user-flows.service';
 import { scrubFlow, scrubText } from '@gitroom/nestjs-libraries/flows/flows.scrub';
-import { UserSkillsService } from '@gitroom/nestjs-libraries/database/prisma/user-skills/user-skills.service';
 
 // The skills library: two active skills.
 const SKILLS = [
@@ -29,8 +28,6 @@ const memory = () => {
   const flows: any[] = [];
   const library = [...SKILLS];
   const shares: any[] = [];
-  // My skills, over a plain array too.
-  const mySkills: any[] = [];
   let ids = 0;
   const withShares = (flow: any) => ({
     ...flow,
@@ -169,23 +166,7 @@ const memory = () => {
         : null;
     }),
     importFlow: jest.fn(
-      async (
-        organizationId: string,
-        slug: string,
-        data: any,
-        shareId: string,
-        skills: any[]
-      ) => {
-        for (const skill of skills) {
-          mySkills.push({
-            id: `k${++ids}`,
-            organizationId,
-            deletedAt: null,
-            updatedAt: new Date(),
-            importedShareId: shareId,
-            ...skill,
-          });
-        }
+      async (organizationId: string, slug: string, data: any, shareId: string) => {
         const created = await repo.create(organizationId, slug, {
           ...data,
           source: 'IMPORTED',
@@ -202,84 +183,12 @@ const memory = () => {
       library.filter((skill) => slugs.includes(skill.slug))
     ),
   };
-  const live = (organizationId: string) =>
-    mySkills.filter((k) => k.organizationId === organizationId && !k.deletedAt);
-  const whole = (k: any) => ({
-    slug: k.slug,
-    name: k.name,
-    description: k.description,
-    body: k.body,
-    updatedAt: k.updatedAt,
-  });
-  const skillRepo = {
-    list: jest.fn(async (organizationId: string) => live(organizationId).map(whole)),
-    get: jest.fn(async (organizationId: string, slug: string) => {
-      const k = live(organizationId).find((one) => one.slug === slug);
-      return k ? whole(k) : null;
-    }),
-    bySlugs: jest.fn(async (organizationId: string, slugs: string[]) =>
-      live(organizationId)
-        .filter((k) => slugs.includes(k.slug))
-        .map(whole)
-    ),
-    countLive: jest.fn(async (organizationId: string) => live(organizationId).length),
-    importedCopies: jest.fn(async (organizationId: string, shareId: string) =>
-      live(organizationId)
-        .filter((k) => k.importedShareId === shareId)
-        .map((k) => ({ slug: k.slug, name: k.name }))
-    ),
-    slugRow: jest.fn(async (organizationId: string, slug: string) => {
-      const k = mySkills.find(
-        (one) => one.organizationId === organizationId && one.slug === slug
-      );
-      return k ? { id: k.id, deletedAt: k.deletedAt } : null;
-    }),
-    slugsLike: jest.fn(async (organizationId: string, slug: string) =>
-      mySkills
-        .filter((k) => k.organizationId === organizationId && k.slug.startsWith(slug))
-        .map((k) => ({ slug: k.slug }))
-    ),
-    flowsUsing: jest.fn(async (organizationId: string, reference: string) =>
-      flows
-        .filter(
-          (f) =>
-            f.organizationId === organizationId &&
-            !f.deletedAt &&
-            f.skills.includes(reference)
-        )
-        .map((f) => ({ slug: f.slug }))
-    ),
-    create: jest.fn(async (organizationId: string, slug: string, data: any) => {
-      const k = {
-        id: `k${++ids}`,
-        organizationId,
-        slug,
-        deletedAt: null,
-        updatedAt: new Date(),
-        ...data,
-      };
-      mySkills.push(k);
-      return whole(k);
-    }),
-    update: jest.fn(async (id: string, data: any) => {
-      const k = mySkills.find((one) => one.id === id);
-      Object.assign(k, data);
-      return whole(k);
-    }),
-    softDelete: jest.fn(async (id: string) => {
-      mySkills.find((one) => one.id === id).deletedAt = new Date();
-      return { id };
-    }),
-  };
-  const userSkills = new UserSkillsService(skillRepo as any);
   return {
     repo,
     flows,
     shares,
     library,
-    mySkills,
-    userSkills,
-    service: new UserFlowsService(repo as any, skills as any, userSkills),
+    service: new UserFlowsService(repo as any, skills as any),
   };
 };
 
@@ -977,46 +886,49 @@ describe('custom flows', () => {
   });
 });
 
-describe('skill links and My skills', () => {
+describe('skill links', () => {
   it('derives the skills from the links in the texts, then the ones given', async () => {
-    const { service, userSkills, flows } = memory();
-    await userSkills.create('org-1', { name: 'Brand tone', body: 'Tone steps' });
+    const { service, flows } = memory();
     await service.save('org-1', {
       title: 'T',
-      body: 'Open with [Skill: Hooks](skill:hooks), then [Skill: Brand tone](skill:my/brand-tone).',
+      body: 'Open with [Skill: Hooks](skill:hooks), then the rest.',
       parts: { outro: 'Close in [Skill: Your voice](skill:voice). [Skill: Hooks](skill:hooks)' },
       skills: ['voice', 'hooks'],
     });
-    expect(flows[0].skills).toEqual(['hooks', 'my/brand-tone', 'voice']);
+    expect(flows[0].skills).toEqual(['hooks', 'voice']);
     await service.save('org-1', {
       title: 'U',
       basedOn: 'carousel',
-      customization: 'Use [Skill: anything](skill:my/brand-tone)',
+      customization: 'Use [Skill: anything](skill:voice)',
     });
-    expect(flows[1].skills).toEqual(['my/brand-tone']);
+    expect(flows[1].skills).toEqual(['voice']);
   });
 
-  it('refuses a skill link to no skill, naming My skills', async () => {
-    const { service, userSkills } = memory();
+  it('refuses a skill link to no skill in the library', async () => {
+    const { service } = memory();
     await expect(
       service.save('org-1', { title: 'T', body: '[Skill: X](skill:nope)' })
     ).rejects.toThrow('There is no skill named "nope" in the skills library.');
     await expect(
-      service.save('org-1', { title: 'T', body: '[Skill: X](skill:my/nope)' })
-    ).rejects.toThrow(
-      'There is no skill named "my/nope" in My skills. My skills is empty.'
-    );
-    await userSkills.create('org-1', { name: 'Brand tone', body: 'b' });
-    await userSkills.create('org-1', { name: 'Offer', body: 'b' });
+      service.save('org-1', { title: 'T', skills: ['nope'], body: 'b' })
+    ).rejects.toThrow('There is no skill named "nope" in the skills library.');
+  });
+
+  it("refuses a new reference to a workspace's own skill", async () => {
+    const { service, flows } = memory();
+    const retired =
+      "Flows no longer bring in a workspace's own skills; put that text in the flow itself.";
     await expect(
-      service.save('org-1', { title: 'T', skills: ['my/nope'], body: 'b' })
-    ).rejects.toThrow(
-      /^There is no skill named "my\/nope" in My skills\. My skills: my\/(offer|brand-tone), my\/(offer|brand-tone)\.$/
-    );
-    // Another workspace's skill is no skill here.
+      service.save('org-1', { title: 'T', body: '[Skill: Tone](skill:my/brand-tone)' })
+    ).rejects.toThrow(retired);
     await expect(
-      service.save('org-2', { title: 'T', body: '[Skill: X](skill:my/offer)' })
-    ).rejects.toThrow('There is no skill named "my/offer" in My skills.');
+      service.save('org-1', { title: 'T', body: 'b', skills: ['my/brand-tone'] })
+    ).rejects.toThrow(retired);
+    await service.save('org-1', { title: 'T', body: 'b' });
+    await expect(
+      service.update('org-1', 't', { customization: '[Skill: Tone](skill:my/tone)' })
+    ).rejects.toThrow(retired);
+    expect(flows).toHaveLength(1);
   });
 
   it('counts links and listed skills together, at most 10', async () => {
@@ -1043,47 +955,41 @@ describe('skill links and My skills', () => {
   });
 
   it('drops a skill whose link is taken out, and keeps the ones listed without a link', async () => {
-    const { service, flows, userSkills } = memory();
-    await userSkills.create('org-1', { name: 'Brand tone', body: 'b' });
+    const { service, flows } = memory();
     await service.save('org-1', {
       title: 'T',
-      body: '[Skill: Hooks](skill:hooks) and [Skill: Brand tone](skill:my/brand-tone)',
+      body: '[Skill: Hooks](skill:hooks) and more',
       skills: ['voice'],
     });
     const flow = flows[0];
-    expect(flow.skills).toEqual(['hooks', 'my/brand-tone', 'voice']);
+    expect(flow.skills).toEqual(['hooks', 'voice']);
     // An edit of the title only leaves the skills as they are.
     await service.update('org-1', 't', { title: 'Renamed' });
-    expect(flow.skills).toEqual(['hooks', 'my/brand-tone', 'voice']);
+    expect(flow.skills).toEqual(['hooks', 'voice']);
     // The MCP's save of a new body, with no skills given.
     await service.save(
       'org-1',
-      { slug: 't', title: 'T', body: 'Only [Skill: Hooks](skill:hooks) now' },
+      { slug: 't', title: 'T', body: 'No links now' },
       { overwrite: true }
     );
-    expect(flow.skills).toEqual(['hooks', 'voice']);
-    // The app sends the ones listed without a link; none drops "voice".
+    expect(flow.skills).toEqual(['voice']);
+    // Skills given as none drop "voice".
     await service.update('org-1', 't', { body: 'No links', skills: [] });
     expect(flow.skills).toEqual([]);
   });
 
-  it('reads own skills whole and never locked, and a deleted one as missing', async () => {
-    const { service, userSkills, mySkills } = memory();
-    await userSkills.create('org-1', {
-      name: 'Brand tone',
-      description: 'How we sound',
-      body: 'Tone steps',
-    });
-    await userSkills.create('org-1', { name: 'Offer', body: 'Offer steps' });
+  it("reads a stored link to a workspace's own skill as missing, and lets an edit keep it", async () => {
+    const { service, flows } = memory();
     await service.save('org-1', {
       title: 'T',
       basedOn: 'carousel',
-      customization:
-        '[Skill: Hooks](skill:hooks) [Skill: Brand tone](skill:my/brand-tone) [Skill: Offer](skill:my/offer)',
+      customization: '[Skill: Hooks](skill:hooks)',
     });
-    // A row from before the guard: its skill is gone.
-    mySkills.find((one) => one.slug === 'offer').deletedAt = new Date();
-    const flow = await service.resolved('org-1', 't', { skillsUnlocked: false });
+    // A row saved while flows brought in a workspace's own skills.
+    flows[0].customization =
+      '[Skill: Hooks](skill:hooks) [Skill: Brand tone](skill:my/brand-tone)';
+    flows[0].skills = ['hooks', 'my/brand-tone'];
+    const flow = await service.resolved('org-1', 't', { skillsUnlocked: true });
     expect(flow?.skills).toEqual([
       {
         slug: 'hooks',
@@ -1091,170 +997,65 @@ describe('skill links and My skills', () => {
         name: 'Hooks',
         summary: 'Openers that stop the scroll',
         whenToUse: 'The first line',
-        locked: true,
+        body: 'Hook steps',
       },
       {
         slug: 'my/brand-tone',
         kind: 'mine',
-        name: 'Brand tone',
-        summary: 'How we sound',
-        whenToUse: null,
-        body: 'Tone steps',
-      },
-      {
-        slug: 'my/offer',
-        kind: 'mine',
-        name: 'my/offer',
+        name: 'my/brand-tone',
         summary: '',
         whenToUse: null,
         missing: true,
       },
     ]);
-  });
-
-  it('keeps a skill that a flow brings in until the flow no longer does', async () => {
-    const { service, userSkills } = memory();
-    await userSkills.create('org-1', { name: 'Brand tone', body: 'b' });
-    await service.save('org-1', { title: 'A', body: '[Skill: B](skill:my/brand-tone)' });
-    await service.save('org-1', { title: 'C', body: 'c', skills: ['my/brand-tone'] });
-    await expect(userSkills.delete('org-1', 'brand-tone')).rejects.toThrow(
-      '2 flows use this skill (my/a, my/c). Remove it from them first.'
-    );
-    await service.delete('org-1', 'c');
-    await expect(userSkills.delete('org-1', 'brand-tone')).rejects.toThrow(
-      '1 flow uses this skill (my/a). Remove it from that flow first.'
-    );
-    await service.update('org-1', 'a', { body: 'No link' });
-    expect(await userSkills.delete('org-1', 'brand-tone')).toEqual({ deleted: true });
-  });
-
-  it('shares own skills scrubbed and imports them into My skills, relinked', async () => {
-    const { service, userSkills, flows, mySkills, shares } = memory();
-    await userSkills.create('org-1', {
-      name: 'Brand tone',
-      description: 'Accent #FF0000',
-      body: 'Warm, short. See https://cdn.example.com/a.png',
+    // An edit that keeps the link is not refused; adding another is.
+    await service.update('org-1', 't', {
+      customization: 'Now: [Skill: Brand tone](skill:my/brand-tone)',
     });
+    expect(flows[0].skills).toEqual(['my/brand-tone']);
+    await expect(
+      service.update('org-1', 't', {
+        customization: '[Skill: Brand tone](skill:my/brand-tone) [Skill: Offer](skill:my/offer)',
+      })
+    ).rejects.toThrow("Flows no longer bring in a workspace's own skills");
+  });
+
+  it("shares and imports a link to the author's own skill unchanged, as missing", async () => {
+    const { service, flows } = memory();
     await service.save('org-1', {
       title: 'Post',
-      body: 'Write it in [Skill: Brand tone](skill:my/brand-tone) with [Skill: Hooks](skill:hooks).',
-      parts: { cta: 'End [Skill: Brand tone](skill:my/brand-tone)' },
+      body: 'Write it with [Skill: Hooks](skill:hooks).',
     });
+    flows[0].body =
+      'Write it in [Skill: Brand tone](skill:my/brand-tone) with [Skill: Hooks](skill:hooks).';
+    flows[0].skills = ['my/brand-tone', 'hooks'];
     const { token } = await service.share('org-1', 'post');
     const shared = await service.shared(token);
-    expect(shared.ownSkills).toEqual([
-      {
-        slug: 'my/brand-tone',
-        name: 'Brand tone',
-        description: "Accent the brand's accent colour",
-        body: 'Warm, short. See',
-      },
-    ]);
-    expect(shared.flow).not.toHaveProperty('ownSkills');
-    expect(shared.warnings).toEqual([
-      'Replaced 1 colour code(s) with "the brand\'s accent colour".',
-      'Removed 1 link(s) to media files.',
-    ]);
-
-    // org-2 has a "brand-tone" of its own: the copy takes the next slug.
-    await userSkills.create('org-2', { name: 'Brand tone', body: 'Mine' });
+    expect(shared).not.toHaveProperty('ownSkills');
+    expect(shared.flow.skills).toEqual(['my/brand-tone', 'hooks']);
     const result = await service.import('org-2', token);
-    expect(result.warnings).toContain(
-      'The skill "Brand tone" is saved in My skills as "my/brand-tone-2", since "my/brand-tone" was taken.'
-    );
+    expect(result.warnings).toEqual([]);
     const copy = flows.find((f) => f.organizationId === 'org-2');
-    expect(copy.body).toBe(
-      'Write it in [Skill: Brand tone](skill:my/brand-tone-2) with [Skill: Hooks](skill:hooks).'
-    );
-    expect(copy.parts).toEqual({ cta: 'End [Skill: Brand tone](skill:my/brand-tone-2)' });
-    expect(copy.skills).toEqual(['my/brand-tone-2', 'hooks']);
-    expect(
-      mySkills.find((k) => k.organizationId === 'org-2' && k.slug === 'brand-tone-2')
-    ).toMatchObject({
-      name: 'Brand tone',
-      body: 'Warm, short. See',
-      importedShareId: shares[0].id,
-    });
-    const read = await service.resolved('org-2', copy.slug, { skillsUnlocked: true });
-    expect(read?.skills[0]).toMatchObject({ slug: 'my/brand-tone-2', kind: 'mine', body: 'Warm, short. See' });
-  });
-
-  it('says when My skills had no room for a skill an import brings', async () => {
-    const { service, userSkills, flows, mySkills } = memory();
-    await userSkills.create('org-1', { name: 'Brand tone', body: 'b' });
-    await service.save('org-1', { title: 'Post', body: '[Skill: Brand tone](skill:my/brand-tone)' });
-    const { token } = await service.share('org-1', 'post');
-    for (let n = 0; n < 50; n++) {
-      await userSkills.create('org-2', { name: `Skill ${n}`, body: 'b' });
-    }
-    const result = await service.import('org-2', token);
-    expect(result.warnings).toEqual([
-      'My skills holds at most 50 skills, so "Brand tone" was not copied; the flow runs without it.',
-    ]);
-    expect(mySkills.filter((k) => k.organizationId === 'org-2')).toHaveLength(50);
-    const copy = flows.find((f) => f.organizationId === 'org-2');
-    // The link names a slug no skill of org-2 has.
-    expect(copy.skills).toEqual(['my/brand-tone']);
+    expect(copy.body).toBe(flows[0].body);
+    expect(copy.skills).toEqual(['my/brand-tone', 'hooks']);
     expect(
       (await service.resolved('org-2', copy.slug, { skillsUnlocked: true }))?.skills[0]
-    ).toMatchObject({ slug: 'my/brand-tone', missing: true });
+    ).toMatchObject({ slug: 'my/brand-tone', kind: 'mine', missing: true });
   });
 
   it('writes nothing when an import would be refused', async () => {
-    const { service, userSkills, flows, mySkills, repo } = memory();
-    await userSkills.create('org-1', { name: 'Brand tone', body: 'b' });
+    const { service, flows, repo } = memory();
     // The scrub turns each colour code into a longer phrase: past the limit.
     await service.save('org-1', {
       title: 'Long',
-      body: `[Skill: Brand tone](skill:my/brand-tone) ${'x'.repeat(99_000)}${' #fff'.repeat(150)}`,
+      body: `[Skill: Hooks](skill:hooks) ${'x'.repeat(99_000)}${' #fff'.repeat(150)}`,
     });
     const { token } = await service.share('org-1', 'long');
     await expect(service.import('org-2', token)).rejects.toThrow(
       'The flow is too long'
     );
     expect(repo.importFlow).not.toHaveBeenCalled();
-    expect(mySkills.filter((k) => k.organizationId === 'org-2')).toEqual([]);
     expect(flows.filter((f) => f.organizationId === 'org-2')).toEqual([]);
-  });
-
-  it('reuses the copy of a skill when the same share is imported again', async () => {
-    const { service, userSkills, flows, mySkills } = memory();
-    await userSkills.create('org-1', { name: 'Brand tone', body: 'Tone' });
-    await service.save('org-1', { title: 'Post', body: '[Skill: Brand tone](skill:my/brand-tone)' });
-    const { token } = await service.share('org-1', 'post');
-    await userSkills.create('org-2', { name: 'Brand tone', body: 'Mine' });
-    await service.import('org-2', token);
-    const again = await service.import('org-2', token);
-    expect(again.warnings).toEqual([]);
-    expect(mySkills.filter((k) => k.organizationId === 'org-2').map((k) => k.slug)).toEqual([
-      'brand-tone',
-      'brand-tone-2',
-    ]);
-    expect(
-      flows.filter((f) => f.organizationId === 'org-2').map((f) => [f.slug, f.body])
-    ).toEqual([
-      ['post', '[Skill: Brand tone](skill:my/brand-tone-2)'],
-      ['post-2', '[Skill: Brand tone](skill:my/brand-tone-2)'],
-    ]);
-  });
-
-  it('lets an edit keep a link that names no skill any more, but not add one', async () => {
-    const { service, mySkills, userSkills } = memory();
-    await userSkills.create('org-1', { name: 'Brand tone', body: 'b' });
-    await service.save('org-1', {
-      title: 'T',
-      body: 'Use [Skill: Brand tone](skill:my/brand-tone) and [Skill: Hooks](skill:hooks).',
-    });
-    // Gone since (an import My skills had no room for, a library skill turned off).
-    mySkills[0].deletedAt = new Date();
-    await service.update('org-1', 't', {
-      body: 'Now: [Skill: Brand tone](skill:my/brand-tone) and [Skill: Hooks](skill:hooks).',
-    });
-    await expect(
-      service.update('org-1', 't', {
-        body: '[Skill: Brand tone](skill:my/brand-tone) [Skill: Offer](skill:my/offer)',
-      })
-    ).rejects.toThrow('There is no skill named "my/offer" in My skills.');
   });
 
   it('never changes the target of a skill link when scrubbing', () => {
@@ -1283,5 +1084,56 @@ describe('skill links and My skills', () => {
     expect(flows.find((f) => f.organizationId === 'org-2').skills).toEqual(
       ['s1', 's2', 's3', 's4', 's5', 's6', 's7', 's8', 's9', 's10']
     );
+  });
+});
+
+describe('flows learned from videos', () => {
+  it('saves a new flow as LEARNED and says so on its share link', async () => {
+    const { service, flows } = memory();
+    const result = await service.save(
+      'org-1',
+      {
+        title: 'Collage shorts',
+        basedOn: 'business-story-short',
+        customization: '## Hard rules (numbers)\n- 200 wpm',
+        parts: { measurements: '| cut | 1.2 s |' },
+        learned: true,
+      },
+      { source: 'SAVED_FROM_CHAT', overwrite: true }
+    );
+    expect(result).toMatchObject({ slug: 'collage-shorts', created: true });
+    expect(flows[0]).toMatchObject({
+      source: 'LEARNED',
+      basedOn: 'business-story-short',
+    });
+    expect(flows[0]).not.toHaveProperty('learned');
+    expect((await service.list('org-1'))[0]).toMatchObject({
+      source: 'LEARNED',
+      shareable: true,
+    });
+    const { token } = await service.share('org-1', 'collage-shorts');
+    const { flow } = await service.shared(token);
+    expect(flow).toMatchObject({ learned: true });
+    expect(flow).not.toHaveProperty('source');
+    // An import is IMPORTED, as every import is.
+    await service.import('org-2', token);
+    expect(flows.find((f) => f.organizationId === 'org-2')).toMatchObject({
+      source: 'IMPORTED',
+    });
+  });
+
+  it('keeps how a flow was made on an edit, and a fork stays FORKED', async () => {
+    const { service, flows } = memory();
+    await service.save('org-1', { title: 'Recap', body: 'b' }, { source: 'SAVED_FROM_CHAT' });
+    await service.save(
+      'org-1',
+      { slug: 'recap', title: 'Recap', body: 'c', learned: true },
+      { source: 'SAVED_FROM_CHAT', overwrite: true }
+    );
+    expect(flows[0]).toMatchObject({ source: 'SAVED_FROM_CHAT', body: 'c' });
+    await service.save('org-1', { title: 'Copy', body: 'b', learned: true }, { forkOf: 'carousel' });
+    expect(flows[1]).toMatchObject({ source: 'FORKED' });
+    const { token } = await service.share('org-1', 'recap');
+    expect((await service.shared(token)).flow).toMatchObject({ learned: false });
   });
 });

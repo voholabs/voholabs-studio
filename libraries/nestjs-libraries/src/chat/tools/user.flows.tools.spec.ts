@@ -124,10 +124,10 @@ const flows = () => ({
               {
                 slug: 'my/brand-tone',
                 kind: 'mine',
-                name: 'Brand tone',
-                summary: 'How we sound',
+                name: 'my/brand-tone',
+                summary: '',
                 whenToUse: null,
-                body: 'Tone steps',
+                missing: true,
               },
             ],
             poster: null,
@@ -271,7 +271,7 @@ describe('flowGet', () => {
       skills: [
         { slug: 'hooks', kind: 'voho', body: 'Hook steps' },
         { slug: 'gone', kind: 'voho', missing: true },
-        { slug: 'my/brand-tone', kind: 'mine', body: 'Tone steps' },
+        { slug: 'my/brand-tone', kind: 'mine', missing: true },
       ],
     });
     expect(result).not.toHaveProperty('skillsUpgradeUrl');
@@ -303,11 +303,14 @@ describe('flowGet', () => {
       whenToUse: null,
       locked: true,
     });
-    // The workspace's own skills are never locked.
-    expect(result.skills[2]).toMatchObject({
+    // A link to a workspace's own skill reads as missing, never locked.
+    expect(result.skills[2]).toEqual({
       slug: 'my/brand-tone',
       kind: 'mine',
-      body: 'Tone steps',
+      name: 'my/brand-tone',
+      summary: '',
+      whenToUse: null,
+      missing: true,
     });
     expect(result.skillsUpgradeUrl).toBe('https://studio.example.com/plus');
   });
@@ -377,6 +380,36 @@ describe('flowSave', () => {
         overwrite: true,
       }
     );
+  });
+
+  it('passes on a flow learned from reference videos', async () => {
+    const service = flows();
+    await tools(service).save.execute(
+      {
+        title: 'Collage shorts',
+        basedOn: 'business-story-short',
+        customization: 'Hard rules',
+        learned: true,
+      },
+      context(PLUS)
+    );
+    expect(service.save).toHaveBeenCalledWith(
+      'org-1',
+      {
+        title: 'Collage shorts',
+        basedOn: 'business-story-short',
+        customization: 'Hard rules',
+        learned: true,
+      },
+      {
+        source: 'SAVED_FROM_CHAT',
+        forkOf: undefined,
+        importToken: undefined,
+        overwrite: true,
+      }
+    );
+    const schema = tools(service).save.inputSchema;
+    expect(schema.safeParse({ title: 'T', body: 'b', learned: 'yes' }).success).toBe(false);
   });
 
   it('takes a library id or my/<slug> as a base, and at most 10 skills', () => {

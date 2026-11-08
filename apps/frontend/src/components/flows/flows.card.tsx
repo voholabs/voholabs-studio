@@ -52,7 +52,7 @@ export const flowFormatLabel = (t: T, flow: Pick<Flow, 'format' | 'category'>) =
     case 'writing':
       return t('flows_format_writing', 'Writing');
     case 'brief':
-      return t('flows_format_brief', 'Brief');
+      return t('flows_format_brief', 'Brand brief');
     default:
       return flowCategoryLabel(t, flow.category);
   }

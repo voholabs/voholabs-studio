@@ -54,7 +54,7 @@ const HowItWorks: FC = () => {
   const steps = [
     {
       href: '/brief',
-      title: t('brief', 'Brief'),
+      title: t('brief', 'Brand brief'),
       body: t('home_step_brief', 'Your brand, audience and voice'),
     },
     {

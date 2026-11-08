@@ -214,7 +214,7 @@ export const BriefDocument: FC<{
         <div className="flex-1 flex flex-col gap-[6px] min-w-0">
           <div className="flex items-center gap-[8px] text-[12px] text-textItemBlur">
             <span>
-              {classic ? t('brief_title', 'Agent Brief') : t('brief', 'Brief')}
+              {classic ? t('brief_title', 'Agent Brief') : t('brief', 'Brand brief')}
             </span>
             <span>/</span>
             <span>

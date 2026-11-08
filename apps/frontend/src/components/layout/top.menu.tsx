@@ -81,7 +81,7 @@ export const useMenuItem = () => {
       path: '/launches',
     },
     {
-      name: t('brief', 'Brief'),
+      name: t('brief', 'Brand brief'),
       icon: (
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -113,7 +113,7 @@ export const useMenuItem = () => {
         : {
             titleInfo: t(
               'brief_title_info',
-              'Brief is the structured document about your brand, audience, voice and channels. It steers what your agent writes. Imagine you are briefing your chief marketing officer: you can brief the agent manually, via MCP using another agent, or by talking directly to the agent.'
+              "Your brand brief is what your agent knows about your business: who you are, who you're for, how you sound and look, and what's off limits. It steers everything your agent makes. Fill it in here, have another agent fill it in over MCP, or just talk to your agent."
             ),
           }),
     },

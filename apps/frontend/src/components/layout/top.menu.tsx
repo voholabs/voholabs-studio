@@ -54,8 +54,10 @@ export const useMenuItem = () => {
         </svg>
       ),
       path: '/home',
-      // Home explains Voho; other builds keep landing on their own page.
-      hide: !isGeneral,
+      // Hidden while Home is being reworked; /home still works by URL.
+      // Restore `hide: !isGeneral` (and the `/` redirect in proxy.ts) to bring
+      // it back.
+      hide: true,
     },
     {
       name: isGeneral ? t('calendar', 'Calendar') : t('launches', 'Launches'),

@@ -29,7 +29,7 @@ const listFields = {
   },
 } satisfies Prisma.UserFlowSelect;
 
-// One flow whole: what workflowGet and the editor read.
+// One flow whole: what workflowGet and the flow view read.
 const flowFields = {
   id: true,
   slug: true,

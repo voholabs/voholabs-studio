@@ -13,8 +13,8 @@ import { flowCategoryLabel } from '@gitroom/frontend/components/flows/flows.card
 import {
   ActionButton,
   findBase,
+  MyFlowActionButtons,
   sourceLabel,
-  useMyFlowActions,
   useOpenFlowView,
 } from '@gitroom/frontend/components/flows/flows.view';
 import { useOpenNewCustomFlow } from '@gitroom/frontend/components/flows/flows.new';
@@ -27,7 +27,6 @@ const MyFlowCard: FC<{
   onChanged: () => void;
 }> = ({ flow, baseTitle, onOpen, onChanged }) => {
   const t = useT();
-  const { busy, share, unshare, remove } = useMyFlowActions(flow, onChanged);
 
   return (
     <div className="flex flex-col gap-[10px] rounded-[12px] border border-newTableBorder bg-newTableHeader p-[14px] min-w-0">
@@ -74,32 +73,8 @@ const MyFlowCard: FC<{
         <ActionButton
           label={t('flows_mine_open', 'Open')}
           onClick={() => onOpen(flow.slug)}
-          disabled={busy}
         />
-        {flow.shareable !== false && (
-          <ActionButton
-            label={
-              flow.shared
-                ? t('flows_mine_copy_link', 'Copy link')
-                : t('flows_mine_share', 'Share')
-            }
-            onClick={share}
-            disabled={busy}
-          />
-        )}
-        {flow.shared && (
-          <ActionButton
-            label={t('flows_mine_stop_sharing', 'Stop sharing')}
-            onClick={unshare}
-            disabled={busy}
-          />
-        )}
-        <ActionButton
-          label={t('flows_mine_delete', 'Delete')}
-          onClick={remove}
-          danger={true}
-          disabled={busy}
-        />
+        <MyFlowActionButtons flow={flow} onChanged={onChanged} />
       </div>
     </div>
   );

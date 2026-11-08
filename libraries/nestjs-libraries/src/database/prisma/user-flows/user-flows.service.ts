@@ -826,8 +826,9 @@ export class UserFlowsService {
   // every skill slug is in the skills library, and no "my/<slug>" skill is
   // added (the workspace's own skills are no longer brought in). Only the
   // skills the flow did not bring in before are checked: one it already did
-  // that is gone since (shown as missing) does not stop an edit. A library base is checked for its form only: the
-  // library is read through the gateway.
+  // that is gone since (shown as missing) does not stop an edit. A library
+  // base is checked for its form only: the library is read through the
+  // gateway.
   private async checkReferences(
     organizationId: string,
     slug: string | undefined,

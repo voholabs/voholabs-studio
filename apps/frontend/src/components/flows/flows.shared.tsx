@@ -6,11 +6,13 @@ import { useSWRConfig } from 'swr';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
 import {
+  useFlows,
   useSharedFlow,
   useUserFlowActions,
 } from '@gitroom/frontend/components/flows/flows.hooks';
 import { flowCategoryLabel } from '@gitroom/frontend/components/flows/flows.card';
 import {
+  findBase,
   FlowBaseCard,
   FlowMethod,
   useShowFlowWarnings,
@@ -41,6 +43,9 @@ export const FlowsSharedPage: FC<{ token: string }> = ({ token }) => {
   const router = useRouter();
   const { mutate } = useSWRConfig();
   const { data, isLoading, error } = useSharedFlow(token);
+  // The library, for the flow a custom flow is based on (always a library
+  // flow on a share link).
+  const { data: library } = useFlows();
   // The skills library skills it brings in, by the label of their link.
   const labels = librarySkillLinks([
     data?.flow.body,
@@ -146,7 +151,10 @@ export const FlowsSharedPage: FC<{ token: string }> = ({ token }) => {
               )}
             </div>
             {!!data.flow.basedOn && (
-              <FlowBaseCard basedOn={data.flow.basedOn} />
+              <FlowBaseCard
+                basedOn={data.flow.basedOn}
+                base={findBase(data.flow.basedOn, library, undefined)}
+              />
             )}
             {!!skills.length && (
               <div className="flex flex-col gap-[8px]">

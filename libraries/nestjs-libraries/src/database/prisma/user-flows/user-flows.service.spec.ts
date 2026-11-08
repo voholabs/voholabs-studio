@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import {
+  OWN_SKILLS_RETIRED,
   slugify,
   UserFlowsService,
 } from '@gitroom/nestjs-libraries/database/prisma/user-flows/user-flows.service';
@@ -916,8 +917,10 @@ describe('skill links', () => {
 
   it("refuses a new reference to a workspace's own skill", async () => {
     const { service, flows } = memory();
-    const retired =
-      "Flows no longer bring in a workspace's own skills; put that text in the flow itself.";
+    const retired = OWN_SKILLS_RETIRED;
+    expect(retired).toBe(
+      "Flows no longer bring in a workspace's own skills; put that text in the flow itself."
+    );
     await expect(
       service.save('org-1', { title: 'T', body: '[Skill: Tone](skill:my/brand-tone)' })
     ).rejects.toThrow(retired);
@@ -1017,7 +1020,7 @@ describe('skill links', () => {
       service.update('org-1', 't', {
         customization: '[Skill: Brand tone](skill:my/brand-tone) [Skill: Offer](skill:my/offer)',
       })
-    ).rejects.toThrow("Flows no longer bring in a workspace's own skills");
+    ).rejects.toThrow(OWN_SKILLS_RETIRED);
   });
 
   it("shares and imports a link to the author's own skill unchanged, as missing", async () => {

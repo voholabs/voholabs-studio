@@ -8,22 +8,23 @@ import {
   useUserFlows,
 } from '@gitroom/frontend/components/flows/flows.hooks';
 import { useCopyPrompt } from '@gitroom/frontend/components/flows/flows.drawer';
-import { findBase } from '@gitroom/frontend/components/flows/flows.view';
+import {
+  findBase,
+  PROMPT_BASED_ON,
+  PROMPT_STUDIO,
+} from '@gitroom/frontend/components/flows/flows.view';
 
 // Custom flows are made by the workspace's agent: this dialog writes the
 // prompt that asks it to, either from a description (based on a flow or
 // from scratch) or from a set of reference videos whose style it learns.
 // The prompts go to the agent as written, so they are not translated.
 
-const STUDIO = 'Voholabs Studio';
-const BASED_ON = 'Based on the following information:';
-
 // What the user says the flow should do or change.
-export const DESCRIBE_MAX = 2000;
+const DESCRIBE_MAX = 2000;
 // The reference videos a style is learned from.
-export const REFERENCES_MAX = 8;
+const REFERENCES_MAX = 8;
 // The user's own rules for a learned style.
-export const RULES_MAX = 2000;
+const RULES_MAX = 2000;
 
 // "Describe it": a custom flow based on another flow, or written from
 // scratch.
@@ -32,11 +33,11 @@ export const describePrompt = (
   description: string
 ) =>
   [
-    `Make a custom flow for me using ${STUDIO} and save it to my flows. ${
+    `Make a custom flow for me using ${PROMPT_STUDIO} and save it to my flows. ${
       base
         ? `Base it on the "${base.title}" flow (${base.id}): keep its method and change only what I say below.`
         : 'Write it from scratch: a reusable playbook with the steps, the approval points and the tools each step uses; if it makes a video or images, base it on the closest Voho library flow so its engine renders it.'
-    } Method and style only: my brand comes from my brief. Show me the flow before saving it. ${BASED_ON}`,
+    } Method and style only: my brand comes from my brief. Show me the flow before saving it. ${PROMPT_BASED_ON}`,
     description.trim(),
   ]
     .filter(Boolean)
@@ -54,7 +55,7 @@ export const referenceLinks = (text: string) =>
 // of My flows. With no links, the videos are the files attached in the chat.
 export const learnPrompt = (links: string[], rules: string) =>
   [
-    `Learn the video style of these reference videos for me using ${STUDIO} and save it as one of my flows: decode how they are edited (rhythm, hook, text, motion, captions, sound), write it down as a flow I can run on my own topics, and tell me which Voho engine renders it and what it cannot copy yet. Analysis only: never reuse their footage, voice, script or music; delete the downloads when done. ${BASED_ON}`,
+    `Learn the video style of these reference videos for me using ${PROMPT_STUDIO} and save it as one of my flows: decode how they are edited (rhythm, hook, text, motion, captions, sound), write it down as a flow I can run on my own topics, and tell me which Voho engine renders it and what it cannot copy yet. Analysis only: never reuse their footage, voice, script or music; delete the downloads when done. ${PROMPT_BASED_ON}`,
     links.length
       ? ['Reference videos:', ...links].join('\n')
       : 'Reference videos: the files I attach in this chat',
@@ -77,7 +78,9 @@ const Field: FC<{ label: string; hint?: string; children: ReactNode }> = ({
     <span className="text-[13px] font-[600]">{label}</span>
     {children}
     {!!hint && (
-      <span className="text-[12px] leading-[1.5] text-textItemBlur">{hint}</span>
+      <span className="text-[12px] leading-[1.5] text-textItemBlur">
+        {hint}
+      </span>
     )}
   </label>
 );
@@ -212,7 +215,7 @@ const LearnTab: FC = () => {
         label={t('flows_new_references', 'Reference videos')}
         hint={t(
           'flows_new_references_hint',
-          'One link per line (YouTube, TikTok, Instagram), up to {{max}}, or attach the video files in the chat. 3-6 of the same kind work best; 1 is fine for a single video\'s look.',
+          "One link per line (YouTube, TikTok, Instagram), up to {{max}}, or attach the video files in the chat. 3-6 of the same kind work best; 1 is fine for a single video's look.",
           { max: REFERENCES_MAX }
         )}
       >

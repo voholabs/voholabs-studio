@@ -1,7 +1,6 @@
 import { USER_FLOW_SLUG_MAX } from '@gitroom/nestjs-libraries/dtos/flows/user-flow.dto';
 
-// The slugs of My flows and My skills ("my/<slug>"). Shared by both services,
-// so it lives apart from them (the flows service depends on the skills one).
+// The slugs of My flows ("my/<slug>").
 
 // "Carousel for launches!" -> "carousel-for-launches"
 export const slugify = (title: string, fallback = 'flow') => {

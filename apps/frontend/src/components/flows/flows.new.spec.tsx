@@ -38,10 +38,8 @@ jest.mock('@gitroom/react/helpers/delete.dialog', () => ({
   deleteDialog: jest.fn(),
 }));
 jest.mock('@gitroom/react/translation/get.transation.service.client', () => ({
-  useT:
-    () =>
-    (_key: string, text: string, values?: Record<string, unknown>) =>
-      text.replace(/{{(\w+)}}/g, (_m, name) => String(values?.[name] ?? '')),
+  useT: () => (_key: string, text: string, values?: Record<string, unknown>) =>
+    text.replace(/{{(\w+)}}/g, (_m, name) => String(values?.[name] ?? '')),
 }));
 
 import { fireEvent, render, screen } from '@testing-library/react';
@@ -86,7 +84,10 @@ describe('describePrompt', () => {
   });
 
   it('ends on the request when nothing was typed', () => {
-    const prompt = describePrompt({ id: 'my/weekly-recap', title: 'Weekly recap' }, ' ');
+    const prompt = describePrompt(
+      { id: 'my/weekly-recap', title: 'Weekly recap' },
+      ' '
+    );
     expect(prompt).toContain('the "Weekly recap" flow (my/weekly-recap)');
     expect(prompt.endsWith('Based on the following information:')).toBe(true);
   });
@@ -118,7 +119,10 @@ describe('learnPrompt', () => {
   });
 
   it('keeps at most 8 links, one per line, without blank lines', () => {
-    const text = Array.from({ length: 10 }, (_, n) => ` https://youtu.be/${n} \n`).join('\n');
+    const text = Array.from(
+      { length: 10 },
+      (_, n) => ` https://youtu.be/${n} \n`
+    ).join('\n');
     expect(referenceLinks(text)).toEqual(
       Array.from({ length: 8 }, (_, n) => `https://youtu.be/${n}`)
     );
@@ -157,7 +161,10 @@ describe('NewCustomFlow', () => {
     });
     fireEvent.click(screen.getAllByText('Copy prompt')[0]);
     expect(copied).toEqual([
-      describePrompt({ id: 'carousel', title: 'LinkedIn carousel' }, 'Five slides'),
+      describePrompt(
+        { id: 'carousel', title: 'LinkedIn carousel' },
+        'Five slides'
+      ),
     ]);
   });
 
@@ -169,18 +176,26 @@ describe('NewCustomFlow', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Learn from videos' }));
     const [, links, rules] = screen.getAllByRole('textbox');
     fireEvent.change(links, {
-      target: { value: 'https://www.youtube.com/shorts/a\n\nhttps://www.youtube.com/shorts/b' },
+      target: {
+        value:
+          'https://www.youtube.com/shorts/a\n\nhttps://www.youtube.com/shorts/b',
+      },
     });
     fireEvent.change(rules, { target: { value: 'No red' } });
     fireEvent.click(screen.getAllByText('Copy prompt')[1]);
     expect(copied).toEqual([
       learnPrompt(
-        ['https://www.youtube.com/shorts/a', 'https://www.youtube.com/shorts/b'],
+        [
+          'https://www.youtube.com/shorts/a',
+          'https://www.youtube.com/shorts/b',
+        ],
         'No red'
       ),
     ]);
     // What was typed on the other tab is still there.
     fireEvent.click(screen.getByRole('tab', { name: 'Describe it' }));
-    expect((screen.getAllByRole('textbox')[0] as HTMLTextAreaElement).value).toBe('Recap');
+    expect(
+      (screen.getAllByRole('textbox')[0] as HTMLTextAreaElement).value
+    ).toBe('Recap');
   });
 });

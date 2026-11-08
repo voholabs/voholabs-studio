@@ -23,6 +23,14 @@ import { USER_FLOW_TITLE_MAX } from '@gitroom/nestjs-libraries/dtos/flows/user-f
 
 type T = ReturnType<typeof useT>;
 
+// What the flows prompts say to the agent: they name the Studio, and the
+// request ends where the information the user gives starts.
+export const PROMPT_STUDIO = 'Voholabs Studio';
+export const PROMPT_BASED_ON = 'Based on the following information:';
+
+// What to change, typed next to "Edit with your agent".
+const CHANGE_MAX = 300;
+
 const INPUT =
   'w-full bg-newBgColorInner border border-newTableBorder rounded-[8px] px-[12px] text-[14px] outline-none focus:border-tealText transition-colors';
 
@@ -39,9 +47,9 @@ export const editFlowPrompt = (
   flow: { title: string; slug: string },
   change: string
 ) =>
-  `Update my flow "${flow.title}" using Voholabs Studio: ${
+  `Update my flow "${flow.title}" using ${PROMPT_STUDIO}: ${
     change.trim().replace(/[.\s]+$/, '') || 'the change I describe below'
-  }. Keep the rest as it is, show me the change, then save it. Based on the following information:\nMy flow: my/${
+  }. Keep the rest as it is, show me the change, then save it. ${PROMPT_BASED_ON}\nMy flow: my/${
     flow.slug
   }`;
 
@@ -67,7 +75,10 @@ export const useShowFlowWarnings = () => {
   return (saved: UserFlowSaved) => {
     toaster.show(
       saved.warnings.length
-        ? `${t('flows_mine_saved_with_notes', 'Saved. Note:')} ${saved.warnings.join(' ')}`
+        ? `${t(
+            'flows_mine_saved_with_notes',
+            'Saved. Note:'
+          )} ${saved.warnings.join(' ')}`
         : t('flows_mine_saved', 'Saved to My flows.'),
       saved.warnings.length ? 'warning' : 'success'
     );
@@ -109,9 +120,9 @@ export const ActionButton: FC<{
   </button>
 );
 
-// Share, stop sharing and delete one of My flows, from its card or its
-// view. Each resolves to whether it went through.
-export const useMyFlowActions = (
+// Share, stop sharing and delete one of My flows. Each resolves to whether
+// it went through.
+const useMyFlowActions = (
   flow: { slug: string; title: string },
   onChanged: () => void
 ) => {
@@ -182,14 +193,57 @@ export const useMyFlowActions = (
   return { busy, share, unshare, remove };
 };
 
-// The flow a custom flow is based on, read only: its method is not copied
-// into the custom flow.
-export const FlowBaseCard: FC<{ basedOn: string }> = ({ basedOn }) => {
+// Share (or Copy link and Stop sharing) and Delete, on a flow's card and in
+// its view.
+export const MyFlowActionButtons: FC<{
+  flow: Pick<UserFlowSummary, 'slug' | 'title' | 'shared' | 'shareable'>;
+  onChanged: () => void;
+  onDeleted?: () => void;
+}> = ({ flow, onChanged, onDeleted }) => {
   const t = useT();
-  const { data: library } = useFlows();
-  const { data: mine } = useUserFlows();
-  const base = findBase(basedOn, library, mine?.flows);
-  const loading = !library || !mine;
+  const { busy, share, unshare, remove } = useMyFlowActions(flow, onChanged);
+  return (
+    <>
+      {flow.shareable !== false && (
+        <ActionButton
+          label={
+            flow.shared
+              ? t('flows_mine_copy_link', 'Copy link')
+              : t('flows_mine_share', 'Share')
+          }
+          onClick={share}
+          disabled={busy}
+        />
+      )}
+      {flow.shared && (
+        <ActionButton
+          label={t('flows_mine_stop_sharing', 'Stop sharing')}
+          onClick={unshare}
+          disabled={busy}
+        />
+      )}
+      <ActionButton
+        label={t('flows_mine_delete', 'Delete')}
+        onClick={async () => {
+          if (await remove()) {
+            onDeleted?.();
+          }
+        }}
+        danger={true}
+        disabled={busy}
+      />
+    </>
+  );
+};
+
+// The flow a custom flow is based on, read only: its method is not copied
+// into the custom flow. Gone: the base is no longer there.
+export const FlowBaseCard: FC<{
+  basedOn: string;
+  base?: { title: string; summary: string };
+  gone?: boolean;
+}> = ({ basedOn, base, gone }) => {
+  const t = useT();
   return (
     <div className="flex flex-col gap-[4px] rounded-[10px] border border-newTableBorder bg-newTableHeader px-[14px] py-[12px]">
       <div className={KICKER}>
@@ -200,20 +254,19 @@ export const FlowBaseCard: FC<{ basedOn: string }> = ({ basedOn }) => {
       <div className="text-[15px] font-[700] leading-[1.3] break-words">
         {base?.title || basedOn}
       </div>
-      {base
-        ? !!base.summary && (
-            <div className="text-[13px] leading-[1.5] text-textItemBlur line-clamp-3">
-              {base.summary}
-            </div>
-          )
-        : !loading && (
-            <div className="text-[13px] leading-[1.5] text-warm">
-              {t(
-                'flows_editor_base_gone',
-                'This flow is no longer available. Your customization is kept.'
-              )}
-            </div>
+      {!!base?.summary && (
+        <div className="text-[13px] leading-[1.5] text-textItemBlur line-clamp-3">
+          {base.summary}
+        </div>
+      )}
+      {gone && (
+        <div className="text-[13px] leading-[1.5] text-warm">
+          {t(
+            'flows_editor_base_gone',
+            'This flow is no longer available. Your customization is kept.'
           )}
+        </div>
+      )}
     </div>
   );
 };
@@ -250,7 +303,10 @@ export const FlowMethod: FC<{
         </>
       )}
       {Object.entries(parts || {}).map(([name, text]) => (
-        <details key={name} className="rounded-[8px] border border-newTableBorder">
+        <details
+          key={name}
+          className="rounded-[8px] border border-newTableBorder"
+        >
           <summary className="cursor-pointer select-none px-[12px] h-[38px] flex items-center text-[13px] font-[600]">
             {name}
           </summary>
@@ -359,7 +415,7 @@ const EditWithAgent: FC<{ slug: string; title: string }> = ({
 }) => {
   const t = useT();
   const [change, setChange] = useState('');
-  const { copyPrompt } = useCopyPrompt(
+  const { copyPrompt, label } = useCopyPrompt(
     editFlowPrompt({ slug, title }, change)
   );
   return (
@@ -370,7 +426,7 @@ const EditWithAgent: FC<{ slug: string; title: string }> = ({
       <input
         value={change}
         onChange={(event) => setChange(event.target.value)}
-        maxLength={300}
+        maxLength={CHANGE_MAX}
         placeholder={t(
           'flows_view_change_placeholder',
           'What to change, e.g. "make the hook shorter" (optional)'
@@ -383,7 +439,7 @@ const EditWithAgent: FC<{ slug: string; title: string }> = ({
         onClick={copyPrompt}
         className="self-start h-[40px] px-[18px] rounded-[8px] bg-btnPrimary hover:brightness-110 text-white text-[14px] font-[600] transition-all"
       >
-        {t('flows_copy_prompt', 'Copy prompt')}
+        {label}
       </button>
       <div className="text-[12px] leading-[1.5] text-textItemBlur">
         {t(
@@ -398,21 +454,21 @@ const EditWithAgent: FC<{ slug: string; title: string }> = ({
 // One of My flows, read only: what it is for, what it makes, its base and
 // its method. Rename, Share and Delete are here; every other change goes
 // through the workspace's agent ("Edit with your agent").
-export const FlowView: FC<{
+const FlowView: FC<{
   slug: string;
   onChanged: () => void;
   onDeleted: () => void;
 }> = ({ slug, onChanged, onDeleted }) => {
   const t = useT();
   const { data: flow, error, mutate: refresh } = useUserFlow(slug);
+  const { data: library } = useFlows();
+  const { data: mine } = useUserFlows();
   const changed = useCallback(() => {
     refresh();
     onChanged();
   }, [refresh, onChanged]);
-  const { busy, share, unshare, remove } = useMyFlowActions(
-    { slug, title: flow?.title || slug },
-    changed
-  );
+
+  const base = findBase(flow?.basedOn, library, mine?.flows);
 
   if (error) {
     return (
@@ -452,13 +508,17 @@ export const FlowView: FC<{
       </div>
       {!!flow.whenToUse && (
         <div className="flex flex-col gap-[4px]">
-          <div className={KICKER}>{t('flows_editor_when', 'When to use it')}</div>
+          <div className={KICKER}>
+            {t('flows_editor_when', 'When to use it')}
+          </div>
           <div className="text-[14px] leading-[1.5]">{flow.whenToUse}</div>
         </div>
       )}
       {!!flow.summary && (
         <div className="flex flex-col gap-[4px]">
-          <div className={KICKER}>{t('flows_editor_summary', 'What it makes')}</div>
+          <div className={KICKER}>
+            {t('flows_editor_summary', 'What it makes')}
+          </div>
           <div className="text-[14px] leading-[1.5] whitespace-pre-line">
             {flow.summary}
           </div>
@@ -472,7 +532,13 @@ export const FlowView: FC<{
           <div className="text-[14px] leading-[1.5]">{flow.cost}</div>
         </div>
       )}
-      {!!flow.basedOn && <FlowBaseCard basedOn={flow.basedOn} />}
+      {!!flow.basedOn && (
+        <FlowBaseCard
+          basedOn={flow.basedOn}
+          base={base}
+          gone={!!library && !!mine && !base}
+        />
+      )}
       <FlowMethod
         customization={flow.customization}
         body={flow.body}
@@ -481,33 +547,10 @@ export const FlowView: FC<{
       />
       <EditWithAgent slug={flow.slug} title={flow.title} />
       <div className="flex items-center gap-[6px] flex-wrap">
-        {flow.shareable !== false && (
-          <ActionButton
-            label={
-              flow.shared
-                ? t('flows_mine_copy_link', 'Copy link')
-                : t('flows_mine_share', 'Share')
-            }
-            onClick={share}
-            disabled={busy}
-          />
-        )}
-        {flow.shared && (
-          <ActionButton
-            label={t('flows_mine_stop_sharing', 'Stop sharing')}
-            onClick={unshare}
-            disabled={busy}
-          />
-        )}
-        <ActionButton
-          label={t('flows_mine_delete', 'Delete')}
-          onClick={async () => {
-            if (await remove()) {
-              onDeleted();
-            }
-          }}
-          danger={true}
-          disabled={busy}
+        <MyFlowActionButtons
+          flow={flow}
+          onChanged={changed}
+          onDeleted={onDeleted}
         />
       </div>
     </div>

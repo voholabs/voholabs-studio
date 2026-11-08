@@ -87,7 +87,9 @@ export class BriefService {
     }
 
     return new NotFoundException(
-      `"${key}" is not a ${definition.label} document, and new ones cannot be added there. Allowed keys: ${(
+      `"${key}" is not a ${
+        definition.label
+      } document, and new ones cannot be added there. Allowed keys: ${(
         definition.documents || []
       )
         .map((document) => document.key)
@@ -231,9 +233,9 @@ export class BriefService {
 
     for (const color of kit.colors || []) {
       if (!colorRoles.includes(color.role)) {
-        return `Not saved: a colour role is one of ${colorRoles.join(
-          ', '
-        )}; "${color.role}" is none of them.`;
+        return `Not saved: a colour role is one of ${colorRoles.join(', ')}; "${
+          color.role
+        }" is none of them.`;
       }
       if (!BRIEF_KIT_HEX.test(color.hex)) {
         return `Not saved: the colour for "${color.role}" is "${color.hex}" and a hex colour reads as six hex digits, like #0E1A2B.`;
@@ -249,9 +251,9 @@ export class BriefService {
 
     for (const font of kit.fonts || []) {
       if (!fontRoles.includes(font.role)) {
-        return `Not saved: a font role is one of ${fontRoles.join(
-          ', '
-        )}; "${font.role}" is neither.`;
+        return `Not saved: a font role is one of ${fontRoles.join(', ')}; "${
+          font.role
+        }" is neither.`;
       }
       if (!GOOGLE_FONTS.has(font.family.trim().toLowerCase())) {
         return `Not saved: "${font.family}" is not a Google Fonts family. Pick one from fonts.google.com, for example "Inter" or "Playfair Display".`;

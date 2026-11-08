@@ -88,9 +88,7 @@ A new key can be created only in a category marked canCreate; the other categori
               .array(
                 z.object({
                   role: z.enum(BRIEF_KIT_COLOR_ROLES),
-                  hex: z
-                    .string()
-                    .describe('Six hex digits, like #0E1A2B'),
+                  hex: z.string().describe('Six hex digits, like #0E1A2B'),
                 })
               )
               .optional()
@@ -111,9 +109,11 @@ A new key can be created only in a category marked canCreate; the other categori
             logos: z
               .array(
                 z.object({
-                  variant: z.enum(BRIEF_KIT_LOGO_VARIANTS).describe(
-                    'light: the logo for light backgrounds. dark: the logo for dark backgrounds. icon: the square mark.'
-                  ),
+                  variant: z
+                    .enum(BRIEF_KIT_LOGO_VARIANTS)
+                    .describe(
+                      'light: the logo for light backgrounds. dark: the logo for dark backgrounds. icon: the square mark.'
+                    ),
                   url: z
                     .string()
                     .describe(

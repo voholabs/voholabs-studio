@@ -76,7 +76,9 @@ describe('briefListTool', () => {
 
 describe('briefDeleteTool', () => {
   it('says a missing document did not exist without a paid plan', async () => {
-    const service = { deleteDocument: jest.fn(async () => ({ deleted: false })) };
+    const service = {
+      deleteDocument: jest.fn(async () => ({ deleted: false })),
+    };
     const tool = new BriefDeleteTool(service as any).run() as any;
     const result = await tool.execute(
       { category: 'sources', key: 'nope' },
@@ -95,7 +97,9 @@ describe('briefDeleteTool', () => {
   });
 
   it('answers a paid plan as before, without checking the document exists', async () => {
-    const service = { deleteDocument: jest.fn(async () => ({ deleted: true })) };
+    const service = {
+      deleteDocument: jest.fn(async () => ({ deleted: true })),
+    };
     const tool = new BriefDeleteTool(service as any).run() as any;
     await expect(
       tool.execute({ category: 'sources', key: 'nope' }, context(PAID))
@@ -111,7 +115,9 @@ describe('briefDeleteTool', () => {
   });
 
   it('reports a real delete', async () => {
-    const service = { deleteDocument: jest.fn(async () => ({ deleted: true })) };
+    const service = {
+      deleteDocument: jest.fn(async () => ({ deleted: true })),
+    };
     const tool = new BriefDeleteTool(service as any).run() as any;
     await expect(
       tool.execute({ category: 'sources', key: 'forum' }, context())
@@ -255,7 +261,9 @@ describe('briefSaveTool', () => {
     );
     expect(result.missing).toBeUndefined();
     expect(result).toMatchObject({ saved: true, rules: 1 });
-    expect(result.kit.fonts).toEqual([{ role: 'headline', family: 'Fraunces' }]);
+    expect(result.kit.fonts).toEqual([
+      { role: 'headline', family: 'Fraunces' },
+    ]);
     expect(written().blocks).toEqual([
       { id: 'a', heading: 'Colours', body: 'Navy' },
     ]);
@@ -284,7 +292,9 @@ describe('briefSaveTool', () => {
       { category: 'foundation', key: 'voice', kit: { imagery: 'Bold' } },
       context()
     );
-    expect(result.error).toMatch(/"kit" belongs to the branding-assets document/);
+    expect(result.error).toMatch(
+      /"kit" belongs to the branding-assets document/
+    );
     expect(saveDocument).not.toHaveBeenCalled();
   });
 

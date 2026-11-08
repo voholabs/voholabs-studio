@@ -17,12 +17,65 @@ import {
 } from '@gitroom/nestjs-libraries/agent-brief/brief.registry';
 import { BriefAsset } from '@gitroom/nestjs-libraries/agent-brief/brief.types';
 
-const isImage = (asset: BriefAsset) =>
+export const isImage = (asset: { url: string; mime?: string }) =>
   (asset.mime || '').startsWith('image/') ||
   /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(asset.url);
 
 const isVideo = (asset: BriefAsset) =>
-  (asset.mime || '').startsWith('video/') || /\.(mp4|mov|webm)$/i.test(asset.url);
+  (asset.mime || '').startsWith('video/') ||
+  /\.(mp4|mov|webm)$/i.test(asset.url);
+
+// A stored path is relative to the upload host; an absolute URL is already
+// wherever it lives.
+export const useBriefFileUrl = () => {
+  const { backendUrl, uploadDirectory } = useVariables() as any;
+  return useCallback(
+    (url: string) =>
+      /^https?:\/\//i.test(url)
+        ? url
+        : `${uploadDirectory || backendUrl || ''}${url}`,
+    [backendUrl, uploadDirectory]
+  );
+};
+
+// Stores one file in the media library and returns its path. Not enough
+// credits to store it: the top-up opens with the reason and the result says
+// so. Any other failure is told to the user and gives nothing back.
+export const useBriefUpload = () => {
+  const t = useT();
+  const fetch = useFetch();
+  const toaster = useToaster();
+  return useCallback(
+    async (file: File): Promise<{ path?: string; refused?: boolean }> => {
+      const form = new FormData();
+      form.append('file', file);
+
+      const response = await fetch('/media/upload-simple', {
+        ...WALLET_INLINE_REQUEST,
+        method: 'POST',
+        body: form,
+      });
+
+      if (await openTopUpIfWalletRefused(response)) {
+        return { refused: true };
+      }
+
+      if (!response.ok) {
+        toaster.show(
+          t('brief_asset_failed_named', '{{name}} could not be uploaded', {
+            name: file.name,
+            interpolation: { escapeValue: false },
+          }),
+          'warning'
+        );
+        return {};
+      }
+
+      return { path: (await response.json()).path };
+    },
+    [fetch, t, toaster]
+  );
+};
 
 // The brand's files. Uploads go through the app's normal media pipeline, so they
 // land wherever storage is configured — R2 in this deployment — rather than in a
@@ -33,9 +86,8 @@ export const BriefAssets: FC<{
 }> = ({ assets, onChange }) => {
   const t = useT();
   const classic = useBriefClassic();
-  const fetch = useFetch();
-  const toaster = useToaster();
-  const { backendUrl, uploadDirectory } = useVariables() as any;
+  const resolve = useBriefFileUrl();
+  const store = useBriefUpload();
   const picker = useRef<HTMLInputElement>(null);
   const [current, setCurrent] = useState<BriefAsset[]>(assets);
   const [uploading, setUploading] = useState(false);
@@ -46,16 +98,6 @@ export const BriefAssets: FC<{
       onChange(next);
     },
     [onChange]
-  );
-
-  // A stored path is relative to the upload host; an absolute URL is already
-  // wherever it lives.
-  const resolve = useCallback(
-    (url: string) =>
-      /^https?:\/\//i.test(url)
-        ? url
-        : `${uploadDirectory || backendUrl || ''}${url}`,
-    [backendUrl, uploadDirectory]
   );
 
   const upload = useCallback(
@@ -70,37 +112,21 @@ export const BriefAssets: FC<{
         const added: BriefAsset[] = [];
 
         for (const file of Array.from(files)) {
-          const form = new FormData();
-          form.append('file', file);
+          const { path, refused } = await store(file);
 
-          const response = await fetch('/media/upload-simple', {
-            ...WALLET_INLINE_REQUEST,
-            method: 'POST',
-            body: form,
-          });
-
-          // Not enough credits to store it: the top-up opens with the
-          // reason, and the rest of the files wait for it.
-          if (await openTopUpIfWalletRefused(response)) {
+          // Not enough credits: the rest of the files wait for the top-up.
+          if (refused) {
             break;
           }
 
-          if (!response.ok) {
-            toaster.show(
-              t('brief_asset_failed_named', '{{name}} could not be uploaded', {
-                name: file.name,
-                interpolation: { escapeValue: false },
-              }),
-              'warning'
-            );
+          if (!path) {
             continue;
           }
 
-          const saved = await response.json();
           added.push({
             id: makeId(10),
             name: file.name,
-            url: saved.path,
+            url: path,
             mime: file.type,
             note: '',
           });
@@ -113,7 +139,7 @@ export const BriefAssets: FC<{
         setUploading(false);
       }
     },
-    [current, fetch, t, toaster, update]
+    [current, store, update]
   );
 
   return (

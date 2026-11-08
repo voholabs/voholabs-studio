@@ -118,7 +118,9 @@ describe('BriefService.saveDocument', () => {
       .saveDocument(ORG, 'foundation', 'brand-voice', { blocks: [] } as any)
       .catch((err) => err);
     expect(error).toBeInstanceOf(NotFoundException);
-    expect(error.message).toContain('"brand-voice" is not a Foundation document');
+    expect(error.message).toContain(
+      '"brand-voice" is not a Foundation document'
+    );
     expect(error.message).toContain('voice');
     expect(error.message).toContain('additional-info');
     expect(repository.saveDocument).not.toHaveBeenCalled();
@@ -158,9 +160,11 @@ describe('BriefService.removeAssets', () => {
         ],
       }),
     });
-    await expect(
-      service.removeAssets(ORG, ['a1', 'zz'])
-    ).resolves.toEqual({ removed: ['a1'], notFound: ['zz'], assets: 1 });
+    await expect(service.removeAssets(ORG, ['a1', 'zz'])).resolves.toEqual({
+      removed: ['a1'],
+      notFound: ['zz'],
+      assets: 1,
+    });
     const written = JSON.parse(
       (repository.saveDocument.mock.calls[0] as any[])[3]
     );
@@ -383,7 +387,10 @@ describe('BriefService brand kit', () => {
       kit: { colors: [{ role: 'accent', hex: '#c6f432' }] },
     });
     const { kit, blocks, assets } = (await result).content;
-    expect(kit).toEqual({ ...KIT, colors: [{ role: 'accent', hex: '#C6F432' }] });
+    expect(kit).toEqual({
+      ...KIT,
+      colors: [{ role: 'accent', hex: '#C6F432' }],
+    });
     expect(blocks).toHaveLength(1);
     expect(assets).toHaveLength(1);
   });
@@ -508,7 +515,11 @@ describe('BriefService brand kit', () => {
           {
             category: 'foundation',
             key: 'branding-assets',
-            content: JSON.stringify({ v: 1, blocks: [], kit: { imagery: 'Bold' } }),
+            content: JSON.stringify({
+              v: 1,
+              blocks: [],
+              kit: { imagery: 'Bold' },
+            }),
           },
         ]),
       } as any,

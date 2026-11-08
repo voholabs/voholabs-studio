@@ -71,7 +71,8 @@ const FOUNDATION: readonly BriefDocumentDef[] = [
     labelKey: 'brief_north_star',
     label: 'North Star',
     descriptionKey: 'brief_north_star_description',
-    description: 'What the company is working toward, and what matters most now.',
+    description:
+      'What the company is working toward, and what matters most now.',
     icon: 'compass',
   },
   {
@@ -202,7 +203,8 @@ export const BRIEF_REGISTRY: readonly BriefCategoryDef[] = [
     emptyKey: 'brief_sources_empty',
     empty: 'Add + sources agent should draw on',
     tooltipKey: 'brief_sources_tooltip',
-    tooltip: 'Where agent should read more; Add + sources agent should draw on.',
+    tooltip:
+      'Where agent should read more; Add + sources agent should draw on.',
     documentTemplate: SOURCE_TEMPLATE,
     canCreate: true,
     canDelete: true,

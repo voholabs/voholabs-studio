@@ -1600,5 +1600,19 @@
   "flows_editor_instructions_hint": "The steps, in Markdown. \"+ Add skill\" puts a skill in where it applies; your agent reads it at that step.",
   "flows_editor_summary_hint": "One line on the result: \"a 6-slide LinkedIn carousel with a caption\".",
   "flows_shared_own_skills": "The author's own skills",
-  "flows_shared_own_skills_note": "Importing the flow adds these to My skills, so the flow keeps them."
+  "flows_shared_own_skills_note": "Importing the flow adds these to My skills, so the flow keeps them.",
+  "home": "Home",
+  "home_title": "How Voho works",
+  "home_intro": "Your brief (brand, audience, voice) steers an agent that makes content with Flows and schedules it on your calendar.",
+  "home_step_brief": "Your brand, audience and voice",
+  "home_step_flows": "Ready-made jobs your agent runs",
+  "home_step_calendar": "Where your posts are scheduled",
+  "home_next_post": "Next post",
+  "home_see_calendar": "See the calendar",
+  "home_no_channels": "No channels connected yet",
+  "home_no_channels_body": "Connect a social channel so your posts have somewhere to go.",
+  "home_nothing_scheduled": "Nothing scheduled yet",
+  "home_nothing_scheduled_body": "Create a post on the calendar, or run a flow and let your agent schedule it.",
+  "home_open_calendar": "Open the calendar",
+  "home_see_all_flows": "See all flows"
 }

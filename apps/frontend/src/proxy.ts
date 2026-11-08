@@ -212,7 +212,7 @@ export async function proxy(request: NextRequest) {
       }
       if (
         isOAuthReturn(oauthReturn) &&
-        ['/', '/launches', '/analytics'].includes(nextUrl.pathname)
+        ['/', '/home', '/launches', '/analytics'].includes(nextUrl.pathname)
       ) {
         const back = NextResponse.redirect(new URL(oauthReturn, nextUrl.href));
         back.cookies.delete(OAUTH_RETURN);
@@ -222,10 +222,7 @@ export async function proxy(request: NextRequest) {
 
     if (nextUrl.pathname === '/') {
       return NextResponse.redirect(
-        new URL(
-          !!process.env.IS_GENERAL ? '/launches' : `/analytics`,
-          nextUrl.href
-        )
+        new URL(!!process.env.IS_GENERAL ? '/home' : `/analytics`, nextUrl.href)
       );
     }
 

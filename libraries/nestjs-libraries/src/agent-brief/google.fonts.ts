@@ -1967,3 +1967,9 @@ export const GOOGLE_FONT_FAMILIES: readonly string[] = [
   'Playwrite CZ Guides',
   'Playwrite HR Guides',
 ];
+
+// The same families keyed by their lowercase name, so a family typed in any
+// case is found and stored as Google spells it.
+export const GOOGLE_FONTS_BY_NAME: ReadonlyMap<string, string> = new Map(
+  GOOGLE_FONT_FAMILIES.map((family) => [family.toLowerCase(), family])
+);

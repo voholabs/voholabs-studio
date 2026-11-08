@@ -39,7 +39,10 @@ import {
   BriefKitLogo,
   BriefKitLogoVariant,
 } from '@gitroom/nestjs-libraries/agent-brief/brief.types';
-import { GOOGLE_FONT_FAMILIES } from '@gitroom/nestjs-libraries/agent-brief/google.fonts';
+import {
+  GOOGLE_FONT_FAMILIES,
+  GOOGLE_FONTS_BY_NAME,
+} from '@gitroom/nestjs-libraries/agent-brief/google.fonts';
 
 // The four colours every brand has a word for are always on the page; the
 // other roles are added on demand.
@@ -52,10 +55,6 @@ const CORE_COLORS: readonly BriefKitColorRole[] = [
 const FONTS_LIST_ID = 'brief-kit-google-fonts';
 const DISMISSED_KEY = 'brief-kit-suggestion-dismissed';
 
-// Google's spelling of each family, looked up without regard to case.
-const GOOGLE_FONTS = new Map(
-  GOOGLE_FONT_FAMILIES.map((family) => [family.toLowerCase(), family])
-);
 // Longest first, so "Playfair Display" is found before "Playfair".
 const FONTS_BY_LENGTH = [...GOOGLE_FONT_FAMILIES].sort(
   (a, b) => b.length - a.length
@@ -415,7 +414,7 @@ const FontPicker: FC<{
           onChange={(event) => {
             setDraft(event.target.value);
             setUnknown(false);
-            const match = GOOGLE_FONTS.get(
+            const match = GOOGLE_FONTS_BY_NAME.get(
               event.target.value.trim().toLowerCase()
             );
             if (match) {
@@ -431,7 +430,7 @@ const FontPicker: FC<{
               onChange(undefined);
               return;
             }
-            const match = GOOGLE_FONTS.get(draft.trim().toLowerCase());
+            const match = GOOGLE_FONTS_BY_NAME.get(draft.trim().toLowerCase());
             if (match) {
               setDraft(undefined);
               onChange(match);

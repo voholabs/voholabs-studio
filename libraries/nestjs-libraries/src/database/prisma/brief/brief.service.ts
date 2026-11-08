@@ -36,14 +36,9 @@ import {
   BriefDocumentContent,
   BriefKit,
 } from '@gitroom/nestjs-libraries/agent-brief/brief.types';
-import { GOOGLE_FONT_FAMILIES } from '@gitroom/nestjs-libraries/agent-brief/google.fonts';
+import { GOOGLE_FONTS_BY_NAME } from '@gitroom/nestjs-libraries/agent-brief/google.fonts';
 import { BriefRevisionService } from '@gitroom/nestjs-libraries/database/prisma/brief/brief-revision.service';
 import { IntegrationManager } from '@gitroom/nestjs-libraries/integrations/integration.manager';
-
-// Google's spelling of each family, looked up without regard to case.
-const GOOGLE_FONTS = new Map(
-  GOOGLE_FONT_FAMILIES.map((family) => [family.toLowerCase(), family])
-);
 
 @Injectable()
 export class BriefService {
@@ -255,7 +250,7 @@ export class BriefService {
           font.role
         }" is neither.`;
       }
-      if (!GOOGLE_FONTS.has(font.family.trim().toLowerCase())) {
+      if (!GOOGLE_FONTS_BY_NAME.has(font.family.trim().toLowerCase())) {
         return `Not saved: "${font.family}" is not a Google Fonts family. Pick one from fonts.google.com, for example "Inter" or "Playfair Display".`;
       }
     }
@@ -311,7 +306,7 @@ export class BriefService {
       kit.fonts = BRIEF_KIT_FONT_ROLES.flatMap((role) => {
         const font = sent.fonts!.find((one) => one.role === role);
         const family =
-          font && GOOGLE_FONTS.get(font.family.trim().toLowerCase());
+          font && GOOGLE_FONTS_BY_NAME.get(font.family.trim().toLowerCase());
         return family ? [{ role, family }] : [];
       });
     }

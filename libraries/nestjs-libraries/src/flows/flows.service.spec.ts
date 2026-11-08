@@ -42,6 +42,15 @@ describe('toFlowSummary', () => {
     });
   });
 
+  it('keeps a known format and drops an unknown one', () => {
+    expect(
+      toFlowSummary({ id: 'a', title: 'A', format: 'carousel' })?.format
+    ).toBe('carousel');
+    expect(
+      toFlowSummary({ id: 'b', title: 'B', format: 'hologram' })?.format
+    ).toBeUndefined();
+  });
+
   it('only keeps https media links', () => {
     const flow = toFlowSummary({
       id: 'a',

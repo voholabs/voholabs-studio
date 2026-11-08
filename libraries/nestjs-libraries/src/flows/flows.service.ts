@@ -19,6 +19,8 @@ export interface FlowSummary {
   // the poster first
   exampleImages?: string[];
   category?: 'video' | 'image' | 'writing' | 'marketing';
+  // what it makes, the tag on its card (finer than the category)
+  format?: (typeof FLOW_FORMATS)[number];
   cost?: string;
   // the credit figure of cost, worked out by the gateway: "~10-15 credits"
   costEstimate?: string;
@@ -37,6 +39,15 @@ export interface FlowSummary {
 }
 
 const FLOW_CATEGORIES = ['video', 'image', 'writing', 'marketing'] as const;
+const FLOW_FORMATS = [
+  'short-video',
+  'long-video',
+  'carousel',
+  'infographic',
+  'image',
+  'writing',
+  'brief',
+] as const;
 const FLOW_ASPECTS = ['16:9', '9:16', '1:1', '4:5'] as const;
 const MAX_FLOWS = 200;
 const MAX_LIST_ITEMS = 20;
@@ -110,6 +121,7 @@ export const toFlowSummary = (raw: any): FlowSummary | null => {
     poster: httpsUrl(raw.poster),
     exampleImages: httpsUrls(raw.exampleImages, MAX_EXAMPLE_IMAGES),
     category: oneOf(raw.category, FLOW_CATEGORIES),
+    format: oneOf(raw.format, FLOW_FORMATS),
     cost: clean(raw.cost, 300),
     costEstimate: clean(raw.costEstimate, 60),
     prompt: clean(raw.prompt, 8000),

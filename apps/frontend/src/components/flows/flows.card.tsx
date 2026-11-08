@@ -36,6 +36,28 @@ export const flowCategoryLabel = (t: T, key?: string) => {
   }
 };
 
+// The tag on a card: what the flow makes, else its category.
+export const flowFormatLabel = (t: T, flow: Pick<Flow, 'format' | 'category'>) => {
+  switch (flow.format) {
+    case 'short-video':
+      return t('flows_format_short_video', 'Short video');
+    case 'long-video':
+      return t('flows_format_long_video', 'Long video');
+    case 'carousel':
+      return t('flows_format_carousel', 'Carousel');
+    case 'infographic':
+      return t('flows_format_infographic', 'Infographic');
+    case 'image':
+      return t('flows_format_image', 'Image');
+    case 'writing':
+      return t('flows_format_writing', 'Writing');
+    case 'brief':
+      return t('flows_format_brief', 'Brief');
+    default:
+      return flowCategoryLabel(t, flow.category);
+  }
+};
+
 export const isNewFlow = (flow: Flow) =>
   !!flow.addedAt &&
   dayjs(flow.addedAt).isValid() &&
@@ -376,9 +398,9 @@ const FlowCardInner: FC<{
       <span className="absolute inset-0 -z-10 bg-gradient-to-t from-black/95 via-black/50 to-black/10 pointer-events-none" />
       {!small && (
         <span className="flex items-start gap-[6px] p-[10px]">
-          {!!flow.category && (
+          {!!(flow.format || flow.category) && (
             <span className="inline-flex items-center h-[20px] px-[8px] rounded-full text-[11px] font-[600] bg-black/60 border border-white/15 text-white backdrop-blur-[6px]">
-              {flowCategoryLabel(t, flow.category)}
+              {flowFormatLabel(t, flow)}
             </span>
           )}
           <span className="flex-1" />

@@ -20,7 +20,7 @@ import {
   FlowCard,
   FlowCost,
   FlowPoster,
-  flowCategoryLabel,
+  flowFormatLabel,
   useResearchLocked,
 } from '@gitroom/frontend/components/flows/flows.card';
 import { openPlus } from '@gitroom/frontend/components/wallet/wallet.bridge';
@@ -475,11 +475,11 @@ const FlowDetailBody: FC<{
   const t = useT();
   return (
     <div className="flex flex-col gap-[22px] pb-[8px]">
-      {(!!flow.category || !!flow.cost || flow.free) && (
+      {(!!flow.format || !!flow.category || !!flow.cost || flow.free) && (
         <div className="flex items-center gap-[10px] flex-wrap text-[13px]">
-          {!!flow.category && (
+          {!!(flow.format || flow.category) && (
             <span className="inline-flex items-center h-[22px] px-[10px] rounded-full text-[12px] font-[600] bg-tealSoft text-tealText">
-              {flowCategoryLabel(t, flow.category)}
+              {flowFormatLabel(t, flow)}
             </span>
           )}
           <FlowCost flow={flow} />

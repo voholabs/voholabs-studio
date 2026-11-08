@@ -25,6 +25,9 @@ export interface Flow {
   // the poster first
   exampleImages?: string[];
   category?: 'video' | 'image' | 'writing' | 'marketing';
+  // what it makes, the tag on its card: short-video, long-video, carousel,
+  // infographic, image, writing or brief
+  format?: string;
   cost?: string;
   // the credit figure of cost, from the gateway: "~10-15 credits". Missing
   // when the flow has no AI generation cost.

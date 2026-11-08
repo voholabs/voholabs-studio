@@ -36,7 +36,7 @@ const addedTime = (flow: Flow) => {
 };
 
 // Featured first, then the newest.
-const sortFlows = (flows: Flow[], sort: Sort) =>
+export const sortFlows = (flows: Flow[], sort: Sort) =>
   [...flows].sort((a, b) => {
     if (sort === 'az') {
       return a.title.localeCompare(b.title);
@@ -49,6 +49,17 @@ const sortFlows = (flows: Flow[], sort: Sort) =>
       addedTime(b) - addedTime(a)
     );
   });
+
+// The drawer's related flows: up to three others in the same category.
+export const relatedFlows = (flows: Flow[], selected?: Flow) =>
+  selected?.category
+    ? flows
+        .filter(
+          (flow) =>
+            flow.category === selected.category && flow.id !== selected.id
+        )
+        .slice(0, 3)
+    : [];
 
 const SORT_MIN_FLOWS = 24;
 
@@ -255,15 +266,7 @@ export const FlowsPage: FC = () => {
 
   const selected = open ? flows.find((flow) => flow.id === open) : undefined;
   const related = useMemo(
-    () =>
-      selected?.category
-        ? flows
-            .filter(
-              (flow) =>
-                flow.category === selected.category && flow.id !== selected.id
-            )
-            .slice(0, 3)
-        : [],
+    () => relatedFlows(flows, selected),
     [flows, selected]
   );
 

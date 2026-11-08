@@ -260,7 +260,9 @@ export const MyFlowsSection: FC<{
   // The Voho library, for the titles of the flows custom flows are based on.
   library?: Flow[];
   onChanged: () => void;
-}> = ({ state, library, onChanged }) => {
+  // Show only the first few (Home); the rest are on the Flows page.
+  limit?: number;
+}> = ({ state, library, onChanged, limit }) => {
   const t = useT();
   const openEditor = useOpenFlowEditor(onChanged);
   if (!state) {
@@ -293,7 +295,7 @@ export const MyFlowsSection: FC<{
         </div>
       ) : (
         <div className="grid gap-[12px] [grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr))]">
-          {state.flows.map((flow) => (
+          {state.flows.slice(0, limit).map((flow) => (
             <MyFlowCard
               key={flow.slug}
               flow={flow}

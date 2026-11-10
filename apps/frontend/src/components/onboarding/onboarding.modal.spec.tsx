@@ -17,15 +17,6 @@ jest.mock('@gitroom/helpers/utils/use.fire.events', () => ({
   useFireEvents: () => jest.fn(),
   useTrackView: () => undefined,
 }));
-jest.mock('@gitroom/frontend/components/wallet/wallet.hooks', () => ({
-  useRefreshWallet: () => jest.fn(),
-}));
-jest.mock('@gitroom/frontend/components/plus/plus.hooks', () => ({
-  usePlusPlan: () => ({ data: undefined, mutate: jest.fn() }),
-}));
-jest.mock('@gitroom/frontend/components/plus/plus.offer', () => ({
-  EarlyBirdOfferBox: () => null,
-}));
 jest.mock(
   '@gitroom/frontend/components/launches/add.provider.component',
   () => ({
@@ -55,9 +46,6 @@ jest.mock('@gitroom/frontend/components/layout/top.menu', () => ({
 }));
 jest.mock('@gitroom/react/toaster/toaster', () => ({
   useToaster: () => ({ show: jest.fn() }),
-}));
-jest.mock('@gitroom/react/helpers/delete.dialog', () => ({
-  deleteDialog: jest.fn(),
 }));
 jest.mock('@gitroom/react/helpers/safe.image', () => ({
   __esModule: true,
@@ -91,7 +79,6 @@ const status = (over: Record<string, any> = {}) => ({
   channel: false,
   agent: false,
   brief: { done: false, documents: [] },
-  credits: { available: 0, claimed: false, skipped: false, eligible: false },
   ...over,
 });
 

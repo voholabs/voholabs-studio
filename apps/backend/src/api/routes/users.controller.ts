@@ -173,18 +173,6 @@ export class UsersController {
       // The app is held on the onboarding steps until this is false.
       // @ts-ignore
       needsOnboarding: !!user.needsOnboarding,
-      // Onboarded before the welcome credits existed: the onboarding opens
-      // once more until they are claimed or turned down. Free-plan admins
-      // only; never while impersonating.
-      welcomeCreditsPending:
-        !impersonate &&
-        !user.isSuperAdmin &&
-        !!user.onboardedAt &&
-        isOrgAdmin(organization) &&
-        // The agent step needs the key, as the frontend's admin check does.
-        !!organization.apiKey &&
-        !hasAccess(org) &&
-        (await this._userService.welcomeCreditsPending(organization.id)),
       // The app is replaced by a one-screen agreement until this is false.
       needsTerms: !impersonate && needsTerms(user),
       // @ts-ignore
@@ -305,52 +293,26 @@ export class UsersController {
   // Where onboarding stands: what the onboarding steps poll.
   @Get('/onboarding')
   onboardingStatus(@GetOrgFromRequest() organization: Organization) {
-    return this._userService.onboardingStatus(
-      organization.id,
-      isOrgAdmin(organization),
-      !hasAccess(organization as AccessOrganization)
-    );
+    return this._userService.onboardingStatus(organization.id);
   }
 
+  // Finishing starts the Plus early bird for a free-plan admin; never while
+  // impersonating, since the offer's clock is the person's own.
   @Post('/onboarding')
   async completeOnboarding(
     @GetUserFromRequest() user: User,
-    @Body() body: OnboardingDto
-  ) {
-    await this._userService.completeOnboarding(user.id, body);
-    return { success: true };
-  }
-
-  // The welcome credits, once the agent is connected and has filled at least
-  // one item of the brief.
-  // Never while impersonating: the decision is the person's own.
-  @Post('/onboarding/credits')
-  async claimWelcomeCredits(
     @GetOrgFromRequest() organization: Organization,
+    @Body() body: OnboardingDto,
     @Req() req: Request
   ) {
-    if (req.cookies.impersonate || req.headers.impersonate) {
-      return { credits: 0 };
-    }
-    return this._userService.claimWelcomeCredits(
+    await this._userService.completeOnboarding(
+      user.id,
+      body,
       organization.id,
-      isOrgAdmin(organization),
-      !hasAccess(organization as AccessOrganization)
-    );
-  }
-
-  // Turning the welcome credits down. Final, so never while impersonating.
-  @Post('/onboarding/credits/skip')
-  async skipWelcomeCredits(
-    @GetOrgFromRequest() organization: Organization,
-    @Req() req: Request
-  ) {
-    if (req.cookies.impersonate || req.headers.impersonate) {
-      return { success: true };
-    }
-    await this._userService.skipWelcomeCredits(
-      organization.id,
-      isOrgAdmin(organization)
+      !req.cookies.impersonate &&
+        !req.headers.impersonate &&
+        isOrgAdmin(organization) &&
+        !hasAccess(organization as AccessOrganization)
     );
     return { success: true };
   }

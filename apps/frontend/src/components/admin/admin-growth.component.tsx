@@ -404,8 +404,8 @@ const MoneySection: FC<{ money: GrowthMoney }> = ({ money }) => {
         <div className="text-[16px] font-[600]">Early bird</div>
         <div className="text-[13px] opacity-70">
           Workspaces given an early-bird code, by when their early bird started
-          (the free credits claim, or the skip), and how many of them went on
-          to subscribe.
+          (finishing onboarding; before that, the free credits claim or the
+          skip), and how many of them went on to subscribe.
         </div>
       </div>
       <WindowTable

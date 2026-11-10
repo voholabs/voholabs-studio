@@ -72,7 +72,7 @@ export interface Row {
   allowance: string;
   price: string;
   info: string | null;
-  // Included with Plus: welcome credits do not pay for it.
+  // Included with Plus: only Plus opens it.
   locked?: boolean;
 }
 

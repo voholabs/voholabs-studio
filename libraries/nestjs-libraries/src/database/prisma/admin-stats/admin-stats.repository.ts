@@ -120,8 +120,9 @@ export interface GrowthActiveAgents {
 }
 
 // The money side of the same sign-up cohorts: workspaces the person owns that
-// claimed the welcome credits (or turned them down), spent credits, and ever
-// had a Plus subscription (split by interval, and how many still have it).
+// claimed the welcome credits (or turned them down, while they were offered),
+// spent credits, and ever had a Plus subscription (split by interval, and how
+// many still have it).
 export interface GrowthMoneyFunnelRow {
   window: GrowthWindow;
   signups: number;
@@ -147,8 +148,8 @@ export interface GrowthCreditsRow {
 }
 
 // Early-bird codes made for workspaces whose early bird started in a window
-// (the welcome credits claim, or the skip), and how many of them went on to
-// subscribe.
+// (finishing onboarding; before that, the welcome credits claim or the skip),
+// and how many of them went on to subscribe.
 export interface GrowthEarlyBirdRow {
   window: GrowthWindow;
   issued: number;
@@ -1030,6 +1031,7 @@ export class AdminStatsRepository {
           firstTopUpAt: true,
           frozenAt: true,
           welcomeCreditsSkippedAt: true,
+          earlyBirdStartedAt: true,
           plusSubscriptionId: true,
           plusStatus: true,
           plusInterval: true,
@@ -1114,13 +1116,15 @@ export class AdminStatsRepository {
 
     const active = wallets.filter(plusNow);
 
-    // The early bird starts at the welcome credits claim, or at the skip.
+    // The early bird starts at the welcome credits claim, or at the skip,
+    // or (since the welcome credits were retired) at finishing onboarding.
     const coded = wallets
       .filter((w) => w.plusEarlyBirdCodeId)
       .map((w) => ({
         startedAt:
           welcomeAt.get(w.organizationId) ||
           w.welcomeCreditsSkippedAt ||
+          w.earlyBirdStartedAt ||
           w.createdAt,
         converted: everPlus(w),
       }));

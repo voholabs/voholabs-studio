@@ -337,17 +337,16 @@ export class UsersRepository {
     });
   }
 
+  // Only the first finish counts: a second one changes nothing (count 0).
   completeOnboarding(userId: string, body: OnboardingDto) {
-    return this._user.model.user.update({
+    return this._user.model.user.updateMany({
       where: {
         id: userId,
+        onboardedAt: null,
       },
       data: {
         attribution: body.attribution || null,
         onboardedAt: new Date(),
-      },
-      select: {
-        id: true,
       },
     });
   }

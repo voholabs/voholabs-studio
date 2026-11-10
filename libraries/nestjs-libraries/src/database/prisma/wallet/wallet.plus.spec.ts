@@ -38,7 +38,6 @@ const SETTINGS: Record<string, string> = {
   [BILLING.creditsPerUnit]: '19',
   [BILLING.defaultMultiplierBp]: '15789',
   [BILLING.minTopUp]: '1000',
-  [BILLING.signupCredits]: '100',
   [PLUS.monthlyPrice]: '1900',
   [PLUS.annualPrice]: '19000',
   [PLUS.credits]: '400',
@@ -128,6 +127,13 @@ const ledger = (settings: Record<string, string> = SETTINGS) => {
     updateWallet: jest.fn(async (_org: string, data: any) => {
       wallet = { ...(wallet || {}), ...data };
       return wallet;
+    }),
+    markEarlyBirdStarted: jest.fn(async () => {
+      if (!wallet || wallet.earlyBirdStartedAt) {
+        return { count: 0 };
+      }
+      wallet = { ...wallet, earlyBirdStartedAt: new Date() };
+      return { count: 1 };
     }),
     balance: jest.fn(async () => sum(() => true)),
     balanceBefore: jest.fn(async (_org: string, at: Date) =>
@@ -874,6 +880,31 @@ describe('Early bird', () => {
     expect((await c.plus.earlyBirdWindow('org-1'))?.startedAt).toEqual(T0);
   });
 
+  it('starts when onboarding is finished, without a claim or a skip, once', async () => {
+    const b = build();
+    b.setWallet({ stripeCustomerId: 'cus_1', frozenAt: null });
+    expect(await b.plus.earlyBirdWindow('org-1')).toBeUndefined();
+    at(T0.getTime() + 5 * MINUTE);
+    await b.plus.startEarlyBird('org-1');
+    expect(b.row().earlyBirdStartedAt).toEqual(
+      new Date(T0.getTime() + 5 * MINUTE)
+    );
+    // Finishing again does not restart it.
+    at(T0.getTime() + 2 * HOUR);
+    await b.plus.startEarlyBird('org-1');
+    expect((await b.plus.earlyBirdWindow('org-1'))?.startedAt).toEqual(
+      new Date(T0.getTime() + 5 * MINUTE)
+    );
+  });
+
+  it('keeps an earlier claim as the start when onboarding is finished later', async () => {
+    const b = build();
+    claimed(b);
+    at(T0.getTime() + 2 * HOUR);
+    await b.plus.startEarlyBird('org-1');
+    expect((await b.plus.earlyBirdWindow('org-1'))?.startedAt).toEqual(T0);
+  });
+
   it('is never offered after a skip once the workspace had Plus', async () => {
     const b = build();
     skipped(b, plusWallet({ plusStatus: 'canceled', plusPeriodEnd: T0 }));
@@ -925,18 +956,14 @@ describe('Early-bird email', () => {
     expect(b.notifications.sendEmail).toHaveBeenCalledTimes(1);
   });
 
-  it('schedules its workflow when the early bird starts with a skip, never without one', async () => {
-    const none = build();
-    none.setWallet({ stripeCustomerId: 'cus_1', frozenAt: null });
-    await none.plus.startEarlyBird('org-1');
-    expect(none.workflowStart).not.toHaveBeenCalled();
+  it('schedules its workflow when the early bird starts, never once the workspace had Plus', async () => {
+    const had = build();
+    had.setWallet(plusWallet({ plusStatus: 'canceled', plusPeriodEnd: T0 }));
+    await had.plus.startEarlyBird('org-1');
+    expect(had.workflowStart).not.toHaveBeenCalled();
 
     const b = build();
-    b.setWallet({
-      stripeCustomerId: 'cus_1',
-      frozenAt: null,
-      welcomeCreditsSkippedAt: new Date(),
-    });
+    b.setWallet({ stripeCustomerId: 'cus_1', frozenAt: null });
     await b.plus.startEarlyBird('org-1');
     expect(b.workflowStart).toHaveBeenCalledWith(
       'plusEarlyBirdEmailWorkflow',

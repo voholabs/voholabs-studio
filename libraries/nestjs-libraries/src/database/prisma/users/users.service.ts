@@ -11,7 +11,6 @@ import { IntegrationRepository } from '@gitroom/nestjs-libraries/database/prisma
 import { NotificationService } from '@gitroom/nestjs-libraries/database/prisma/notifications/notification.service';
 import { AgentConnectionService } from '@gitroom/nestjs-libraries/database/prisma/agent-connections/agent-connection.service';
 import { BriefService } from '@gitroom/nestjs-libraries/database/prisma/brief/brief.service';
-import { WalletService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.service';
 import { WalletPlusService } from '@gitroom/nestjs-libraries/database/prisma/wallet/wallet.plus.service';
 import { closedAccountMessage } from '@gitroom/nestjs-libraries/database/prisma/users/terms';
 
@@ -28,7 +27,6 @@ export class UsersService {
     private _notificationService: NotificationService,
     private _agentConnectionService: AgentConnectionService,
     private _briefService: BriefService,
-    private _walletService: WalletService,
     private _walletPlusService: WalletPlusService
   ) {}
 
@@ -248,97 +246,38 @@ export class UsersService {
 
   // The onboarding steps, worked out from the workspace itself: a connected
   // channel, an agent that reached the MCP and the brief's onboarding
-  // documents (all three skippable), and the welcome credits that doing the
-  // agent and filling at least one document of the brief earns. Only an admin holds the API key an agent
+  // documents (all three skippable). Only an admin holds the API key an agent
   // connects with, so for anyone else the agent and the brief are not theirs
-  // to do. The credits are for the free plan only; a paid plan never pays
-  // from them.
-  async onboardingStatus(
-    organizationId: string,
-    isAdmin: boolean,
-    freePlan: boolean
-  ) {
-    const [integrations, agent, brief, credits] = await Promise.all([
+  // to do.
+  async onboardingStatus(organizationId: string) {
+    const [integrations, agent, brief] = await Promise.all([
       this._integrationRepository.getIntegrationsList(organizationId),
       this._agentConnectionService.status(organizationId),
       this._briefService.onboardingStatus(organizationId),
-      this._walletService.welcomeCredits(organizationId),
     ]);
     return {
       channel: integrations.length > 0,
       agent: agent.connected,
       brief,
-      credits: {
-        ...credits,
-        eligible:
-          freePlan &&
-          isAdmin &&
-          agent.connected &&
-          brief.documents.some((document) => document.filled),
-      },
     };
   }
 
   // Every step can be skipped, so reaching the end finishes onboarding, with
-  // or without a channel. Finishing gives nothing: the welcome credits come
-  // only from the claim, which checks the agent and the brief again.
-  completeOnboarding(userId: string, body: OnboardingDto) {
-    return this._usersRepository.completeOnboarding(userId, body);
-  }
-
-  // The welcome credits, for a workspace whose agent is connected and has
-  // filled at least one document of the brief, and that has not turned them
-  // down. Checked here, not in the browser.
-  async claimWelcomeCredits(
+  // or without a channel. Finishing gives no credits. The first finish of a
+  // free-plan admin starts the Plus early bird (never fails the finish).
+  async completeOnboarding(
+    userId: string,
+    body: OnboardingDto,
     organizationId: string,
-    isAdmin: boolean,
-    freePlan: boolean
+    startsEarlyBird: boolean
   ) {
-    const status = await this.onboardingStatus(
-      organizationId,
-      isAdmin,
-      freePlan
+    const { count } = await this._usersRepository.completeOnboarding(
+      userId,
+      body
     );
-    if (status.credits.skipped) {
-      throw new HttpException('The welcome credits were turned down', 400);
-    }
-    if (!status.credits.eligible) {
-      throw new HttpException(
-        'Connect your agent and let it fill in what it knows first',
-        400
-      );
-    }
-    const added = await this._walletService.claimWelcomeCredits(
-      organizationId
-    );
-    // The Plus early bird starts with the claim; its one email is scheduled
-    // now (never fails the claim).
-    if (added > 0) {
+    if (count > 0 && startsEarlyBird) {
       await this._walletPlusService.startEarlyBird(organizationId);
     }
-    return { credits: added / 100 };
-  }
-
-  // Turning the welcome credits down in onboarding. Final: they cannot be
-  // claimed after it.
-  async skipWelcomeCredits(organizationId: string, isAdmin: boolean) {
-    if (!isAdmin) {
-      throw new HttpException('Only an admin can decide this', 403);
-    }
-    // Skipping starts the Plus early bird too, as a claim does; its one email
-    // is scheduled now (never fails the skip).
-    if (await this._walletService.skipWelcomeCredits(organizationId)) {
-      await this._walletPlusService.startEarlyBird(organizationId);
-    }
-  }
-
-  // A free-plan admin who finished onboarding before the welcome credits
-  // existed is shown the onboarding once more, until the credits are
-  // claimed or turned down.
-  async welcomeCreditsPending(organizationId: string) {
-    return (
-      (await this._walletService.welcomeCredits(organizationId)).available > 0
-    );
   }
 
   // Counts the person as active today. Never throws and never waits: it runs

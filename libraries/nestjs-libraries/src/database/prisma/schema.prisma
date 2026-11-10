@@ -1232,6 +1232,10 @@ model Wallet {
   // Set when the welcome credits were turned down in onboarding; they can no
   // longer be claimed. (Claimed is the ledger entry welcome:<organizationId>.)
   welcomeCreditsSkippedAt DateTime?
+  // When the Plus early bird started for a workspace that onboarded after
+  // the welcome credits were retired: the admin finishing onboarding.
+  // (Before that it started at the welcome credits claim or skip.)
+  earlyBirdStartedAt  DateTime?
   // Plus, read from the wallet's Stripe subscription by its webhooks: the
   // subscription (kept after it ends: a workspace that had Plus gets no early
   // bird again), its Stripe status, interval ("month" or "year") and the paid

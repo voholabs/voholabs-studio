@@ -252,6 +252,14 @@ export class WalletRepository {
     });
   }
 
+  // Stamps when the early bird started, only if it was never stamped.
+  markEarlyBirdStarted(organizationId: string) {
+    return this._wallet.model.wallet.updateMany({
+      where: { organizationId, earlyBirdStartedAt: null },
+      data: { earlyBirdStartedAt: new Date() },
+    });
+  }
+
   async balance(organizationId: string) {
     const sum = await this._entry.model.walletEntry.aggregate({
       where: { organizationId },

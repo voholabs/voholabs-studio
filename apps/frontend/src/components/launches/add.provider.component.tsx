@@ -925,7 +925,7 @@ export const AddProviderComponent: FC<{
     return mode === 'locked'
       ? `${cost} ${t(
           'plus_channel_locked',
-          'Included with Plus. Get Plus to post here; free credits do not cover it.'
+          'Included with Plus. Get Plus to post here.'
         )}`
       : cost;
   };

@@ -46,10 +46,6 @@ export const BILLING = {
   autoTopUpThreshold: 'auto_topup_threshold',
   autoTopUpOptions: 'auto_topup_options',
   autoTopUpCapOptions: 'auto_topup_cap_options',
-  // Whole welcome credits a workspace can claim once, in onboarding.
-  // Optional: without it none are offered. Never a top-up, so it opens no
-  // paid channel.
-  signupCredits: 'signup_credits',
 } as const;
 
 // The Plus subscription's numbers, all in BillingSetting. Without the prices,
@@ -64,7 +60,8 @@ export const PLUS = {
   // left of them is gone at its end.
   periodDays: 'plus_period_days',
   // The early bird: percent off the first payment, valid for `minutes` from
-  // the welcome credits claim, then once more for `extensionHours`.
+  // its start (WalletPlusService.earlyBirdWindow), then once more for
+  // `extensionHours`.
   earlyBirdPercent: 'plus_early_bird_percent',
   earlyBirdMinutes: 'plus_early_bird_minutes',
   earlyBirdExtensionHours: 'plus_early_bird_extension_hours',
@@ -240,11 +237,11 @@ const providerLabel = (identifier: string) => {
 };
 
 // Shown when a channel is charged from the wallet and the workspace has no
-// Plus. Welcome and granted credits do not open it: Plus does.
+// Plus. Granted credits do not open it: Plus does.
 export const walletRequiredMessage = (identifier: string) =>
   `Not scheduled: posting to ${providerLabel(
     identifier
-  )} is included with Plus and paid per post from wallet credits (the free credits don't cover it). Get Plus, then schedule it again.`;
+  )} is included with Plus and paid per post from wallet credits. Get Plus, then schedule it again.`;
 
 // A request refused because it needs the wallet. The app opens the top-up
 // for `wallet: true` instead of Postiz billing.
@@ -258,7 +255,7 @@ export const plusRequired = (message: string) =>
 
 // Shown when work charged by usage needs Plus.
 export const usageTopUpRequiredMessage = (name: string) =>
-  `${name} is included with Plus and paid from wallet credits (the free credits don't cover it). Get Plus, then try again.`;
+  `${name} is included with Plus and paid from wallet credits. Get Plus, then try again.`;
 
 // Shown when a top-up is asked for without Plus.
 export const topUpNeedsPlusMessage = () =>
@@ -1642,34 +1639,9 @@ export class WalletService {
     return entry;
   }
 
-  // The welcome credits a workspace can claim (BILLING.signupCredits), and
-  // whether it has claimed them or turned them down: either is final. Read
-  // by the onboarding steps, so nothing is thrown: on a failure there is
-  // nothing to claim.
-  async welcomeCredits(organizationId: string) {
-    try {
-      const value = Number((await this.settings())[BILLING.signupCredits]);
-      const total =
-        Number.isFinite(value) && value > 0 ? Math.round(value * 100) : 0;
-      const [entry, wallet] = await Promise.all([
-        this._wallet.entryByKey(`welcome:${organizationId}`),
-        this._wallet.getWallet(organizationId),
-      ]);
-      const claimed = !!entry;
-      const skipped = !claimed && !!wallet?.welcomeCreditsSkippedAt;
-      return { available: claimed || skipped ? 0 : total, claimed, skipped };
-    } catch (err) {
-      this._logger.error(
-        `Welcome credits for ${organizationId} could not be read: ${
-          err instanceof Error ? err.message : err
-        }`
-      );
-      return { available: 0, claimed: false, skipped: false };
-    }
-  }
-
-  // When the workspace claimed its welcome credits, or null. The early bird
-  // starts then, or at the skip if that came first.
+  // When the workspace claimed its welcome credits, or null. New
+  // workspaces no longer get any; this reads the claims made before. The
+  // early bird starts then, or at the skip if that came first.
   async welcomeClaimedAt(organizationId: string) {
     return (
       (await this._wallet.entryByKey(`welcome:${organizationId}`))?.createdAt ||
@@ -1677,39 +1649,11 @@ export class WalletService {
     );
   }
 
-  // Gives the workspace the welcome credits it can still claim, at most once:
-  // the entry's key is the same on every call, so a retry or a second click
-  // gets the first entry back instead of a second grant. Returns what this
-  // call added, in hundredths of a credit.
-  async claimWelcomeCredits(organizationId: string) {
-    const { available } = await this.welcomeCredits(organizationId);
-    if (available <= 0) {
-      return 0;
-    }
+  // Starts the Plus early bird clock for the workspace, once: a second call
+  // keeps the first start. Returns whether this call started it.
+  async markEarlyBirdStarted(organizationId: string) {
     await this._wallet.ensureWallet(organizationId);
-    const { created } = await this._wallet.addOnce({
-      organizationId,
-      amount: available,
-      type: 'GRANT',
-      description: 'Welcome credits',
-      idempotencyKey: `welcome:${organizationId}`,
-    });
-    return created ? available : 0;
-  }
-
-  // Records that the workspace turned the welcome credits down, so they can
-  // no longer be claimed. Nothing changes once they were claimed. Returns
-  // whether this call recorded it.
-  async skipWelcomeCredits(organizationId: string) {
-    const { claimed, skipped } = await this.welcomeCredits(organizationId);
-    if (claimed || skipped) {
-      return false;
-    }
-    await this._wallet.ensureWallet(organizationId);
-    await this._wallet.updateWallet(organizationId, {
-      welcomeCreditsSkippedAt: new Date(),
-    });
-    return true;
+    return (await this._wallet.markEarlyBirdStarted(organizationId)).count > 0;
   }
 
   // Superadmin: correct the balance either way; may take it below zero. A

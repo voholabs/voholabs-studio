@@ -25,6 +25,7 @@ import { BriefTextarea } from '@gitroom/frontend/components/agent-brief/brief.te
 import { BriefSaveIndicator } from '@gitroom/frontend/components/agent-brief/brief.save.indicator';
 import { BriefLinks } from '@gitroom/frontend/components/agent-brief/brief.links';
 import { BriefAssets } from '@gitroom/frontend/components/agent-brief/brief.assets';
+import { BriefBrandKit } from '@gitroom/frontend/components/agent-brief/brief.kit';
 import {
   BRIEF_DOCUMENTS_KEY,
   BriefDocumentsResponse,
@@ -121,6 +122,7 @@ export const BriefDocument: FC<{
 
   const hasLinks = documentHasFeature(document.definition, 'links');
   const hasAssets = documentHasFeature(document.definition, 'assets');
+  const hasKit = documentHasFeature(document.definition, 'kit');
   // The agent writes this category itself. That only changes what we say at
   // the top of the page, not what can be done with it: a note the agent got
   // wrong is worth no more than a note it never wrote.
@@ -170,9 +172,9 @@ export const BriefDocument: FC<{
     await discardPending();
 
     const response = await fetch(
-      `/brief/${encodeURIComponent(
-        document.category.id
-      )}/${encodeURIComponent(document.key)}`,
+      `/brief/${encodeURIComponent(document.category.id)}/${encodeURIComponent(
+        document.key
+      )}`,
       { method: 'DELETE' }
     );
 
@@ -212,7 +214,7 @@ export const BriefDocument: FC<{
         <div className="flex-1 flex flex-col gap-[6px] min-w-0">
           <div className="flex items-center gap-[8px] text-[12px] text-textItemBlur">
             <span>
-              {classic ? t('brief_title', 'Agent Brief') : t('brief', 'Brief')}
+              {classic ? t('brief_title', 'Agent Brief') : t('brief', 'Brand brief')}
             </span>
             <span>/</span>
             <span>
@@ -262,6 +264,15 @@ export const BriefDocument: FC<{
         <BriefLinks
           links={current.links || []}
           onChange={(links) => save({ links })}
+        />
+      )}
+
+      {hasKit && (
+        <BriefBrandKit
+          kit={current.kit}
+          blocks={blocks}
+          assets={current.assets || []}
+          onChange={(kit) => save({ kit })}
         />
       )}
 

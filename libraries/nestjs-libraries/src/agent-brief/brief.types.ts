@@ -13,7 +13,7 @@ export type BriefCategoryId =
 export type BriefCategorySource = 'static' | 'integration' | 'user';
 
 // Optional capabilities a document can opt into on top of its blocks.
-export type BriefDocumentFeature = 'links' | 'assets';
+export type BriefDocumentFeature = 'links' | 'assets' | 'kit';
 
 export interface BriefDocumentDef {
   key: string;
@@ -82,6 +82,48 @@ export interface BriefLink {
   note?: string;
 }
 
+// The brand kit: the look of the brand as values rather than prose, so a
+// slide, a thumbnail or a video can take a colour or a font by its role
+// without reading it out of the notes.
+export type BriefKitColorRole =
+  | 'primary'
+  | 'secondary'
+  | 'accent'
+  | 'background'
+  | 'text'
+  | 'muted'
+  | 'surface';
+export type BriefKitFontRole = 'headline' | 'body';
+// light: the logo for light backgrounds. dark: for dark backgrounds.
+export type BriefKitLogoVariant = 'light' | 'dark' | 'icon';
+
+export interface BriefKitColor {
+  role: BriefKitColorRole;
+  // "#RRGGBB", uppercase.
+  hex: string;
+}
+
+export interface BriefKitFont {
+  role: BriefKitFontRole;
+  // A Google Fonts family name, as Google spells it.
+  family: string;
+}
+
+export interface BriefKitLogo {
+  variant: BriefKitLogoVariant;
+  // Same rule as an asset's url: the media upload's path, or a link.
+  url: string;
+}
+
+// One entry per role or variant at most; every field is optional.
+export interface BriefKit {
+  colors?: BriefKitColor[];
+  fonts?: BriefKitFont[];
+  logos?: BriefKitLogo[];
+  // One line on how the photos and illustrations look.
+  imagery?: string;
+}
+
 export interface BriefDocumentContent {
   v: 1;
   // Only set for documents the user named themselves.
@@ -89,6 +131,7 @@ export interface BriefDocumentContent {
   blocks: BriefBlock[];
   links?: BriefLink[];
   assets?: BriefAsset[];
+  kit?: BriefKit;
 }
 
 export interface BriefDocument {

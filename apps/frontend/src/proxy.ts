@@ -212,7 +212,7 @@ export async function proxy(request: NextRequest) {
       }
       if (
         isOAuthReturn(oauthReturn) &&
-        ['/', '/launches', '/analytics'].includes(nextUrl.pathname)
+        ['/', '/home', '/launches', '/analytics'].includes(nextUrl.pathname)
       ) {
         const back = NextResponse.redirect(new URL(oauthReturn, nextUrl.href));
         back.cookies.delete(OAUTH_RETURN);

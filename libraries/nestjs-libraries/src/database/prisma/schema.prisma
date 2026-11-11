@@ -72,6 +72,8 @@ model Organization {
   wallet              Wallet?
   walletEntries       WalletEntry[]
   briefOnboardings    BriefOnboarding[]
+  userFlows           UserFlow[]
+  userSkills          UserSkill[]
 
   @@index([apiKey])
   @@index([streakSince])
@@ -1230,6 +1232,10 @@ model Wallet {
   // Set when the welcome credits were turned down in onboarding; they can no
   // longer be claimed. (Claimed is the ledger entry welcome:<organizationId>.)
   welcomeCreditsSkippedAt DateTime?
+  // When the Plus early bird started for a workspace that onboarded after
+  // the welcome credits were retired: the admin finishing onboarding.
+  // (Before that it started at the welcome credits claim or skip.)
+  earlyBirdStartedAt  DateTime?
   // Plus, read from the wallet's Stripe subscription by its webhooks: the
   // subscription (kept after it ends: a workspace that had Plus gets no early
   // bird again), its Stripe status, interval ("month" or "year") and the paid
@@ -1388,6 +1394,105 @@ model SkillTag {
   label     String
   sortOrder Int      @default(0)
   updatedAt DateTime @updatedAt
+}
+
+// A workspace's own flows ("My flows"): a method the agent runs, saved from a
+// chat, written in the app, forked from the Voho library or imported from a
+// share link. A flow holds method and style only, never brand facts: the
+// gateway attaches the workspace's brand when it reads one. Additive tables
+// only (db push runs on deploy), never renamed.
+model UserFlow {
+  id              String       @id @default(uuid())
+  organizationId  String
+  // The gateway names it "my/<slug>". Unique per workspace, deleted rows
+  // included, so a deleted flow's slug is never handed out again.
+  slug            String
+  title           String
+  whenToUse       String       @default("")
+  summary         String       @default("")
+  category        String?
+  // The cost line, "{{credits ...}}" placeholders priced by the gateway.
+  cost            String?
+  foundation      String[]     @default([])
+  body            String       @default("")
+  // Optional named parts of the method (workflowGet's "part").
+  parts           Json?
+  brandSlots      String[]     @default(["palette", "fonts", "logo", "files", "voice", "audience"])
+  source          FlowSource   @default(CREATED)
+  // The library flow id (or another origin) this was forked from.
+  forkedFromId    String?
+  // The FlowShare this was imported through.
+  importedShareId String?
+  // A custom flow: the flow it is based on, a Voho library flow id or
+  // "my/<slug>". The base is read when the flow runs, never copied here.
+  basedOn         String?
+  // What the user changes or adds to the base; it wins over the base method.
+  customization   String       @default("")
+  // The skills the flow brings in, derived on every save from the skill
+  // links in its texts ("[Skill: Name](skill:<ref>)") plus older entries
+  // without a link: a skills library slug; at most 10. "my/<slug>" entries
+  // named a UserSkill and now read as missing.
+  skills          String[]     @default([])
+  poster          String?
+  exampleVideo    String?
+  version         Int          @default(1)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  deletedAt       DateTime?
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  shares          FlowShare[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, updatedAt])
+}
+
+// Unused since 2026-11; kept because the schema is additive. It held a
+// workspace's own skills ("My skills"), which flows brought in with a skill
+// link to "my/<slug>"; such links now read as missing.
+model UserSkill {
+  id              String       @id @default(uuid())
+  organizationId  String
+  // "my/<slug>" in skill links. Unique per workspace, deleted rows included,
+  // so a deleted skill's slug is never handed out again.
+  slug            String
+  name            String
+  description     String       @default("")
+  // Markdown, front matter stripped.
+  body            String       @default("")
+  // The FlowShare this was copied through, with an imported flow.
+  importedShareId String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  deletedAt       DateTime?
+  organization    Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, updatedAt])
+}
+
+// A share link to one UserFlow. Anyone signed in with the token can read the
+// flow's method fields and import a scrubbed copy; revoking sets revokedAt.
+model FlowShare {
+  id             String    @id @default(uuid())
+  token          String    @unique
+  userFlowId     String
+  organizationId String
+  imports        Int       @default(0)
+  createdAt      DateTime  @default(now())
+  revokedAt      DateTime?
+  userFlow       UserFlow  @relation(fields: [userFlowId], references: [id])
+
+  @@index([organizationId])
+  @@index([userFlowId])
+}
+
+enum FlowSource {
+  CREATED
+  FORKED
+  IMPORTED
+  SAVED_FROM_CHAT
+  // Saved by an agent from a set of reference videos (the learn-a-style flow).
+  LEARNED
 }
 
 enum AgentAuthMethod {

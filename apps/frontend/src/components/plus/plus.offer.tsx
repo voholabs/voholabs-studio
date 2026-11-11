@@ -577,8 +577,7 @@ export const PlusCredits: FC<{
 };
 
 
-// The early bird in a box, for screens that are not about Plus (the end of
-// onboarding): the code strip with the time left, each plan against
+// The early bird in a box, for screens that are not about Plus: the code strip with the time left, each plan against
 // top-ups, the top-up rate and a way to Plus. Nothing once the time is up or
 // when there is no offer.
 export const EarlyBirdOfferBox: FC<{

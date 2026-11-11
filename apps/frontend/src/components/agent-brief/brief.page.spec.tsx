@@ -78,7 +78,6 @@ const status = (over: Record<string, any> = {}) => ({
       { key: 'voice', label: 'Voice', filled: false },
     ],
   },
-  credits: { available: 0, claimed: false, skipped: false, eligible: false },
   ...over,
 });
 

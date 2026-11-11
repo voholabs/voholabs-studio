@@ -64,6 +64,21 @@ export class SkillsRepository {
     });
   }
 
+  // The active skills among these slugs, with their instructions: what a
+  // flow that brings them in reads.
+  bySlugs(slugs: string[]) {
+    return this._skill.model.skill.findMany({
+      where: { slug: { in: slugs }, active: true },
+      select: {
+        slug: true,
+        name: true,
+        summary: true,
+        whenToUse: true,
+        body: true,
+      },
+    });
+  }
+
   get(slug: string) {
     return this._skill.model.skill.findFirst({
       where: { slug, active: true },

@@ -20,6 +20,8 @@ export enum Sections {
   BRIEF = 'brief',
   // The skills library: open on a paid plan, or after the first wallet top-up.
   SKILLS = 'skills',
+  // Flows (the library and My flows): open on a paid plan, or with Plus.
+  FLOWS = 'flows',
 }
 
 export enum AuthorizationActions {

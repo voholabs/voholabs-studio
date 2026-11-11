@@ -76,15 +76,6 @@ const WalletPrices: FC = () => {
             {!!wallet && (
               <span className="text-textItemBlur">
                 {rateLine(t, f, wallet)}.
-                {!wallet.legacy && (
-                  <>
-                    {' '}
-                    {t(
-                      'plus_prices_free_credits',
-                      'Free credits pay for everything except what is marked "Included with Plus".'
-                    )}
-                  </>
-                )}
               </span>
             )}
           </span>

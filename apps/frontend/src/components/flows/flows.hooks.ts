@@ -3,6 +3,12 @@
 import useSWR from 'swr';
 import { useCallback } from 'react';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
+import { useToaster } from '@gitroom/react/toaster/toaster';
+import { useT } from '@gitroom/react/translation/get.transation.service.client';
+import {
+  openTopUpIfWalletRefused,
+  WALLET_INLINE_REQUEST,
+} from '@gitroom/frontend/components/wallet/wallet.bridge';
 
 // What the backend passes on from the gateway (FlowSummary in
 // libraries/nestjs-libraries/src/flows/flows.service.ts).
@@ -19,6 +25,9 @@ export interface Flow {
   // the poster first
   exampleImages?: string[];
   category?: 'video' | 'image' | 'writing' | 'marketing';
+  // what it makes, the tag on its card: short-video, long-video, carousel,
+  // infographic, image, writing or brief
+  format?: string;
   cost?: string;
   // the credit figure of cost, from the gateway: "~10-15 credits". Missing
   // when the flow has no AI generation cost.
@@ -64,4 +73,221 @@ export const usePublicFlows = () => {
     return ((await response.json())?.flows || []) as Flow[];
   }, [fetch]);
   return useSWR<Flow[]>('public-flows', load, { revalidateOnFocus: false });
+};
+
+// My flows: the workspace's own flows (GET /user-flows). Flows open with
+// Plus, so a 402 is not an error here: it is the locked state the page
+// shows with its upgrade button.
+export type UserFlowSource =
+  | 'CREATED'
+  | 'FORKED'
+  | 'IMPORTED'
+  | 'SAVED_FROM_CHAT'
+  // Saved by an agent from a set of reference videos.
+  | 'LEARNED';
+
+export interface UserFlowSummary {
+  slug: string;
+  title: string;
+  whenToUse: string;
+  summary: string;
+  category: string | null;
+  cost: string | null;
+  foundation: string[];
+  source: UserFlowSource;
+  poster: string | null;
+  // A custom flow: the flow it is based on, a library flow id or "my/<slug>".
+  basedOn: string | null;
+  // The skills it brings in, derived from the skill links in its texts plus
+  // older ones listed without a link: skills library slugs.
+  skills: string[];
+  shared: boolean;
+  // False for a copy of a library flow: it gets no share link.
+  shareable?: boolean;
+  updatedAt: string;
+}
+
+export interface UserFlow extends UserFlowSummary {
+  body: string;
+  // What a custom flow changes or adds to its base.
+  customization: string;
+  parts: Record<string, string> | null;
+  brandSlots: string[];
+  forkedFromId: string | null;
+  exampleVideo: string | null;
+  version: number;
+  shareUrl: string | null;
+}
+
+export interface UserFlowsState {
+  locked: boolean;
+  flows: UserFlowSummary[];
+}
+
+export const useUserFlows = () => {
+  const fetch = useFetch();
+  const load = useCallback(async (): Promise<UserFlowsState> => {
+    const response = await fetch('/user-flows', WALLET_INLINE_REQUEST);
+    if (response.status === 402) {
+      return { locked: true, flows: [] };
+    }
+    if (!response.ok) {
+      throw new Error('user-flows');
+    }
+    return {
+      locked: false,
+      flows: ((await response.json())?.flows || []) as UserFlowSummary[],
+    };
+  }, [fetch]);
+  return useSWR<UserFlowsState>('user-flows', load, {
+    revalidateOnFocus: false,
+  });
+};
+
+// One of my flows whole, for the flow view. Null slug: nothing read.
+export const useUserFlow = (slug: string | null) => {
+  const fetch = useFetch();
+  const load = useCallback(async () => {
+    const response = await fetch(
+      `/user-flows/${encodeURIComponent(slug as string)}`,
+      WALLET_INLINE_REQUEST
+    );
+    if (!response.ok) {
+      throw new Error('user-flow');
+    }
+    return (await response.json()) as UserFlow;
+  }, [fetch, slug]);
+  return useSWR<UserFlow>(slug ? `user-flow-${slug}` : null, load, {
+    revalidateOnFocus: false,
+  });
+};
+
+// What a share link holds (GET /user-flows/shared/:token), scrubbed, and what
+// the scrub changed. Null when the link was turned off or never existed.
+export interface SharedFlow {
+  flow: {
+    title: string;
+    whenToUse: string;
+    summary: string;
+    category: string | null;
+    cost: string | null;
+    foundation: string[];
+    body: string;
+    parts: Record<string, string> | null;
+    brandSlots: string[];
+    // A custom flow: the library flow it is based on, its changes to it and
+    // its skills.
+    basedOn: string | null;
+    customization: string;
+    skills: string[];
+    // Saved by an agent from a set of reference videos.
+    learned?: boolean;
+    updatedAt: string;
+  };
+  warnings: string[];
+}
+
+export const useSharedFlow = (token: string) => {
+  const fetch = useFetch();
+  const load = useCallback(async () => {
+    const response = await fetch(
+      `/user-flows/shared/${encodeURIComponent(token)}`
+    );
+    if (response.status === 404) {
+      return null;
+    }
+    if (!response.ok) {
+      throw new Error('shared-flow');
+    }
+    return (await response.json()) as SharedFlow;
+  }, [fetch, token]);
+  return useSWR<SharedFlow | null>(`shared-flow-${token}`, load, {
+    revalidateOnFocus: false,
+  });
+};
+
+export interface UserFlowSaved {
+  slug: string;
+  created: boolean;
+  warnings: string[];
+}
+
+// What the app writes of a flow: the title (Rename). Everything else is
+// written by the workspace's agent.
+export type UserFlowFields = Partial<Pick<UserFlow, 'title'>>;
+
+// The writes on my flows. Each returns the parsed answer, or undefined when
+// the request was refused (a Plus refusal opens the Plus dialog, any other
+// error is shown as a toast) so the caller can stop its spinner.
+export const useUserFlowActions = () => {
+  const fetch = useFetch();
+  const toaster = useToaster();
+  const t = useT();
+  const send = useCallback(
+    async <T>(url: string, method: string, body?: unknown) => {
+      const response = await fetch(url, {
+        ...WALLET_INLINE_REQUEST,
+        method,
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+      if (await openTopUpIfWalletRefused(response)) {
+        return undefined;
+      }
+      if (!response.ok) {
+        const reason = await response
+          .json()
+          .then((b) => (Array.isArray(b?.message) ? b.message[0] : b?.message))
+          .catch(() => undefined);
+        toaster.show(
+          typeof reason === 'string' && reason
+            ? reason
+            : t('flows_mine_failed', 'Something went wrong. Try again.'),
+          'warning'
+        );
+        return undefined;
+      }
+      return (await response.json()) as T;
+    },
+    [fetch, toaster, t]
+  );
+  return {
+    update: useCallback(
+      (slug: string, fields: UserFlowFields) =>
+        send<UserFlowSaved>(
+          `/user-flows/${encodeURIComponent(slug)}`,
+          'PATCH',
+          fields
+        ),
+      [send]
+    ),
+    remove: useCallback(
+      (slug: string) =>
+        send<{ deleted: boolean }>(
+          `/user-flows/${encodeURIComponent(slug)}`,
+          'DELETE'
+        ),
+      [send]
+    ),
+    share: useCallback(
+      (slug: string) =>
+        send<{ url: string; token: string }>(
+          `/user-flows/${encodeURIComponent(slug)}/share`,
+          'POST'
+        ),
+      [send]
+    ),
+    unshare: useCallback(
+      (slug: string) =>
+        send<{ revoked: boolean }>(
+          `/user-flows/${encodeURIComponent(slug)}/share`,
+          'DELETE'
+        ),
+      [send]
+    ),
+    importShared: useCallback(
+      (token: string) =>
+        send<UserFlowSaved>('/user-flows/import', 'POST', { token }),
+      [send]
+    ),
+  };
 };

@@ -1144,7 +1144,7 @@
   "brief_onboarding_continue_body_cost": "進行中のオンボーディングがあります。続けても追加料金はかかりません。その後に新しく始めると {{credits}} クレジットかかります。",
   "brief_onboarding_continue_body": "進行中のオンボーディングがあります。中断したところから続けましょう。",
   "agent": "エージェント",
-  "brief": "ブリーフ",
+  "brief": "ブランドブリーフ",
   "coming_soon": "近日公開",
   "support": "サポート",
   "agent_media_title": "AgentMedia の UGC 動画",

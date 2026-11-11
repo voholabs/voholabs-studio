@@ -1962,7 +1962,7 @@
           "Brief"
         ],
         "summary": "Save a brief document",
-        "description": "Saves a document. A field left out keeps what is stored; `blocks`, `links` and `assets` are each replaced whole, so send the existing items with your changes. Open on every plan.",
+        "description": "Saves a document. A field left out keeps what is stored; `blocks`, `links` and `assets` are each replaced whole, so send the existing items with your changes. `kit` (Branding & assets only) replaces each kit field it sends and keeps the others. Open on every plan.",
         "operationId": "saveBriefDocument",
         "responses": {
           "200": {
@@ -3028,7 +3028,7 @@
                       },
                       "requiresTopUp": {
                         "type": "boolean",
-                        "description": "True when the action is included with Plus (the free credits don't cover it)"
+                        "description": "True when the action is included with Plus"
                       },
                       "pricingModel": {
                         "type": "string"
@@ -3306,6 +3306,9 @@
                 "items": {
                   "$ref": "#/components/schemas/BriefAsset"
                 }
+              },
+              "kit": {
+                "$ref": "#/components/schemas/BriefKit"
               }
             }
           },
@@ -3377,6 +3380,101 @@
           }
         }
       },
+      "BriefKit": {
+        "type": "object",
+        "description": "The structured brand kit, on the foundation/branding-assets document only. Each field sent replaces that field whole; a field left out keeps what is stored; an empty list or an empty imagery line clears that field.",
+        "properties": {
+          "colors": {
+            "type": "array",
+            "maxItems": 7,
+            "description": "One colour per role.",
+            "items": {
+              "type": "object",
+              "required": [
+                "role",
+                "hex"
+              ],
+              "properties": {
+                "role": {
+                  "type": "string",
+                  "enum": [
+                    "primary",
+                    "secondary",
+                    "accent",
+                    "background",
+                    "text",
+                    "muted",
+                    "surface"
+                  ]
+                },
+                "hex": {
+                  "type": "string",
+                  "pattern": "^#[0-9A-Fa-f]{6}$",
+                  "description": "Six hex digits, like #0E1A2B; stored uppercase."
+                }
+              }
+            }
+          },
+          "fonts": {
+            "type": "array",
+            "maxItems": 2,
+            "description": "One font per role.",
+            "items": {
+              "type": "object",
+              "required": [
+                "role",
+                "family"
+              ],
+              "properties": {
+                "role": {
+                  "type": "string",
+                  "enum": [
+                    "headline",
+                    "body"
+                  ]
+                },
+                "family": {
+                  "type": "string",
+                  "maxLength": 100,
+                  "description": "A Google Fonts family name, like \"Inter\"; stored as Google spells it."
+                }
+              }
+            }
+          },
+          "logos": {
+            "type": "array",
+            "maxItems": 3,
+            "description": "One logo per variant: light (for light backgrounds), dark (for dark backgrounds), icon.",
+            "items": {
+              "type": "object",
+              "required": [
+                "variant",
+                "url"
+              ],
+              "properties": {
+                "variant": {
+                  "type": "string",
+                  "enum": [
+                    "light",
+                    "dark",
+                    "icon"
+                  ]
+                },
+                "url": {
+                  "type": "string",
+                  "maxLength": 2048,
+                  "description": "The media upload path, or a link to the file."
+                }
+              }
+            }
+          },
+          "imagery": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "One line on how the photos and illustrations look."
+          }
+        }
+      },
       "SaveBriefDocument": {
         "type": "object",
         "properties": {
@@ -3400,6 +3498,9 @@
             "items": {
               "$ref": "#/components/schemas/BriefAsset"
             }
+          },
+          "kit": {
+            "$ref": "#/components/schemas/BriefKit"
           }
         }
       },

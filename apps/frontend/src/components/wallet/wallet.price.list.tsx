@@ -53,7 +53,7 @@ const CHANNELS_SECTION = 'channels';
 // from the price rows is not rendered here, nor listed as a top-up unlock.
 // The brief is written by the user's agent during onboarding, for free; a
 // guided re-run states its own price where it is started (the Brief page).
-export const HIDDEN_SECTIONS = ['skills', 'brief'];
+export const HIDDEN_SECTIONS = ['skills', 'brief', 'flows'];
 
 // The price row research data is charged by (one unit is one dollar of
 // source cost). On the list it stands for one row per group of research data
@@ -72,7 +72,7 @@ export interface Row {
   allowance: string;
   price: string;
   info: string | null;
-  // Included with Plus: welcome credits do not pay for it.
+  // Included with Plus: only Plus opens it.
   locked?: boolean;
 }
 

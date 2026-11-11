@@ -20,7 +20,7 @@ import {
   FlowCard,
   FlowCost,
   FlowPoster,
-  flowCategoryLabel,
+  flowFormatLabel,
   useResearchLocked,
 } from '@gitroom/frontend/components/flows/flows.card';
 import { openPlus } from '@gitroom/frontend/components/wallet/wallet.bridge';
@@ -136,7 +136,9 @@ const DetailSection: FC<{ title: string; children: ReactNode }> = ({
   </div>
 );
 
-const useCopyPrompt = (flow: Flow) => {
+// Copies a prompt for the user's agent, with a toast and a short "Copied"
+// label: a library flow's prompt, or one the flows dialogs write.
+export const useCopyPrompt = (prompt?: string) => {
   const t = useT();
   const toaster = useToaster();
   const [copied, setCopied] = useState(false);
@@ -148,16 +150,16 @@ const useCopyPrompt = (flow: Flow) => {
     return () => clearTimeout(timer);
   }, [copied]);
   const copyPrompt = useCallback(() => {
-    if (!flow.prompt) {
+    if (!prompt) {
       return;
     }
-    copy(flow.prompt);
+    copy(prompt);
     setCopied(true);
     toaster.show(
       t('flows_prompt_copied', 'Prompt copied. Paste it into your agent.'),
       'success'
     );
-  }, [flow.prompt, t, toaster]);
+  }, [prompt, t, toaster]);
   const label = copied
     ? t('flows_copied', 'Copied — now paste it into your agent')
     : t('flows_copy_prompt', 'Copy prompt');
@@ -473,11 +475,11 @@ const FlowDetailBody: FC<{
   const t = useT();
   return (
     <div className="flex flex-col gap-[22px] pb-[8px]">
-      {(!!flow.category || !!flow.cost || flow.free) && (
+      {(!!flow.format || !!flow.category || !!flow.cost || flow.free) && (
         <div className="flex items-center gap-[10px] flex-wrap text-[13px]">
-          {!!flow.category && (
+          {!!(flow.format || flow.category) && (
             <span className="inline-flex items-center h-[22px] px-[10px] rounded-full text-[12px] font-[600] bg-tealSoft text-tealText">
-              {flowCategoryLabel(t, flow.category)}
+              {flowFormatLabel(t, flow)}
             </span>
           )}
           <FlowCost flow={flow} />
@@ -590,14 +592,61 @@ const FlowDetailBody: FC<{
   );
 };
 
-const FlowAside: FC<{
+interface FlowDrawerProps {
   flow: Flow;
   related: Flow[];
+  // Flows open with Plus: without it the drawer offers Plus instead
+  locked?: boolean;
+  // opens the new custom flow dialog based on this one; missing when My
+  // flows is not open
+  onCustomize?: (id: string) => void;
   onClose: () => void;
   onOpen: (id: string) => void;
-}> = ({ flow, related, onClose, onOpen }) => {
+}
+
+// Starts a custom flow based on a library flow: the new custom flow dialog
+// opens with the base set, for the user's agent to make it.
+const CustomizeButton: FC<{
+  flow: Flow;
+  onCustomize: (id: string) => void;
+}> = ({ flow, onCustomize }) => {
   const t = useT();
-  const { copyPrompt, label } = useCopyPrompt(flow);
+  return (
+    <button
+      type="button"
+      onClick={() => onCustomize(flow.id)}
+      className="w-full h-[40px] rounded-[8px] border border-newTableBorder hover:border-tealText text-[14px] font-[600] transition-colors"
+    >
+      {t('flows_customize', 'Customize')}
+    </button>
+  );
+};
+
+// What a workspace without Plus gets in place of the prompt.
+const PlusButton: FC = () => {
+  const t = useT();
+  return (
+    <button
+      type="button"
+      onClick={() => openPlus()}
+      className="w-full h-[44px] rounded-[8px] bg-btnPrimary hover:brightness-110 text-white text-[15px] font-[600] inline-flex items-center justify-center gap-[8px] transition-all"
+    >
+      <LockIcon size={14} />
+      {t('flows_get_plus_to_run', 'Get Plus to run this flow')}
+    </button>
+  );
+};
+
+const FlowAside: FC<FlowDrawerProps> = ({
+  flow,
+  related,
+  locked,
+  onCustomize,
+  onClose,
+  onOpen,
+}) => {
+  const t = useT();
+  const { copyPrompt, label } = useCopyPrompt(flow.prompt);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -633,15 +682,24 @@ const FlowAside: FC<{
           related={related}
           onOpen={onOpen}
           cta={
-            flow.prompt ? (
-              <button
-                type="button"
-                onClick={copyPrompt}
-                className="w-full h-[44px] rounded-[8px] bg-btnPrimary hover:brightness-110 text-white text-[15px] font-[600] transition-all"
-              >
-                {label}
-              </button>
-            ) : null
+            locked ? (
+              <PlusButton />
+            ) : (
+              <>
+                {!!flow.prompt && (
+                  <button
+                    type="button"
+                    onClick={copyPrompt}
+                    className="w-full h-[44px] rounded-[8px] bg-btnPrimary hover:brightness-110 text-white text-[15px] font-[600] transition-all"
+                  >
+                    {label}
+                  </button>
+                )}
+                {!!onCustomize && (
+                  <CustomizeButton flow={flow} onCustomize={onCustomize} />
+                )}
+              </>
+            )
           }
         />
       </div>
@@ -649,31 +707,47 @@ const FlowAside: FC<{
   );
 };
 
-const FlowSheet: FC<{
-  flow: Flow;
-  related: Flow[];
-  onClose: () => void;
-  onOpen: (id: string) => void;
-}> = ({ flow, related, onClose, onOpen }) => {
-  const { copyPrompt, label } = useCopyPrompt(flow);
+const FlowSheet: FC<FlowDrawerProps> = ({
+  flow,
+  related,
+  locked,
+  onCustomize,
+  onClose,
+  onOpen,
+}) => {
+  const t = useT();
+  const { copyPrompt, label } = useCopyPrompt(flow.prompt);
   return (
     <BottomSheet
       title={flow.title}
       onClose={onClose}
-      button={flow.prompt ? { label, onClick: copyPrompt } : undefined}
+      button={
+        locked
+          ? {
+              label: t('flows_get_plus_to_run', 'Get Plus to run this flow'),
+              onClick: () => openPlus(),
+            }
+          : flow.prompt
+          ? { label, onClick: copyPrompt }
+          : undefined
+      }
     >
-      <FlowDetailBody flow={flow} related={related} onOpen={onOpen} />
+      <FlowDetailBody
+        flow={flow}
+        related={related}
+        onOpen={onOpen}
+        cta={
+          !locked && onCustomize ? (
+            <CustomizeButton flow={flow} onCustomize={onCustomize} />
+          ) : null
+        }
+      />
     </BottomSheet>
   );
 };
 
 // A side panel on desktop, a bottom sheet on phones.
-export const FlowDrawer: FC<{
-  flow: Flow;
-  related: Flow[];
-  onClose: () => void;
-  onOpen: (id: string) => void;
-}> = (props) => {
+export const FlowDrawer: FC<FlowDrawerProps> = (props) => {
   const mobile = useMediaMatch(MOBILE_MEDIA_QUERY);
   return mobile ? <FlowSheet {...props} /> : <FlowAside {...props} />;
 };

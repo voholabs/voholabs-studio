@@ -737,7 +737,7 @@ const DAY_OPTIONS = [7, 30, 90];
 const UsageTab: FC<{ f: WalletFormat }> = ({ f }) => {
   const t = useT();
   const [days, setDays] = useState(30);
-  // Read on every plan: welcome credits are spent too (images, voice-overs).
+  // Read on every plan: granted credits are spent too (images, voice-overs).
   const { data, isLoading } = useWalletUsage(days);
   const find = usePriceLookup();
 

@@ -100,8 +100,8 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
   });
   const apexBanner = useApexBanner(user?.tier === 'FREE');
   // The early-bird bar takes the Apex bar's place while it runs (also on the
-  // Plus page, where it is hidden). Not over the onboarding, which shows the
-  // offer itself.
+  // Plus page, where it is hidden). Not over the onboarding: finishing it
+  // starts the early bird.
   const earlyBird = useEarlyBirdBanner(
     user?.tier === 'FREE' && !user?.needsOnboarding
   );
@@ -117,9 +117,7 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
 
   // Until onboarding is finished the app stays on its steps, which open over
   // the calendar. The wallet and Plus stay reachable (opened in a new tab).
-  // The same while the welcome credits wait on a decision.
-  const holdOnOnboarding =
-    !!user?.needsOnboarding || !!user?.welcomeCreditsPending;
+  const holdOnOnboarding = !!user?.needsOnboarding;
   useEffect(() => {
     if (
       holdOnOnboarding &&

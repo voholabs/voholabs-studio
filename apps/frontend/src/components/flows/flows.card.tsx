@@ -36,6 +36,28 @@ export const flowCategoryLabel = (t: T, key?: string) => {
   }
 };
 
+// The tag on a card: what the flow makes, else its category.
+export const flowFormatLabel = (t: T, flow: Pick<Flow, 'format' | 'category'>) => {
+  switch (flow.format) {
+    case 'short-video':
+      return t('flows_format_short_video', 'Short video');
+    case 'long-video':
+      return t('flows_format_long_video', 'Long video');
+    case 'carousel':
+      return t('flows_format_carousel', 'Carousel');
+    case 'infographic':
+      return t('flows_format_infographic', 'Infographic');
+    case 'image':
+      return t('flows_format_image', 'Image');
+    case 'writing':
+      return t('flows_format_writing', 'Writing');
+    case 'brief':
+      return t('flows_format_brief', 'Brand brief');
+    default:
+      return flowCategoryLabel(t, flow.category);
+  }
+};
+
 export const isNewFlow = (flow: Flow) =>
   !!flow.addedAt &&
   dayjs(flow.addedAt).isValid() &&
@@ -269,8 +291,22 @@ const PlayGlyph = () => (
   </svg>
 );
 
+// Flows open with Plus: a workspace without it sees the catalog with this on
+// each card.
+export const FlowPlusPill: FC = () => {
+  const t = useT();
+  return (
+    <span className="inline-flex items-center gap-[5px] h-[20px] px-[8px] rounded-full text-[11px] font-[600] bg-black/60 border border-warmRing text-warm backdrop-blur-[6px]">
+      <LockIcon size={10} />
+      {t('flows_plus_pill', 'Plus')}
+    </span>
+  );
+};
+
 const FlowCardInner: FC<{
   flow: Flow;
+  // shows the Plus lock (a workspace without Plus)
+  locked?: boolean;
   // a key unique on the page: the same flow can sit in a rail and the grid
   playKey: string;
   playing: boolean;
@@ -280,6 +316,7 @@ const FlowCardInner: FC<{
   onVisible?: (key: string, visible: boolean) => void;
 }> = ({
   flow,
+  locked,
   playKey,
   playing,
   size = 'grid',
@@ -361,14 +398,15 @@ const FlowCardInner: FC<{
       <span className="absolute inset-0 -z-10 bg-gradient-to-t from-black/95 via-black/50 to-black/10 pointer-events-none" />
       {!small && (
         <span className="flex items-start gap-[6px] p-[10px]">
-          {!!flow.category && (
+          {!!(flow.format || flow.category) && (
             <span className="inline-flex items-center h-[20px] px-[8px] rounded-full text-[11px] font-[600] bg-black/60 border border-white/15 text-white backdrop-blur-[6px]">
-              {flowCategoryLabel(t, flow.category)}
+              {flowFormatLabel(t, flow)}
             </span>
           )}
           <span className="flex-1" />
           <FlowSlideCount flow={flow} />
           <FlowBadges flow={flow} />
+          {locked && <FlowPlusPill />}
         </span>
       )}
       <span className="flex-1 min-h-[12px] flex items-center justify-center">

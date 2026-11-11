@@ -233,9 +233,10 @@ export class WalletPlusService {
     }
   }
 
-  // The early bird's windows for a workspace: it starts when onboarding's
-  // last step decides the welcome credits (claimed or skipped, whichever came
-  // first), lasts `minutes`, then `extensionHours` more. Never for a
+  // The early bird's windows for a workspace: it starts when its admin
+  // finishes onboarding (before the welcome credits were retired: when they
+  // were claimed or skipped; whichever came first counts), lasts `minutes`,
+  // then `extensionHours` more. Never for a
   // workspace that ever had Plus (the first payment only), and not without
   // the settings.
   async earlyBirdWindow(organizationId: string) {
@@ -251,7 +252,11 @@ export class WalletPlusService {
       this._wallet.welcomeClaimedAt(organizationId),
       this._wallet.getWallet(organizationId),
     ]);
-    const decided = [claimedAt, wallet?.welcomeCreditsSkippedAt]
+    const decided = [
+      claimedAt,
+      wallet?.welcomeCreditsSkippedAt,
+      wallet?.earlyBirdStartedAt,
+    ]
       .filter((d): d is Date => !!d)
       .map((d) => d.getTime());
     if (!decided.length || wallet?.plusSubscriptionId) {
@@ -1107,11 +1112,12 @@ export class WalletPlusService {
     }
   }
 
-  // Makes the workspace's early-bird code and starts the workflow that sends
-  // the one early-bird extension email. Called when the welcome credits are
-  // claimed or skipped; never fails the caller.
+  // Starts the early bird (once), makes the workspace's code and starts the
+  // workflow that sends the one early-bird extension email. Called when the
+  // admin finishes onboarding; never fails the caller.
   async startEarlyBird(organizationId: string) {
     try {
+      await this._wallet.markEarlyBirdStarted(organizationId);
       if (!(await this.earlyBirdWindow(organizationId))) {
         return;
       }

@@ -34,6 +34,32 @@ export const useMenuItem = () => {
 
   const firstMenu = [
     {
+      name: t('home', 'Home'),
+      icon: (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="21"
+          height="21"
+          viewBox="0 0 22 22"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          {/* A house with a door. */}
+          <path d="M2.5 9.6 11 2.8l8.5 6.8" />
+          <path d="M4.5 8v9.2c0 1.1.9 2 2 2h9c1.1 0 2-.9 2-2V8" />
+          <path d="M9 19.2v-4.7c0-.6.4-1 1-1h2c.6 0 1 .4 1 1v4.7" />
+        </svg>
+      ),
+      path: '/home',
+      // Hidden while Home is being reworked; /home still works by URL.
+      // Restore `hide: !isGeneral` (and the `/` redirect in proxy.ts) to bring
+      // it back.
+      hide: true,
+    },
+    {
       name: isGeneral ? t('calendar', 'Calendar') : t('launches', 'Launches'),
       icon: (
         <svg
@@ -53,6 +79,69 @@ export const useMenuItem = () => {
         </svg>
       ),
       path: '/launches',
+    },
+    {
+      name: t('brief', 'Brand brief'),
+      icon: (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="22"
+          height="22"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          {/* Someone briefing someone: a person and what they are saying.
+              The scene it comes from has two people, a document and two
+              bubbles, which is a smudge at 22px — a person plus one bubble is
+              what survives. The bubble is square-ish and off to the side so it
+              does not read as the Agent chat icon, which is a round centred
+              bubble with the same two lines in it. */}
+          <rect x="12.2" y="2.6" width="9.4" height="7.6" rx="1.8" />
+          <path d="M15 10.2 13.8 13 17.4 10.2" />
+          <path d="M14.6 5.3h4.8M14.6 7.6h2.8" />
+          <circle cx="6.5" cy="12.8" r="2.9" />
+          <path d="M1.5 21.3c0-3 2.2-5.3 5-5.3s5 2.3 5 5.3" />
+        </svg>
+      ),
+      path: '/brief',
+      ...(paidPlan
+        ? { requireAi: true }
+        : {
+            titleInfo: t(
+              'brief_title_info',
+              "Your brand brief is what your agent knows about your business: who you are, who you're for, how you sound and look, and what's off limits. It steers everything your agent makes. Fill it in here, have another agent fill it in over MCP, or just talk to your agent."
+            ),
+          }),
+    },
+    {
+      name: t('flows', 'Flows'),
+      icon: (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="21"
+          height="21"
+          viewBox="0 0 22 22"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          {/* A play frame with a sparkle: ready-made media you can make. */}
+          <rect x="2.5" y="5.5" width="13" height="13" rx="3" />
+          <path d="M7.6 9.4v5.2l4.3-2.6-4.3-2.6Z" />
+          <path d="M18.4 1.6c.25 1.25.85 1.85 2.1 2.1-1.25.25-1.85.85-2.1 2.1-.25-1.25-.85-1.85-2.1-2.1 1.25-.25 1.85-.85 2.1-2.1Z" />
+        </svg>
+      ),
+      path: '/flows',
+      titleInfo: t(
+        'flows_title_info',
+        'Ready-made marketing jobs your agent runs for you, like whiteboard explainer videos. Copy a prompt into your agent and it does the rest in the chat.'
+      ),
     },
     {
       name: t('analytics', 'Analytics'),
@@ -95,69 +184,6 @@ export const useMenuItem = () => {
         </svg>
       ),
       path: '/media',
-    },
-    {
-      name: t('brief', 'Brief'),
-      icon: (
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="22"
-          height="22"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.6"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          {/* Someone briefing someone: a person and what they are saying.
-              The scene it comes from has two people, a document and two
-              bubbles, which is a smudge at 22px — a person plus one bubble is
-              what survives. The bubble is square-ish and off to the side so it
-              does not read as the Agent chat icon, which is a round centred
-              bubble with the same two lines in it. */}
-          <rect x="12.2" y="2.6" width="9.4" height="7.6" rx="1.8" />
-          <path d="M15 10.2 13.8 13 17.4 10.2" />
-          <path d="M14.6 5.3h4.8M14.6 7.6h2.8" />
-          <circle cx="6.5" cy="12.8" r="2.9" />
-          <path d="M1.5 21.3c0-3 2.2-5.3 5-5.3s5 2.3 5 5.3" />
-        </svg>
-      ),
-      path: '/brief',
-      ...(paidPlan
-        ? { requireAi: true }
-        : {
-            titleInfo: t(
-              'brief_title_info',
-              'Brief is the structured document about your brand, audience, voice and channels. It steers what your agent writes. Imagine you are briefing your chief marketing officer: you can brief the agent manually, via MCP using another agent, or by talking directly to the agent.'
-            ),
-          }),
-    },
-    {
-      name: t('flows', 'Flows'),
-      icon: (
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="21"
-          height="21"
-          viewBox="0 0 22 22"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.7"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          {/* A play frame with a sparkle: ready-made media you can make. */}
-          <rect x="2.5" y="5.5" width="13" height="13" rx="3" />
-          <path d="M7.6 9.4v5.2l4.3-2.6-4.3-2.6Z" />
-          <path d="M18.4 1.6c.25 1.25.85 1.85 2.1 2.1-1.25.25-1.85.85-2.1 2.1-.25-1.25-.85-1.85-2.1-2.1 1.25-.25 1.85-.85 2.1-2.1Z" />
-        </svg>
-      ),
-      path: '/flows',
-      titleInfo: t(
-        'flows_title_info',
-        'Ready-made marketing jobs your agent runs for you, like whiteboard explainer videos. Copy a prompt into your agent and it does the rest in the chat.'
-      ),
     },
     {
       name: t('agent', 'Agent'),

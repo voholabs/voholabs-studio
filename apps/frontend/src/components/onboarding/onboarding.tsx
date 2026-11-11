@@ -12,9 +12,8 @@ export const Onboarding: FC = () => {
   const router = useRouter();
   const modalOpen = useRef(false);
   // Until it is finished, onboarding opens by itself and cannot be closed.
-  // So does a finished one while the welcome credits wait on a decision.
   const user = useUser();
-  const mandatory = !!user?.needsOnboarding || !!user?.welcomeCreditsPending;
+  const mandatory = !!user?.needsOnboarding;
 
   const handleClose = useCallback(() => {
     modal.closeAll();

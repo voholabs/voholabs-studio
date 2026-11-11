@@ -111,3 +111,50 @@ describe('skipsPolicies', () => {
     expect(skipsPolicies('/posts')).toBe(false);
   });
 });
+
+describe('PermissionsService FLOWS section', () => {
+  const OLD_ENV = process.env;
+  beforeEach(() => {
+    process.env = { ...OLD_ENV, STRIPE_PUBLISHABLE_KEY: 'pk_test' };
+  });
+  afterEach(() => {
+    process.env = OLD_ENV;
+  });
+
+  const flows = async (subscription: any, unlocked: string[]) => {
+    const unlocks = jest.fn(async (_org: string, key: string) =>
+      unlocked.includes(key)
+    );
+    const ability = await new PermissionsService(
+      {
+        getSubscriptionByOrganizationId: jest.fn(async () => subscription),
+        getSubscription: jest.fn(async () => subscription),
+      } as any,
+      {} as any,
+      { getIntegrationsList: jest.fn(async () => []) } as any,
+      {} as any,
+      { unlocks } as any
+    ).check('org', new Date(), 'USER', [
+      [AuthorizationActions.Create, Sections.FLOWS],
+    ]);
+    return {
+      open: ability.can(AuthorizationActions.Create, Sections.FLOWS),
+      unlocks,
+    };
+  };
+  const expired = { ...whitelisted, subscriptionTier: 'FREE', cancelAt: '2020-01-01' };
+
+  it('opens on a paid plan', async () => {
+    expect((await flows(whitelisted, [])).open).toBe(true);
+  });
+
+  it('opens on the free plan once Plus opens the flows key', async () => {
+    const plus = await flows(expired, ['flows']);
+    expect(plus.open).toBe(true);
+    expect(plus.unlocks).toHaveBeenCalledWith('org', 'flows');
+  });
+
+  it('stays closed on the free plan without Plus, even with skills open', async () => {
+    expect((await flows(expired, ['skills', 'brief'])).open).toBe(false);
+  });
+});

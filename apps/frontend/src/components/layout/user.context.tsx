@@ -24,9 +24,6 @@ export const UserContext = createContext<
       // End of the free trial, `null` when whitelisted forever
       trialEndsAt: string | null;
       needsOnboarding: boolean;
-      // Onboarded before the welcome credits: the onboarding opens once more
-      // until they are claimed or turned down.
-      welcomeCreditsPending?: boolean;
       needsTerms: boolean;
       streakSince: string | null;
     })

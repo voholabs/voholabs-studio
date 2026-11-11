@@ -1,21 +1,22 @@
 'use client';
 
-import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { FC, useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
 import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
 import { InfoIcon } from '@gitroom/frontend/components/wallet-locks/wallet.icons';
 import { ChevronIcon } from '@gitroom/frontend/components/wallet/wallet.ui';
-import { Flow, useFlows } from '@gitroom/frontend/components/flows/flows.hooks';
+import {
+  Flow,
+  useFlows,
+  useUserFlows,
+} from '@gitroom/frontend/components/flows/flows.hooks';
+import { MyFlowsSection } from '@gitroom/frontend/components/flows/flows.mine';
+import { useOpenNewCustomFlow } from '@gitroom/frontend/components/flows/flows.new';
 import {
   FLOW_CATEGORIES,
-  FlowBadges,
   FlowCard,
-  FlowCost,
-  FlowPoster,
-  FlowResearchLock,
   flowCategoryLabel,
-  useInView,
   usePreviewPolicy,
 } from '@gitroom/frontend/components/flows/flows.card';
 import { FlowDrawer } from '@gitroom/frontend/components/flows/flows.drawer';
@@ -32,7 +33,7 @@ const addedTime = (flow: Flow) => {
 };
 
 // Featured first, then the newest.
-const sortFlows = (flows: Flow[], sort: Sort) =>
+export const sortFlows = (flows: Flow[], sort: Sort) =>
   [...flows].sort((a, b) => {
     if (sort === 'az') {
       return a.title.localeCompare(b.title);
@@ -46,10 +47,17 @@ const sortFlows = (flows: Flow[], sort: Sort) =>
     );
   });
 
-// Rails and the hero only show while browsing, and rails only once the
-// catalog is big enough that they don't repeat the grid.
-const RAIL_MIN_FLOWS = 8;
-const RAIL_SIZE = 12;
+// The drawer's related flows: up to three others in the same category.
+export const relatedFlows = (flows: Flow[], selected?: Flow) =>
+  selected?.category
+    ? flows
+        .filter(
+          (flow) =>
+            flow.category === selected.category && flow.id !== selected.id
+        )
+        .slice(0, 3)
+    : [];
+
 const SORT_MIN_FLOWS = 24;
 
 const SearchIcon = () => (
@@ -69,136 +77,6 @@ const SearchIcon = () => (
     />
   </svg>
 );
-
-const FlowHero: FC<{
-  flow: Flow;
-  autoplay: boolean;
-  onOpen: (id: string) => void;
-  onInView: (inView: boolean) => void;
-}> = ({ flow, autoplay, onOpen, onInView }) => {
-  const t = useT();
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, autoplay, 0.5);
-  useEffect(() => {
-    onInView(inView);
-  }, [inView, onInView]);
-  useEffect(() => () => onInView(false), [onInView]);
-
-  // Text on solid black at the start, the example whole (contained, never
-  // cropped) at the end: a light video would wash out text laid over it.
-  // Phones stack the video above the text.
-  return (
-    <div
-      ref={ref}
-      className="relative w-full flex items-stretch mobile:flex-col-reverse rounded-[16px] overflow-hidden bg-black shrink-0"
-    >
-      <div className="relative z-[1] flex-1 min-w-0 flex flex-col justify-end gap-[10px] p-[32px] mobile:p-[18px]">
-        <div className="flex items-center gap-[6px] flex-wrap">
-          {!!flow.category && (
-            <span className="inline-flex items-center h-[20px] px-[8px] rounded-full text-[11px] font-[600] bg-white/10 text-white/85">
-              {flowCategoryLabel(t, flow.category)}
-            </span>
-          )}
-          <FlowBadges flow={flow} />
-        </div>
-        <button
-          type="button"
-          onClick={() => onOpen(flow.id)}
-          className="text-start text-[34px] tablet:text-[28px] mobile:text-[24px] font-[700] leading-[1.1] text-white line-clamp-3 hover:underline decoration-2 underline-offset-4"
-        >
-          {flow.title}
-        </button>
-        <div className="text-[15px] mobile:text-[13px] text-white/75 leading-[1.5] line-clamp-3">
-          {flow.summary}
-        </div>
-        <FlowResearchLock flow={flow} />
-        <div className="flex items-center gap-[14px] flex-wrap mt-[4px]">
-          <button
-            type="button"
-            onClick={() => onOpen(flow.id)}
-            className="h-[42px] px-[22px] rounded-[8px] bg-btnPrimary hover:brightness-110 text-white text-[15px] font-[600] transition-all"
-          >
-            {t('flows_make_this', 'Make this')}
-          </button>
-          <span className="text-[13px] text-white/85">
-            <FlowCost flow={flow} overlay={true} short={true} />
-          </span>
-        </div>
-      </div>
-      <div className="relative w-[60%] mobile:w-full aspect-video max-h-[min(60vh,560px)] shrink-0">
-        <FlowPoster flow={flow} contain={true} />
-        {autoplay && inView && !!flow.exampleVideo && (
-          <video
-            className="absolute inset-0 w-full h-full object-contain"
-            src={flow.exampleVideo}
-            poster={flow.poster}
-            muted
-            loop
-            playsInline
-            autoPlay
-            preload="none"
-          />
-        )}
-        <div className="absolute inset-y-0 start-0 w-[48px] bg-gradient-to-r from-black to-transparent pointer-events-none mobile:hidden" />
-      </div>
-    </div>
-  );
-};
-
-const FlowRail: FC<{
-  title: string;
-  flows: Flow[];
-  railKey: string;
-  playing: (key: string) => boolean;
-  onOpen: (id: string) => void;
-  onHover?: (key: string | null) => void;
-  onVisible?: (key: string, visible: boolean) => void;
-  onSeeAll?: () => void;
-}> = ({
-  title,
-  flows,
-  railKey,
-  playing,
-  onOpen,
-  onHover,
-  onVisible,
-  onSeeAll,
-}) => {
-  const t = useT();
-  return (
-    <section className="flex flex-col gap-[10px] min-w-0">
-      <div className="flex items-center gap-[12px]">
-        <h2 className="flex-1 text-[18px] font-[700]">{title}</h2>
-        {!!onSeeAll && (
-          <button
-            type="button"
-            onClick={onSeeAll}
-            className="text-[13px] font-[600] text-tealText hover:underline"
-          >
-            {t('flows_see_all', 'See all')}
-          </button>
-        )}
-      </div>
-      <div className="flex gap-[12px] overflow-x-auto snap-x snap-mandatory pb-[6px] -mx-[20px] px-[20px] scroll-px-[20px]">
-        {flows.map((flow) => {
-          const key = `${railKey}:${flow.id}`;
-          return (
-            <FlowCard
-              key={flow.id}
-              flow={flow}
-              playKey={key}
-              playing={playing(key)}
-              size="rail"
-              onOpen={onOpen}
-              onHover={onHover}
-              onVisible={onVisible}
-            />
-          );
-        })}
-      </div>
-    </section>
-  );
-};
 
 const FlowFilterBar: FC<{
   categories: string[];
@@ -282,12 +160,18 @@ const FlowFilterBar: FC<{
 export const FlowsPage: FC = () => {
   const t = useT();
   const { data, isLoading, error } = useFlows();
+  const { data: mine, mutate: refreshMine } = useUserFlows();
+  const locked = !!mine?.locked;
+  const refresh = useCallback(() => {
+    refreshMine();
+  }, [refreshMine]);
+  // A new custom flow based on a library flow, made by the user's agent.
+  const customize = useOpenNewCustomFlow();
   const pathname = usePathname();
   const [category, setCategory] = useState('');
   const [query, setQuery] = useState('');
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<Sort>('featured');
-  const gridRef = useRef<HTMLDivElement>(null);
 
   // The open flow lives in the URL (/flows/<id>) so it can be shared.
   const open = useMemo(() => {
@@ -308,11 +192,10 @@ export const FlowsPage: FC = () => {
   }, [query]);
 
   // Muted previews: the hovered card on desktop; on phones the first cards
-  // scrolled into view, at most two at once counting the hero.
+  // scrolled into view, at most two at once.
   const policy = usePreviewPolicy();
   const [hovered, setHovered] = useState<string | null>(null);
   const [visible, setVisible] = useState<string[]>([]);
-  const [heroInView, setHeroInView] = useState(false);
   const onVisible = useCallback((key: string, inView: boolean) => {
     setVisible((list) =>
       inView
@@ -325,8 +208,8 @@ export const FlowsPage: FC = () => {
     );
   }, []);
   const playingOnScroll = useMemo(
-    () => new Set(visible.slice(0, heroInView && policy.autoplay ? 1 : 2)),
-    [visible, heroInView, policy.autoplay]
+    () => new Set(visible.slice(0, 2)),
+    [visible]
   );
   const playing = useCallback(
     (key: string) =>
@@ -374,31 +257,9 @@ export const FlowsPage: FC = () => {
     return sort === 'featured' ? list : sortFlows(list, sort);
   }, [flows, category, search, sort, t]);
 
-  const browsing = !category && !search;
-  const hero = useMemo(
-    () =>
-      flows.find((flow) => flow.featured && flow.exampleVideo) ||
-      flows.find((flow) => flow.featured) ||
-      flows.find((flow) => flow.exampleVideo),
-    [flows]
-  );
-  const featured = useMemo(
-    () => flows.filter((flow) => flow.featured && flow.id !== hero?.id),
-    [flows, hero]
-  );
-  const showRails = browsing && flows.length > RAIL_MIN_FLOWS;
-
   const selected = open ? flows.find((flow) => flow.id === open) : undefined;
   const related = useMemo(
-    () =>
-      selected?.category
-        ? flows
-            .filter(
-              (flow) =>
-                flow.category === selected.category && flow.id !== selected.id
-            )
-            .slice(0, 3)
-        : [],
+    () => relatedFlows(flows, selected),
     [flows, selected]
   );
 
@@ -407,11 +268,6 @@ export const FlowsPage: FC = () => {
     setQuery('');
     setSearch('');
   }, []);
-  const seeAll = useCallback((key: string) => {
-    setCategory(key);
-    gridRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, []);
-
   if (isLoading && !data) {
     return <LoadingComponent />;
   }
@@ -444,56 +300,19 @@ export const FlowsPage: FC = () => {
               <InfoIcon />
             </span>
           </div>
+          <MyFlowsSection state={mine} library={data} onChanged={refresh} />
+          {!!mine && (
+            <h2 className="text-[22px] font-[700] -mb-[12px]">
+              {t('flows_library_title', 'Voho library')}
+            </h2>
+          )}
           {error || !flows.length ? (
             <div className="text-[14px] text-textItemBlur py-[40px] text-center">
               {t('flows_none', 'No flows yet. New ones land here first.')}
             </div>
           ) : (
             <>
-              {browsing && !!hero && (
-                <FlowHero
-                  flow={hero}
-                  autoplay={policy.autoplay}
-                  onOpen={openFlow}
-                  onInView={setHeroInView}
-                />
-              )}
-              {browsing && featured.length > 0 && (
-                <FlowRail
-                  title={t('flows_featured', 'Featured')}
-                  railKey="featured"
-                  flows={featured}
-                  playing={playing}
-                  onOpen={openFlow}
-                  onHover={cardHover}
-                  onVisible={cardVisible}
-                />
-              )}
-              {showRails &&
-                categories.map((key) => (
-                  <FlowRail
-                    key={key}
-                    title={flowCategoryLabel(t, key)}
-                    railKey={key}
-                    flows={flows
-                      .filter((flow) => flow.category === key)
-                      .slice(0, RAIL_SIZE)}
-                    playing={playing}
-                    onOpen={openFlow}
-                    onHover={cardHover}
-                    onVisible={cardVisible}
-                    onSeeAll={() => seeAll(key)}
-                  />
-                ))}
-              <section
-                ref={gridRef}
-                className="flex flex-col gap-[14px] scroll-mt-[20px]"
-              >
-                {browsing && (!!hero || featured.length > 0) && (
-                  <h2 className="text-[18px] font-[700]">
-                    {t('flows_all_flows', 'All flows')}
-                  </h2>
-                )}
+              <section className="flex flex-col gap-[14px]">
                 <FlowFilterBar
                   categories={categories}
                   category={category}
@@ -529,6 +348,7 @@ export const FlowsPage: FC = () => {
                         <FlowCard
                           key={flow.id}
                           flow={flow}
+                          locked={locked}
                           playKey={key}
                           playing={playing(key)}
                           onOpen={openFlow}
@@ -548,6 +368,8 @@ export const FlowsPage: FC = () => {
         <FlowDrawer
           key={selected.id}
           flow={selected}
+          locked={locked}
+          onCustomize={mine && !locked ? customize : undefined}
           related={related}
           onClose={close}
           onOpen={openFlow}

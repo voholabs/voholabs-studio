@@ -1,8 +1,5 @@
 'use client';
 
-import { useRefreshWallet } from '@gitroom/frontend/components/wallet/wallet.hooks';
-import { usePlusPlan } from '@gitroom/frontend/components/plus/plus.hooks';
-import { EarlyBirdOfferBox } from '@gitroom/frontend/components/plus/plus.offer';
 import {
   useFireEvents,
   useTrackView,
@@ -42,13 +39,6 @@ import {
   briefStarted,
   useOnboardingStatus,
 } from '@gitroom/frontend/components/onboarding/use.onboarding.status';
-import { deleteDialog } from '@gitroom/react/helpers/delete.dialog';
-import {
-  POS_SOFT,
-  POS_TEXT,
-  TEAL_SOFT,
-  TEAL_TEXT,
-} from '@gitroom/frontend/components/wallet/wallet.ui';
 
 type OnboardingStepKey = 'channels' | 'agent' | 'brief' | 'start';
 
@@ -79,12 +69,9 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
   // A paid plan keeps the onboarding it always had: channels only.
   const paidPlan = useWalletAccess() === 'plan';
   // A new workspace goes through the steps before it gets in. Each one can be
-  // skipped; connecting its agent and having the agent fill at least one item
-  // of the brief earn the welcome credits.
+  // skipped.
   const needsOnboarding = !!user?.needsOnboarding;
-  // Onboarded before the welcome credits: shown again once, until they are
-  // claimed or turned down.
-  const mandatory = needsOnboarding || !!user?.welcomeCreditsPending;
+  const mandatory = needsOnboarding;
   // Only an admin holds the API key an agent connects with, so an invited
   // member sees the channels step only; the agent and the brief are the
   // admin's (the server applies the same rule).
@@ -101,17 +88,6 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
     mandatory || hasAgentStep,
     step === 'brief' || step === 'start'
   );
-  // The last step offers the welcome credits when there are any to claim.
-  const withCredits =
-    withBrief &&
-    !!status &&
-    (status.credits.available > 0 || status.credits.claimed);
-  // Steps 2 and 3 say what earns the credits while they can be claimed.
-  const creditsToClaim =
-    withCredits && !!status && status.credits.available > 0;
-  const backForCredits = useCallback(() => {
-    setStep('agent');
-  }, []);
   const query = useSearchParams();
   const { mutate } = useSWRConfig();
   const fetch = useFetch();
@@ -256,7 +232,6 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
                 step={step}
                 onGoTo={setStep}
                 withBrief={withBrief}
-                withCredits={withCredits}
                 status={status}
               />
             )}
@@ -279,24 +254,14 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
                 onBack={() => setStep('channels')}
                 onDone={() => setStep(withBrief ? 'brief' : 'start')}
                 required={withBrief}
-                creditsNote={creditsToClaim ? status?.credits : undefined}
               />
             ) : step === 'brief' ? (
               <OnboardingBriefStep
                 onBack={() => setStep('agent')}
                 onDone={() => setStep('start')}
                 status={status}
-                withCredits={withCredits}
-                creditsNote={creditsToClaim}
               />
-            ) : withBrief && !status ? null : withCredits && status ? (
-              <OnboardingClaimStep
-                status={status}
-                onBack={() => setStep('brief')}
-                onBackForCredits={backForCredits}
-                onDone={finish}
-              />
-            ) : (
+            ) : withBrief && !status ? null : (
               <OnboardingGetStartedStep
                 onBack={() => setStep(withBrief ? 'brief' : 'agent')}
                 onDone={mandatory ? finish : onClose}
@@ -309,8 +274,8 @@ export const OnboardingModal: FC<OnboardingModalProps> = ({ onClose }) => {
   );
 };
 
-// "1 Connect channels", "2 Connect your agent", "3 Teach your agent", "4 Claim free credit" (or
-// "Get started" when there are no credits to claim). Steps already passed
+// "1 Connect channels", "2 Connect your agent", "3 Teach your agent", "4 Get
+// started". Steps already passed
 // stay clickable to go back: ticked when the server says they are done
 // (a channel connected, the agent connected, one item of the brief filled), marked
 // skipped when they are not.
@@ -318,9 +283,8 @@ export const OnboardingStepper: FC<{
   step: OnboardingStepKey;
   onGoTo: (step: OnboardingStepKey) => void;
   withBrief?: boolean;
-  withCredits?: boolean;
   status?: OnboardingStatus;
-}> = ({ step, onGoTo, withBrief, withCredits, status }) => {
+}> = ({ step, onGoTo, withBrief, status }) => {
   const t = useT();
   const steps: { key: OnboardingStepKey; label: string; done: boolean }[] = [
     {
@@ -344,9 +308,7 @@ export const OnboardingStepper: FC<{
       : []),
     {
       key: 'start',
-      label: withCredits
-        ? t('onboarding_step_claim_credit', 'Claim free credit')
-        : t('onboarding_step_get_started', 'Get started'),
+      label: t('onboarding_step_get_started', 'Get started'),
       done: false,
     },
   ];
@@ -646,42 +608,18 @@ export const OnboardingStep1: FC<{
   );
 };
 
-// What earns the welcome credits, shown on steps 2 and 3 while they can be
-// claimed.
-const CreditsNote: FC<{ available: number }> = ({ available }) => {
-  const t = useT();
-  return (
-    <div
-      className={clsx(
-        'rounded-[12px] px-[16px] py-[12px] text-[14px] font-[500]',
-        TEAL_SOFT,
-        TEAL_TEXT
-      )}
-    >
-      {t(
-        'onboarding_credits_note',
-        'To get your {{credits}} free credits, connect your agent and let it fill in at least one item under What your agent knows.',
-        { credits: available / 100 }
-      )}
-    </div>
-  );
-};
-
 // Second step: connect the agent. The panel asks which agent first, then shows
 // that agent's steps only. During a new workspace's onboarding the person says
-// when they have done them. It can be skipped; only the welcome credits wait
-// on it.
+// when they have done them. It can be skipped.
 const OnboardingAgentStep: FC<{
   onBack: () => void;
   onDone: () => void;
   required?: boolean;
-  creditsNote?: OnboardingStatus['credits'];
-}> = ({ onBack, onDone, required, creditsNote }) => {
+}> = ({ onBack, onDone, required }) => {
   const t = useT();
   useTrackView('onboarding_step', { step: 'connect_agent' });
   return (
     <div className="flex flex-col gap-[24px] w-full max-w-[760px] mx-auto">
-      {!!creditsNote && <CreditsNote available={creditsNote.available} />}
       <div className="flex gap-[4px] flex-col text-center">
         <div className="text-[24px] font-semibold">
           {t('onboarding_connect_agent', 'Connect your agent')}
@@ -740,24 +678,19 @@ const OnboardingAgentStep: FC<{
 
 // Third step: the connected agent fills in the brief. The person pastes one
 // prompt into it; every document is listed and ticks off as it is saved. Next
-// waits until the agent has saved at least one, and Skip moves on without it
-// (the welcome credits wait on it). Back returns to the connect steps.
+// waits until the agent has saved at least one, and Skip moves on without it.
+// Back returns to the connect steps.
 const OnboardingBriefStep: FC<{
   onBack: () => void;
   onDone: () => void;
   status?: OnboardingStatus;
-  withCredits?: boolean;
-  creditsNote?: boolean;
-}> = ({ onBack, onDone, status, withCredits, creditsNote }) => {
+}> = ({ onBack, onDone, status }) => {
   const t = useT();
   useTrackView('onboarding_step', { step: 'brief' });
   const { data: connection } = useAgentConnection(true);
   const ready = !!status?.agent && briefStarted(status);
   return (
     <div className="flex flex-col gap-[24px] w-full max-w-[760px] mx-auto">
-      {creditsNote && !!status && (
-        <CreditsNote available={status.credits.available} />
-      )}
       <OnboardingTeachHeading />
       <OnboardingTeach status={status} connection={connection} />
       {/* Kept in view, so the ticks and Next are seen as the agent works. */}
@@ -791,9 +724,7 @@ const OnboardingBriefStep: FC<{
             disabled={!ready}
             className="flex items-center bg-btnPrimary hover:brightness-110 text-white font-semibold px-[28px] sm:px-[32px] h-[48px] rounded-[12px] text-[16px] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:brightness-100"
           >
-            {withCredits
-              ? t('onboarding_next_claim_credit', 'Next: claim free credit')
-              : t('onboarding_next_get_started', 'Next: get started')}
+            {t('onboarding_next_get_started', 'Next: get started')}
           </button>
         </div>
       </div>
@@ -901,228 +832,6 @@ const OnboardingGetStartedStep: FC<{
           className="ms-auto flex items-center bg-btnPrimary hover:brightness-110 text-white font-semibold px-[28px] sm:px-[32px] h-[48px] rounded-[12px] text-[16px] transition-all"
         >
           {t('onboarding_finish', 'Finish')}
-        </button>
-      </div>
-    </div>
-  );
-};
-
-// The early bird the claim (or a skip) started, with its live countdown.
-const OnboardingEarlyBird: FC = () => {
-  const { data: plan, mutate } = usePlusPlan(true);
-  if (!plan || plan.access.plus || !plan.paymentsEnabled) {
-    return null;
-  }
-  return (
-    <EarlyBirdOfferBox
-      offer={plan.offer}
-      earlyBird={plan.earlyBird}
-      offsetMs={plan.clockOffsetMs}
-      onExpire={() => mutate()}
-    />
-  );
-};
-
-// Last step when there are welcome credits: the agent connected and at least
-// one item of the brief filled earns them (the server checks again). Not there
-// yet, it lists what is missing and leads back to step 2. Skipping asks
-// first, since the credits are lost. Once claimed, the prompts to start with.
-const OnboardingClaimStep: FC<{
-  status: OnboardingStatus;
-  onBack: () => void;
-  onBackForCredits: () => void;
-  onDone: () => void;
-}> = ({ status, onBack, onBackForCredits, onDone }) => {
-  const t = useT();
-  const fetch = useFetch();
-  const toaster = useToaster();
-  const { mutate } = useSWRConfig();
-  const refreshWallet = useRefreshWallet();
-  useTrackView('onboarding_step', { step: 'claim_credit' });
-  const [claiming, setClaiming] = useState(false);
-  const { available, claimed, eligible } = status.credits;
-  const credits = available / 100;
-  const missing = [
-    ...(status.agent
-      ? []
-      : [t('onboarding_step_agent', 'Connect your agent')]),
-    ...(briefStarted(status)
-      ? []
-      : [
-          t(
-            'onboarding_credits_one_item',
-            'Let your agent fill in at least one item under What your agent knows'
-          ),
-        ]),
-  ];
-
-  const claim = useCallback(async () => {
-    setClaiming(true);
-    const res = await fetch('/user/onboarding/credits', {
-      method: 'POST',
-    }).catch(() => undefined);
-    await mutate('/user/onboarding');
-    setClaiming(false);
-    if (!res?.ok) {
-      toaster.show(
-        t(
-          'onboarding_credits_not_claimed',
-          'The credits could not be added. Check that your agent has filled in at least one item, then try again.'
-        ),
-        'warning'
-      );
-      return;
-    }
-    // The wallet and Plus (claiming starts the early bird).
-    refreshWallet();
-  }, [fetch, mutate, refreshWallet, toaster, t]);
-
-  const skip = useCallback(async () => {
-    if (
-      await deleteDialog(
-        t(
-          'onboarding_credits_skip_message',
-          'To get them, connect your agent and let it fill in at least one item under What your agent knows. It takes a few minutes.'
-        ),
-        t('onboarding_credits_skip_confirm', 'Skip, no credits'),
-        t('onboarding_credits_skip_title', "You'll miss {{credits}} free credits", {
-          credits,
-        }),
-        t('onboarding_credits_want', 'I want the credits')
-      )
-    ) {
-      // Turning them down is final, and recorded before onboarding ends.
-      const res = await fetch('/user/onboarding/credits/skip', {
-        method: 'POST',
-      }).catch(() => undefined);
-      if (!res?.ok) {
-        toaster.show(
-          t('onboarding_credits_skip_failed', 'Something went wrong. Try again.'),
-          'warning'
-        );
-        return;
-      }
-      // Skipping starts the early bird too.
-      refreshWallet();
-      onDone();
-      return;
-    }
-    onBackForCredits();
-  }, [t, credits, fetch, toaster, refreshWallet, onDone, onBackForCredits]);
-
-  if (claimed) {
-    return (
-      <div className="flex flex-col gap-[24px] w-full max-w-[760px] mx-auto">
-        <div className="flex gap-[4px] flex-col text-center">
-          <div className="text-[24px] font-semibold">
-            {t('onboarding_credits_claimed_title', 'Your free credits are in')}
-          </div>
-          <div className="text-[14px] text-textItemBlur">
-            {t(
-              'onboarding_credits_claimed_sub',
-              'They are in your wallet. Try your agent: copy one of these and paste it in.'
-            )}
-          </div>
-        </div>
-        <div
-          className={clsx(
-            'flex items-center gap-[10px] rounded-[12px] px-[16px] py-[12px] text-[14px] font-[600]',
-            POS_SOFT,
-            POS_TEXT
-          )}
-        >
-          <StepCheckIcon />
-          {t('onboarding_credits_added', 'Free credits added to your wallet')}
-        </div>
-        <OnboardingEarlyBird />
-        <div className="text-[18px] font-semibold">
-          {t('onboarding_get_started_title', 'Get started')}
-        </div>
-        <StartPrompts />
-        <div className="flex flex-wrap items-center justify-end gap-[12px] pt-[16px] border-t border-newBorder">
-          <button
-            type="button"
-            onClick={onDone}
-            className="flex items-center bg-btnPrimary hover:brightness-110 text-white font-semibold px-[28px] sm:px-[32px] h-[48px] rounded-[12px] text-[16px] transition-all"
-          >
-            {t('onboarding_finish', 'Finish')}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-[24px] w-full max-w-[760px] mx-auto">
-      <div className="flex gap-[4px] flex-col text-center">
-        <div className="text-[24px] font-semibold">
-          {t('onboarding_credits_title', 'Claim {{credits}} free credits', {
-            credits,
-          })}
-        </div>
-        <div className="text-[14px] text-textItemBlur">
-          {eligible
-            ? t(
-                'onboarding_credits_ready',
-                'Your agent knows your business. Claim your free credits and try it out.'
-              )
-            : t(
-                'onboarding_credits_how',
-                'To get them, connect your agent and let it fill in at least one item under What your agent knows.'
-              )}
-        </div>
-      </div>
-      {eligible ? (
-        <button
-          type="button"
-          onClick={claim}
-          disabled={claiming}
-          className="self-center flex items-center bg-btnPrimary hover:brightness-110 text-white font-semibold px-[32px] h-[52px] rounded-[12px] text-[16px] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:brightness-100"
-        >
-          {t('onboarding_credits_claim', 'Claim {{credits}} free credits', {
-            credits,
-          })}
-        </button>
-      ) : (
-        <div className="flex flex-col gap-[10px]">
-          <div className="text-[14px] font-[600]">
-            {t('onboarding_credits_missing', 'Still to do')}
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-[8px]">
-            {missing.map((item) => (
-              <div
-                key={item}
-                className="flex items-center gap-[10px] rounded-[10px] border border-newBorder px-[12px] py-[10px] text-[14px] text-textItemBlur"
-              >
-                <span className="shrink-0 w-[22px] h-[22px] rounded-full border border-newBorder" />
-                {item}
-              </div>
-            ))}
-          </div>
-          <button
-            type="button"
-            onClick={onBackForCredits}
-            className="self-center mt-[8px] flex items-center bg-btnPrimary hover:brightness-110 text-white font-semibold px-[32px] h-[48px] rounded-[12px] text-[16px] transition-all"
-          >
-            {t('onboarding_credits_complete', 'Complete the steps')}
-          </button>
-        </div>
-      )}
-      <div className="flex flex-wrap items-center justify-between gap-[12px] pt-[16px] border-t border-newBorder">
-        <button
-          type="button"
-          onClick={onBack}
-          className="flex items-center gap-[6px] text-[15px] font-[600] text-textItemBlur hover:text-newTextColor px-[8px] h-[44px]"
-        >
-          <BackArrowIcon />
-          {t('onboarding_back', 'Back')}
-        </button>
-        <button
-          type="button"
-          onClick={skip}
-          className="ms-auto text-[15px] font-[600] text-textItemBlur hover:text-newTextColor px-[12px] sm:px-[16px] h-[44px]"
-        >
-          {t('onboarding_skip', 'Skip')}
         </button>
       </div>
     </div>

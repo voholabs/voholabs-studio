@@ -17,9 +17,26 @@ jest.mock('@gitroom/frontend/components/launches/enabled.providers', () => ({
 }));
 
 import {
+  STEPS,
   moneyFunnelRows,
   moneyText,
 } from '@gitroom/frontend/components/admin/admin-growth.component';
+
+describe('STEPS', () => {
+  it('ends onboarding with the free credits claim or skip, not a tutorial', () => {
+    expect(STEPS.map((s) => s.key)).toEqual([
+      'signups',
+      'activated',
+      'onboarded',
+      'channelConnected',
+      'mcpConnected',
+      'claimedCredits',
+      'scheduledPost',
+      'toppedUp',
+    ]);
+    expect(STEPS.map((s) => s.label)).not.toContain('Watched tutorial');
+  });
+});
 
 describe('moneyFunnelRows', () => {
   const rows = moneyFunnelRows([

@@ -536,6 +536,32 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
     return createReadStream(path, { start, end });
   }
 
+  // YouTube only applies a custom thumbnail to a Short once the video has
+  // finished processing, so the thumbnail waits for it - but never longer than
+  // this, the video is already live.
+  private static readonly YOUTUBE_PROCESSING_WAIT_MS = 5 * 60 * 1000;
+
+  // True while YouTube is still processing the uploaded video, or does not
+  // report a status for it yet. Anything else (processed, failed, or a check we
+  // could not make) lets the thumbnail go ahead like before.
+  private async youtubeStillProcessing(accessToken: string, videoId: string) {
+    try {
+      const { client, youtube } = clientAndYoutube();
+      client.setCredentials({ access_token: accessToken });
+
+      setHeartbeatDetails('youtube: check video processing');
+      const { data } = await youtube(client).videos.list({
+        part: ['processingDetails'],
+        id: [videoId],
+      });
+
+      const status = data.items?.[0]?.processingDetails?.processingStatus;
+      return !status || status === 'processing';
+    } catch (err) {
+      return false;
+    }
+  }
+
   // Asks the upload session for the truth: the created video when the upload
   // completed, or the exact byte offset to resume from. We use the global fetch
   // because the probe answers with 308 (Resume Incomplete), which this.fetch
@@ -677,16 +703,21 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
       thumbnail: string;
       videoId?: string;
       postDbId?: string;
+      thumbnailWaitFrom?: number;
+      thumbnailNoWait?: boolean;
     },
     integration: Integration
   ): Promise<PendingCheckResponse> {
     let probe: { videoId: string } | { uploadedBytes: number };
     try {
-      probe = await this.probeUploadSession(
-        accessToken,
-        pendingData.uploadUri,
-        pendingData.videoSize
-      );
+      // the video already exists and only waits for its thumbnail
+      probe = pendingData.videoId
+        ? { videoId: pendingData.videoId }
+        : await this.probeUploadSession(
+            accessToken,
+            pendingData.uploadUri,
+            pendingData.videoSize
+          );
     } catch (err) {
       if (err instanceof RefreshToken || err instanceof BadBody) {
         throw err;
@@ -729,6 +760,8 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
       thumbnail: string;
       videoId?: string;
       postDbId?: string;
+      thumbnailWaitFrom?: number;
+      thumbnailNoWait?: boolean;
     },
     integration: Integration
   ): Promise<PendingCheckResponse> {
@@ -844,6 +877,22 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
     const releaseURL = `https://www.youtube.com/watch?v=${videoId}`;
 
     if (pendingData.thumbnail) {
+      const thumbnailWaitFrom = pendingData.thumbnailWaitFrom || Date.now();
+
+      // set too early, YouTube accepts the thumbnail of a Short and then does
+      // not show it: hand back to the workflow until the video is processed
+      if (
+        !pendingData.thumbnailNoWait &&
+        Date.now() - thumbnailWaitFrom <
+          YoutubeProvider.YOUTUBE_PROCESSING_WAIT_MS &&
+        (await this.youtubeStillProcessing(accessToken, videoId))
+      ) {
+        return {
+          status: 'pending',
+          pendingData: { ...pendingData, videoId, thumbnailWaitFrom },
+        };
+      }
+
       const { client, youtube } = clientAndYoutube();
       client.setCredentials({ access_token: accessToken });
       const youtubeClient = youtube(client);
@@ -901,7 +950,8 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
       return [response];
     }
 
-    let pendingData = response.pendingData;
+    // no durable timer to wait on here: the thumbnail is set right away
+    let pendingData = { ...response.pendingData, thumbnailNoWait: true };
     const started = Date.now();
 
     // eslint-disable-next-line no-constant-condition

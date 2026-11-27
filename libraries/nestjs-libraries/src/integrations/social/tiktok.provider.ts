@@ -473,6 +473,13 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
 
     const data = load?.data || {};
     const errorCode = load?.error?.code;
+
+    // an expired access token is not a posting limit: let the caller renew it
+    // and ask again, like every other call of this provider
+    if (this.handleErrors(String(errorCode))?.type === 'refresh-token') {
+      throw new RefreshToken(this.identifier, JSON.stringify(load), '{}');
+    }
+
     return {
       canPost: !errorCode || errorCode === 'ok',
       errorCode: errorCode && errorCode !== 'ok' ? errorCode : null,

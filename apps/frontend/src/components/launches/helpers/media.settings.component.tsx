@@ -326,7 +326,7 @@ export const MediaComponentInner: FC<{
     props.media?.thumbnail || null
   );
   const [thumbnailTimestamp, setThumbnailTimestamp] = useState<number | null>(
-    props.media?.thumbnailTimestamp || null
+    props.media?.thumbnailTimestamp ?? null
   );
 
   useEffect(() => {
@@ -449,6 +449,7 @@ export const MediaComponentInner: FC<{
                       onClick={() => {
                         setNewThumbnail(null);
                         setThumbnail(null);
+                        setThumbnailTimestamp(null);
                       }}
                       className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-opacity-80 transition-all flex-1 border border-red-700 whitespace-nowrap"
                     >

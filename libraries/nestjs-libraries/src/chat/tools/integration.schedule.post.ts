@@ -158,7 +158,7 @@ If validation fails, the result contains output.errors describing what to fix; t
                     attachments: z
                       .array(attachment)
                       .describe(
-                        'The media of the post: either a URL / media-library path string, or { path, alt?, thumbnail?, thumbnailTimestamp? } where path is the media URL, alt is its alt text, thumbnail is the path of a jpeg/png used as the video thumbnail / cover, and thumbnailTimestamp is the video frame used as the cover, in milliseconds. An external URL (path or thumbnail) is automatically copied into the media library before saving, so the post stores a durable path instead of a link that can expire.'
+                        'The media of the post: either a URL / media-library path string, or { path, alt?, thumbnail?, thumbnailTimestamp? } where path is the media URL, alt is its alt text, thumbnail is the path of a jpeg/png used as the video thumbnail / cover, and thumbnailTimestamp is the video frame used as the cover, in milliseconds. A TikTok direct video post takes its cover from thumbnailTimestamp: the TikTok Content Posting API has no cover image, so thumbnail alone leaves the choice of cover to TikTok. An external URL (path or thumbnail) is automatically copied into the media library before saving, so the post stores a durable path instead of a link that can expire.'
                       ),
                     linkToPostIds: z
                       .array(z.string())
